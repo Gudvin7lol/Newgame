@@ -1,0 +1,78 @@
+name: Build Zamer APK v0.9 Alpha 1 B64
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'zamer-v090-alpha1-source.b64'
+      - '.github/workflows/build-zamer-v090-from-b64.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+
+      - name: Restore Zamer source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f zamer-v090-alpha1-source.b64 || {
+            echo 'Missing zamer-v090-alpha1-source.b64 in repository root'
+            exit 1
+          }
+          base64 --decode zamer-v090-alpha1-source.b64 > /tmp/zamer-v090-alpha1-src.tar.gz
+          tar -tzf /tmp/zamer-v090-alpha1-src.tar.gz >/dev/null
+          flutter create . --platforms=android --org ru.zamer --project-name zamer_app --overwrite
+          tar -xzf /tmp/zamer-v090-alpha1-src.tar.gz -C .
+
+      - name: Set Android app name
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('android/app/src/main/AndroidManifest.xml')
+          s = p.read_text()
+          s = s.replace('android:label="zamer_app"', 'android:label="Замер"')
+          p.write_text(s)
+          PY
+
+      - name: Get packages
+        run: flutter pub get
+
+      - name: Run tests
+        run: flutter test
+
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      - name: Build release APK
+        run: flutter build apk --release
+
+      - name: Prepare APK
+        run: cp build/app/outputs/flutter-apk/app-release.apk zamer-v0.9.0-alpha1.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: zamer-android-apk-v0.9-alpha1
+          path: zamer-v0.9.0-alpha1.apk
+          if-no-files-found: error
