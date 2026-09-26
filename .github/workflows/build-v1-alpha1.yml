@@ -1,0 +1,49 @@
+name: Build Zamer v1.0 Alpha 1
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'zamer-v1-alpha1-source.zip'
+      - '.github/workflows/build-v1-alpha1.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Restore source
+        run: |
+          rm -rf /tmp/zamer-v1
+          mkdir -p /tmp/zamer-v1
+          unzip -q zamer-v1-alpha1-source.zip -d /tmp/zamer-v1
+          cd /tmp/zamer-v1
+          flutter create . --platforms=android --org ru.zamer --project-name zamer_app --overwrite
+          unzip -qo "$GITHUB_WORKSPACE/zamer-v1-alpha1-source.zip" -d .
+      - name: Packages and tests
+        working-directory: /tmp/zamer-v1
+        run: |
+          flutter pub get
+          rm -f test/widget_test.dart
+          flutter test
+          flutter analyze --no-fatal-infos --no-fatal-warnings
+      - name: Build APK
+        working-directory: /tmp/zamer-v1
+        run: flutter build apk --release
+      - name: Prepare
+        run: cp /tmp/zamer-v1/build/app/outputs/flutter-apk/app-release.apk zamer-v1.0.0-alpha1.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: zamer-android-apk-v1.0-alpha1
+          path: zamer-v1.0.0-alpha1.apk
+          if-no-files-found: error
