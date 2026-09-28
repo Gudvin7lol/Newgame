@@ -8,7 +8,7 @@ void main() {
   test('demo floor keeps the same laminate phase settings for 2D and 3D', () {
     final floor = DemoProjectFactory.create().floors.single;
     final scene = ZamerSceneGeometry.fromFloor(floor);
-    final surface = scene.floors.single;
+    final surface = scene.floors.firstWhere((s) => s.materialId == 'oak-natural');
 
     expect(surface.laminatePattern, 'straight');
     expect(surface.laminateOffsetMode, 'half');

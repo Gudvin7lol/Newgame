@@ -132,8 +132,8 @@ class WalkNavigationService {
         if (!canStand(
           floor,
           math.Point(
-            start.x + math.sin(angle) * d,
-            start.y + math.cos(angle) * d,
+            start.x + math.cos(angle) * d,
+            start.y + math.sin(angle) * d,
           ),
           rooms: rooms,
         ))

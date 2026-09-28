@@ -50,12 +50,12 @@ void main() {
     final throughDoor = WalkNavigationService.advance(
       floor,
       start,
-      math.pi / 2,
+      0,
       1600,
       0,
     );
     expect(throughDoor.x, greaterThan(2300));
-    final intoWall = WalkNavigationService.advance(floor, start, 0, -1500, 0);
+    final intoWall = WalkNavigationService.advance(floor, start, -math.pi / 2, 1500, 0);
     expect(intoWall.y, greaterThanOrEqualTo(300));
   });
 
@@ -75,7 +75,7 @@ void main() {
     final approached = WalkNavigationService.advance(
       floor,
       const math.Point<double>(2200, 1250),
-      math.pi / 2,
+      0,
       1300,
       0,
     );
@@ -87,7 +87,7 @@ void main() {
     final moved = WalkNavigationService.advance(
       floor,
       start,
-      -math.pi / 2,
+      math.pi,
       1600,
       0,
       ignoreCollisions: true,
