@@ -82,6 +82,19 @@ void main() {
     expect(approached.x, lessThanOrEqualTo(2650));
   });
 
+  test('diagonal movement slides along a wall instead of freezing', () {
+    final moved = WalkNavigationService.advance(
+      floor,
+      const math.Point<double>(1000, 400),
+      math.pi / 2,
+      800,
+      800,
+    );
+
+    expect(moved.y, greaterThanOrEqualTo(300));
+    expect(moved.x, greaterThan(1600));
+  });
+
   test('noclip can cross walls and furniture for inspection', () {
     const start = math.Point<double>(1000, 1250);
     final moved = WalkNavigationService.advance(
@@ -94,5 +107,4 @@ void main() {
     );
     expect(moved.x, lessThan(0));
   });
-
 }
