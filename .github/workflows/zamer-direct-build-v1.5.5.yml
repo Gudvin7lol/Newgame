@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - build47-fixes
     paths:
       - 'zamer-app/**'
       - '.github/workflows/zamer-direct-build-v1.5.5.yml'
