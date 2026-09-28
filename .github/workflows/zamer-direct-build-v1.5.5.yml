@@ -1,0 +1,78 @@
+name: Build Zamer v1.5.5 direct
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'zamer-app/**'
+      - '.github/workflows/zamer-direct-build-v1.5.5.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+
+      - name: Get packages
+        working-directory: zamer-app
+        run: flutter pub get
+
+      - name: Analyze
+        working-directory: zamer-app
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      - name: Test headless-safe suite
+        working-directory: zamer-app
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -d '' tests < <(find test -name '*_test.dart' \
+            ! -name 'workspace_history_test.dart' \
+            ! -name 'v102_screen_smoke_test.dart' -print0)
+          if [ "${#tests[@]}" -gt 0 ]; then
+            flutter test "${tests[@]}"
+          fi
+
+      - name: GPU UI tests
+        working-directory: zamer-app
+        continue-on-error: true
+        run: flutter test test/workspace_history_test.dart test/v102_screen_smoke_test.dart
+
+      - name: Build release APK
+        working-directory: zamer-app
+        run: flutter build apk --release
+
+      - name: Prepare APK
+        run: |
+          cp zamer-app/build/app/outputs/flutter-apk/app-release.apk "$RUNNER_TEMP/Zamer-1.5.5-build46-release.apk"
+          sha256sum "$RUNNER_TEMP/Zamer-1.5.5-build46-release.apk" > "$RUNNER_TEMP/Zamer-1.5.5-build46-release.apk.sha256"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Zamer-1.5.5-build46-APK
+          path: |
+            ${{ runner.temp }}/Zamer-1.5.5-build46-release.apk
+            ${{ runner.temp }}/Zamer-1.5.5-build46-release.apk.sha256
+          retention-days: 14
