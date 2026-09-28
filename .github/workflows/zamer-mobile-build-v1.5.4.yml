@@ -90,10 +90,10 @@ jobs:
           set -euo pipefail
           if [ "${{ inputs.build_type }}" = "debug" ]; then
             src="${{ runner.temp }}/zamer-v1.5.4/build/app/outputs/flutter-apk/app-debug.apk"
-            dst="$RUNNER_TEMP/Zamer-1.5.4-build38-debug.apk"
+            dst="$RUNNER_TEMP/Zamer-1.5.4-build39-debug.apk"
           else
             src="${{ runner.temp }}/zamer-v1.5.4/build/app/outputs/flutter-apk/app-release.apk"
-            dst="$RUNNER_TEMP/Zamer-1.5.4-build38-release.apk"
+            dst="$RUNNER_TEMP/Zamer-1.5.4-build39-release.apk"
           fi
           cp "$src" "$dst"
           sha256sum "$dst" > "$dst.sha256"
@@ -103,7 +103,7 @@ jobs:
         with:
           name: Zamer-1.5.4-APK
           path: |
-            ${{ runner.temp }}/Zamer-1.5.4-build38-*.apk
-            ${{ runner.temp }}/Zamer-1.5.4-build38-*.apk.sha256
+            ${{ runner.temp }}/Zamer-1.5.4-build39-*.apk
+            ${{ runner.temp }}/Zamer-1.5.4-build39-*.apk.sha256
           if-no-files-found: error
           retention-days: 14
