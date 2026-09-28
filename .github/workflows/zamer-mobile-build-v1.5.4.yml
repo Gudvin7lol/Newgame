@@ -1,0 +1,109 @@
+name: Build Zamer v1.5.4 from Android
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: APK build type
+        required: true
+        default: release
+        type: choice
+        options:
+          - release
+          - debug
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+
+      - name: Restore Zamer source
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf "$RUNNER_TEMP/zamer-v1.5.4"
+          mkdir -p "$RUNNER_TEMP/zamer-v1.5.4"
+          unzip -q "mobile-builder/v1.5.4/Zamer-1.5.4-Materials-Lighting-Elevations-source.zip" -d "$RUNNER_TEMP/zamer-v1.5.4"
+
+      - name: Flutter version
+        run: flutter --version
+
+      - name: Get packages
+        working-directory: ${{ runner.temp }}/zamer-v1.5.4
+        run: flutter pub get
+
+      - name: Analyze
+        working-directory: ${{ runner.temp }}/zamer-v1.5.4
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      - name: Test headless-safe suite
+        working-directory: ${{ runner.temp }}/zamer-v1.5.4
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -d '' tests < <(find test -name '*_test.dart' \
+            ! -name 'workspace_history_test.dart' \
+            ! -name 'v102_screen_smoke_test.dart' -print0)
+          if [ "${#tests[@]}" -gt 0 ]; then
+            flutter test "${tests[@]}"
+          fi
+
+      - name: GPU UI tests (informational on Linux runner)
+        working-directory: ${{ runner.temp }}/zamer-v1.5.4
+        continue-on-error: true
+        run: flutter test test/workspace_history_test.dart test/v102_screen_smoke_test.dart
+
+      - name: Build APK
+        working-directory: ${{ runner.temp }}/zamer-v1.5.4
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ inputs.build_type }}" = "debug" ]; then
+            flutter build apk --debug
+          else
+            flutter build apk --release
+          fi
+
+      - name: Prepare APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ inputs.build_type }}" = "debug" ]; then
+            src="${{ runner.temp }}/zamer-v1.5.4/build/app/outputs/flutter-apk/app-debug.apk"
+            dst="$RUNNER_TEMP/Zamer-1.5.4-build37-debug.apk"
+          else
+            src="${{ runner.temp }}/zamer-v1.5.4/build/app/outputs/flutter-apk/app-release.apk"
+            dst="$RUNNER_TEMP/Zamer-1.5.4-build37-release.apk"
+          fi
+          cp "$src" "$dst"
+          sha256sum "$dst" > "$dst.sha256"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Zamer-1.5.4-APK
+          path: |
+            ${{ runner.temp }}/Zamer-1.5.4-build37-*.apk
+            ${{ runner.temp }}/Zamer-1.5.4-build37-*.apk.sha256
+          if-no-files-found: error
+          retention-days: 14
