@@ -159,16 +159,24 @@ class ElevationPainter extends CustomPainter {
     canvas.save();
     canvas.clipRect(tileRect);
     canvas.drawRect(tileRect, Paint()..color = const Color(0xFFF1F3F5));
-    if (settings.wallTileMirroredFor(run.id)) {
+    final quarterTurns = settings.wallTileQuarterTurnsFor(run.id);
+    final rotated = quarterTurns.isOdd;
+    final legacyMirror =
+        quarterTurns == 0 && settings.wallTileMirroredFor(run.id);
+    if (legacyMirror) {
       canvas.translate(tileRect.left + tileRect.right, 0);
       canvas.scale(-1, 1);
     }
-    final tw = math.max(1.0, settings.wallTileWidthMm * scale);
-    final th = math.max(1.0, settings.wallTileHeightMm * scale);
+    final tileWidthMm =
+        rotated ? settings.wallTileHeightMm : settings.wallTileWidthMm;
+    final tileHeightMm =
+        rotated ? settings.wallTileWidthMm : settings.wallTileHeightMm;
+    final tw = math.max(1.0, tileWidthMm * scale);
+    final th = math.max(1.0, tileHeightMm * scale);
     final offX =
-        (settings.wallTileXFor(run.id) % settings.wallTileWidthMm) * scale;
+        (settings.wallTileXFor(run.id) % tileWidthMm) * scale;
     final offY =
-        (settings.wallTileYFor(run.id) % settings.wallTileHeightMm) * scale;
+        (settings.wallTileYFor(run.id) % tileHeightMm) * scale;
     final stroke = Paint()
       ..color = const Color(0xFFB0B7C0)
       ..style = PaintingStyle.stroke

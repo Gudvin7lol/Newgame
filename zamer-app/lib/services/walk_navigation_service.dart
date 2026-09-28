@@ -156,8 +156,8 @@ class WalkNavigationService {
     double sideways, {
     bool ignoreCollisions = false,
   }) {
-    final dx = forward * math.sin(rotation) + sideways * math.cos(rotation);
-    final dy = forward * math.cos(rotation) - sideways * math.sin(rotation);
+    final dx = forward * math.cos(rotation) - sideways * math.sin(rotation);
+    final dy = forward * math.sin(rotation) + sideways * math.cos(rotation);
 
     // Noclip is intentional in survey work: it lets the user inspect cramped
     // corners, shafts and neighbouring rooms without fighting collision rules.

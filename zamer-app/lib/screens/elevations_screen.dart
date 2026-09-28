@@ -649,16 +649,14 @@ class _ElevationsScreenState extends State<ElevationsScreen> {
                               children: [
                                 OutlinedButton.icon(
                                   onPressed: () async {
-                                    settings.wallTileRunMirrored[run.id] =
-                                        !settings.wallTileMirroredFor(run.id);
+                                    settings.wallTileRunQuarterTurns[run.id] =
+                                        (settings.wallTileQuarterTurnsFor(run.id) + 1) % 4;
                                     await widget.onChanged();
                                     if (mounted) setState(() {});
                                   },
-                                  icon: const Icon(Icons.flip),
+                                  icon: const Icon(Icons.rotate_right),
                                   label: Text(
-                                    settings.wallTileMirroredFor(run.id)
-                                        ? 'Вернуть раскладку'
-                                        : 'Перевернуть раскладку',
+                                    'Повернуть на 90°',
                                   ),
                                 ),
                                 FilledButton.tonalIcon(

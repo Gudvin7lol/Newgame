@@ -222,8 +222,8 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     if (scene == null) return;
     scene.environmentSettings = EnvironmentSettings(
       toneMapping: ToneMappingMode.pbrNeutral,
-      environmentIntensity: 0.90,
-      exposure: 1.0,
+      environmentIntensity: 0.72,
+      exposure: 0.88,
       ambientOcclusionEnabled: false,
       screenSpaceReflectionsEnabled: false,
       bloomEnabled: false,
@@ -231,11 +231,11 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       autoExposureEnabled: false,
     );
     scene.antiAliasingMode = AntiAliasingMode.auto;
-    scene.environmentIntensity = 0.90;
+    scene.environmentIntensity = 0.72;
     scene.directionalLight = DirectionalLight(
       direction: vm.Vector3(-0.45, -1.0, -0.32)..normalize(),
       color: vm.Vector3(1.0, 0.97, 0.92),
-      intensity: 2.45,
+      intensity: 1.65,
       castsShadow: true,
       cacheStaticShadows: false,
       shadowMapResolution: 512,
@@ -259,8 +259,8 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     if (scene == null) return;
     scene.environmentSettings = EnvironmentSettings(
       toneMapping: ToneMappingMode.pbrNeutral,
-      environmentIntensity: 1.15,
-      exposure: 1.06,
+      environmentIntensity: 0.82,
+      exposure: 0.88,
       colorGradingEnabled: true,
       brightness: 1.01,
       contrast: 1.04,
@@ -282,24 +282,24 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       screenSpaceReflectionsResolutionScale: 1.0,
       bloomEnabled: true,
       bloomThreshold: 1.12,
-      bloomIntensity: 0.09,
+      bloomIntensity: 0.035,
       bloomScatter: 0.62,
       vignetteEnabled: true,
       vignetteIntensity: 0.08,
       vignetteRadius: 0.86,
       vignetteSmoothness: 0.55,
-      autoExposureEnabled: true,
-      autoExposureStrength: 0.45,
-      autoExposureCompensation: 0.15,
+      autoExposureEnabled: false,
+      autoExposureStrength: 0.0,
+      autoExposureCompensation: 0.0,
       autoExposureMinEv: -1.2,
       autoExposureMaxEv: 1.8,
     );
     scene.antiAliasingMode = AntiAliasingMode.auto;
-    scene.environmentIntensity = 1.15;
+    scene.environmentIntensity = 0.82;
     scene.directionalLight = DirectionalLight(
       direction: vm.Vector3(-0.38, -1.0, -0.28)..normalize(),
       color: vm.Vector3(1.0, 0.965, 0.90),
-      intensity: 3.05,
+      intensity: 1.85,
       castsShadow: true,
       cacheStaticShadows: false,
       shadowMapResolution: 2048,
@@ -397,7 +397,15 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       scene.add(_buildOpeningNode(opening, geometry.bounds));
     }
     for (final point in geometry.electrical) {
-      scene.add(_buildElectricalNode(point, geometry.bounds));
+      if (generation != _buildGeneration) return;
+      if (point.type == ElectricalPointType.wallLight) {
+        final fixture =
+            await _buildElectricalWallLightNode(point, geometry.bounds);
+        if (generation != _buildGeneration) return;
+        scene.add(fixture);
+      } else {
+        scene.add(_buildElectricalNode(point, geometry.bounds));
+      }
     }
 
     for (final object in geometry.objects) {
@@ -476,9 +484,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
                 : preset.pattern == 'concrete'
                     ? 0.86
                     : 0.70);
-    final tint = texture == null
-        ? _vectorColor(preset.color)
-        : vm.Vector4(0.98, 0.98, 0.98, 1);
+    final tint = _vectorColor(preset.color);
     final material = _pbr(tint, roughness: roughness, texture: texture)
       ..doubleSided = true;
     return material;
@@ -581,12 +587,28 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     if (finish.tileEnabled && texture != null) {
       final tileW = math.max(20.0, finish.tileWidthMm);
       final tileH = math.max(20.0, finish.tileHeightMm);
+      final quarterTurns = finish.roomKey.isEmpty
+          ? 0
+          : (widget.floor
+                  .roomMetaByKey(finish.roomKey)
+                  ?.materials
+                  .wallTileQuarterTurnsFor(wall.wallId) ??
+              0);
+      final rotated = quarterTurns.isOdd;
+      final repeatX = math.max(
+        1.0,
+        wall.lengthMm / (rotated ? tileH : tileW),
+      );
+      final repeatY = math.max(
+        1.0,
+        wall.heightMm / (rotated ? tileW : tileH),
+      );
       material.baseColorTextureTransform = TextureTransform(
         scale: vm.Vector2(
-          (finish.tileMirrored ? -1.0 : 1.0) *
-              math.max(1.0, wall.lengthMm / tileW),
-          math.max(1.0, wall.heightMm / tileH),
+          (finish.tileMirrored ? -1.0 : 1.0) * repeatX,
+          repeatY,
         ),
+        rotation: quarterTurns * math.pi / 2,
         offset: vm.Vector2(
           finish.tileMirrored
               ? 1.0 - finish.tileOffsetXMm / tileW
@@ -944,6 +966,44 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     return root;
   }
 
+  Future<Node> _buildElectricalWallLightNode(
+    ZamerElectricalPlacement point,
+    ZamerSceneBounds bounds,
+  ) async {
+    const catalogId = 'wall-sconce-updown';
+    final asset = ZamerModelAssetCatalog.byId(catalogId);
+
+    final widthMm = asset?.nativeWidthMm ?? 180.0;
+    final depthMm = asset?.nativeDepthMm ?? 150.0;
+    final heightMm = asset?.nativeHeightMm ?? 300.0;
+
+    final nx = -math.sin(point.rotationRad);
+    final ny = math.cos(point.rotationRad);
+    final offsetMm = point.wallThicknessMm / 2 + depthMm / 2;
+
+    final x = point.xMm + nx * offsetMm * point.wallSide;
+    final y = point.yMm + ny * offsetMm * point.wallSide;
+
+    final rotation =
+        point.rotationRad + (point.wallSide < 0 ? math.pi : 0.0);
+
+    return _buildObjectNode(
+      ZamerObjectPlacement(
+        id: 'electrical-fixture:${point.id}',
+        catalogId: catalogId,
+        type: PlanObjectType.lighting,
+        xMm: x,
+        yMm: y,
+        widthMm: widthMm,
+        depthMm: depthMm,
+        heightMm: heightMm,
+        elevationMm: math.max(0.0, point.heightMm - heightMm / 2),
+        rotationRad: rotation,
+      ),
+      bounds,
+    );
+  }
+
   Node _buildElectricalNode(
     ZamerElectricalPlacement point,
     ZamerSceneBounds bounds,
@@ -1105,7 +1165,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     final lightNode = Node(name: 'light:${object.id}')
       ..position = vm.Vector3(0, localY, 0);
     final intensity = isWall
-        ? 9.0
+        ? 4.0
         : isFloor
             ? 7.0
             : isTrack
@@ -1139,7 +1199,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       roughness: 0.18,
     )
       ..emissiveFactor = vm.Vector4(1.0, 0.62, 0.28, 1)
-      ..emissiveStrength = isWall ? 2.8 : 4.8;
+      ..emissiveStrength = isWall ? 1.4 : 3.2;
     final glowRadius = isWall ? 0.035 : (isTrack ? 0.045 : 0.055);
     final glow = Node(
       name: 'glow:${object.id}',

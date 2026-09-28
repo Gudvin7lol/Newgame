@@ -701,10 +701,12 @@ class RoomMaterialSettings {
     Map<String, double>? wallTileRunOffsetY,
     Map<String, bool>? wallTileRunEnabled,
     Map<String, bool>? wallTileRunMirrored,
+    Map<String, int>? wallTileRunQuarterTurns,
   }) : wallTileRunOffsetX = wallTileRunOffsetX ?? {},
        wallTileRunOffsetY = wallTileRunOffsetY ?? {},
        wallTileRunEnabled = wallTileRunEnabled ?? {},
-       wallTileRunMirrored = wallTileRunMirrored ?? {};
+       wallTileRunMirrored = wallTileRunMirrored ?? {},
+       wallTileRunQuarterTurns = wallTileRunQuarterTurns ?? {};
 
   String floorMode;
   double floorWastePct;
@@ -766,6 +768,7 @@ class RoomMaterialSettings {
   final Map<String, double> wallTileRunOffsetY;
   final Map<String, bool> wallTileRunEnabled;
   final Map<String, bool> wallTileRunMirrored;
+  final Map<String, int> wallTileRunQuarterTurns;
 
   double wallTileXFor(String runId) =>
       wallTileRunOffsetX[runId] ?? wallTileOffsetXMm;
@@ -775,6 +778,8 @@ class RoomMaterialSettings {
       wallTileRunEnabled[runId] ?? wallTile;
   bool wallTileMirroredFor(String runId) =>
       wallTileRunMirrored[runId] ?? false;
+  int wallTileQuarterTurnsFor(String runId) =>
+      wallTileRunQuarterTurns[runId] ?? 0;
 
   void normalizeFormats() {
     double valid(double value, double min, double fallback) =>
@@ -871,6 +876,7 @@ class RoomMaterialSettings {
     'wallTileRunOffsetY': wallTileRunOffsetY,
     'wallTileRunEnabled': wallTileRunEnabled,
     'wallTileRunMirrored': wallTileRunMirrored,
+    'wallTileRunQuarterTurns': wallTileRunQuarterTurns,
   };
 
   factory RoomMaterialSettings.fromJson(
@@ -951,6 +957,9 @@ class RoomMaterialSettings {
     ),
     wallTileRunMirrored: ((json['wallTileRunMirrored'] as Map?) ?? const {}).map(
       (k, v) => MapEntry(k.toString(), v as bool),
+    ),
+    wallTileRunQuarterTurns: ((json['wallTileRunQuarterTurns'] as Map?) ?? const {}).map(
+      (k, v) => MapEntry(k.toString(), (v as num).toInt()),
     ),
   );
 }
