@@ -1,33 +1,16 @@
 import 'dart:convert';
 import 'dart:io';
 
-const allowedCategories = <String>{
-  'soft_furniture',
-  'tables_chairs',
-  'storage',
-  'beds',
-  'kitchen',
-  'plumbing',
-  'office',
-  'kids',
-  'outdoor',
-  'lighting',
-  'doors_windows',
-  'stairs',
-  'decor_plants',
-  'appliances',
-  'sport_hobby',
-  'construction',
-  'misc',
-};
+import 'glb_inspector.dart';
 
+const allowedCategories = <String>{
+  'soft_furniture', 'tables_chairs', 'storage', 'beds', 'kitchen',
+  'plumbing', 'office', 'kids', 'outdoor', 'lighting', 'doors_windows',
+  'stairs', 'decor_plants', 'appliances', 'sport_hobby', 'construction', 'misc',
+};
 const allowedPlacements = <String>{'floor', 'wall', 'ceiling', 'opening', 'free'};
 const allowedPivots = <String>{
-  'floor_center',
-  'wall_center',
-  'ceiling_center',
-  'opening_center',
-  'custom',
+  'floor_center', 'wall_center', 'ceiling_center', 'opening_center', 'custom',
 };
 const allowedCollisionTypes = <String>{'box', 'convex', 'mesh', 'compound', 'none'};
 
@@ -51,6 +34,19 @@ int positiveInt(dynamic value, String field) {
   return value;
 }
 
+GlbInfo validateGlbReference(String path, int expectedTriangles, String label) {
+  if (!File(path).existsSync()) fail('$label file does not exist: $path');
+  try {
+    final info = inspectGlb(path);
+    if (info.triangles != expectedTriangles) {
+      fail('$label triangle mismatch: metadata=$expectedTriangles actual=${info.triangles} ($path)');
+    }
+    return info;
+  } catch (e) {
+    fail('$label GLB invalid: $e');
+  }
+}
+
 void main(List<String> args) {
   if (args.length != 1) {
     stderr.writeln('Usage: dart run tool/asset_pipeline/validate_asset.dart <asset.json>');
@@ -66,17 +62,14 @@ void main(List<String> args) {
   } catch (e) {
     fail('invalid JSON: $e');
   }
-
   final data = asMap(decoded, 'root');
 
   final id = data['id'];
   if (id is! String || !RegExp(r'^[a-z0-9][a-z0-9_-]*$').hasMatch(id)) {
     fail('id must use lowercase letters, digits, _ or -');
   }
-
   final name = data['name'];
   if (name is! String || name.trim().isEmpty) fail('name is required');
-
   final category = data['category'];
   if (category is! String || !allowedCategories.contains(category)) {
     fail('unsupported category: $category');
@@ -96,7 +89,6 @@ void main(List<String> args) {
   if (placement is! String || !allowedPlacements.contains(placement)) {
     fail('unsupported placement: $placement');
   }
-
   final pivot = data['pivot'];
   if (pivot is! String || !allowedPivots.contains(pivot)) {
     fail('unsupported pivot: $pivot');
@@ -106,14 +98,18 @@ void main(List<String> args) {
   final lod0 = positiveInt(lod['lod0_triangles'], 'lod.lod0_triangles');
   final lod1 = lod['lod1_triangles'];
   final lod2 = lod['lod2_triangles'];
+  if (lod0 > 150000) fail('LOD0 exceeds mobile hard cap of 150k triangles');
 
   if (lod1 != null) {
     final v = positiveInt(lod1, 'lod.lod1_triangles');
     if (v >= lod0) fail('LOD1 must have fewer triangles than LOD0');
+    if (lod['lod1_file'] is! String) fail('lod1_file is required when lod1_triangles is set');
   }
   if (lod2 != null) {
     final v = positiveInt(lod2, 'lod.lod2_triangles');
-    if (lod1 is int && v >= lod1) fail('LOD2 must have fewer triangles than LOD1');
+    if (lod1 is! int) fail('LOD2 requires LOD1');
+    if (v >= lod1) fail('LOD2 must have fewer triangles than LOD1');
+    if (lod['lod2_file'] is! String) fail('lod2_file is required when lod2_triangles is set');
   }
 
   final materials = asMap(data['materials'], 'materials');
@@ -132,5 +128,15 @@ void main(List<String> args) {
   final version = data['version'];
   if (version != null && (version is! int || version < 1)) fail('version must be >= 1');
 
-  stdout.writeln('ASSET VALID: $id');
+  final lod0Info = validateGlbReference(modelPath, lod0, 'LOD0');
+  if (lod1 is int) validateGlbReference(lod['lod1_file'] as String, lod1, 'LOD1');
+  if (lod2 is int) validateGlbReference(lod['lod2_file'] as String, lod2, 'LOD2');
+
+  final expectedMaterials = materials['material_count'];
+  if (expectedMaterials is int && expectedMaterials != lod0Info.materials) {
+    fail('material_count mismatch: metadata=$expectedMaterials actual=${lod0Info.materials}');
+  }
+  if (materials['pbr'] != true) fail('production assets must use PBR materials');
+
+  stdout.writeln('ASSET VALID: $id | ${lod0Info.triangles} tris | ${lod0Info.materials} materials | ${lod0Info.meshes} meshes');
 }
