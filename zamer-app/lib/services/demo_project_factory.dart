@@ -2,8 +2,8 @@ import '../models/models.dart';
 import 'geometry_service.dart';
 
 class DemoProjectFactory {
-  static const buildTag = '1.5.5+47';
-  static const projectId = '__zamer_demo_1_5_5_47__';
+  static const buildTag = '1.5.5+49';
+  static const projectId = '__zamer_demo_1_5_5_49__';
   static const demoPrefix = '__zamer_demo_';
 
   static MeasureProject create() {
@@ -160,7 +160,7 @@ class DemoProjectFactory {
     return MeasureProject(
       id: projectId,
       name: 'Тестовая квартира • $buildTag',
-      address: 'Пробный двухкомнатный проект для проверки BUILD47',
+      address: 'Пробный двухкомнатный проект для проверки BUILD49',
       floors: [floor],
     );
   }

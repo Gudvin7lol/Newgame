@@ -486,7 +486,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
                 : preset.pattern == 'concrete'
                     ? 0.86
                     : 0.70);
-    final tint = texture == null ? _vectorColor(preset.color) : vm.Vector4(1.0, 1.0, 1.0, 1.0);
+    final tint = _vectorColor(preset.color);
     final material = _pbr(tint, roughness: roughness, texture: texture)
       ..doubleSided = true;
     return material;
