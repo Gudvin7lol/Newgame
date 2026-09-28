@@ -7,6 +7,7 @@ import 'geometry_service.dart';
 /// Keeps the eye position inside rooms, away from solid walls and furniture.
 class WalkNavigationService {
   static const eyeClearanceMm = 250.0;
+  static const movementSubstepMm = 20.0;
 
   static bool _inside(List<math.Point<double>> polygon, math.Point<double> p) {
     var inside = false;
@@ -89,8 +90,9 @@ class WalkNavigationService {
       final localX = dx * math.cos(angle) + dy * math.sin(angle);
       final localY = -dx * math.sin(angle) + dy * math.cos(angle);
       if (localX.abs() < o.widthMm / 2 + eyeClearanceMm &&
-          localY.abs() < o.depthMm / 2 + eyeClearanceMm)
+          localY.abs() < o.depthMm / 2 + eyeClearanceMm) {
         return false;
+      }
     }
     return true;
   }
@@ -136,8 +138,9 @@ class WalkNavigationService {
             start.y + math.cos(angle) * d,
           ),
           rooms: rooms,
-        ))
+        )) {
           break;
+        }
         reach = d;
       }
       if (reach > bestReach) {
@@ -165,13 +168,39 @@ class WalkNavigationService {
       return math.Point(start.x + dx, start.y + dy);
     }
 
-    final steps = math.max(1, (math.sqrt(dx * dx + dy * dy) / 25).ceil());
+    final distance = math.sqrt(dx * dx + dy * dy);
+    final steps = math.max(1, (distance / movementSubstepMm).ceil());
+    final stepX = dx / steps;
+    final stepY = dy / steps;
     final rooms = GeometryService.roomFaces(floor);
     var current = start;
-    for (var i = 1; i <= steps; i++) {
-      final p = math.Point(start.x + dx * i / steps, start.y + dy * i / steps);
-      if (!canStand(floor, p, rooms: rooms)) break;
-      current = p;
+
+    for (var i = 0; i < steps; i++) {
+      final direct = math.Point(current.x + stepX, current.y + stepY);
+      if (canStand(floor, direct, rooms: rooms)) {
+        current = direct;
+        continue;
+      }
+
+      // A first-person camera should glide along a wall or a cabinet instead
+      // of feeling as if it has hit an invisible brake. Try the two movement
+      // axes independently when the diagonal step is blocked. The no-clip
+      // mode above remains a true unrestricted move through both walls and
+      // objects.
+      final alongX = math.Point(current.x + stepX, current.y);
+      final alongY = math.Point(current.x, current.y + stepY);
+      final canMoveX = stepX.abs() > 0.0001 && canStand(floor, alongX, rooms: rooms);
+      final canMoveY = stepY.abs() > 0.0001 && canStand(floor, alongY, rooms: rooms);
+
+      if (canMoveX && canMoveY) {
+        current = stepX.abs() >= stepY.abs() ? alongX : alongY;
+      } else if (canMoveX) {
+        current = alongX;
+      } else if (canMoveY) {
+        current = alongY;
+      } else {
+        break;
+      }
     }
     return current;
   }
