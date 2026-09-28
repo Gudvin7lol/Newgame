@@ -156,6 +156,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
         ...m.wallTileRunOffsetY.keys,
         ...m.wallTileRunEnabled.keys,
         ...m.wallTileRunMirrored.keys,
+        ...m.wallTileRunQuarterTurns.keys,
       }.toList()..sort();
       for (final runId in runIds) {
         values.addAll(<Object?>[
@@ -164,6 +165,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
           m.wallTileRunOffsetY[runId],
           m.wallTileRunEnabled[runId],
           m.wallTileRunMirrored[runId],
+          m.wallTileRunQuarterTurns[runId],
         ]);
       }
     }
@@ -484,7 +486,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
                 : preset.pattern == 'concrete'
                     ? 0.86
                     : 0.70);
-    final tint = _vectorColor(preset.color);
+    final tint = texture == null ? _vectorColor(preset.color) : vm.Vector4(1.0, 1.0, 1.0, 1.0);
     final material = _pbr(tint, roughness: roughness, texture: texture)
       ..doubleSided = true;
     return material;
@@ -571,9 +573,9 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
                 1,
               )
             : vm.Vector4(
-                0.92 + source.x * 0.08,
-                0.92 + source.y * 0.08,
-                0.92 + source.z * 0.08,
+                0.10 + source.x * 0.90,
+                0.10 + source.y * 0.90,
+                0.10 + source.z * 0.90,
                 1,
               ));
     final material = _pbr(
@@ -631,6 +633,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     if (preset.pattern == 'concrete' || fallbackMode.contains('бетон')) {
       return _concreteTexture;
     }
+    if (preset.id.startsWith('paint-')) return _plasterTexture;
     if (preset.pattern == 'brick') return _plasterTexture;
     return null;
   }
@@ -1163,9 +1166,9 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
         : math.max(0.02, object.heightMm / 1000 * 0.45);
 
     final lightNode = Node(name: 'light:${object.id}')
-      ..position = vm.Vector3(0, localY, 0);
+      ..position = vm.Vector3(0, localY, isWall ? 0.09 : 0);
     final intensity = isWall
-        ? 4.0
+        ? 12.0
         : isFloor
             ? 7.0
             : isTrack
@@ -1176,7 +1179,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
                         ? 20.0
                         : 8.0;
     final range = isWall
-        ? 5.0
+        ? 3.8
         : isFloor
             ? 5.5
             : 9.5;
@@ -1199,7 +1202,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       roughness: 0.18,
     )
       ..emissiveFactor = vm.Vector4(1.0, 0.62, 0.28, 1)
-      ..emissiveStrength = isWall ? 1.4 : 3.2;
+      ..emissiveStrength = isWall ? 3.0 : 3.2;
     final glowRadius = isWall ? 0.035 : (isTrack ? 0.045 : 0.055);
     final glow = Node(
       name: 'glow:${object.id}',

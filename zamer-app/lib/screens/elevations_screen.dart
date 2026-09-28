@@ -263,9 +263,9 @@ class _ElevationsScreenState extends State<ElevationsScreen> {
     final tileW = math.max(1.0, s.wallTileWidthMm).toDouble();
     final tileH = math.max(1.0, s.wallTileHeightMm).toDouble();
     s.wallTileRunOffsetX[run.id] =
-        (s.wallTileXFor(run.id) + delta.dx / scale) % tileW;
+        s.wallTileXFor(run.id) + delta.dx / scale;
     s.wallTileRunOffsetY[run.id] =
-        (s.wallTileYFor(run.id) - delta.dy / scale) % tileH;
+        s.wallTileYFor(run.id) - delta.dy / scale;
     setState(() {});
   }
 
@@ -527,17 +527,17 @@ class _ElevationsScreenState extends State<ElevationsScreen> {
                                 return GestureDetector(
                                   key: ValueKey('elevation-preview-${run.id}'),
                                   behavior: HitTestBehavior.opaque,
-                                  onHorizontalDragUpdate:
+                                  onPanUpdate:
                                       settings.wallTileEnabledFor(run.id)
                                       ? (event) => _panRunTileDelta(
                                           settings,
                                           run,
                                           height,
                                           size,
-                                          Offset(event.delta.dx, 0),
+                                          Offset(event.delta.dx, event.delta.dy),
                                         )
                                       : null,
-                                  onHorizontalDragEnd:
+                                  onPanEnd:
                                       settings.wallTileEnabledFor(run.id)
                                       ? (_) => widget.onChanged()
                                       : null,
