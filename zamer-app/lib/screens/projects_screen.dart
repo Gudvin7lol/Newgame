@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:file_picker/file_picker.dart';
@@ -517,17 +518,17 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     String label,
   ) {
     return InkWell(
-      borderRadius: BorderRadius.circular(11),
+      borderRadius: BorderRadius.circular(10),
       onTap: () {
         Navigator.pop(sheetContext);
         _importPlan();
       },
       child: Container(
-        width: 126,
+        width: 108,
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
         decoration: BoxDecoration(
           color: const Color(0xFF141D22),
-          borderRadius: BorderRadius.circular(11),
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(color: const Color(0xFF29363C)),
         ),
         child: Column(
@@ -807,13 +808,26 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     return total;
   }
 
+  String? _projectFirstPhoto(MeasureProject project) {
+    for (final floor in project.floors) {
+      for (final room in floor.roomMetas) {
+        for (final path in room.photoPaths) {
+          if (path.trim().isNotEmpty) return path;
+        }
+      }
+    }
+    return null;
+  }
+
   String _dateLabel(DateTime value) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final date = DateTime(value.year, value.month, value.day);
     final difference = today.difference(date).inDays;
-    if (difference == 0) return 'Сегодня';
-    if (difference == 1) return 'Вчера';
+    final time =
+        '${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
+    if (difference == 0) return 'Сегодня, $time';
+    if (difference == 1) return 'Вчера, $time';
     return '${value.day.toString().padLeft(2, '0')}.${value.month.toString().padLeft(2, '0')}.${value.year}';
   }
 
@@ -830,7 +844,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
           child: Text(
             title,
             style: const TextStyle(
-              fontSize: 17,
+              fontSize: 15.5,
               fontWeight: FontWeight.w900,
               letterSpacing: .1,
             ),
@@ -842,33 +856,34 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   }
 
   Widget _projectCard(MeasureProject project) {
-    final floor = project.floors.isEmpty ? null : project.floors.first;
     final areaM2 = _projectAreaM2(project);
     final photos = _projectPhotoCount(project);
+    final photoPath = _projectFirstPhoto(project);
     return Material(
       color: const Color(0xFF11191E),
-      borderRadius: BorderRadius.circular(15),
+      borderRadius: BorderRadius.circular(12),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: () => _open(project),
         child: Container(
-          height: 88,
+          height: 76,
           decoration: BoxDecoration(
             border: Border.all(color: const Color(0xFF26343B)),
-            borderRadius: BorderRadius.circular(15),
+            borderRadius: BorderRadius.circular(12),
           ),
           child: Row(
             children: [
               SizedBox(
-                width: 96,
+                width: 86,
                 height: double.infinity,
-                child: CustomPaint(
-                  painter: _ProjectPlanPreviewPainter(floor: floor),
+                child: _ProjectThumbnail(
+                  photoPath: photoPath,
+                  fallbackKind: project.name.length % 3,
                 ),
               ),
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(11, 9, 2, 8),
+                  padding: const EdgeInsets.fromLTRB(10, 7, 2, 7),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -880,7 +895,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
-                                fontSize: 13.5,
+                                fontSize: 12.2,
                                 fontWeight: FontWeight.w900,
                               ),
                             ),
@@ -916,7 +931,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          fontSize: 10.5,
+                          fontSize: 9.4,
                           color: Color(0xFF8F9A9F),
                         ),
                       ),
@@ -959,7 +974,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
             ? const Center(child: CircularProgressIndicator())
             : ListView(
                 controller: _scrollController,
-                padding: const EdgeInsets.fromLTRB(14, 12, 14, 22),
+                padding: const EdgeInsets.fromLTRB(12, 7, 12, 14),
                 children: [
                   Row(
                     children: [
@@ -967,46 +982,51 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                         child: Text(
                           'ЗАМЕР',
                           style: TextStyle(
-                            fontSize: 29,
+                            fontSize: 24,
                             fontWeight: FontWeight.w900,
-                            letterSpacing: 1.7,
+                            letterSpacing: 1.25,
                           ),
                         ),
                       ),
                       IconButton(
                         tooltip: 'Настройки',
+                        visualDensity: VisualDensity.compact,
+                        constraints: const BoxConstraints.tightFor(
+                          width: 36,
+                          height: 36,
+                        ),
                         onPressed: _showMore,
-                        icon: const Icon(Icons.settings_outlined),
+                        icon: const Icon(Icons.settings_outlined, size: 20),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 9),
+                  const SizedBox(height: 6),
                   TextField(
                     controller: _searchController,
                     textInputAction: TextInputAction.search,
                     decoration: InputDecoration(
                       hintText: 'Поиск проектов…',
-                      prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                      prefixIcon: const Icon(Icons.search_rounded, size: 18),
                       suffixIcon: queryActive
                           ? IconButton(
                               tooltip: 'Очистить',
                               onPressed: _searchController.clear,
-                              icon: const Icon(Icons.close_rounded, size: 19),
+                              icon: const Icon(Icons.close_rounded, size: 18),
                             )
                           : IconButton(
                               tooltip: 'Сортировка и фильтры',
                               onPressed: _showFiltersPanel,
-                              icon: const Icon(Icons.tune_rounded, size: 19),
+                              icon: const Icon(Icons.tune_rounded, size: 18),
                             ),
                       filled: true,
                       fillColor: const Color(0xFF131B20),
-                      contentPadding: const EdgeInsets.symmetric(vertical: 11),
+                      contentPadding: const EdgeInsets.symmetric(vertical: 7),
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(11),
+                        borderRadius: BorderRadius.circular(10),
                         borderSide: const BorderSide(color: Color(0xFF28363D)),
                       ),
                       enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(11),
+                        borderRadius: BorderRadius.circular(10),
                         borderSide: const BorderSide(color: Color(0xFF28363D)),
                       ),
                     ),
@@ -1048,7 +1068,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                       ),
                     ),
                   ],
-                  const SizedBox(height: 11),
+                  const SizedBox(height: 8),
                   Row(
                     children: [
                       Expanded(
@@ -1069,7 +1089,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 21),
+                  const SizedBox(height: 14),
                   _sectionTitle(
                     queryActive ? 'Результаты поиска' : 'Недавние проекты',
                     trailing: queryActive || _projects.length <= 3
@@ -1077,6 +1097,10 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                         : TextButton(
                             onPressed: () => setState(
                               () => _showAllProjects = !_showAllProjects,
+                            ),
+                            style: TextButton.styleFrom(
+                              visualDensity: VisualDensity.compact,
+                              textStyle: const TextStyle(fontSize: 11),
                             ),
                             child: Text(
                               _showAllProjects ? 'Свернуть' : 'Все ›',
@@ -1092,7 +1116,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                       ),
                       decoration: BoxDecoration(
                         color: const Color(0xFF11191E),
-                        borderRadius: BorderRadius.circular(15),
+                        borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: const Color(0xFF26343B)),
                       ),
                       child: Column(
@@ -1133,17 +1157,21 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                       ),
                     ),
                   if (!queryActive) ...[
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 11),
                     _sectionTitle(
                       'Шаблоны',
                       trailing: TextButton(
                         onPressed: _showCreateProjectPanel,
+                        style: TextButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                          textStyle: const TextStyle(fontSize: 11),
+                        ),
                         child: const Text('Все ›'),
                       ),
                     ),
                     const SizedBox(height: 9),
                     SizedBox(
-                      height: 118,
+                      height: 98,
                       child: ListView(
                         scrollDirection: Axis.horizontal,
                         children: [
@@ -1215,15 +1243,15 @@ class _QuickActionCard extends StatelessWidget {
         : const Color(0xFFE6E2DE);
     return Material(
       color: filled ? const Color(0xFFF1C79E) : const Color(0xFF121A1F),
-      borderRadius: BorderRadius.circular(13),
+      borderRadius: BorderRadius.circular(11),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
         child: Container(
-          height: 72,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          height: 58,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(13),
+            borderRadius: BorderRadius.circular(11),
             border: Border.all(
               color: filled ? const Color(0xFFF1C79E) : const Color(0xFF28363D),
             ),
@@ -1231,15 +1259,15 @@ class _QuickActionCard extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, color: foreground, size: 22),
-              const SizedBox(height: 6),
+              Icon(icon, color: foreground, size: 19),
+              const SizedBox(height: 4),
               Text(
                 title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   color: foreground,
-                  fontSize: 12.5,
+                  fontSize: 11.3,
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -1248,6 +1276,33 @@ class _QuickActionCard extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _ProjectThumbnail extends StatelessWidget {
+  const _ProjectThumbnail({
+    required this.photoPath,
+    required this.fallbackKind,
+  });
+
+  final String? photoPath;
+  final int fallbackKind;
+
+  @override
+  Widget build(BuildContext context) {
+    final path = photoPath;
+    if (path != null) {
+      return ClipRect(
+        child: Image.file(
+          File(path),
+          fit: BoxFit.cover,
+          gaplessPlayback: true,
+          errorBuilder: (_, __, ___) =>
+              CustomPaint(painter: _TemplateScenePainter(kind: fallbackKind)),
+        ),
+      );
+    }
+    return CustomPaint(painter: _TemplateScenePainter(kind: fallbackKind));
   }
 }
 
@@ -1266,10 +1321,10 @@ class _TemplateCard extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(right: 8),
     child: SizedBox(
-      width: 126,
+      width: 108,
       child: Material(
         color: const Color(0xFF11191E),
-        borderRadius: BorderRadius.circular(13),
+        borderRadius: BorderRadius.circular(11),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
@@ -1285,7 +1340,7 @@ class _TemplateCard extends StatelessWidget {
                   title,
                   textAlign: TextAlign.center,
                   style: const TextStyle(
-                    fontSize: 10.5,
+                    fontSize: 9.5,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -1312,7 +1367,7 @@ class _MetaChip extends StatelessWidget {
       Text(
         label,
         style: const TextStyle(
-          fontSize: 9.5,
+          fontSize: 8.8,
           color: Color(0xFFB5BDC0),
           fontWeight: FontWeight.w700,
         ),
@@ -1338,7 +1393,7 @@ class _HomeNavBar extends StatelessWidget {
   Widget build(BuildContext context) => SafeArea(
     top: false,
     child: Container(
-      height: 64,
+      height: 58,
       decoration: const BoxDecoration(
         color: Color(0xFF0C1317),
         border: Border(top: BorderSide(color: Color(0xFF1E2A30))),
@@ -1406,8 +1461,8 @@ class _HomeNavItem extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Container(
-          width: 31,
-          height: 28,
+          width: 29,
+          height: 25,
           alignment: Alignment.center,
           decoration: selected
               ? BoxDecoration(
@@ -1417,7 +1472,7 @@ class _HomeNavItem extends StatelessWidget {
               : null,
           child: Icon(
             icon,
-            size: 18,
+            size: 17,
             color: selected ? const Color(0xFFF1C79E) : const Color(0xFFAAB3B7),
           ),
         ),
@@ -1425,7 +1480,7 @@ class _HomeNavItem extends StatelessWidget {
         Text(
           label,
           style: TextStyle(
-            fontSize: 8.5,
+            fontSize: 8.0,
             fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
             color: selected ? const Color(0xFFF1C79E) : const Color(0xFFAAB3B7),
           ),
@@ -1441,79 +1496,233 @@ class _TemplateScenePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final bg = Paint()
-      ..shader = const LinearGradient(
+    final wall = Paint()
+      ..shader = LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
-        colors: [Color(0xFF5B5046), Color(0xFF24282A)],
+        colors: kind == 2
+            ? const [Color(0xFF4D4943), Color(0xFF24282B)]
+            : const [Color(0xFF6B6258), Color(0xFF292D2F)],
       ).createShader(Offset.zero & size);
-    canvas.drawRect(Offset.zero & size, bg);
+    canvas.drawRect(Offset.zero & size, wall);
 
-    final floor = Paint()..color = const Color(0xFF8A6D52);
     final floorPath = Path()
-      ..moveTo(0, size.height * .58)
-      ..lineTo(size.width, size.height * .48)
+      ..moveTo(0, size.height * .60)
+      ..lineTo(size.width, size.height * .49)
       ..lineTo(size.width, size.height)
       ..lineTo(0, size.height)
       ..close();
-    canvas.drawPath(floorPath, floor);
+    canvas.drawPath(
+      floorPath,
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFFA98563), Color(0xFF6E513A)],
+        ).createShader(Offset.zero & size),
+    );
 
-    final window = Paint()..color = const Color(0xFFCBD3D2);
-    canvas.drawRect(
-      Rect.fromLTWH(
-        size.width * .08,
-        size.height * .12,
-        size.width * .28,
-        size.height * .30,
-      ),
-      window,
+    // Window with frame and soft daylight.
+    final windowRect = Rect.fromLTWH(
+      size.width * .07,
+      size.height * .11,
+      size.width * .30,
+      size.height * .34,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(windowRect, const Radius.circular(1.5)),
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFFDDE8E8), Color(0xFF98AFB0)],
+        ).createShader(windowRect),
     );
     final frame = Paint()
-      ..color = const Color(0xFF536066)
-      ..strokeWidth = 2;
+      ..color = const Color(0xFF536064)
+      ..strokeWidth = 1.4;
     canvas.drawLine(
-      Offset(size.width * .22, size.height * .12),
-      Offset(size.width * .22, size.height * .42),
+      Offset(windowRect.center.dx, windowRect.top),
+      Offset(windowRect.center.dx, windowRect.bottom),
+      frame,
+    );
+    canvas.drawLine(
+      Offset(windowRect.left, windowRect.center.dy),
+      Offset(windowRect.right, windowRect.center.dy),
       frame,
     );
 
-    final sofa = Paint()
-      ..color = kind == 2 ? const Color(0xFFB8A890) : const Color(0xFFD0C3B2);
-    final sofaRect = RRect.fromRectAndRadius(
-      Rect.fromLTWH(
-        size.width * .36,
-        size.height * .48,
-        size.width * .48,
-        size.height * .25,
-      ),
-      const Radius.circular(6),
-    );
-    canvas.drawRRect(sofaRect, sofa);
-    canvas.drawRect(
-      Rect.fromLTWH(
-        size.width * .39,
-        size.height * .41,
-        size.width * .42,
-        size.height * .13,
-      ),
-      Paint()..color = const Color(0xFFB9AB99),
-    );
+    // Rug adds depth and gives the miniature an interior-render feel.
+    final rug = Path()
+      ..moveTo(size.width * .27, size.height * .66)
+      ..lineTo(size.width * .86, size.height * .60)
+      ..lineTo(size.width * .95, size.height * .91)
+      ..lineTo(size.width * .23, size.height * .92)
+      ..close();
+    canvas.drawPath(rug, Paint()..color = const Color(0xFF8B7763));
 
-    if (kind == 1) {
-      final plant = Paint()..color = const Color(0xFF426A4A);
-      canvas.drawCircle(Offset(size.width * .82, size.height * .31), 10, plant);
-      canvas.drawRect(
-        Rect.fromLTWH(size.width * .80, size.height * .38, 6, 18),
-        Paint()..color = const Color(0xFF5C493A),
-      );
-    }
     if (kind == 2) {
-      final desk = Paint()..color = const Color(0xFF40362F);
+      // Commercial variant: desk, low cabinet and task chair.
       canvas.drawRect(
-        Rect.fromLTWH(size.width * .10, size.height * .66, size.width * .35, 7),
-        desk,
+        Rect.fromLTWH(
+          size.width * .34,
+          size.height * .55,
+          size.width * .48,
+          size.height * .08,
+        ),
+        Paint()..color = const Color(0xFF3D342E),
+      );
+      canvas.drawRect(
+        Rect.fromLTWH(
+          size.width * .38,
+          size.height * .63,
+          size.width * .04,
+          size.height * .20,
+        ),
+        Paint()..color = const Color(0xFF332B27),
+      );
+      canvas.drawRect(
+        Rect.fromLTWH(
+          size.width * .74,
+          size.height * .63,
+          size.width * .04,
+          size.height * .20,
+        ),
+        Paint()..color = const Color(0xFF332B27),
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(
+            size.width * .50,
+            size.height * .68,
+            size.width * .19,
+            size.height * .18,
+          ),
+          const Radius.circular(5),
+        ),
+        Paint()..color = const Color(0xFFB6AA9D),
+      );
+    } else {
+      // Sofa with separate back and cushions.
+      final sofaBody = RRect.fromRectAndRadius(
+        Rect.fromLTWH(
+          size.width * .36,
+          size.height * .55,
+          size.width * .49,
+          size.height * .25,
+        ),
+        const Radius.circular(7),
+      );
+      canvas.drawRRect(sofaBody, Paint()..color = const Color(0xFFD0C4B4));
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(
+            size.width * .39,
+            size.height * .45,
+            size.width * .43,
+            size.height * .17,
+          ),
+          const Radius.circular(5),
+        ),
+        Paint()..color = const Color(0xFFBEB1A1),
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(
+            size.width * .42,
+            size.height * .53,
+            size.width * .17,
+            size.height * .12,
+          ),
+          const Radius.circular(4),
+        ),
+        Paint()..color = const Color(0xFFE3D9CB),
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(
+            size.width * .62,
+            size.height * .52,
+            size.width * .16,
+            size.height * .12,
+          ),
+          const Radius.circular(4),
+        ),
+        Paint()..color = const Color(0xFFAA9B8A),
+      );
+
+      // Coffee table.
+      canvas.drawOval(
+        Rect.fromLTWH(
+          size.width * .44,
+          size.height * .76,
+          size.width * .31,
+          size.height * .10,
+        ),
+        Paint()..color = const Color(0xFF4A4038),
+      );
+      canvas.drawRect(
+        Rect.fromLTWH(
+          size.width * .58,
+          size.height * .84,
+          size.width * .025,
+          size.height * .08,
+        ),
+        Paint()..color = const Color(0xFF342D28),
       );
     }
+
+    // Plant/lamp silhouette at the right gives all cards a premium, lived-in feel.
+    if (kind == 1) {
+      final stem = Paint()
+        ..color = const Color(0xFF5D4938)
+        ..strokeWidth = 2;
+      canvas.drawLine(
+        Offset(size.width * .88, size.height * .71),
+        Offset(size.width * .88, size.height * .39),
+        stem,
+      );
+      final leaf = Paint()..color = const Color(0xFF42674B);
+      canvas.drawCircle(
+        Offset(size.width * .84, size.height * .37),
+        size.width * .07,
+        leaf,
+      );
+      canvas.drawCircle(
+        Offset(size.width * .91, size.height * .34),
+        size.width * .06,
+        leaf,
+      );
+      canvas.drawCircle(
+        Offset(size.width * .88, size.height * .29),
+        size.width * .06,
+        leaf,
+      );
+    } else {
+      canvas.drawLine(
+        Offset(size.width * .89, size.height * .73),
+        Offset(size.width * .89, size.height * .37),
+        Paint()
+          ..color = const Color(0xFF4E433C)
+          ..strokeWidth = 2,
+      );
+      canvas.drawCircle(
+        Offset(size.width * .89, size.height * .31),
+        size.width * .055,
+        Paint()..color = const Color(0xFFE0C39D),
+      );
+    }
+
+    // Soft highlight over the image, similar to the warm renders in the concept.
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0x22FFFFFF), Color(0x00000000), Color(0x22000000)],
+        ).createShader(Offset.zero & size),
+    );
   }
 
   @override

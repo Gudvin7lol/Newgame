@@ -2,8 +2,8 @@ import '../models/models.dart';
 import 'geometry_service.dart';
 
 class DemoProjectFactory {
-  static const buildTag = '1.5.5+46';
-  static const projectId = '__zamer_demo_1_5_5_46__';
+  static const buildTag = '1.5.6+66';
+  static const projectId = '__zamer_demo_1_5_6_66__';
   static const demoPrefix = '__zamer_demo_';
 
   static MeasureProject create() {
@@ -19,51 +19,92 @@ class DemoProjectFactory {
       ],
       walls: [
         PlanWall(
-          id: 'wA', startNodeId: 'n1', endNodeId: 'n2',
-          type: WallType.exterior, thicknessMm: 180, material: WallMaterial.brick,
+          id: 'wA',
+          startNodeId: 'n1',
+          endNodeId: 'n2',
+          type: WallType.exterior,
+          thicknessMm: 180,
+          material: WallMaterial.brick,
           openings: [
             WallOpening(
-              id: 'door-1', type: OpeningType.door, widthMm: 900,
-              heightMm: 2100, offsetFromStartMm: 350,
+              id: 'door-1',
+              type: OpeningType.door,
+              widthMm: 900,
+              heightMm: 2100,
+              offsetFromStartMm: 350,
             ),
           ],
         ),
         PlanWall(
-          id: 'wB', startNodeId: 'n2', endNodeId: 'n3',
-          type: WallType.exterior, thicknessMm: 180, material: WallMaterial.brick,
+          id: 'wB',
+          startNodeId: 'n2',
+          endNodeId: 'n3',
+          type: WallType.exterior,
+          thicknessMm: 180,
+          material: WallMaterial.brick,
           openings: [
             WallOpening(
-              id: 'window-1', type: OpeningType.window, widthMm: 1400,
-              heightMm: 1400, offsetFromStartMm: 900, sillHeightMm: 850,
+              id: 'window-1',
+              type: OpeningType.window,
+              widthMm: 1400,
+              heightMm: 1400,
+              offsetFromStartMm: 900,
+              sillHeightMm: 850,
             ),
           ],
         ),
         PlanWall(
-          id: 'wC', startNodeId: 'n3', endNodeId: 'n4',
-          type: WallType.exterior, thicknessMm: 180, material: WallMaterial.brick,
+          id: 'wC',
+          startNodeId: 'n3',
+          endNodeId: 'n4',
+          type: WallType.exterior,
+          thicknessMm: 180,
+          material: WallMaterial.brick,
         ),
         PlanWall(
-          id: 'wD', startNodeId: 'n4', endNodeId: 'n1',
-          type: WallType.exterior, thicknessMm: 180, material: WallMaterial.brick,
+          id: 'wD',
+          startNodeId: 'n4',
+          endNodeId: 'n1',
+          type: WallType.exterior,
+          thicknessMm: 180,
+          material: WallMaterial.brick,
         ),
       ],
       planObjects: [
         PlanObject(
-          id: 'demo-bed', type: PlanObjectType.furniture, catalogId: 'bed-160',
-          xMm: 2450, yMm: 1850, widthMm: 1700, depthMm: 2100,
-          heightMm: 950, rotationDeg: 90, label: 'Кровать 160×200',
+          id: 'demo-bed',
+          type: PlanObjectType.furniture,
+          catalogId: 'bed-160',
+          xMm: 2450,
+          yMm: 1850,
+          widthMm: 1700,
+          depthMm: 2100,
+          heightMm: 950,
+          rotationDeg: 90,
+          label: 'Кровать 160×200',
         ),
         PlanObject(
-          id: 'demo-light', type: PlanObjectType.lighting,
-          catalogId: 'chandelier-ring', xMm: 2100, yMm: 1600,
-          widthMm: 900, depthMm: 900, heightMm: 180,
-          elevationMm: 2520, label: 'Люстра-кольцо',
+          id: 'demo-light',
+          type: PlanObjectType.lighting,
+          catalogId: 'chandelier-ring',
+          xMm: 2100,
+          yMm: 1600,
+          widthMm: 900,
+          depthMm: 900,
+          heightMm: 180,
+          elevationMm: 2520,
+          label: 'Люстра-кольцо',
         ),
       ],
       electricalPoints: [
         ElectricalPoint(
-          id: 'fixture:demo-light', type: ElectricalPointType.ceilingLight,
-          xMm: 2100, yMm: 1600, label: 'Люстра', heightMm: 2665, powerW: 60,
+          id: 'fixture:demo-light',
+          type: ElectricalPointType.ceilingLight,
+          xMm: 2100,
+          yMm: 1600,
+          label: 'Люстра',
+          heightMm: 2665,
+          powerW: 60,
         ),
       ],
     );
@@ -95,8 +136,8 @@ class DemoProjectFactory {
 
     return MeasureProject(
       id: projectId,
-      name: 'Тестовое помещение • $buildTag',
-      address: 'Пробный проект для проверки новой сборки',
+      name: 'Квартира, Калининград',
+      address: '',
       floors: [floor],
     );
   }
