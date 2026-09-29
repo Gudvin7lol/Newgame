@@ -6,6 +6,10 @@ import 'model_asset_catalog.dart';
 class ZamerModelLodPolicy {
   const ZamerModelLodPolicy._();
 
+  static const overviewLod1ObjectCount = 10;
+  static const overviewLod2ObjectCount = 28;
+  static const walkLod2ObjectCount = 18;
+
   static ZamerModelLod select({
     required ZamerModelAsset asset,
     required int visibleObjectCount,
@@ -21,12 +25,12 @@ class ZamerModelLodPolicy {
     // Walk mode benefits most from stable frame pacing because camera motion
     // makes dropped frames much more noticeable than in the orbit overview.
     if (walkMode) {
-      if (count >= 18) return ZamerModelLod.lod2;
+      if (count >= walkLod2ObjectCount) return ZamerModelLod.lod2;
       return ZamerModelLod.lod1;
     }
 
-    if (count >= 28) return ZamerModelLod.lod2;
-    if (count >= 10) return ZamerModelLod.lod1;
+    if (count >= overviewLod2ObjectCount) return ZamerModelLod.lod2;
+    if (count >= overviewLod1ObjectCount) return ZamerModelLod.lod1;
     return ZamerModelLod.lod0;
   }
 
