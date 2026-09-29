@@ -78,7 +78,7 @@ class ZamerModelThumbnail extends StatelessWidget {
         ui.Paint()
           ..shader = ui.Gradient.linear(
             const ui.Offset(0, 0),
-            const ui.Offset(pixels.toDouble(), pixels.toDouble()),
+            ui.Offset(pixels.toDouble(), pixels.toDouble()),
             const <Color>[Color(0xFF253236), Color(0xFF12191C)],
           ),
       );
