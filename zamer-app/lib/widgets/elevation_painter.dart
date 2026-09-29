@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../models/models.dart';
@@ -110,14 +111,7 @@ class ElevationPainter extends CustomPainter {
         wall,
         segmentLen,
       );
-      _drawMountedObjectsForEdge(
-        canvas,
-        rect,
-        scale,
-        accumulated,
-        edge,
-        wall,
-      );
+      _drawMountedObjectsForEdge(canvas, rect, scale, accumulated, edge, wall);
       accumulated += segmentLen;
     }
 
@@ -163,12 +157,12 @@ class ElevationPainter extends CustomPainter {
       canvas.translate(tileRect.left + tileRect.right, 0);
       canvas.scale(-1, 1);
     }
-    final tw = math.max(1.0, settings.wallTileWidthMm * scale);
-    final th = math.max(1.0, settings.wallTileHeightMm * scale);
-    final offX =
-        (settings.wallTileXFor(run.id) % settings.wallTileWidthMm) * scale;
-    final offY =
-        (settings.wallTileYFor(run.id) % settings.wallTileHeightMm) * scale;
+    final tileWidthMm = settings.wallTileWidthFor(run.id);
+    final tileHeightMm = settings.wallTileHeightFor(run.id);
+    final tw = math.max(1.0, tileWidthMm * scale);
+    final th = math.max(1.0, tileHeightMm * scale);
+    final offX = (settings.wallTileXFor(run.id) % tileWidthMm) * scale;
+    final offY = (settings.wallTileYFor(run.id) % tileHeightMm) * scale;
     final stroke = Paint()
       ..color = const Color(0xFFB0B7C0)
       ..style = PaintingStyle.stroke
@@ -208,8 +202,7 @@ class ElevationPainter extends CustomPainter {
     List<_ElevationOpeningSpan> spans,
     double runLengthMm,
   ) {
-    final sorted = [...spans]
-      ..sort((a, b) => a.startMm.compareTo(b.startMm));
+    final sorted = [...spans]..sort((a, b) => a.startMm.compareTo(b.startMm));
     var cursor = 0.0;
     final y = rect.bottom + 18;
     for (final span in sorted) {
@@ -278,7 +271,12 @@ class ElevationPainter extends CustomPainter {
       ),
       textDirection: TextDirection.ltr,
     )..layout(maxWidth: 150);
-    final rect = Rect.fromLTWH(origin.dx, origin.dy, tp.width + 28, tp.height + 10);
+    final rect = Rect.fromLTWH(
+      origin.dx,
+      origin.dy,
+      tp.width + 28,
+      tp.height + 10,
+    );
     canvas.drawRRect(
       RRect.fromRectAndRadius(rect, const Radius.circular(7)),
       Paint()..color = Colors.white.withValues(alpha: .92),
@@ -309,7 +307,8 @@ class ElevationPainter extends CustomPainter {
     if (wallLength < 1) return;
 
     for (final object in floor.planObjects) {
-      if (object.catalogId.isEmpty || object.layer == ProjectLayer.demolition) continue;
+      if (object.catalogId.isEmpty || object.layer == ProjectLayer.demolition)
+        continue;
       final item = ObjectCatalog.byId(object.catalogId);
       if (item.mount != CatalogMount.wall) continue;
       final hit = GeometryService.nearestWallProjection(
@@ -318,7 +317,8 @@ class ElevationPainter extends CustomPainter {
         thresholdMm: 500,
       );
       if (hit == null || hit.wall.id != wall.id) continue;
-      final t = ((hit.point.x - a.xMm) * dx + (hit.point.y - a.yMm) * dy) /
+      final t =
+          ((hit.point.x - a.xMm) * dx + (hit.point.y - a.yMm) * dy) /
           (wallLength * wallLength);
       var offset = t.clamp(0.0, 1.0).toDouble() * wallLength;
       if (edge.fromNodeId != wall.startNodeId) offset = wallLength - offset;
@@ -331,7 +331,8 @@ class ElevationPainter extends CustomPainter {
       final isLight = object.type == PlanObjectType.lighting;
       canvas.drawRRect(
         RRect.fromRectAndRadius(objectRect, const Radius.circular(3)),
-        Paint()..color = isLight ? const Color(0xFFFFE7A8) : const Color(0xFFE5E8EB),
+        Paint()
+          ..color = isLight ? const Color(0xFFFFE7A8) : const Color(0xFFE5E8EB),
       );
       canvas.drawRRect(
         RRect.fromRectAndRadius(objectRect, const Radius.circular(3)),
@@ -340,7 +341,12 @@ class ElevationPainter extends CustomPainter {
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1.1,
       );
-      _label(canvas, object.label.isEmpty ? item.name : object.label, objectRect.center, 8);
+      _label(
+        canvas,
+        object.label.isEmpty ? item.name : object.label,
+        objectRect.center,
+        8,
+      );
       _dimensionText(
         canvas,
         '${object.elevationMm.round()} мм',
@@ -497,7 +503,6 @@ class ElevationPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant ElevationPainter oldDelegate) => true;
 }
-
 
 class _ElevationOpeningSpan {
   const _ElevationOpeningSpan({

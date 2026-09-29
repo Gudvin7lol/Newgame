@@ -204,6 +204,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
         ...m.wallTileRunOffsetY.keys,
         ...m.wallTileRunEnabled.keys,
         ...m.wallTileRunMirrored.keys,
+        ...m.wallTileRunRotated.keys,
       }.toList()..sort();
       for (final runId in runIds) {
         values.addAll(<Object?>[
@@ -212,6 +213,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
           m.wallTileRunOffsetY[runId],
           m.wallTileRunEnabled[runId],
           m.wallTileRunMirrored[runId],
+          m.wallTileRunRotated[runId],
         ]);
       }
     }
@@ -662,20 +664,21 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       texture: texture,
     )..doubleSided = false;
     if (finish.tileEnabled && texture != null) {
-      final tileW = math.max(20.0, finish.tileWidthMm);
-      final tileH = math.max(20.0, finish.tileHeightMm);
+      final sourceTileW = math.max(20.0, finish.tileWidthMm);
+      final sourceTileH = math.max(20.0, finish.tileHeightMm);
+      final tileW = finish.tileRotated ? sourceTileH : sourceTileW;
+      final tileH = finish.tileRotated ? sourceTileW : sourceTileH;
+      final repeatX = math.max(0.001, wall.lengthMm / tileW);
+      final repeatY = math.max(0.001, wall.heightMm / tileH);
+      final wallU = (wall.textureStartMm + finish.tileOffsetXMm) / tileW;
+      final wallV = (wall.bottomMm - finish.tileOffsetYMm) / tileH;
       material.baseColorTextureTransform = TextureTransform(
         scale: vm.Vector2(
-          (finish.tileMirrored ? -1.0 : 1.0) *
-              math.max(1.0, wall.lengthMm / tileW),
-          math.max(1.0, wall.heightMm / tileH),
+          (finish.tileMirrored ? -1.0 : 1.0) * repeatX,
+          repeatY,
         ),
-        offset: vm.Vector2(
-          finish.tileMirrored
-              ? 1.0 - finish.tileOffsetXMm / tileW
-              : finish.tileOffsetXMm / tileW,
-          -finish.tileOffsetYMm / tileH,
-        ),
+        offset: vm.Vector2(finish.tileMirrored ? 1.0 - wallU : wallU, wallV),
+        rotation: finish.tileRotated ? math.pi / 2 : 0,
       );
     }
     return material;

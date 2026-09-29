@@ -117,9 +117,8 @@ class _ElevationsScreenState extends State<ElevationsScreen> {
                 children: [
                   Text(
                     'Плитка на стенах',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
+                    style: Theme.of(context).textTheme.titleLarge
+                        ?.copyWith(fontWeight: FontWeight.w800),
                   ),
                   const SizedBox(height: 12),
                   Row(
@@ -260,8 +259,8 @@ class _ElevationsScreenState extends State<ElevationsScreen> {
       (size.height - verticalMargin * 2) / math.max(1, heightMm),
     );
     if (scale <= 0 || !scale.isFinite) return;
-    final tileW = math.max(1.0, s.wallTileWidthMm).toDouble();
-    final tileH = math.max(1.0, s.wallTileHeightMm).toDouble();
+    final tileW = math.max(1.0, s.wallTileWidthFor(run.id)).toDouble();
+    final tileH = math.max(1.0, s.wallTileHeightFor(run.id)).toDouble();
     s.wallTileRunOffsetX[run.id] =
         (s.wallTileXFor(run.id) + delta.dx / scale) % tileW;
     s.wallTileRunOffsetY[run.id] =
@@ -393,7 +392,13 @@ class _ElevationsScreenState extends State<ElevationsScreen> {
                       showCheckmark: false,
                       avatar: CircleAvatar(
                         radius: 13,
-                        child: Text(letter, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
+                        child: Text(
+                          letter,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
                       ),
                       label: Text('${run.lengthMm.round()} мм'),
                       onSelected: (_) {
@@ -546,7 +551,9 @@ class _ElevationsScreenState extends State<ElevationsScreen> {
                                       color: Colors.white,
                                       borderRadius: BorderRadius.circular(12),
                                       border: Border.all(
-                                        color: Theme.of(context).colorScheme.outlineVariant,
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .outlineVariant,
                                       ),
                                     ),
                                     child: ClipRRect(
@@ -574,11 +581,20 @@ class _ElevationsScreenState extends State<ElevationsScreen> {
                             scrollDirection: Axis.horizontal,
                             child: Row(
                               children: [
-                                _InfoPill(icon: Icons.height, text: '${height.round()} мм'),
+                                _InfoPill(
+                                  icon: Icons.height,
+                                  text: '${height.round()} мм',
+                                ),
                                 const SizedBox(width: 6),
-                                _InfoPill(icon: Icons.layers_outlined, text: floorFinish.name),
+                                _InfoPill(
+                                  icon: Icons.layers_outlined,
+                                  text: floorFinish.name,
+                                ),
                                 const SizedBox(width: 6),
-                                _InfoPill(icon: Icons.format_paint, text: wallFinish.name),
+                                _InfoPill(
+                                  icon: Icons.format_paint,
+                                  text: wallFinish.name,
+                                ),
                                 const SizedBox(width: 6),
                                 OutlinedButton.icon(
                                   onPressed: () => _tileOptions(settings, runs),
@@ -611,7 +627,8 @@ class _ElevationsScreenState extends State<ElevationsScreen> {
                                 onPressed: () async {
                                   settings.wallTile = true;
                                   for (final r in runs) {
-                                    settings.wallTileRunEnabled[r.id] = r.id == run.id;
+                                    settings.wallTileRunEnabled[r.id] =
+                                        r.id == run.id;
                                   }
                                   await widget.onChanged();
                                   if (mounted) setState(() {});
@@ -634,7 +651,9 @@ class _ElevationsScreenState extends State<ElevationsScreen> {
                                   const SizedBox(width: 12),
                                   Text(
                                     'R ${run.radiusMm!.round()} мм',
-                                    style: Theme.of(context).textTheme.bodySmall,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodySmall,
                                   ),
                                 ],
                               ],
@@ -647,6 +666,20 @@ class _ElevationsScreenState extends State<ElevationsScreen> {
                               spacing: 8,
                               runSpacing: 8,
                               children: [
+                                OutlinedButton.icon(
+                                  onPressed: () async {
+                                    settings.wallTileRunRotated[run.id] =
+                                        !settings.wallTileRotatedFor(run.id);
+                                    await widget.onChanged();
+                                    if (mounted) setState(() {});
+                                  },
+                                  icon: const Icon(Icons.rotate_90_degrees_cw),
+                                  label: Text(
+                                    settings.wallTileRotatedFor(run.id)
+                                        ? 'Плитка 90°'
+                                        : 'Повернуть 90°',
+                                  ),
+                                ),
                                 OutlinedButton.icon(
                                   onPressed: () async {
                                     settings.wallTileRunMirrored[run.id] =
@@ -667,16 +700,19 @@ class _ElevationsScreenState extends State<ElevationsScreen> {
                                       run.lengthMm,
                                       settings.wallTileFromMm,
                                       math.min(height, settings.wallTileToMm),
-                                      settings.wallTileWidthMm,
-                                      settings.wallTileHeightMm,
-                                      staggered: settings.wallTilePattern == 'half',
+                                      settings.wallTileWidthFor(run.id),
+                                      settings.wallTileHeightFor(run.id),
+                                      staggered:
+                                          settings.wallTilePattern == 'half',
                                     );
                                     settings.wallTileRunOffsetX[run.id] = b.xMm;
                                     settings.wallTileRunOffsetY[run.id] = b.yMm;
                                     await widget.onChanged();
                                     if (mounted) {
                                       setState(() {});
-                                      ScaffoldMessenger.of(context).showSnackBar(
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
                                         SnackBar(
                                           content: Text(
                                             'Минимальная подрезка по габариту: ${b.minimumCutMm.round()} мм',
@@ -686,7 +722,9 @@ class _ElevationsScreenState extends State<ElevationsScreen> {
                                     }
                                   },
                                   icon: const Icon(Icons.auto_fix_high),
-                                  label: const Text('По технологии • без узких подрезок'),
+                                  label: const Text(
+                                    'По технологии • без узких подрезок',
+                                  ),
                                 ),
                               ],
                             ),
@@ -719,7 +757,6 @@ class _ElevationsScreenState extends State<ElevationsScreen> {
   }
 }
 
-
 class _InfoPill extends StatelessWidget {
   const _InfoPill({required this.icon, required this.text});
   final IconData icon;
@@ -727,18 +764,21 @@ class _InfoPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(10),
+    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+    decoration: BoxDecoration(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      borderRadius: BorderRadius.circular(10),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 15),
+        const SizedBox(width: 5),
+        Text(
+          text,
+          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 15),
-            const SizedBox(width: 5),
-            Text(text, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
-          ],
-        ),
-      );
+      ],
+    ),
+  );
 }

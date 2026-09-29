@@ -701,10 +701,12 @@ class RoomMaterialSettings {
     Map<String, double>? wallTileRunOffsetY,
     Map<String, bool>? wallTileRunEnabled,
     Map<String, bool>? wallTileRunMirrored,
+    Map<String, bool>? wallTileRunRotated,
   }) : wallTileRunOffsetX = wallTileRunOffsetX ?? {},
        wallTileRunOffsetY = wallTileRunOffsetY ?? {},
        wallTileRunEnabled = wallTileRunEnabled ?? {},
-       wallTileRunMirrored = wallTileRunMirrored ?? {};
+       wallTileRunMirrored = wallTileRunMirrored ?? {},
+       wallTileRunRotated = wallTileRunRotated ?? {};
 
   String floorMode;
   double floorWastePct;
@@ -766,6 +768,7 @@ class RoomMaterialSettings {
   final Map<String, double> wallTileRunOffsetY;
   final Map<String, bool> wallTileRunEnabled;
   final Map<String, bool> wallTileRunMirrored;
+  final Map<String, bool> wallTileRunRotated;
 
   double wallTileXFor(String runId) =>
       wallTileRunOffsetX[runId] ?? wallTileOffsetXMm;
@@ -773,8 +776,12 @@ class RoomMaterialSettings {
       wallTileRunOffsetY[runId] ?? wallTileOffsetYMm;
   bool wallTileEnabledFor(String runId) =>
       wallTileRunEnabled[runId] ?? wallTile;
-  bool wallTileMirroredFor(String runId) =>
-      wallTileRunMirrored[runId] ?? false;
+  bool wallTileMirroredFor(String runId) => wallTileRunMirrored[runId] ?? false;
+  bool wallTileRotatedFor(String runId) => wallTileRunRotated[runId] ?? false;
+  double wallTileWidthFor(String runId) =>
+      wallTileRotatedFor(runId) ? wallTileHeightMm : wallTileWidthMm;
+  double wallTileHeightFor(String runId) =>
+      wallTileRotatedFor(runId) ? wallTileWidthMm : wallTileHeightMm;
 
   void normalizeFormats() {
     double valid(double value, double min, double fallback) =>
@@ -871,6 +878,7 @@ class RoomMaterialSettings {
     'wallTileRunOffsetY': wallTileRunOffsetY,
     'wallTileRunEnabled': wallTileRunEnabled,
     'wallTileRunMirrored': wallTileRunMirrored,
+    'wallTileRunRotated': wallTileRunRotated,
   };
 
   factory RoomMaterialSettings.fromJson(
@@ -935,10 +943,8 @@ class RoomMaterialSettings {
     wallMaterialId: json['wallMaterialId'] as String? ?? 'paint-warm-white',
     wallTileMaterialId:
         json['wallTileMaterialId'] as String? ?? 'tile-light-stone',
-    wallPaintColorArgb:
-        (json['wallPaintColorArgb'] as num?)?.toInt() ?? 0,
-    wallTileTintArgb:
-        (json['wallTileTintArgb'] as num?)?.toInt() ?? 0xFFFFFFFF,
+    wallPaintColorArgb: (json['wallPaintColorArgb'] as num?)?.toInt() ?? 0,
+    wallTileTintArgb: (json['wallTileTintArgb'] as num?)?.toInt() ?? 0xFFFFFFFF,
     wallTileGroutMm: (json['wallTileGroutMm'] as num?)?.toDouble() ?? 1.5,
     wallTileRunOffsetX: ((json['wallTileRunOffsetX'] as Map?) ?? const {}).map(
       (k, v) => MapEntry(k.toString(), (v as num).toDouble()),
@@ -949,7 +955,9 @@ class RoomMaterialSettings {
     wallTileRunEnabled: ((json['wallTileRunEnabled'] as Map?) ?? const {}).map(
       (k, v) => MapEntry(k.toString(), v as bool),
     ),
-    wallTileRunMirrored: ((json['wallTileRunMirrored'] as Map?) ?? const {}).map(
+    wallTileRunMirrored: ((json['wallTileRunMirrored'] as Map?) ?? const {})
+        .map((k, v) => MapEntry(k.toString(), v as bool)),
+    wallTileRunRotated: ((json['wallTileRunRotated'] as Map?) ?? const {}).map(
       (k, v) => MapEntry(k.toString(), v as bool),
     ),
   );

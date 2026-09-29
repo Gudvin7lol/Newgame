@@ -26,6 +26,7 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
   bool _walkMode = false;
   bool _noclip = false;
   double _walkStepMm = 120;
+  double _lookSensitivity = 0.010;
   double _walkX = 0, _walkY = 0;
   double _overviewRotation = -0.65, _overviewTilt = 0.82;
   double _overviewZoom = 0.92;
@@ -130,9 +131,10 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
           _pan = _gesturePan + (d.focalPoint - _gestureFocal);
         }
       } else {
-        final angle = _rotation + d.focalPointDelta.dx * 0.010;
+        final lookSensitivity = _walkMode ? _lookSensitivity : 0.010;
+        final angle = _rotation + d.focalPointDelta.dx * lookSensitivity;
         _rotation = math.atan2(math.sin(angle), math.cos(angle));
-        _tilt = (_tilt - d.focalPointDelta.dy * 0.006)
+        _tilt = (_tilt - d.focalPointDelta.dy * lookSensitivity * 0.6)
             .clamp(_walkMode ? -0.7 : 0.22, _walkMode ? 0.7 : 1.48)
             .toDouble();
       }
@@ -326,17 +328,35 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
             onScaleStart: _onScaleStart,
             onScaleUpdate: _onScaleUpdate,
             child: ClipRect(
-              child: ZamerGpuViewport(
-                key: _gpuKey,
-                floor: widget.floor,
-                rotation: _rotation,
-                tilt: _tilt,
-                zoom: _zoom,
-                cutaway: !_walkMode && _cutaway,
-                pan: _pan,
-                walkMode: _walkMode,
-                walkX: _walkX,
-                walkY: _walkY,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  ZamerGpuViewport(
+                    key: _gpuKey,
+                    floor: widget.floor,
+                    rotation: _rotation,
+                    tilt: _tilt,
+                    zoom: _zoom,
+                    cutaway: !_walkMode && _cutaway,
+                    pan: _pan,
+                    walkMode: _walkMode,
+                    walkX: _walkX,
+                    walkY: _walkY,
+                  ),
+                  if (_walkMode)
+                    const IgnorePointer(
+                      child: Center(
+                        child: Icon(
+                          Icons.add,
+                          size: 25,
+                          color: Color(0xBFFFFFFF),
+                          shadows: [
+                            Shadow(blurRadius: 4, color: Colors.black54),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
           ),
@@ -389,13 +409,16 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             const Text(
-                              'Правая часть сцены — осмотр. Левый стик — плавное движение.',
+                              'Стик — движение по направлению камеры. Проведи по сцене — осмотр.',
                               style: TextStyle(fontSize: 12),
                             ),
                             const SizedBox(height: 4),
                             Row(
                               children: [
-                                const Icon(Icons.speed, size: 18),
+                                const Tooltip(
+                                  message: 'Скорость движения',
+                                  child: Icon(Icons.speed, size: 18),
+                                ),
                                 Expanded(
                                   child: Slider(
                                     value: _walkStepMm,
@@ -405,6 +428,29 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
                                     label: '${_walkStepMm.round()} мм',
                                     onChanged: (v) =>
                                         setState(() => _walkStepMm = v),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Row(
+                              children: [
+                                const Tooltip(
+                                  message: 'Чувствительность обзора',
+                                  child: Icon(
+                                    Icons.visibility_outlined,
+                                    size: 18,
+                                  ),
+                                ),
+                                Expanded(
+                                  child: Slider(
+                                    value: _lookSensitivity,
+                                    min: 0.005,
+                                    max: 0.018,
+                                    divisions: 13,
+                                    label:
+                                        '${(_lookSensitivity * 1000).round()}',
+                                    onChanged: (v) =>
+                                        setState(() => _lookSensitivity = v),
                                   ),
                                 ),
                               ],

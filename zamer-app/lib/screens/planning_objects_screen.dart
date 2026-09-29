@@ -3,9 +3,11 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../models/models.dart';
+import '../services/angle_snap_service.dart';
 import '../services/object_catalog.dart';
 import '../services/geometry_service.dart';
 import '../services/space_check_service.dart';
+import '../widgets/model_thumbnail.dart';
 
 enum _ObjectMode { add, select }
 
@@ -54,7 +56,9 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
       }
       final before = widget.floor.electricalPoints.length;
       widget.floor.electricalPoints.removeWhere(
-        (point) => point.id.startsWith('fixture:') && !liveFixtureIds.contains(point.id),
+        (point) =>
+            point.id.startsWith('fixture:') &&
+            !liveFixtureIds.contains(point.id),
       );
       changed |= before != widget.floor.electricalPoints.length;
       if (changed) await widget.onChanged();
@@ -114,7 +118,8 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
             final nx = -dy / len;
             final ny = dx / len;
             final sideValue =
-                (object.xMm - hit.point.x) * nx + (object.yMm - hit.point.y) * ny;
+                (object.xMm - hit.point.x) * nx +
+                (object.yMm - hit.point.y) * ny;
             wallSide = sideValue >= 0 ? 1 : -1;
           }
         }
@@ -160,16 +165,25 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
       update();
       changed = true;
     }
+
     assign(point.type != type, () => point!.type = type);
     assign((point.xMm - x).abs() > 0.01, () => point!.xMm = x);
     assign((point.yMm - y).abs() > 0.01, () => point!.yMm = y);
     assign(point.label != item.name, () => point!.label = item.name);
-    assign((point.heightMm - height).abs() > 0.01, () => point!.heightMm = height);
+    assign(
+      (point.heightMm - height).abs() > 0.01,
+      () => point!.heightMm = height,
+    );
     assign(point.circuit != 'Освещение', () => point!.circuit = 'Освещение');
-    assign((point.powerW - (isWall ? 12 : 24)).abs() > 0.01,
-        () => point!.powerW = isWall ? 12 : 24);
+    assign(
+      (point.powerW - (isWall ? 12 : 24)).abs() > 0.01,
+      () => point!.powerW = isWall ? 12 : 24,
+    );
     assign(point.wallId != wallId, () => point!.wallId = wallId);
-    assign(point.wallOffsetMm != wallOffsetMm, () => point!.wallOffsetMm = wallOffsetMm);
+    assign(
+      point.wallOffsetMm != wallOffsetMm,
+      () => point!.wallOffsetMm = wallOffsetMm,
+    );
     assign(point.wallSide != wallSide, () => point!.wallSide = wallSide);
     return changed;
   }
@@ -358,7 +372,8 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
     o.xMm = target.x;
     o.yMm = target.y;
     if (d.pointerCount >= 2) {
-      o.rotationDeg = _gestureBaseRotation + d.rotation * 180 / math.pi;
+      final rawRotation = _gestureBaseRotation + d.rotation * 180 / math.pi;
+      o.rotationDeg = AngleSnapService.snapQuarterTurn(rawRotation);
     } else {
       _snapObjectGuides(o);
       _snapRadiatorToWall(o);
@@ -577,9 +592,8 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
                   o.catalogId.isEmpty
                       ? o.type.label
                       : ObjectCatalog.byId(o.catalogId).name,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                  style: Theme.of(context).textTheme.titleLarge
+                      ?.copyWith(fontWeight: FontWeight.w800),
                 ),
                 const SizedBox(height: 10),
                 TextField(
@@ -752,7 +766,7 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
       (size - 12) / item.widthMm,
       (size - 12) / item.depthMm,
     );
-    return ClipRRect(
+    final fallback = ClipRRect(
       borderRadius: BorderRadius.circular(8),
       child: SizedBox.square(
         dimension: size,
@@ -765,6 +779,11 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
           ),
         ),
       ),
+    );
+    return ZamerModelThumbnail(
+      catalogId: item.id,
+      size: size,
+      fallback: fallback,
     );
   }
 
@@ -870,8 +889,9 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
                                             : Colors.transparent,
                                         borderRadius: BorderRadius.circular(12),
                                         child: InkWell(
-                                          borderRadius:
-                                              BorderRadius.circular(12),
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
                                           onTap: () => refresh(() {
                                             group = candidate;
                                             query = '';
@@ -882,19 +902,23 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
                                               vertical: 11,
                                             ),
                                             child: Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
                                               children: [
                                                 Text(
                                                   candidate,
                                                   maxLines: 2,
-                                                  overflow: TextOverflow.ellipsis,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
                                                   style: TextStyle(
                                                     fontSize: 12,
                                                     fontWeight: selected
                                                         ? FontWeight.w800
                                                         : FontWeight.w500,
                                                     color: selected
-                                                        ? const Color(0xFF79E1B9)
+                                                        ? const Color(
+                                                            0xFF79E1B9,
+                                                          )
                                                         : Colors.white70,
                                                   ),
                                                 ),
@@ -904,7 +928,11 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
                                                   style: TextStyle(
                                                     fontSize: 9,
                                                     color: selected
-                                                        ? const Color(0xFF79E1B9).withValues(alpha: .75)
+                                                        ? const Color(
+                                                            0xFF79E1B9,
+                                                          ).withValues(
+                                                            alpha: .75,
+                                                          )
                                                         : Colors.white38,
                                                   ),
                                                 ),
@@ -940,8 +968,9 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
                                                   BorderRadius.circular(18),
                                               onTap: () => choose(item),
                                               child: Container(
-                                                padding:
-                                                    const EdgeInsets.all(9),
+                                                padding: const EdgeInsets.all(
+                                                  9,
+                                                ),
                                                 decoration: BoxDecoration(
                                                   color: const Color(
                                                     0xFF172125,
@@ -985,13 +1014,18 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
                                                     const SizedBox(height: 3),
                                                     Text(
                                                       item.group,
-                                                      textAlign: TextAlign.center,
+                                                      textAlign:
+                                                          TextAlign.center,
                                                       maxLines: 1,
-                                                      overflow: TextOverflow.ellipsis,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
                                                       style: const TextStyle(
                                                         fontSize: 9,
-                                                        color: Color(0xFF77BFA4),
-                                                        fontWeight: FontWeight.w600,
+                                                        color: Color(
+                                                          0xFF77BFA4,
+                                                        ),
+                                                        fontWeight:
+                                                            FontWeight.w600,
                                                       ),
                                                     ),
                                                     const SizedBox(height: 2),
@@ -999,7 +1033,8 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
                                                       '${item.widthMm.round()} × '
                                                       '${item.depthMm.round()} × '
                                                       '${item.heightMm.round()} мм',
-                                                      textAlign: TextAlign.center,
+                                                      textAlign:
+                                                          TextAlign.center,
                                                       style: const TextStyle(
                                                         fontSize: 10,
                                                         color: Colors.white54,
@@ -1007,20 +1042,29 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
                                                     ),
                                                     const SizedBox(height: 5),
                                                     Container(
-                                                      padding: const EdgeInsets.symmetric(
-                                                        horizontal: 7,
-                                                        vertical: 3,
-                                                      ),
+                                                      padding:
+                                                          const EdgeInsets.symmetric(
+                                                            horizontal: 7,
+                                                            vertical: 3,
+                                                          ),
                                                       decoration: BoxDecoration(
-                                                        color: const Color(0xFF233036),
-                                                        borderRadius: BorderRadius.circular(20),
+                                                        color: const Color(
+                                                          0xFF233036,
+                                                        ),
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              20,
+                                                            ),
                                                       ),
                                                       child: Text(
                                                         item.mountLabel,
                                                         style: const TextStyle(
                                                           fontSize: 9,
-                                                          color: Color(0xFF9DE6C8),
-                                                          fontWeight: FontWeight.w600,
+                                                          color: Color(
+                                                            0xFF9DE6C8,
+                                                          ),
+                                                          fontWeight:
+                                                              FontWeight.w600,
                                                         ),
                                                       ),
                                                     ),
@@ -1047,8 +1091,9 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
                                     '${item.depthMm.round()} × '
                                     '${item.heightMm.round()} мм • ${item.mountLabel}',
                                   ),
-                                  trailing:
-                                      const Icon(Icons.add_circle_outline),
+                                  trailing: const Icon(
+                                    Icons.add_circle_outline,
+                                  ),
                                   onTap: () => choose(item),
                                 );
                               },
