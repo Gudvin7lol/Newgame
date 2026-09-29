@@ -354,7 +354,18 @@ class _ElevationsScreenState extends State<ElevationsScreen> {
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              const Text(
+                'Развёртки',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '${meta.name} • ${runs.length} стен',
+                style: const TextStyle(fontSize: 11, color: Color(0xFF8C989D)),
+              ),
+              const SizedBox(height: 10),
               DropdownButtonFormField<String>(
                 value: face.key,
                 decoration: const InputDecoration(labelText: 'Помещение'),
@@ -390,6 +401,13 @@ class _ElevationsScreenState extends State<ElevationsScreen> {
                     return ChoiceChip(
                       selected: selected,
                       showCheckmark: false,
+                      selectedColor: const Color(0xFF3B3028),
+                      backgroundColor: const Color(0xFF111A1F),
+                      side: BorderSide(
+                        color: selected
+                            ? const Color(0xFFF1C79E)
+                            : const Color(0xFF2A3941),
+                      ),
                       avatar: CircleAvatar(
                         radius: 13,
                         child: Text(
@@ -492,6 +510,12 @@ class _ElevationsScreenState extends State<ElevationsScreen> {
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                   child: Card(
+                    elevation: 0,
+                    color: const Color(0xFF111A1F),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18),
+                      side: const BorderSide(color: Color(0xFF2A3941)),
+                    ),
                     child: Column(
                       children: [
                         Padding(
@@ -523,7 +547,7 @@ class _ElevationsScreenState extends State<ElevationsScreen> {
                           ),
                         ),
                         SizedBox(
-                          height: 410,
+                          height: 440,
                           child: Padding(
                             padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
                             child: LayoutBuilder(
@@ -548,7 +572,7 @@ class _ElevationsScreenState extends State<ElevationsScreen> {
                                       : null,
                                   child: DecoratedBox(
                                     decoration: BoxDecoration(
-                                      color: Colors.white,
+                                      color: const Color(0xFF0B1115),
                                       borderRadius: BorderRadius.circular(12),
                                       border: Border.all(
                                         color: Theme.of(context)
@@ -766,8 +790,9 @@ class _InfoPill extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
     decoration: BoxDecoration(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      color: const Color(0xFF172125),
       borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: const Color(0xFF2A3941)),
     ),
     child: Row(
       mainAxisSize: MainAxisSize.min,

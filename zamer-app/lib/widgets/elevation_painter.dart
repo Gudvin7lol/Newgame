@@ -24,7 +24,10 @@ class ElevationPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    canvas.drawRect(Offset.zero & size, Paint()..color = Colors.white);
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()..color = const Color(0xFF0B1115),
+    );
     final runLen = run.lengthMm;
     if (runLen <= 0) return;
 
@@ -42,13 +45,13 @@ class ElevationPainter extends CustomPainter {
     final top = (size.height - drawH) / 2;
     final rect = Rect.fromLTWH(left, top, drawW, drawH);
 
-    canvas.drawRect(rect, Paint()..color = const Color(0xFFF5F6F8));
+    canvas.drawRect(rect, Paint()..color = const Color(0xFF172125));
     if (settings.wallTileEnabledFor(run.id))
       _drawWallTiles(canvas, rect, scale);
     canvas.drawRect(
       rect,
       Paint()
-        ..color = const Color(0xFF20242A)
+        ..color = const Color(0xFFD4DCDF)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2,
     );
@@ -83,13 +86,13 @@ class ElevationPainter extends CustomPainter {
           oRect,
           Paint()
             ..color = opening.type == OpeningType.window
-                ? const Color(0xFFD8E9FF)
-                : const Color(0xFFFFE7D2),
+                ? const Color(0xFF20384A)
+                : const Color(0xFF4A3426),
         );
         canvas.drawRect(
           oRect,
           Paint()
-            ..color = const Color(0xFF59616D)
+            ..color = const Color(0xFFB9C3C7)
             ..style = PaintingStyle.stroke
             ..strokeWidth = 1.5,
         );
@@ -152,7 +155,7 @@ class ElevationPainter extends CustomPainter {
     final tileRect = Rect.fromLTRB(rect.left, topY, rect.right, bottomY);
     canvas.save();
     canvas.clipRect(tileRect);
-    canvas.drawRect(tileRect, Paint()..color = const Color(0xFFF1F3F5));
+    canvas.drawRect(tileRect, Paint()..color = const Color(0xFF1B2529));
     if (settings.wallTileMirroredFor(run.id)) {
       canvas.translate(tileRect.left + tileRect.right, 0);
       canvas.scale(-1, 1);
@@ -164,7 +167,7 @@ class ElevationPainter extends CustomPainter {
     final offX = (settings.wallTileXFor(run.id) % tileWidthMm) * scale;
     final offY = (settings.wallTileYFor(run.id) % tileHeightMm) * scale;
     final stroke = Paint()
-      ..color = const Color(0xFFB0B7C0)
+      ..color = const Color(0xFF718087)
       ..style = PaintingStyle.stroke
       ..strokeWidth = math.max(0.8, settings.wallTileGroutMm * scale);
     var row = 0;
@@ -189,7 +192,7 @@ class ElevationPainter extends CustomPainter {
     canvas.drawRect(
       tileRect,
       Paint()
-        ..color = const Color(0xFF8D98A5)
+        ..color = const Color(0xFF8E9A9F)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1,
     );
@@ -251,7 +254,7 @@ class ElevationPainter extends CustomPainter {
     bool opening,
   ) {
     final p = Paint()
-      ..color = opening ? const Color(0xFF3E8F75) : const Color(0xFF6D7580)
+      ..color = opening ? const Color(0xFF55B98C) : const Color(0xFFAAB5BA)
       ..strokeWidth = 1;
     canvas.drawLine(Offset(x1, y), Offset(x2, y), p);
     canvas.drawLine(Offset(x1, y - 4), Offset(x1, y + 4), p);
@@ -264,7 +267,7 @@ class ElevationPainter extends CustomPainter {
       text: TextSpan(
         text: text,
         style: const TextStyle(
-          color: Color(0xFF252A30),
+          color: Color(0xFFDDE4E7),
           fontSize: 9,
           fontWeight: FontWeight.w700,
         ),
@@ -279,7 +282,7 @@ class ElevationPainter extends CustomPainter {
     );
     canvas.drawRRect(
       RRect.fromRectAndRadius(rect, const Radius.circular(7)),
-      Paint()..color = Colors.white.withValues(alpha: .92),
+      Paint()..color = const Color(0xEE111A1F),
     );
     canvas.drawRRect(
       RRect.fromRectAndRadius(
@@ -386,7 +389,7 @@ class ElevationPainter extends CustomPainter {
       ..color = const Color(0xFFB24D2B)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5;
-    final fill = Paint()..color = const Color(0xFFFFFFFF);
+    final fill = Paint()..color = const Color(0xFF172125);
     if (p.type == ElectricalPointType.wallLight) {
       canvas.drawCircle(c, 7, fill);
       canvas.drawArc(
@@ -439,7 +442,7 @@ class ElevationPainter extends CustomPainter {
     bool vertical = false,
   }) {
     final p = Paint()
-      ..color = const Color(0xFF6D7580)
+      ..color = const Color(0xFFAAB5BA)
       ..strokeWidth = 1;
     canvas.drawLine(a, b, p);
     if (vertical) {
@@ -468,10 +471,10 @@ class ElevationPainter extends CustomPainter {
       text: TextSpan(
         text: text,
         style: const TextStyle(
-          color: Color(0xFF3A414A),
+          color: Color(0xFFD5DDE0),
           fontSize: 10,
-          fontWeight: FontWeight.w600,
-          backgroundColor: Colors.white,
+          fontWeight: FontWeight.w700,
+          backgroundColor: Color(0xE60B1115),
         ),
       ),
       textDirection: TextDirection.ltr,
@@ -488,7 +491,7 @@ class ElevationPainter extends CustomPainter {
       text: TextSpan(
         text: text,
         style: TextStyle(
-          color: const Color(0xFF2A3038),
+          color: const Color(0xFFDDE4E7),
           fontSize: fontSize,
           fontWeight: FontWeight.w700,
           height: 1.25,
