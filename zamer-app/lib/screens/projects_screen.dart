@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/models.dart';
 import '../services/demo_project_factory.dart';
+import '../services/geometry_service.dart';
 import '../services/project_backup_service.dart';
 import '../services/project_store.dart';
 import 'device_diagnostics_screen.dart';
@@ -30,6 +31,8 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   bool _loading = true;
   bool _unreadable = false;
   bool _showAllProjects = false;
+  String _projectTypeFilter = 'Все';
+  String _projectSortMode = 'Дата';
   String? _dataWarning;
 
   String _id(String p) => '$p-${DateTime.now().microsecondsSinceEpoch}';
@@ -370,6 +373,309 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     }
   }
 
+  Future<void> _showCreateProjectPanel() async {
+    if (_unreadable) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF0F161A),
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Создание проекта',
+                style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 12),
+              _conceptAction(
+                icon: Icons.note_add_outlined,
+                title: 'Пустой проект',
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _create(initialName: 'Квартира');
+                },
+              ),
+              _conceptAction(
+                icon: Icons.dashboard_customize_outlined,
+                title: 'Из шаблона',
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _create(initialName: 'Квартира');
+                },
+              ),
+              _conceptAction(
+                icon: Icons.upload_file_outlined,
+                title: 'Импорт плана',
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _showImportPlanPanel();
+                },
+              ),
+              _conceptAction(
+                icon: Icons.document_scanner_outlined,
+                title: 'Сканировать',
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _importPlan();
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showImportPlanPanel() async {
+    if (_unreadable) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: const Color(0xFF0F161A),
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Импорт планов',
+                style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 5),
+              const Text(
+                'Выберите источник. Масштаб можно откалибровать автоматически или вручную на следующем шаге.',
+                style: TextStyle(fontSize: 11.5, color: Color(0xFF8F9A9F)),
+              ),
+              const SizedBox(height: 14),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _importSourceChip(
+                    sheetContext,
+                    Icons.picture_as_pdf_outlined,
+                    'PDF',
+                  ),
+                  _importSourceChip(
+                    sheetContext,
+                    Icons.architecture_outlined,
+                    'DWG',
+                  ),
+                  _importSourceChip(
+                    sheetContext,
+                    Icons.photo_camera_outlined,
+                    'Фото',
+                  ),
+                  _importSourceChip(
+                    sheetContext,
+                    Icons.photo_library_outlined,
+                    'Из галереи',
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF141D22),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFF29363C)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(
+                      Icons.straighten_outlined,
+                      size: 19,
+                      color: Color(0xFFF1C79E),
+                    ),
+                    SizedBox(width: 9),
+                    Expanded(child: Text('Масштабирование')),
+                    Text(
+                      'Авто  /  Вручную',
+                      style: TextStyle(fontSize: 11, color: Color(0xFFB9C1C4)),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _importSourceChip(
+    BuildContext sheetContext,
+    IconData icon,
+    String label,
+  ) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(11),
+      onTap: () {
+        Navigator.pop(sheetContext);
+        _importPlan();
+      },
+      child: Container(
+        width: 126,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF141D22),
+          borderRadius: BorderRadius.circular(11),
+          border: Border.all(color: const Color(0xFF29363C)),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: const Color(0xFFF1C79E)),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showFiltersPanel() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: const Color(0xFF0F161A),
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Сортировка и фильтры',
+                  style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 7,
+                  runSpacing: 7,
+                  children: ['Все', 'Квартиры', 'Дома', 'Коммерция'].map((
+                    value,
+                  ) {
+                    final selected = _projectTypeFilter == value;
+                    return ChoiceChip(
+                      label: Text(value),
+                      selected: selected,
+                      onSelected: (_) {
+                        setState(() => _projectTypeFilter = value);
+                        setSheetState(() {});
+                      },
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 7,
+                  runSpacing: 7,
+                  children: ['Дата', 'Площадь', 'А-Я'].map((value) {
+                    final selected = _projectSortMode == value;
+                    return ChoiceChip(
+                      label: Text(value),
+                      selected: selected,
+                      onSelected: (_) {
+                        setState(() => _projectSortMode = value);
+                        setSheetState(() {});
+                      },
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showCloudPanel() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: const Color(0xFF0F161A),
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Облачное хранилище',
+                style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 12),
+              _conceptAction(
+                icon: Icons.sync_rounded,
+                title: 'Синхронизация',
+                onTap: () => Navigator.pop(sheetContext),
+              ),
+              _conceptAction(
+                icon: Icons.cloud_upload_outlined,
+                title: 'Резервная копия',
+                onTap: () => Navigator.pop(sheetContext),
+              ),
+              _conceptAction(
+                icon: Icons.devices_outlined,
+                title: 'Доступ с устройств',
+                onTap: () => Navigator.pop(sheetContext),
+              ),
+              _conceptAction(
+                icon: Icons.person_add_alt_outlined,
+                title: 'Пригласить',
+                onTap: () => Navigator.pop(sheetContext),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _conceptAction({
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: const Color(0xFF141D22),
+        borderRadius: BorderRadius.circular(12),
+        child: ListTile(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          leading: Icon(icon, color: const Color(0xFFF1C79E)),
+          title: Text(
+            title,
+            style: const TextStyle(fontWeight: FontWeight.w800),
+          ),
+          trailing: const Icon(Icons.chevron_right_rounded),
+          onTap: onTap,
+        ),
+      ),
+    );
+  }
+
   Future<void> _openDiagnostics() async {
     await Navigator.push(
       context,
@@ -389,6 +695,17 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              ListTile(
+                leading: const Icon(Icons.cloud_outlined),
+                title: const Text('Облачное хранилище'),
+                subtitle: const Text(
+                  'Синхронизация, резервная копия и доступ с устройств',
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showCloudPanel();
+                },
+              ),
               ListTile(
                 leading: const Icon(Icons.file_open_outlined),
                 title: const Text('Импорт проекта'),
@@ -434,15 +751,60 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   List<MeasureProject> get _visibleProjects {
     final query = _searchController.text.trim().toLowerCase();
     final projects = _projects.where((project) {
-      if (query.isEmpty) return true;
-      return project.name.toLowerCase().contains(query) ||
+      final searchable = project.name.toLowerCase();
+      final matchesQuery =
+          query.isEmpty ||
+          searchable.contains(query) ||
           project.address.toLowerCase().contains(query) ||
           project.client.toLowerCase().contains(query);
-    }).toList()..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    if (query.isNotEmpty || _showAllProjects || projects.length <= 3) {
+      if (!matchesQuery) return false;
+      if (_projectTypeFilter == 'Все') return true;
+      if (_projectTypeFilter == 'Квартиры') return searchable.contains('кварт');
+      if (_projectTypeFilter == 'Дома')
+        return searchable.contains('дом') || searchable.contains('дач');
+      if (_projectTypeFilter == 'Коммерция') {
+        return searchable.contains('офис') ||
+            searchable.contains('коммер') ||
+            searchable.contains('магаз') ||
+            searchable.contains('кафе');
+      }
+      return true;
+    }).toList();
+
+    if (_projectSortMode == 'Площадь') {
+      projects.sort((a, b) => _projectAreaM2(b).compareTo(_projectAreaM2(a)));
+    } else if (_projectSortMode == 'А-Я') {
+      projects.sort(
+        (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+      );
+    } else {
+      projects.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    }
+
+    if (query.isNotEmpty || _showAllProjects || projects.length <= 4) {
       return projects;
     }
-    return projects.take(3).toList();
+    return projects.take(4).toList();
+  }
+
+  double _projectAreaM2(MeasureProject project) {
+    var total = 0.0;
+    for (final floor in project.floors) {
+      for (final face in GeometryService.roomFaces(floor)) {
+        total += face.areaM2;
+      }
+    }
+    return total;
+  }
+
+  int _projectPhotoCount(MeasureProject project) {
+    var total = 0;
+    for (final floor in project.floors) {
+      for (final room in floor.roomMetas) {
+        total += room.photoPaths.length;
+      }
+    }
+    return total;
   }
 
   String _dateLabel(DateTime value) {
@@ -481,8 +843,8 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
 
   Widget _projectCard(MeasureProject project) {
     final floor = project.floors.isEmpty ? null : project.floors.first;
-    final rooms = _roomCount(project);
-    final walls = _wallCount(project);
+    final areaM2 = _projectAreaM2(project);
+    final photos = _projectPhotoCount(project);
     return Material(
       color: const Color(0xFF11191E),
       borderRadius: BorderRadius.circular(15),
@@ -562,13 +924,14 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                       Row(
                         children: [
                           _MetaChip(
-                            icon: Icons.meeting_room_outlined,
-                            label: '$rooms пом.',
+                            icon: Icons.square_foot_outlined,
+                            label:
+                                '${areaM2.toStringAsFixed(areaM2 >= 100 ? 0 : 1)} м²',
                           ),
                           const SizedBox(width: 6),
                           _MetaChip(
-                            icon: Icons.linear_scale,
-                            label: '$walls стен',
+                            icon: Icons.photo_library_outlined,
+                            label: '$photos фото',
                           ),
                         ],
                       ),
@@ -630,7 +993,11 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                               onPressed: _searchController.clear,
                               icon: const Icon(Icons.close_rounded, size: 19),
                             )
-                          : null,
+                          : IconButton(
+                              tooltip: 'Сортировка и фильтры',
+                              onPressed: _showFiltersPanel,
+                              icon: const Icon(Icons.tune_rounded, size: 19),
+                            ),
                       filled: true,
                       fillColor: const Color(0xFF131B20),
                       contentPadding: const EdgeInsets.symmetric(vertical: 11),
@@ -689,7 +1056,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                           filled: true,
                           icon: Icons.add_circle_outline,
                           title: 'Новый проект',
-                          onTap: _unreadable ? null : () => _create(),
+                          onTap: _unreadable ? null : _showCreateProjectPanel,
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -697,7 +1064,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                         child: _QuickActionCard(
                           icon: Icons.upload_file_outlined,
                           title: 'Импорт плана',
-                          onTap: _unreadable ? null : _importPlan,
+                          onTap: _unreadable ? null : _showImportPlanPanel,
                         ),
                       ),
                     ],
@@ -767,7 +1134,13 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                     ),
                   if (!queryActive) ...[
                     const SizedBox(height: 16),
-                    _sectionTitle('Шаблоны'),
+                    _sectionTitle(
+                      'Шаблоны',
+                      trailing: TextButton(
+                        onPressed: _showCreateProjectPanel,
+                        child: const Text('Все ›'),
+                      ),
+                    ),
                     const SizedBox(height: 9),
                     SizedBox(
                       height: 118,
