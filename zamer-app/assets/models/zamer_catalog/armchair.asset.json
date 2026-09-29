@@ -1,0 +1,35 @@
+{
+  "id": "armchair",
+  "name": "Кресло",
+  "category": "soft_furniture",
+  "file": "assets/models/zamer_catalog/armchair.glb",
+  "dimensions_m": {
+    "width": 0.9,
+    "depth": 0.9,
+    "height": 0.9
+  },
+  "placement": "floor",
+  "pivot": "floor_center",
+  "lod": {
+    "lod0_triangles": 8716,
+    "lod1_file": "assets/models/zamer_catalog/armchair_lod1.glb",
+    "lod1_triangles": 3340,
+    "lod2_file": "assets/models/zamer_catalog/armchair_lod2.glb",
+    "lod2_triangles": 1180
+  },
+  "materials": {
+    "pbr": true,
+    "max_texture_size": 2048,
+    "material_count": 3
+  },
+  "collision": {
+    "type": "box",
+    "file": null
+  },
+  "source": {
+    "generator": "zamer-procedural-furniture-v1",
+    "license": "project-generated",
+    "reference": "internal"
+  },
+  "version": 1
+}

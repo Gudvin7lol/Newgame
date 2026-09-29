@@ -1,0 +1,35 @@
+{
+  "id": "wardrobe-sliding-2000",
+  "name": "Шкаф-купе 2000",
+  "category": "storage",
+  "file": "assets/models/zamer_catalog/wardrobe-sliding-2000.glb",
+  "dimensions_m": {
+    "width": 2.0,
+    "depth": 0.65,
+    "height": 2.4
+  },
+  "placement": "floor",
+  "pivot": "floor_center",
+  "lod": {
+    "lod0_triangles": 252,
+    "lod1_file": "assets/models/zamer_catalog/wardrobe-sliding-2000_lod1.glb",
+    "lod1_triangles": 188,
+    "lod2_file": "assets/models/zamer_catalog/wardrobe-sliding-2000_lod2.glb",
+    "lod2_triangles": 140
+  },
+  "materials": {
+    "pbr": true,
+    "max_texture_size": 2048,
+    "material_count": 3
+  },
+  "collision": {
+    "type": "box",
+    "file": null
+  },
+  "source": {
+    "generator": "zamer-procedural-furniture-v1",
+    "license": "project-generated",
+    "reference": "internal"
+  },
+  "version": 1
+}
