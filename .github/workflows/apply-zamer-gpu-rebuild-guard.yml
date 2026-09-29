@@ -1,0 +1,78 @@
+name: Apply Zamer GPU rebuild recovery guard
+
+on:
+  push:
+    branches:
+      - 'codex/zamer-1.5.6-3d-stability'
+    paths:
+      - '.github/workflows/apply-zamer-gpu-rebuild-guard.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: codex/zamer-1.5.6-3d-stability
+
+      - name: Apply guarded rebuild patch
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('zamer-app/lib/renderer3d/zamer_gpu_viewport.dart')
+          text = path.read_text()
+
+          old_call = '''      _lastFloorFingerprint = fingerprint;
+              _rebuildScene();
+          '''
+          new_call = '''      _lastFloorFingerprint = fingerprint;
+              _rebuildSceneAfterUpdate();
+          '''
+          if old_call not in text:
+              raise SystemExit('Expected didUpdateWidget rebuild call was not found')
+          text = text.replace(old_call, new_call, 1)
+
+          marker = '''  int _floorFingerprint() {
+          '''
+          guard = '''  Future<void> _rebuildSceneAfterUpdate() async {
+            try {
+              await _rebuildScene();
+              if (!mounted) return;
+              if (!_ready && _loadError != null) {
+                _scheduleRetry(immediate: true);
+              }
+            } catch (error) {
+              if (!mounted) return;
+              setState(() {
+                _loadError = error;
+                _ready = false;
+              });
+              // Editing the plan must never leave the GPU viewport permanently
+              // blank. Recreate the GPU scene on the next frame instead of
+              // requiring the user to restart the whole application.
+              _scheduleRetry(immediate: true);
+            }
+          }
+
+          int _floorFingerprint() {
+          '''
+          if marker not in text:
+              raise SystemExit('Expected fingerprint marker was not found')
+          text = text.replace(marker, guard, 1)
+          path.write_text(text)
+
+      - name: Commit patch and remove one-shot workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/workflows/apply-zamer-gpu-rebuild-guard.yml
+          git add zamer-app/lib/renderer3d/zamer_gpu_viewport.dart
+          git commit -m 'Recover GPU scene after live rebuild failures'
+          git push origin HEAD:codex/zamer-1.5.6-3d-stability
