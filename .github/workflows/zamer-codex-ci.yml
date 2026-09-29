@@ -30,6 +30,21 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.head_ref || github.ref_name }}
 
+      - name: Repair pending +57 patch helper
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('tools/apply_zamer_1_5_6_57_3d_ui.py')
+          text = path.read_text()
+          old = "end = '}\\n\\nclass _WalkJoystick extends StatefulWidget {\\n'"
+          new = "end = 'class _WalkJoystick extends StatefulWidget {\\n'"
+          if old in text:
+              path.write_text(text.replace(old, new, 1))
+          elif new not in text:
+              raise SystemExit('unexpected +57 helper marker')
+          PY
+
       - name: Apply pending +57 3D UI pass
         run: python3 tools/apply_zamer_1_5_6_57_3d_ui.py
 
