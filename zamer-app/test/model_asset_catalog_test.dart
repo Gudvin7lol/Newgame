@@ -26,12 +26,22 @@ void main() {
     for (final id in ZamerModelAssetCatalog.productionLodIds) {
       final model = ZamerModelAssetCatalog.byId(id);
       expect(model, isNotNull, reason: 'Missing production catalog item $id');
-      expect(model!.hasCompleteLodChain, isTrue, reason: '$id has no LOD chain');
+      expect(
+        model!.hasCompleteLodChain,
+        isTrue,
+        reason: '$id has no LOD chain',
+      );
       expect(File(model.assetPath).existsSync(), isTrue);
-      expect(File(model.lod1AssetPath!).existsSync(), isTrue,
-          reason: 'Missing LOD1 for $id');
-      expect(File(model.lod2AssetPath!).existsSync(), isTrue,
-          reason: 'Missing LOD2 for $id');
+      expect(
+        File(model.lod1AssetPath!).existsSync(),
+        isTrue,
+        reason: 'Missing LOD1 for $id',
+      );
+      expect(
+        File(model.lod2AssetPath!).existsSync(),
+        isTrue,
+        reason: 'Missing LOD2 for $id',
+      );
       expect(model.pathForLod(ZamerModelLod.lod0), model.assetPath);
       expect(model.pathForLod(ZamerModelLod.lod1), model.lod1AssetPath);
       expect(model.pathForLod(ZamerModelLod.lod2), model.lod2AssetPath);

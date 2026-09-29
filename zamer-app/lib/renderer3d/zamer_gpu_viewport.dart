@@ -11,6 +11,7 @@ import '../models/models.dart';
 import '../services/material_catalog.dart';
 import '../widgets/floor_3d_painter.dart';
 import 'model_asset_catalog.dart';
+import 'model_lod_policy.dart';
 import 'zamer_scene_geometry.dart';
 
 /// GPU-backed 3D viewport for Zamер.
@@ -390,7 +391,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     );
   }
 
-  Future<void> _rebuildScene() async {
+  Future<void> _rebuildScene({bool photoQuality = false}) async {
     final generation = ++_buildGeneration;
     if (mounted) {
       setState(() {
@@ -452,7 +453,12 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
 
     for (final object in geometry.objects) {
       if (generation != _buildGeneration) return;
-      final node = await _buildObjectNode(object, geometry.bounds);
+      final node = await _buildObjectNode(
+        object,
+        geometry.bounds,
+        visibleObjectCount: geometry.objects.length,
+        photoQuality: photoQuality,
+      );
       if (generation != _buildGeneration) return;
       scene.add(node);
     }
@@ -1071,8 +1077,10 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
 
   Future<Node> _buildObjectNode(
     ZamerObjectPlacement object,
-    ZamerSceneBounds bounds,
-  ) async {
+    ZamerSceneBounds bounds, {
+    required int visibleObjectCount,
+    bool photoQuality = false,
+  }) async {
     final asset = ZamerModelAssetCatalog.byId(object.catalogId);
     final root = Node(name: 'object:${object.id}:${object.catalogId}');
     var importedModel = false;
@@ -1081,8 +1089,15 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       root.add(_fallbackObject(object));
     } else {
       try {
-        final template = _modelTemplates[asset.assetPath] ??=
-            await Node.fromGlbAsset(asset.assetPath);
+        final modelPath = ZamerModelLodPolicy.pathFor(
+          asset: asset,
+          visibleObjectCount: visibleObjectCount,
+          photoQuality: photoQuality,
+          walkMode: widget.walkMode,
+        );
+        final template = _modelTemplates[modelPath] ??= await Node.fromGlbAsset(
+          modelPath,
+        );
         final model = template.clone(recursive: true);
         importedModel = true;
 
@@ -1351,6 +1366,15 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       return _renderFallbackPng(width: width, height: height);
     }
 
+    if (photoQuality) {
+      // Rebuild the scene with full production LOD0 for the exported frame.
+      // The on-screen scene may deliberately be using LOD1/LOD2.
+      await _rebuildScene(photoQuality: true);
+      if (!mounted || !_ready) {
+        return _renderFallbackPng(width: width, height: height);
+      }
+    }
+
     final camera = _camera();
     _applyCutaway(camera);
     if (photoQuality) _configurePhotoLighting();
@@ -1384,7 +1408,16 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
         image.dispose();
       }
     } finally {
-      if (photoQuality) _configureScene();
+      if (photoQuality) {
+        _configureScene();
+        try {
+          // Restore the adaptive interactive LOD immediately after export so
+          // a 4K render does not leave a heavy LOD0 scene on the phone.
+          await _rebuildScene();
+        } catch (_) {
+          _scheduleRetry(immediate: true);
+        }
+      }
     }
   }
 

@@ -37,10 +37,10 @@ class ZamerModelAsset {
   /// Returns the closest available model for the requested detail level.
   /// Legacy catalogue entries transparently fall back to LOD0.
   String pathForLod(ZamerModelLod lod) => switch (lod) {
-        ZamerModelLod.lod0 => assetPath,
-        ZamerModelLod.lod1 => lod1AssetPath ?? assetPath,
-        ZamerModelLod.lod2 => lod2AssetPath ?? lod1AssetPath ?? assetPath,
-      };
+    ZamerModelLod.lod0 => assetPath,
+    ZamerModelLod.lod1 => lod1AssetPath ?? assetPath,
+    ZamerModelLod.lod2 => lod2AssetPath ?? lod1AssetPath ?? assetPath,
+  };
 }
 
 /// Maps plan catalog IDs to bundled GLB models. The GLBs are authored in metres
