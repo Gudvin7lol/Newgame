@@ -19,69 +19,15 @@ jobs:
           ref: codex/zamer-1.5.6-3d-stability
           fetch-depth: 0
       - name: Serialize live GPU scene rebuilds
-        shell: python
+        shell: python {0}
         run: |
           from pathlib import Path
           path = Path('zamer-app/lib/renderer3d/zamer_gpu_viewport.dart')
           text = path.read_text()
-          old_fields = '''  int _lastFloorFingerprint = 0;
-'''
-          new_fields = '''  int _lastFloorFingerprint = 0;
-  bool _liveRebuildInProgress = false;
-  bool _liveRebuildPending = false;
-'''
-          old_fn = '''  Future<void> _rebuildSceneAfterUpdate() async {
-    try {
-      await _rebuildScene();
-      if (!mounted) return;
-      if (!_ready && _loadError != null) {
-        _scheduleRetry(immediate: true);
-      }
-    } catch (error) {
-      if (!mounted) return;
-      setState(() {
-        _loadError = error;
-        _ready = false;
-      });
-      // Editing the plan must never leave the GPU viewport permanently
-      // blank. Recreate the GPU scene on the next frame instead of
-      // requiring the user to restart the whole application.
-      _scheduleRetry(immediate: true);
-    }
-  }
-'''
-          new_fn = '''  Future<void> _rebuildSceneAfterUpdate() async {
-    if (_liveRebuildInProgress) {
-      _liveRebuildPending = true;
-      return;
-    }
-    _liveRebuildInProgress = true;
-    try {
-      do {
-        _liveRebuildPending = false;
-        try {
-          await _rebuildScene();
-          if (!mounted) return;
-          if (!_ready && _loadError != null) {
-            _scheduleRetry(immediate: true);
-          }
-        } catch (error) {
-          if (!mounted) return;
-          setState(() {
-            _loadError = error;
-            _ready = false;
-          });
-          // Editing the plan must never leave the GPU viewport permanently
-          // blank. Recreate the GPU scene on the next frame instead of
-          // requiring the user to restart the whole application.
-          _scheduleRetry(immediate: true);
-        }
-      } while (mounted && _liveRebuildPending);
-    } finally {
-      _liveRebuildInProgress = false;
-    }
-  }
-'''
+          old_fields = '''  int _lastFloorFingerprint = 0;\n'''
+          new_fields = '''  int _lastFloorFingerprint = 0;\n  bool _liveRebuildInProgress = false;\n  bool _liveRebuildPending = false;\n'''
+          old_fn = '''  Future<void> _rebuildSceneAfterUpdate() async {\n    try {\n      await _rebuildScene();\n      if (!mounted) return;\n      if (!_ready && _loadError != null) {\n        _scheduleRetry(immediate: true);\n      }\n    } catch (error) {\n      if (!mounted) return;\n      setState(() {\n        _loadError = error;\n        _ready = false;\n      });\n      // Editing the plan must never leave the GPU viewport permanently\n      // blank. Recreate the GPU scene on the next frame instead of\n      // requiring the user to restart the whole application.\n      _scheduleRetry(immediate: true);\n    }\n  }\n'''
+          new_fn = '''  Future<void> _rebuildSceneAfterUpdate() async {\n    if (_liveRebuildInProgress) {\n      _liveRebuildPending = true;\n      return;\n    }\n    _liveRebuildInProgress = true;\n    try {\n      do {\n        _liveRebuildPending = false;\n        try {\n          await _rebuildScene();\n          if (!mounted) return;\n          if (!_ready && _loadError != null) {\n            _scheduleRetry(immediate: true);\n          }\n        } catch (error) {\n          if (!mounted) return;\n          setState(() {\n            _loadError = error;\n            _ready = false;\n          });\n          // Editing the plan must never leave the GPU viewport permanently\n          // blank. Recreate the GPU scene on the next frame instead of\n          // requiring the user to restart the whole application.\n          _scheduleRetry(immediate: true);\n        }\n      } while (mounted && _liveRebuildPending);\n    } finally {\n      _liveRebuildInProgress = false;\n    }\n  }\n'''
           if old_fields not in text:
               raise SystemExit('state field anchor not found; refusing unsafe patch')
           if old_fn not in text:
