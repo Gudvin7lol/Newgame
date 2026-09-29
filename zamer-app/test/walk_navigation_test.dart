@@ -37,6 +37,31 @@ void main() {
     ),
   ]);
 
+  test('walk uses the same forward basis as the GPU camera', () {
+    const start = math.Point<double>(1000, 1250);
+    final east = WalkNavigationService.advance(
+      floor,
+      start,
+      0,
+      300,
+      0,
+      ignoreCollisions: true,
+    );
+    expect(east.x, closeTo(1300, 0.001));
+    expect(east.y, closeTo(1250, 0.001));
+
+    final south = WalkNavigationService.advance(
+      floor,
+      start,
+      math.pi / 2,
+      300,
+      0,
+      ignoreCollisions: true,
+    );
+    expect(south.x, closeTo(1000, 0.001));
+    expect(south.y, closeTo(1550, 0.001));
+  });
+
   test('walk keeps the eye away from solid walls but crosses a door', () {
     const start = math.Point<double>(1000, 1250);
     expect(WalkNavigationService.canStand(floor, start), isTrue);
@@ -50,12 +75,18 @@ void main() {
     final throughDoor = WalkNavigationService.advance(
       floor,
       start,
-      math.pi / 2,
+      0,
       1600,
       0,
     );
     expect(throughDoor.x, greaterThan(2300));
-    final intoWall = WalkNavigationService.advance(floor, start, 0, -1500, 0);
+    final intoWall = WalkNavigationService.advance(
+      floor,
+      start,
+      -math.pi / 2,
+      1500,
+      0,
+    );
     expect(intoWall.y, greaterThanOrEqualTo(300));
   });
 
@@ -75,7 +106,7 @@ void main() {
     final approached = WalkNavigationService.advance(
       floor,
       const math.Point<double>(2200, 1250),
-      math.pi / 2,
+      0,
       1300,
       0,
     );
@@ -86,9 +117,9 @@ void main() {
     final moved = WalkNavigationService.advance(
       floor,
       const math.Point<double>(1000, 400),
-      math.pi / 2,
+      0,
       800,
-      800,
+      -800,
     );
 
     expect(moved.y, greaterThanOrEqualTo(300));
@@ -100,7 +131,7 @@ void main() {
     final moved = WalkNavigationService.advance(
       floor,
       start,
-      -math.pi / 2,
+      math.pi,
       1600,
       0,
       ignoreCollisions: true,
