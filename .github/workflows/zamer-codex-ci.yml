@@ -33,6 +33,9 @@ jobs:
       - name: Apply pending +60 engineering UI pass
         run: python3 tools/apply_zamer_1_5_6_60_engineering_ui.py
 
+      - name: Update +60 engineering UI test
+        run: python3 tools/apply_zamer_1_5_6_60_engineering_test_update.py
+
       - name: Set up Java 17
         uses: actions/setup-java@v5
         with:
@@ -47,7 +50,7 @@ jobs:
           cache: true
 
       - name: Format patched engineering UI
-        run: dart format zamer-app/lib/screens/engineering_screen.dart
+        run: dart format zamer-app/lib/screens/engineering_screen.dart zamer-app/test/engineering_screen_test.dart
 
       - name: Get packages
         working-directory: zamer-app
@@ -86,6 +89,7 @@ jobs:
           git config user.email 'zamer-codex-bot@users.noreply.github.com'
           git add \
             zamer-app/lib/screens/engineering_screen.dart \
+            zamer-app/test/engineering_screen_test.dart \
             zamer-app/pubspec.yaml \
             zamer-app/CHANGELOG.md
           if git diff --cached --quiet; then
