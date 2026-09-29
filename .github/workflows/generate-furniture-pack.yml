@@ -1,0 +1,65 @@
+name: Generate production furniture pack
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'codex/zamer-1.5.6-3d-stability'
+    paths:
+      - 'zamer-app/tool/asset_pipeline/generate_furniture_pack.py'
+      - '.github/workflows/generate-furniture-pack.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: codex/zamer-1.5.6-3d-stability
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install model tooling
+        run: python -m pip install --disable-pip-version-check numpy scipy networkx trimesh
+
+      - name: Generate furniture pack and LODs
+        run: python zamer-app/tool/asset_pipeline/generate_furniture_pack.py
+
+      - name: Setup Dart
+        uses: dart-lang/setup-dart@v1
+
+      - name: Validate generated assets
+        working-directory: zamer-app
+        shell: bash
+        run: |
+          set -euo pipefail
+          for id in armchair bed-160 dining-chair-upholstered dining-table-1800 wardrobe-sliding-2000; do
+            dart run tool/asset_pipeline/validate_asset.dart "assets/models/zamer_catalog/${id}.asset.json"
+          done
+
+      - name: Commit generated model files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          for id in armchair bed-160 dining-chair-upholstered dining-table-1800 wardrobe-sliding-2000; do
+            git add \
+              "zamer-app/assets/models/zamer_catalog/${id}.glb" \
+              "zamer-app/assets/models/zamer_catalog/${id}_lod1.glb" \
+              "zamer-app/assets/models/zamer_catalog/${id}_lod2.glb" \
+              "zamer-app/assets/models/zamer_catalog/${id}.asset.json"
+          done
+          if git diff --cached --quiet; then
+            echo 'Generated furniture assets are already current.'
+            exit 0
+          fi
+          git commit -m 'Generate production furniture GLB pack and LODs'
+          git push origin HEAD:codex/zamer-1.5.6-3d-stability
