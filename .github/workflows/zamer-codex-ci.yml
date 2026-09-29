@@ -27,6 +27,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Prepare guarded +50 geometry patch
+        run: python3 tools/prepare_zamer_50_geometry.py
+
       - name: Apply pending +50 interaction and tile fixes
         run: python3 tools/apply_zamer_1_5_6_50_interaction_tiles.py
 
