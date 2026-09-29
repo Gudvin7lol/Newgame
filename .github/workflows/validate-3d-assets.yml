@@ -35,9 +35,12 @@ jobs:
           mapfile -t metadata_files < <(find assets/models -type f -name '*.asset.json' | sort)
           if [ ${#metadata_files[@]} -eq 0 ]; then
             echo 'No *.asset.json files found; pipeline scaffold is valid.'
-            exit 0
+          else
+            for file in "${metadata_files[@]}"; do
+              echo "Validating $file"
+              dart run tool/asset_pipeline/validate_asset.dart "$file"
+            done
           fi
-          for file in "${metadata_files[@]}"; do
-            echo "Validating $file"
-            dart run tool/asset_pipeline/validate_asset.dart "$file"
-          done
+
+      - name: Validate production embedded PBR profiles
+        run: dart run tool/asset_pipeline/validate_production_pbr.dart

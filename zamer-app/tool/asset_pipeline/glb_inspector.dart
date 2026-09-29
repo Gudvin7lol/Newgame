@@ -3,10 +3,23 @@ import 'dart:io';
 import 'dart:typed_data';
 
 class GlbInfo {
-  const GlbInfo({required this.triangles, required this.materials, required this.meshes});
+  const GlbInfo({
+    required this.triangles,
+    required this.materials,
+    required this.meshes,
+    required this.images,
+    required this.baseColorTexturedMaterials,
+    required this.normalMappedMaterials,
+    required this.metallicRoughnessMappedMaterials,
+  });
+
   final int triangles;
   final int materials;
   final int meshes;
+  final int images;
+  final int baseColorTexturedMaterials;
+  final int normalMappedMaterials;
+  final int metallicRoughnessMappedMaterials;
 }
 
 GlbInfo inspectGlb(String path) {
@@ -34,7 +47,9 @@ GlbInfo inspectGlb(String path) {
   final rawJson = utf8.decode(bytes.sublist(20, 20 + jsonLength)).trimRight();
   final root = jsonDecode(rawJson) as Map<String, dynamic>;
   final asset = root['asset'] as Map<String, dynamic>?;
-  if (asset?['version'] != '2.0') throw StateError('asset.version must be 2.0: $path');
+  if (asset?['version'] != '2.0') {
+    throw StateError('asset.version must be 2.0: $path');
+  }
 
   void rejectExternalUris(dynamic list, String field) {
     if (list is! List) return;
@@ -46,6 +61,7 @@ GlbInfo inspectGlb(String path) {
       }
     }
   }
+
   rejectExternalUris(root['buffers'], 'buffers');
   rejectExternalUris(root['images'], 'images');
 
@@ -53,7 +69,9 @@ GlbInfo inspectGlb(String path) {
   int accessorCount(dynamic index) {
     if (index is! int || index < 0 || index >= accessors.length) return 0;
     final a = accessors[index];
-    return a is Map<String, dynamic> && a['count'] is int ? a['count'] as int : 0;
+    return a is Map<String, dynamic> && a['count'] is int
+        ? a['count'] as int
+        : 0;
   }
 
   var triangles = 0;
@@ -65,14 +83,18 @@ GlbInfo inspectGlb(String path) {
     for (final p in primitives) {
       if (p is! Map<String, dynamic>) continue;
       final mode = p['mode'] ?? 4;
-      if (mode != 4) throw StateError('Non-triangle primitive mode $mode is not allowed: $path');
-      var vertexIndex = p['indices'];
+      if (mode != 4) {
+        throw StateError('Non-triangle primitive mode $mode is not allowed: $path');
+      }
+      final vertexIndex = p['indices'];
       var count = accessorCount(vertexIndex);
       if (count == 0) {
         final attrs = p['attributes'];
         if (attrs is Map<String, dynamic>) count = accessorCount(attrs['POSITION']);
       }
-      if (count % 3 != 0) throw StateError('Primitive count is not divisible by 3: $path');
+      if (count % 3 != 0) {
+        throw StateError('Primitive count is not divisible by 3: $path');
+      }
       triangles += count ~/ 3;
     }
   }
@@ -86,10 +108,34 @@ GlbInfo inspectGlb(String path) {
     }
   }
 
+  final materials = (root['materials'] as List?) ?? const [];
+  var baseColorTexturedMaterials = 0;
+  var normalMappedMaterials = 0;
+  var metallicRoughnessMappedMaterials = 0;
+  for (final material in materials) {
+    if (material is! Map<String, dynamic>) continue;
+    final pbr = material['pbrMetallicRoughness'];
+    if (pbr is Map<String, dynamic>) {
+      if (pbr['baseColorTexture'] is Map<String, dynamic>) {
+        baseColorTexturedMaterials++;
+      }
+      if (pbr['metallicRoughnessTexture'] is Map<String, dynamic>) {
+        metallicRoughnessMappedMaterials++;
+      }
+    }
+    if (material['normalTexture'] is Map<String, dynamic>) {
+      normalMappedMaterials++;
+    }
+  }
+
   return GlbInfo(
     triangles: triangles,
-    materials: ((root['materials'] as List?) ?? const []).length,
+    materials: materials.length,
     meshes: meshes.length,
+    images: ((root['images'] as List?) ?? const []).length,
+    baseColorTexturedMaterials: baseColorTexturedMaterials,
+    normalMappedMaterials: normalMappedMaterials,
+    metallicRoughnessMappedMaterials: metallicRoughnessMappedMaterials,
   );
 }
 
@@ -105,6 +151,10 @@ void main(List<String> args) {
       'triangles': info.triangles,
       'materials': info.materials,
       'meshes': info.meshes,
+      'images': info.images,
+      'baseColorTexturedMaterials': info.baseColorTexturedMaterials,
+      'normalMappedMaterials': info.normalMappedMaterials,
+      'metallicRoughnessMappedMaterials': info.metallicRoughnessMappedMaterials,
     }));
   } catch (e) {
     stderr.writeln('GLB VALIDATION FAILED: $e');
