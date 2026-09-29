@@ -101,11 +101,31 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     if (!identical(oldWidget.floor, widget.floor) ||
         fingerprint != _lastFloorFingerprint) {
       _lastFloorFingerprint = fingerprint;
-      _rebuildScene();
+      _rebuildSceneAfterUpdate();
     }
   }
 
-  int _floorFingerprint() {
+  Future<void> _rebuildSceneAfterUpdate() async {
+  try {
+    await _rebuildScene();
+    if (!mounted) return;
+    if (!_ready && _loadError != null) {
+      _scheduleRetry(immediate: true);
+    }
+  } catch (error) {
+    if (!mounted) return;
+    setState(() {
+      _loadError = error;
+      _ready = false;
+    });
+    // Editing the plan must never leave the GPU viewport permanently
+    // blank. Recreate the GPU scene on the next frame instead of
+    // requiring the user to restart the whole application.
+    _scheduleRetry(immediate: true);
+  }
+}
+
+int _floorFingerprint() {
     final values = <Object?>[
       widget.floor.defaultHeightMm,
       widget.floor.walls.length,
