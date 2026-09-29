@@ -15,9 +15,11 @@ void main() {
         reason: 'Missing GLB file for ${item.id}: ${model.assetPath}',
       );
       expect(model.hasRenderableDimensions, isTrue);
-      expect(model.nativeWidthMm, item.widthMm);
-      expect(model.nativeDepthMm, item.depthMm);
-      expect(model.nativeHeightMm, item.heightMm);
+      if (!ZamerModelAssetCatalog.productionLodIds.contains(item.id)) {
+        expect(model.nativeWidthMm, item.widthMm);
+        expect(model.nativeDepthMm, item.depthMm);
+        expect(model.nativeHeightMm, item.heightMm);
+      }
     }
   });
 
@@ -46,6 +48,23 @@ void main() {
       expect(model.pathForLod(ZamerModelLod.lod1), model.lod1AssetPath);
       expect(model.pathForLod(ZamerModelLod.lod2), model.lod2AssetPath);
     }
+  });
+
+  test('production native dimensions describe authored GLB bounds', () {
+    final armchair = ZamerModelAssetCatalog.byId('armchair')!;
+    expect(armchair.nativeWidthMm, 900);
+    expect(armchair.nativeDepthMm, 900);
+    expect(armchair.nativeHeightMm, 900);
+
+    final bed = ZamerModelAssetCatalog.byId('bed-160')!;
+    expect(bed.nativeWidthMm, 1800);
+    expect(bed.nativeDepthMm, 2150);
+    expect(bed.nativeHeightMm, 1050);
+
+    final corner = ZamerModelAssetCatalog.byId('sofa-corner')!;
+    expect(corner.nativeWidthMm, 2800);
+    expect(corner.nativeDepthMm, 1900);
+    expect(corner.nativeHeightMm, 880);
   });
 
   test('legacy assets fall back safely when an LOD is unavailable', () {
