@@ -1,0 +1,79 @@
+name: Apply Zamer scene fingerprint fix
+
+on:
+  push:
+    branches:
+      - codex/zamer-1.5.6-3d-stability
+    paths:
+      - .github/workflows/apply-zamer-scene-fingerprint-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/zamer-1.5.6-3d-stability
+          fetch-depth: 0
+      - name: Patch scene change fingerprint
+        shell: python
+        run: |
+          from pathlib import Path
+          path = Path('zamer-app/lib/renderer3d/zamer_gpu_viewport.dart')
+          text = path.read_text()
+          old = '''    for (final wall in widget.floor.walls) {
+                values.addAll(<Object?>[
+                  wall.id,
+                  wall.startNodeId,
+                  wall.endNodeId,
+                  wall.thicknessMm,
+                  wall.heightOverrideMm,
+                  wall.openings.length,
+                ]);
+              }
+          '''
+          new = '''    for (final node in widget.floor.nodes) {
+                values.addAll(<Object?>[node.id, node.xMm, node.yMm]);
+              }
+              for (final wall in widget.floor.walls) {
+                values.addAll(<Object?>[
+                  wall.id,
+                  wall.startNodeId,
+                  wall.endNodeId,
+                  wall.thicknessMm,
+                  wall.heightOverrideMm,
+                  wall.openings.length,
+                ]);
+                for (final opening in wall.openings) {
+                  values.addAll(<Object?>[
+                    opening.id,
+                    opening.type,
+                    opening.widthMm,
+                    opening.heightMm,
+                    opening.offsetFromStartMm,
+                  ]);
+                }
+              }
+          '''
+          if old not in text:
+              raise SystemExit('fingerprint block not found; refusing unsafe patch')
+          path.write_text(text.replace(old, new, 1))
+      - name: Format Dart
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+      - run: dart format zamer-app/lib/renderer3d/zamer_gpu_viewport.dart
+      - name: Commit patch and remove one-shot workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/apply-zamer-scene-fingerprint-fix.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add zamer-app/lib/renderer3d/zamer_gpu_viewport.dart .github/workflows/apply-zamer-scene-fingerprint-fix.yml
+          git commit -m 'Rebuild 3D when plan geometry changes'
+          git push origin HEAD:codex/zamer-1.5.6-3d-stability
