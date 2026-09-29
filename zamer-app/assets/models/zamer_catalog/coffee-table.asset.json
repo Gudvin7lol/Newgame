@@ -1,0 +1,35 @@
+{
+  "id": "coffee-table",
+  "name": "Журнальный стол",
+  "category": "tables_chairs",
+  "file": "assets/models/zamer_catalog/coffee-table.glb",
+  "dimensions_m": {
+    "width": 1.1,
+    "depth": 0.62,
+    "height": 0.42
+  },
+  "placement": "floor",
+  "pivot": "floor_center",
+  "lod": {
+    "lod0_triangles": 2488,
+    "lod1_file": "assets/models/zamer_catalog/coffee-table_lod1.glb",
+    "lod1_triangles": 1048,
+    "lod2_file": "assets/models/zamer_catalog/coffee-table_lod2.glb",
+    "lod2_triangles": 436
+  },
+  "materials": {
+    "pbr": true,
+    "max_texture_size": 2048,
+    "material_count": 2
+  },
+  "collision": {
+    "type": "box",
+    "file": null
+  },
+  "source": {
+    "generator": "zamer-procedural-furniture-v2",
+    "license": "project-generated",
+    "reference": "internal"
+  },
+  "version": 1
+}

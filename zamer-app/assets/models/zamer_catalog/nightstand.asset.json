@@ -1,0 +1,35 @@
+{
+  "id": "nightstand",
+  "name": "Тумба прикроватная",
+  "category": "storage",
+  "file": "assets/models/zamer_catalog/nightstand.glb",
+  "dimensions_m": {
+    "width": 0.55,
+    "depth": 0.45,
+    "height": 0.62
+  },
+  "placement": "floor",
+  "pivot": "floor_center",
+  "lod": {
+    "lod0_triangles": 736,
+    "lod1_file": "assets/models/zamer_catalog/nightstand_lod1.glb",
+    "lod1_triangles": 344,
+    "lod2_file": "assets/models/zamer_catalog/nightstand_lod2.glb",
+    "lod2_triangles": 296
+  },
+  "materials": {
+    "pbr": true,
+    "max_texture_size": 2048,
+    "material_count": 3
+  },
+  "collision": {
+    "type": "box",
+    "file": null
+  },
+  "source": {
+    "generator": "zamer-procedural-furniture-v2",
+    "license": "project-generated",
+    "reference": "internal"
+  },
+  "version": 1
+}
