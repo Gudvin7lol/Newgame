@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -146,9 +147,9 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
     if (_rendering) return;
     final renderer = _gpuKey.currentState;
     if (renderer == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('3D-сцена ещё не готова.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('3D-сцена ещё не готова.')));
       return;
     }
     setState(() => _rendering = true);
@@ -211,10 +212,9 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
                       const SizedBox(width: 10),
                       Expanded(
                         child: FilledButton.icon(
-                          onPressed: () => Share.shareXFiles(
-                            [XFile(file.path)],
-                            text: '$label • фоторендер «Замер»',
-                          ),
+                          onPressed: () => Share.shareXFiles([
+                            XFile(file.path),
+                          ], text: '$label • фоторендер «Замер»'),
                           icon: const Icon(Icons.share_outlined),
                           label: const Text('Сохранить / поделиться'),
                         ),
@@ -240,6 +240,14 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
 
   Future<void> _showRenderSheet() async {
     if (_rendering) return;
+    final size = MediaQuery.sizeOf(context);
+    final portrait = size.height >= size.width;
+    final hdWidth = portrait ? 1080 : 1920;
+    final hdHeight = portrait ? 1920 : 1080;
+    final twoKWidth = portrait ? 1440 : 2560;
+    final twoKHeight = portrait ? 2560 : 1440;
+    final fourKWidth = portrait ? 2160 : 3840;
+    final fourKHeight = portrait ? 3840 : 2160;
     await showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
@@ -252,9 +260,8 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
             children: [
               Text(
                 'Финальный рендер',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
+                style: Theme.of(context).textTheme.titleLarge
+                    ?.copyWith(fontWeight: FontWeight.w800),
               ),
               const SizedBox(height: 6),
               const Text(
@@ -266,29 +273,38 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
               const SizedBox(height: 14),
               _RenderPresetTile(
                 title: 'HD',
-                subtitle: '1920 × 1080 • быстро',
+                subtitle: '${hdWidth} × ${hdHeight} • быстро',
                 icon: Icons.hd_outlined,
                 onTap: () {
                   Navigator.pop(context);
-                  _exportRender(width: 1920, height: 1080, label: 'HD');
+                  _exportRender(width: hdWidth, height: hdHeight, label: 'HD');
                 },
               ),
               _RenderPresetTile(
                 title: '2K',
-                subtitle: '2560 × 1440 • презентация',
+                subtitle: '${twoKWidth} × ${twoKHeight} • презентация',
                 icon: Icons.image_outlined,
                 onTap: () {
                   Navigator.pop(context);
-                  _exportRender(width: 2560, height: 1440, label: '2K');
+                  _exportRender(
+                    width: twoKWidth,
+                    height: twoKHeight,
+                    label: '2K',
+                  );
                 },
               ),
               _RenderPresetTile(
                 title: '4K',
-                subtitle: '3840 × 2160 • максимальное качество',
+                subtitle:
+                    '${fourKWidth} × ${fourKHeight} • максимальное качество',
                 icon: Icons.high_quality_outlined,
                 onTap: () {
                   Navigator.pop(context);
-                  _exportRender(width: 3840, height: 2160, label: '4K');
+                  _exportRender(
+                    width: fourKWidth,
+                    height: fourKHeight,
+                    label: '4K',
+                  );
                 },
               ),
             ],
@@ -535,10 +551,7 @@ class _WalkJoystickState extends State<_WalkJoystick> {
     _timer = Timer.periodic(const Duration(milliseconds: 48), (_) {
       if (_vector.distance < 0.08) return;
       final strength = _vector.distance.clamp(0.0, 1.0).toDouble();
-      widget.onStep(
-        -_vector.dy * strength,
-        _vector.dx * strength,
-      );
+      widget.onStep(-_vector.dy * strength, _vector.dx * strength);
     });
   }
 
@@ -610,9 +623,21 @@ class _JoystickPainter extends CustomPainter {
       ..color = iconColor
       ..strokeWidth = 3
       ..strokeCap = StrokeCap.round;
-    canvas.drawLine(knob + const Offset(0, 8), knob - const Offset(0, 8), arrow);
-    canvas.drawLine(knob - const Offset(0, 8), knob + const Offset(-5, -2), arrow);
-    canvas.drawLine(knob - const Offset(0, 8), knob + const Offset(5, -2), arrow);
+    canvas.drawLine(
+      knob + const Offset(0, 8),
+      knob - const Offset(0, 8),
+      arrow,
+    );
+    canvas.drawLine(
+      knob - const Offset(0, 8),
+      knob + const Offset(-5, -2),
+      arrow,
+    );
+    canvas.drawLine(
+      knob - const Offset(0, 8),
+      knob + const Offset(5, -2),
+      arrow,
+    );
   }
 
   @override
@@ -695,8 +720,6 @@ class _HoldMoveButtonState extends State<_HoldMoveButton> {
   }
 }
 
-
-
 class _RenderPresetTile extends StatelessWidget {
   const _RenderPresetTile({
     required this.title,
@@ -712,13 +735,13 @@ class _RenderPresetTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Card(
-        margin: const EdgeInsets.only(bottom: 8),
-        child: ListTile(
-          leading: CircleAvatar(child: Icon(icon)),
-          title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
-          subtitle: Text(subtitle),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: onTap,
-        ),
-      );
+    margin: const EdgeInsets.only(bottom: 8),
+    child: ListTile(
+      leading: CircleAvatar(child: Icon(icon)),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+      subtitle: Text(subtitle),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: onTap,
+    ),
+  );
 }

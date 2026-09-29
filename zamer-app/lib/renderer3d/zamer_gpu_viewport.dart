@@ -269,8 +269,8 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     if (scene == null) return;
     scene.environmentSettings = EnvironmentSettings(
       toneMapping: ToneMappingMode.pbrNeutral,
-      environmentIntensity: 0.90,
-      exposure: 1.0,
+      environmentIntensity: 0.82,
+      exposure: 0.94,
       ambientOcclusionEnabled: false,
       screenSpaceReflectionsEnabled: false,
       bloomEnabled: false,
@@ -278,11 +278,11 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       autoExposureEnabled: false,
     );
     scene.antiAliasingMode = AntiAliasingMode.auto;
-    scene.environmentIntensity = 0.90;
+    scene.environmentIntensity = 0.82;
     scene.directionalLight = DirectionalLight(
       direction: vm.Vector3(-0.45, -1.0, -0.32)..normalize(),
       color: vm.Vector3(1.0, 0.97, 0.92),
-      intensity: 2.45,
+      intensity: 1.95,
       castsShadow: true,
       cacheStaticShadows: false,
       shadowMapResolution: 512,
@@ -306,10 +306,10 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     if (scene == null) return;
     scene.environmentSettings = EnvironmentSettings(
       toneMapping: ToneMappingMode.pbrNeutral,
-      environmentIntensity: 1.15,
-      exposure: 1.06,
+      environmentIntensity: 0.92,
+      exposure: 0.94,
       colorGradingEnabled: true,
-      brightness: 1.01,
+      brightness: 1.0,
       contrast: 1.04,
       saturation: 1.025,
       temperature: 0.025,
@@ -320,7 +320,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       ambientOcclusionSampleCount: 12,
       ambientOcclusionHalfResolution: false,
       screenSpaceReflectionsEnabled: true,
-      screenSpaceReflectionsIntensity: 0.55,
+      screenSpaceReflectionsIntensity: 0.38,
       screenSpaceReflectionsMaxDistance: 18,
       screenSpaceReflectionsThickness: 0.42,
       screenSpaceReflectionsStride: 3,
@@ -329,24 +329,24 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       screenSpaceReflectionsResolutionScale: 1.0,
       bloomEnabled: true,
       bloomThreshold: 1.12,
-      bloomIntensity: 0.09,
+      bloomIntensity: 0.04,
       bloomScatter: 0.62,
       vignetteEnabled: true,
       vignetteIntensity: 0.08,
       vignetteRadius: 0.86,
       vignetteSmoothness: 0.55,
       autoExposureEnabled: true,
-      autoExposureStrength: 0.45,
-      autoExposureCompensation: 0.15,
+      autoExposureStrength: 0.28,
+      autoExposureCompensation: -0.20,
       autoExposureMinEv: -1.2,
-      autoExposureMaxEv: 1.8,
+      autoExposureMaxEv: 1.2,
     );
     scene.antiAliasingMode = AntiAliasingMode.auto;
-    scene.environmentIntensity = 1.15;
+    scene.environmentIntensity = 0.92;
     scene.directionalLight = DirectionalLight(
       direction: vm.Vector3(-0.38, -1.0, -0.28)..normalize(),
       color: vm.Vector3(1.0, 0.965, 0.90),
-      intensity: 3.05,
+      intensity: 2.15,
       castsShadow: true,
       cacheStaticShadows: false,
       shadowMapResolution: 2048,
@@ -505,7 +505,8 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       builder.addTriangle(indices[i], indices[i + 1], indices[i + 2]);
     }
 
-    final key = '${surface.materialMode}:${surface.materialId}';
+    final key =
+        '${surface.materialMode}:${surface.materialId}:${surface.laminatePattern}:${surface.laminateOffsetMode}:${surface.tilePattern}';
     final material = materialCache.putIfAbsent(
       key,
       () => _floorMaterial(surface),
@@ -531,9 +532,15 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
             : preset.pattern == 'concrete'
             ? 0.86
             : 0.70);
+    final source = _vectorColor(preset.color);
     final tint = texture == null
-        ? _vectorColor(preset.color)
-        : vm.Vector4(0.98, 0.98, 0.98, 1);
+        ? source
+        : vm.Vector4(
+            0.52 + source.x * 0.48,
+            0.52 + source.y * 0.48,
+            0.52 + source.z * 0.48,
+            1,
+          );
     final material = _pbr(tint, roughness: roughness, texture: texture)
       ..doubleSided = true;
     return material;
@@ -739,7 +746,8 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
         nearest = surface;
       }
     }
-    final key = '${nearest.materialMode}:${nearest.materialId}:under-wall';
+    final key =
+        '${nearest.materialMode}:${nearest.materialId}:${nearest.laminatePattern}:${nearest.laminateOffsetMode}:${nearest.tilePattern}:under-wall';
     final material = materialCache.putIfAbsent(
       key,
       () => _floorMaterial(nearest),
@@ -1133,7 +1141,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       )
       ..rotation = vm.Quaternion.axisAngle(
         vm.Vector3(0, 1, 0),
-        -object.rotationRad,
+        -object.rotationRad + (asset?.yawCorrectionRad ?? 0),
       );
     if (object.type == PlanObjectType.lighting) {
       _attachLightEmitter(root, object, importedModel: importedModel);
@@ -1165,21 +1173,21 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     final lightNode = Node(name: 'light:${object.id}')
       ..position = vm.Vector3(0, localY, 0);
     final intensity = isWall
-        ? 9.0
-        : isFloor
-        ? 7.0
-        : isTrack
-        ? 22.0
-        : isPendant
-        ? 28.0
-        : isCeiling
-        ? 20.0
-        : 8.0;
-    final range = isWall
         ? 5.0
         : isFloor
-        ? 5.5
-        : 9.5;
+        ? 4.5
+        : isTrack
+        ? 10.0
+        : isPendant
+        ? 12.0
+        : isCeiling
+        ? 9.0
+        : 5.0;
+    final range = isWall
+        ? 3.8
+        : isFloor
+        ? 4.5
+        : 6.0;
     lightNode.addComponent(
       PointLightComponent(
         PointLight(
@@ -1196,7 +1204,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     // exactly what users were seeing with the ceiling fixtures.
     final glowMaterial = _pbr(vm.Vector4(1.0, 0.88, 0.62, 1), roughness: 0.18)
       ..emissiveFactor = vm.Vector4(1.0, 0.62, 0.28, 1)
-      ..emissiveStrength = isWall ? 2.8 : 4.8;
+      ..emissiveStrength = isWall ? 1.8 : 2.6;
     final glowRadius = isWall ? 0.035 : (isTrack ? 0.045 : 0.055);
     final glow = Node(
       name: 'glow:${object.id}',
