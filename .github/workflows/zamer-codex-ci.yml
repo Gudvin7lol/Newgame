@@ -6,10 +6,12 @@ on:
       - 'codex/**'
     paths:
       - 'zamer-app/**'
+      - 'tools/**'
       - '.github/workflows/zamer-codex-ci.yml'
   pull_request:
     paths:
       - 'zamer-app/**'
+      - 'tools/**'
       - '.github/workflows/zamer-codex-ci.yml'
   workflow_dispatch:
 
@@ -28,8 +30,8 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.head_ref || github.ref_name }}
 
-      - name: Apply pending +53 snap feedback fixes
-        run: python3 tools/apply_zamer_1_5_6_53_snap_feedback.py
+      - name: Apply pending +54 visual foundation fixes
+        run: python3 tools/apply_zamer_1_5_6_54_visual_foundation.py
 
       - name: Set up Java 17
         uses: actions/setup-java@v5
@@ -47,9 +49,17 @@ jobs:
       - name: Format patched sources
         run: |
           dart format \
-            zamer-app/lib/services/angle_snap_service.dart \
+            zamer-app/lib/main.dart \
+            zamer-app/lib/models/models.dart \
+            zamer-app/lib/services/layout_service.dart \
+            zamer-app/lib/widgets/floor_layout_painter.dart \
+            zamer-app/lib/widgets/model_thumbnail.dart \
+            zamer-app/lib/screens/layouts_screen.dart \
             zamer-app/lib/screens/planning_objects_screen.dart \
-            zamer-app/test/angle_snap_service_test.dart
+            zamer-app/lib/renderer3d/floor_grout_geometry.dart \
+            zamer-app/lib/renderer3d/zamer_scene_geometry.dart \
+            zamer-app/lib/renderer3d/zamer_gpu_viewport.dart \
+            zamer-app/test/floor_grout_geometry_test.dart
 
       - name: Get packages
         working-directory: zamer-app
@@ -80,24 +90,32 @@ jobs:
         working-directory: zamer-app
         run: flutter build apk --release
 
-      - name: Commit verified +53 fixes
+      - name: Commit verified +54 fixes
         if: github.event_name == 'pull_request'
         shell: bash
         run: |
           git config user.name 'zamer-codex-bot'
           git config user.email 'zamer-codex-bot@users.noreply.github.com'
           git add \
-            zamer-app/lib/services/angle_snap_service.dart \
+            zamer-app/lib/main.dart \
+            zamer-app/lib/models/models.dart \
+            zamer-app/lib/services/layout_service.dart \
+            zamer-app/lib/widgets/floor_layout_painter.dart \
+            zamer-app/lib/widgets/model_thumbnail.dart \
+            zamer-app/lib/screens/layouts_screen.dart \
             zamer-app/lib/screens/planning_objects_screen.dart \
-            zamer-app/test/angle_snap_service_test.dart \
+            zamer-app/lib/renderer3d/floor_grout_geometry.dart \
+            zamer-app/lib/renderer3d/zamer_scene_geometry.dart \
+            zamer-app/lib/renderer3d/zamer_gpu_viewport.dart \
+            zamer-app/test/floor_grout_geometry_test.dart \
             zamer-app/pubspec.yaml \
             zamer-app/CHANGELOG.md
           if git diff --cached --quiet; then
-            echo 'No +53 generated source changes to commit.'
+            echo 'No +54 generated source changes to commit.'
             exit 0
           fi
           git diff --cached --check
-          git commit -m 'Improve 90 degree object snap feedback'
+          git commit -m 'Build Zamer 1.5.6+54 visual foundation'
           git push origin HEAD:codex/zamer-1.5.6-3d-stability
 
       - name: Upload APK
