@@ -1,8 +1,10 @@
+import 'dart:math' as math;
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/models.dart';
 import '../services/demo_project_factory.dart';
@@ -21,8 +23,12 @@ class ProjectsScreen extends StatefulWidget {
 class _ProjectsScreenState extends State<ProjectsScreen> {
   final _store = ProjectStore();
   final _projects = <MeasureProject>[];
+  final _searchController = TextEditingController();
+  final _scrollController = ScrollController();
+
   bool _loading = true;
   bool _unreadable = false;
+  bool _showAllProjects = false;
   String? _dataWarning;
 
   String _id(String p) => '$p-${DateTime.now().microsecondsSinceEpoch}';
@@ -30,7 +36,21 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   @override
   void initState() {
     super.initState();
+    _searchController.addListener(_onSearchChanged);
     _load();
+  }
+
+  @override
+  void dispose() {
+    _searchController
+      ..removeListener(_onSearchChanged)
+      ..dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _load() async {
@@ -86,9 +106,9 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       context: context,
       builder: (context) => AlertDialog(
         icon: const Icon(Icons.architecture_outlined, size: 42),
-        title: const Text('Замер • версия 1.3'),
+        title: const Text('Замер • 1.5.6'),
         content: const Text(
-          'План, комнаты, развёртки, покрытия, электрика, объекты, инженерия, PDF и 3D доступны в одном проекте. Проверка обмера показывает расхождения, а ZIP-копия переносит проект с фотографиями.',
+          'Обмер, планировка, 3D, оснащение, развёртки, инженерия и рабочая документация собраны в одном проекте.',
         ),
         actions: [
           FilledButton(
@@ -126,11 +146,11 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     if (confirmed != true || !mounted) return;
     try {
       await _save();
-      if (mounted)
-        setState(() {
-          _unreadable = false;
-          _dataWarning = null;
-        });
+      if (!mounted) return;
+      setState(() {
+        _unreadable = false;
+        _dataWarning = null;
+      });
     } catch (e) {
       _error(e);
     }
@@ -225,9 +245,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         _dataWarning = null;
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Проект восстановлен как отдельная копия'),
-        ),
+        const SnackBar(content: Text('Проект восстановлен как отдельная копия')),
       );
     } catch (e) {
       _error(e);
@@ -239,13 +257,13 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     String label,
     String initial,
   ) async {
-    final c = TextEditingController(text: initial);
-    return showDialog<String>(
+    final controller = TextEditingController(text: initial);
+    final result = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(title),
         content: TextField(
-          controller: c,
+          controller: controller,
           autofocus: true,
           decoration: InputDecoration(labelText: label),
         ),
@@ -255,29 +273,31 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
             child: const Text('Отмена'),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(context, c.text.trim()),
+            onPressed: () => Navigator.pop(context, controller.text.trim()),
             child: const Text('Готово'),
           ),
         ],
       ),
     );
+    controller.dispose();
+    return result;
   }
 
-  Future<void> _create() async {
-    final name = await _textDialog('Новый объект', 'Название', 'Квартира');
+  Future<void> _create({String initialName = 'Квартира'}) async {
+    final name = await _textDialog('Новый проект', 'Название', initialName);
     if (name == null || name.isEmpty) return;
     final floor = FloorPlan(id: _id('f'), name: 'Этаж 1');
-    final p = MeasureProject(id: _id('p'), name: name, floors: [floor]);
-    setState(() => _projects.insert(0, p));
+    final project = MeasureProject(id: _id('p'), name: name, floors: [floor]);
+    setState(() => _projects.insert(0, project));
     try {
       await _save();
     } catch (e) {
-      setState(() => _projects.remove(p));
+      setState(() => _projects.remove(project));
       _error(e);
       return;
     }
     if (!mounted) return;
-    await _open(p);
+    await _open(project);
   }
 
   Future<void> _open(MeasureProject project) async {
@@ -294,7 +314,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Удалить объект?'),
+        title: const Text('Удалить проект?'),
         content: Text(project.name),
         actions: [
           TextButton(
@@ -319,225 +339,780 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Замер',
-          style: TextStyle(fontWeight: FontWeight.w800),
+  Future<void> _openDiagnostics() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => DeviceDiagnosticsScreen(projects: _projects),
+      ),
+    );
+  }
+
+  Future<void> _showMore() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(8, 0, 8, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.file_open_outlined),
+                title: const Text('Импорт проекта'),
+                subtitle: const Text('ZIP или JSON резервной копии'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _import();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.fact_check_outlined),
+                title: const Text('Проверка устройства'),
+                subtitle: const Text('Диагностика 2D, 3D и файлов проекта'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _openDiagnostics();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.info_outline),
+                title: const Text('О приложении'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showWelcome(force: true);
+                },
+              ),
+            ],
+          ),
         ),
-        actions: [
-          IconButton(
-            tooltip: 'Проверка на телефоне',
-            onPressed: _loading
-                ? null
-                : () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          DeviceDiagnosticsScreen(projects: _projects),
+      ),
+    );
+  }
+
+  void _scrollToProjects() {
+    if (!_scrollController.hasClients) return;
+    _scrollController.animateTo(
+      math.min(360, _scrollController.position.maxScrollExtent),
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  List<MeasureProject> get _visibleProjects {
+    final query = _searchController.text.trim().toLowerCase();
+    final projects = _projects.where((project) {
+      if (query.isEmpty) return true;
+      return project.name.toLowerCase().contains(query) ||
+          project.address.toLowerCase().contains(query) ||
+          project.client.toLowerCase().contains(query);
+    }).toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    if (query.isNotEmpty || _showAllProjects || projects.length <= 3) {
+      return projects;
+    }
+    return projects.take(3).toList();
+  }
+
+  String _dateLabel(DateTime value) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final date = DateTime(value.year, value.month, value.day);
+    final difference = today.difference(date).inDays;
+    if (difference == 0) return 'Сегодня';
+    if (difference == 1) return 'Вчера';
+    return '${value.day.toString().padLeft(2, '0')}.${value.month.toString().padLeft(2, '0')}.${value.year}';
+  }
+
+  int _roomCount(MeasureProject project) => project.floors.fold<int>(
+    0,
+    (sum, floor) => sum + floor.roomMetas.length,
+  );
+
+  int _wallCount(MeasureProject project) => project.floors.fold<int>(
+    0,
+    (sum, floor) => sum + floor.walls.length,
+  );
+
+  Widget _sectionTitle(String title, {Widget? trailing}) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            title,
+            style: const TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w900,
+              letterSpacing: .1,
+            ),
+          ),
+        ),
+        if (trailing != null) trailing,
+      ],
+    );
+  }
+
+  Widget _projectCard(MeasureProject project) {
+    final floor = project.floors.isEmpty ? null : project.floors.first;
+    final rooms = _roomCount(project);
+    final walls = _wallCount(project);
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => _open(project),
+        child: SizedBox(
+          height: 118,
+          child: Row(
+            children: [
+              SizedBox(
+                width: 122,
+                height: double.infinity,
+                child: CustomPaint(
+                  painter: _ProjectPlanPreviewPainter(floor: floor),
+                  child: Align(
+                    alignment: Alignment.bottomLeft,
+                    child: Container(
+                      margin: const EdgeInsets.all(8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 7,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xD9091014),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0x553B4A52)),
+                      ),
+                      child: Text(
+                        '${project.floors.length} эт.',
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFFE8E1D9),
+                        ),
+                      ),
                     ),
                   ),
-            icon: const Icon(Icons.fact_check_outlined),
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(13, 12, 4, 11),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              project.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                          PopupMenuButton<String>(
+                            padding: EdgeInsets.zero,
+                            iconSize: 20,
+                            onSelected: (value) {
+                              if (value == 'export') _export(project);
+                              if (value == 'delete') _delete(project);
+                            },
+                            itemBuilder: (_) => const [
+                              PopupMenuItem(
+                                value: 'export',
+                                child: Text('Полная копия с фото (ZIP)'),
+                              ),
+                              PopupMenuItem(
+                                value: 'delete',
+                                child: Text('Удалить'),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        project.address.trim().isEmpty
+                            ? _dateLabel(project.createdAt)
+                            : project.address.trim(),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF96A0A5),
+                        ),
+                      ),
+                      const Spacer(),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 5,
+                        children: [
+                          _MetaChip(
+                            icon: Icons.meeting_room_outlined,
+                            label: '$rooms помещ.',
+                          ),
+                          _MetaChip(
+                            icon: Icons.linear_scale,
+                            label: '$walls стен',
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
-          IconButton(
-            tooltip: 'Импорт проекта из файла',
-            onPressed: _import,
-            icon: const Icon(Icons.file_open_outlined),
-          ),
-          IconButton(
-            tooltip: 'О приложении',
-            onPressed: () => _showWelcome(force: true),
-            icon: const Icon(Icons.info_outline),
-          ),
-          const SizedBox(width: 6),
-        ],
+        ),
       ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final projects = _visibleProjects;
+    final queryActive = _searchController.text.trim().isNotEmpty;
+
+    return Scaffold(
       body: SafeArea(
+        bottom: false,
         child: _loading
             ? const Center(child: CircularProgressIndicator())
             : ListView(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 110),
+                controller: _scrollController,
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
                 children: [
-                  if (_dataWarning != null)
-                    Card(
-                      color: const Color(0xFF493827),
-                      child: Padding(
-                        padding: const EdgeInsets.all(14),
+                  Row(
+                    children: [
+                      const Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              _dataWarning!,
-                              style: const TextStyle(color: Colors.white),
-                            ),
-                            if (_unreadable)
-                              TextButton(
-                                onPressed: _startFresh,
-                                child: const Text('Начать заново'),
+                              'ЗАМЕР',
+                              style: TextStyle(
+                                fontSize: 28,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 1.8,
                               ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(24),
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF1B2D30), Color(0xFF152023)],
-                      ),
-                      border: Border.all(color: const Color(0xFF2B3A3E)),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Row(
-                          children: [
-                            Icon(
-                              Icons.construction_outlined,
-                              color: Color(0xFF56D6A3),
                             ),
-                            SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                'ZAMER v1.0 Professional',
-                                style: TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.w900,
-                                ),
+                            SizedBox(height: 1),
+                            Text(
+                              'Проекты и быстрый доступ',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFF87949A),
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 9),
-                        const Text(
-                          'Обмер, демонтаж, планировка, отделка, электрика и 3D в одном проекте.',
-                          style: TextStyle(color: Colors.white70, height: 1.35),
-                        ),
-                        const SizedBox(height: 16),
-                        SizedBox(
-                          width: double.infinity,
-                          child: FilledButton.icon(
-                            onPressed: _unreadable ? null : _create,
-                            icon: const Icon(Icons.add_home_work_outlined),
-                            label: const Text('Новый объект'),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  Row(
-                    children: [
-                      const Expanded(
-                        child: Text(
-                          'Проекты',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
                       ),
-                      Text(
-                        '${_projects.length}',
-                        style: const TextStyle(color: Colors.white54),
+                      IconButton.filledTonal(
+                        tooltip: 'Настройки и сервис',
+                        onPressed: _showMore,
+                        icon: const Icon(Icons.settings_outlined),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 10),
-                  if (_projects.isEmpty)
+                  const SizedBox(height: 17),
+                  TextField(
+                    controller: _searchController,
+                    textInputAction: TextInputAction.search,
+                    decoration: InputDecoration(
+                      hintText: 'Поиск проектов…',
+                      prefixIcon: const Icon(Icons.search_rounded),
+                      suffixIcon: queryActive
+                          ? IconButton(
+                              tooltip: 'Очистить поиск',
+                              onPressed: _searchController.clear,
+                              icon: const Icon(Icons.close_rounded),
+                            )
+                          : null,
+                    ),
+                  ),
+                  if (_dataWarning != null) ...[
+                    const SizedBox(height: 12),
                     Card(
+                      color: const Color(0xFF3A2D25),
                       child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Column(
+                        padding: const EdgeInsets.all(14),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const Icon(
-                              Icons.apartment_outlined,
-                              size: 42,
-                              color: Colors.white30,
+                              Icons.warning_amber_rounded,
+                              color: Color(0xFFF1C79E),
                             ),
-                            const SizedBox(height: 12),
-                            const Text(
-                              'Пока нет объектов',
-                              style: TextStyle(fontWeight: FontWeight.w700),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(_dataWarning!),
+                                  if (_unreadable)
+                                    TextButton(
+                                      onPressed: _startFresh,
+                                      child: const Text('Начать заново'),
+                                    ),
+                                ],
+                              ),
                             ),
-                            const SizedBox(height: 6),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _QuickActionCard(
+                          filled: true,
+                          icon: Icons.add_box_outlined,
+                          title: 'Новый проект',
+                          subtitle: 'Начать с чистого плана',
+                          onTap: _unreadable ? null : () => _create(),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _QuickActionCard(
+                          icon: Icons.file_download_outlined,
+                          title: 'Импорт проекта',
+                          subtitle: 'ZIP или JSON копия',
+                          onTap: _import,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  _sectionTitle(
+                    queryActive ? 'Результаты поиска' : 'Недавние проекты',
+                    trailing: queryActive || _projects.length <= 3
+                        ? null
+                        : TextButton(
+                            onPressed: () {
+                              setState(() {
+                                _showAllProjects = !_showAllProjects;
+                              });
+                            },
+                            child: Text(_showAllProjects ? 'Свернуть' : 'Все'),
+                          ),
+                  ),
+                  const SizedBox(height: 10),
+                  if (projects.isEmpty)
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 28,
+                        ),
+                        child: Column(
+                          children: [
+                            Icon(
+                              queryActive
+                                  ? Icons.search_off_rounded
+                                  : Icons.home_work_outlined,
+                              size: 38,
+                              color: const Color(0xFF6F7B80),
+                            ),
+                            const SizedBox(height: 10),
                             Text(
-                              'Создай первый объект. Все рабочие модули старой версии уже остаются внутри новой архитектуры.',
+                              queryActive
+                                  ? 'Ничего не найдено'
+                                  : 'Пока нет проектов',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            const SizedBox(height: 5),
+                            Text(
+                              queryActive
+                                  ? 'Попробуй другое название или адрес.'
+                                  : 'Создай первый проект или импортируй резервную копию.',
                               textAlign: TextAlign.center,
-                              style: Theme.of(context).textTheme.bodySmall,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFF8A969C),
+                              ),
                             ),
                           ],
                         ),
                       ),
                     )
                   else
-                    ..._projects.map((p) {
-                      final wallCount = p.floors.fold<int>(
-                        0,
-                        (s, f) => s + f.walls.length,
-                      );
-                      final roomCount = p.floors.fold<int>(
-                        0,
-                        (s, f) => s + f.roomMetas.length,
-                      );
-                      return Padding(
+                    ...projects.map(
+                      (project) => Padding(
                         padding: const EdgeInsets.only(bottom: 10),
-                        child: Card(
-                          child: ListTile(
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 8,
-                            ),
-                            leading: const CircleAvatar(
-                              backgroundColor: Color(0xFF24483D),
-                              child: Icon(
-                                Icons.apartment,
-                                color: Color(0xFF78E0B7),
-                              ),
-                            ),
-                            title: Text(
-                              p.name,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                            subtitle: Text(
-                              '${p.floors.length} этаж(а) • $wallCount стен • $roomCount помещений',
-                            ),
-                            trailing: PopupMenuButton<String>(
-                              onSelected: (v) {
-                                if (v == 'export') _export(p);
-                                if (v == 'delete') _delete(p);
-                              },
-                              itemBuilder: (_) => const [
-                                PopupMenuItem(
-                                  value: 'export',
-                                  child: Text('Полная копия с фото (ZIP)'),
-                                ),
-                                PopupMenuItem(
-                                  value: 'delete',
-                                  child: Text('Удалить'),
-                                ),
-                              ],
-                            ),
-                            onTap: () => _open(p),
+                        child: _projectCard(project),
+                      ),
+                    ),
+                  if (!queryActive) ...[
+                    const SizedBox(height: 14),
+                    _sectionTitle('Шаблоны'),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      height: 142,
+                      child: ListView(
+                        scrollDirection: Axis.horizontal,
+                        children: [
+                          _TemplateCard(
+                            icon: Icons.apartment_outlined,
+                            title: 'Квартира',
+                            subtitle: 'Обмер и отделка',
+                            onTap: _unreadable
+                                ? null
+                                : () => _create(initialName: 'Квартира'),
                           ),
-                        ),
-                      );
-                    }),
+                          _TemplateCard(
+                            icon: Icons.cottage_outlined,
+                            title: 'Дом',
+                            subtitle: 'Этажи и инженерия',
+                            onTap: _unreadable
+                                ? null
+                                : () => _create(initialName: 'Дом'),
+                          ),
+                          _TemplateCard(
+                            icon: Icons.storefront_outlined,
+                            title: 'Коммерция',
+                            subtitle: 'Помещения и смета',
+                            onTap: _unreadable
+                                ? null
+                                : () => _create(initialName: 'Коммерция'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ],
               ),
       ),
-      floatingActionButton: _projects.isEmpty || _unreadable
-          ? null
-          : FloatingActionButton.extended(
-              onPressed: _create,
-              icon: const Icon(Icons.add),
-              label: const Text('Объект'),
-            ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: 0,
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home_rounded),
+            label: 'Главная',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.folder_outlined),
+            label: 'Проекты',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.file_open_outlined),
+            label: 'Импорт',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.fact_check_outlined),
+            label: 'Проверка',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.more_horiz_rounded),
+            label: 'Ещё',
+          ),
+        ],
+        onDestinationSelected: (index) {
+          switch (index) {
+            case 1:
+              _scrollToProjects();
+            case 2:
+              _import();
+            case 3:
+              _openDiagnostics();
+            case 4:
+              _showMore();
+          }
+        },
+      ),
     );
   }
+}
+
+class _QuickActionCard extends StatelessWidget {
+  const _QuickActionCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.filled = false,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback? onTap;
+  final bool filled;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = Theme.of(context).colorScheme.primary;
+    final foreground = filled
+        ? Theme.of(context).colorScheme.onPrimary
+        : const Color(0xFFE9E5E0);
+    return Material(
+      color: filled ? accent : const Color(0xFF111A1F),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: filled ? accent : const Color(0xFF2A3941),
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 15, 12, 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon, color: foreground, size: 24),
+              const SizedBox(height: 18),
+              Text(
+                title,
+                style: TextStyle(
+                  color: foreground,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                subtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: filled
+                      ? const Color(0xB322170F)
+                      : const Color(0xFF849197),
+                  fontSize: 10.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TemplateCard extends StatelessWidget {
+  const _TemplateCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 10),
+      child: SizedBox(
+        width: 148,
+        child: Card(
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                const DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color(0xFF253038), Color(0xFF12191D)],
+                    ),
+                  ),
+                ),
+                Positioned(
+                  right: -10,
+                  top: -12,
+                  child: Icon(
+                    icon,
+                    size: 92,
+                    color: const Color(0x18F1C79E),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(13),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF211A15),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFF6B5645)),
+                        ),
+                        child: Icon(
+                          icon,
+                          size: 20,
+                          color: const Color(0xFFF1C79E),
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 14,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 10.5,
+                          color: Color(0xFF8B979C),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MetaChip extends StatelessWidget {
+  const _MetaChip({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0D1519),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFF26343B)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: const Color(0xFFB5BDC0)),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 10,
+              color: Color(0xFFB5BDC0),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProjectPlanPreviewPainter extends CustomPainter {
+  const _ProjectPlanPreviewPainter({required this.floor});
+
+  final FloorPlan? floor;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final background = Paint()..color = const Color(0xFF1B2226);
+    canvas.drawRect(Offset.zero & size, background);
+
+    final currentFloor = floor;
+    if (currentFloor == null || currentFloor.nodes.length < 2) {
+      final placeholder = Paint()
+        ..color = const Color(0xFF3D474C)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.6;
+      final rect = Rect.fromLTWH(18, 18, size.width - 36, size.height - 36);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(rect, const Radius.circular(4)),
+        placeholder,
+      );
+      canvas.drawLine(
+        Offset(rect.left, rect.center.dy),
+        Offset(rect.right, rect.center.dy),
+        placeholder,
+      );
+      return;
+    }
+
+    var minX = currentFloor.nodes.first.xMm;
+    var maxX = minX;
+    var minY = currentFloor.nodes.first.yMm;
+    var maxY = minY;
+    for (final node in currentFloor.nodes.skip(1)) {
+      minX = math.min(minX, node.xMm);
+      maxX = math.max(maxX, node.xMm);
+      minY = math.min(minY, node.yMm);
+      maxY = math.max(maxY, node.yMm);
+    }
+
+    final worldWidth = math.max(1.0, maxX - minX);
+    final worldHeight = math.max(1.0, maxY - minY);
+    const padding = 13.0;
+    final scale = math.min(
+      (size.width - padding * 2) / worldWidth,
+      (size.height - padding * 2) / worldHeight,
+    );
+    final drawnWidth = worldWidth * scale;
+    final drawnHeight = worldHeight * scale;
+    final originX = (size.width - drawnWidth) / 2;
+    final originY = (size.height - drawnHeight) / 2;
+
+    Offset mapNode(PlanNode node) => Offset(
+      originX + (node.xMm - minX) * scale,
+      originY + (node.yMm - minY) * scale,
+    );
+
+    final grid = Paint()
+      ..color = const Color(0xFF202B30)
+      ..strokeWidth = 1;
+    for (var i = 1; i < 4; i++) {
+      final x = size.width * i / 4;
+      final y = size.height * i / 4;
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), grid);
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), grid);
+    }
+
+    for (final wall in currentFloor.walls) {
+      final start = currentFloor.nodeById(wall.startNodeId);
+      final end = currentFloor.nodeById(wall.endNodeId);
+      if (start == null || end == null) continue;
+      final color = wall.demolition || wall.projectLayer == ProjectLayer.demolition
+          ? const Color(0xFFE66B61)
+          : wall.projectLayer == ProjectLayer.proposed
+          ? const Color(0xFFF1C79E)
+          : const Color(0xFFDDE2E4);
+      final paint = Paint()
+        ..color = color
+        ..strokeWidth = (wall.thicknessMm * scale).clamp(1.35, 4.2)
+        ..strokeCap = StrokeCap.square;
+      canvas.drawLine(mapNode(start), mapNode(end), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _ProjectPlanPreviewPainter oldDelegate) =>
+      oldDelegate.floor != floor;
 }
