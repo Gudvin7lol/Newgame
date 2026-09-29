@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../models/models.dart';
@@ -45,12 +46,12 @@ class FloorPlanPainter extends CustomPainter {
   void _grid(Canvas canvas, Size size) {
     canvas.drawRect(
       Offset.zero & size,
-      Paint()..color = const Color(0xFFEEF1F1),
+      Paint()..color = const Color(0xFF091014),
     );
     final major = 500 * mmToPx;
     if (major < 14) return;
     final majorPaint = Paint()
-      ..color = const Color(0xFFDDE3E3)
+      ..color = const Color(0xFF172229)
       ..strokeWidth = 0.7;
     for (double x = origin.dx % major; x < size.width; x += major) {
       canvas.drawLine(Offset(x, 0), Offset(x, size.height), majorPaint);
@@ -73,11 +74,11 @@ class FloorPlanPainter extends CustomPainter {
         path.lineTo(o.dx, o.dy);
       }
       path.close();
-      canvas.drawPath(path, Paint()..color = const Color(0xFFF7FAFF));
+      canvas.drawPath(path, Paint()..color = const Color(0xFF0E171B));
       canvas.drawPath(
         path,
         Paint()
-          ..color = const Color(0xFFD8E6FA)
+          ..color = const Color(0xFF25343B)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1.2,
       );
@@ -123,12 +124,12 @@ class FloorPlanPainter extends CustomPainter {
         final color = demolition
             ? const Color(0xFFD85B68)
             : selected
-            ? const Color(0xFF56D6A3)
+            ? const Color(0xFFF1C79E)
             : proposed
-            ? const Color(0xFF55B98C)
+            ? const Color(0xFF79BCA6)
             : grouped.first.type == WallType.exterior
-            ? const Color(0xFF20242A)
-            : const Color(0xFF4C5561);
+            ? const Color(0xFFE3E6E7)
+            : const Color(0xFF9AA4A9);
         canvas.drawPath(
           path,
           Paint()
@@ -170,12 +171,12 @@ class FloorPlanPainter extends CustomPainter {
         ..color = isDemolition
             ? const Color(0xFFD85B68)
             : selected
-            ? const Color(0xFF56D6A3)
+            ? const Color(0xFFF1C79E)
             : wall.projectLayer == ProjectLayer.proposed
-            ? const Color(0xFF55B98C)
+            ? const Color(0xFF79BCA6)
             : wall.type == WallType.exterior
-            ? const Color(0xFF20242A)
-            : const Color(0xFF4C5561)
+            ? const Color(0xFFE3E6E7)
+            : const Color(0xFF9AA4A9)
         ..strokeWidth = width
         ..strokeCap = StrokeCap.square;
       canvas.drawLine(pa, pb, paint);
@@ -224,7 +225,7 @@ class FloorPlanPainter extends CustomPainter {
         o1,
         o2,
         Paint()
-          ..color = const Color(0xFFF5F7FA)
+          ..color = const Color(0xFF0E171B)
           ..strokeWidth = wallWidth + 3
           ..strokeCap = StrokeCap.square,
       );
@@ -261,10 +262,10 @@ class FloorPlanPainter extends CustomPainter {
     final chainOffset = -(wallWidth / 2 + 15);
     final baseA = a + normal * chainOffset;
     final linePaint = Paint()
-      ..color = const Color(0xFF65707A)
+      ..color = const Color(0xFF8D999F)
       ..strokeWidth = 0.8;
     final tickPaint = Paint()
-      ..color = const Color(0xFF65707A)
+      ..color = const Color(0xFF8D999F)
       ..strokeWidth = 0.8;
 
     final sorted = wall.openings.toList()
@@ -290,7 +291,8 @@ class FloorPlanPainter extends CustomPainter {
       return null;
     }
 
-    Offset pointAt(double mm) => baseA + unit * (screenLength * mm / wallLength);
+    Offset pointAt(double mm) =>
+        baseA + unit * (screenLength * mm / wallLength);
 
     final first = pointAt(marks.first);
     final last = pointAt(marks.last);
@@ -321,13 +323,13 @@ class FloorPlanPainter extends CustomPainter {
           text: '$prefix${mm.round()}',
           style: TextStyle(
             color: opening == null
-                ? const Color(0xFF46505A)
+                ? const Color(0xFFD9DEDF)
                 : opening.type == OpeningType.window
                 ? const Color(0xFF3879CF)
                 : const Color(0xFF99662F),
             fontSize: 9,
             fontWeight: FontWeight.w700,
-            backgroundColor: const Color(0xEFFFFFFF),
+            backgroundColor: const Color(0xE6111A1F),
           ),
         ),
         textDirection: TextDirection.ltr,
@@ -354,10 +356,10 @@ class FloorPlanPainter extends CustomPainter {
       text: TextSpan(
         text: '${floor.wallLengthMm(wall).round()}',
         style: const TextStyle(
-          color: Color(0xFF242930),
+          color: Color(0xFFE8E3DD),
           fontSize: 11,
           fontWeight: FontWeight.w700,
-          backgroundColor: Color(0xEEFFFFFF),
+          backgroundColor: Color(0xEE111A1F),
         ),
       ),
       textDirection: TextDirection.ltr,
@@ -381,10 +383,10 @@ class FloorPlanPainter extends CustomPainter {
       text: TextSpan(
         text: 'дуга ${arc.round()}',
         style: const TextStyle(
-          color: Color(0xFF242930),
+          color: Color(0xFFE8E3DD),
           fontSize: 11,
           fontWeight: FontWeight.w800,
-          backgroundColor: Color(0xEEFFFFFF),
+          backgroundColor: Color(0xEE111A1F),
         ),
       ),
       textDirection: TextDirection.ltr,
@@ -409,13 +411,14 @@ class FloorPlanPainter extends CustomPainter {
       canvas.drawCircle(
         pos,
         active ? 8 : 6,
-        Paint()..color = active ? const Color(0xFF1769E8) : Colors.white,
+        Paint()
+          ..color = active ? const Color(0xFFF1C79E) : const Color(0xFF111A1F),
       );
       canvas.drawCircle(
         pos,
         active ? 8 : 6,
         Paint()
-          ..color = const Color(0xFF252A30)
+          ..color = const Color(0xFFD8DDDF)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1.8,
       );
@@ -468,10 +471,10 @@ class FloorPlanPainter extends CustomPainter {
         text: TextSpan(
           text: '${m.measuredMm.round()} / Δ${delta.round()}',
           style: const TextStyle(
-            color: Color(0xFF2E6B45),
+            color: Color(0xFF91CFB3),
             fontSize: 10,
             fontWeight: FontWeight.w700,
-            backgroundColor: Color(0xEEFFFFFF),
+            backgroundColor: Color(0xEE111A1F),
           ),
         ),
         textDirection: TextDirection.ltr,
