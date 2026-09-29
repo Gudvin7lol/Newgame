@@ -176,7 +176,7 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
               children: [
                 AppBar(
                   automaticallyImplyLeading: false,
-                  title: Text('$label • финальный рендер'),
+                  title: Text('$label • Photo Render'),
                   actions: [
                     IconButton(
                       tooltip: 'Закрыть',
@@ -187,7 +187,7 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
                 ),
                 Expanded(
                   child: ColoredBox(
-                    color: const Color(0xFF111416),
+                    color: const Color(0xFF090E11),
                     child: InteractiveViewer(
                       minScale: .5,
                       maxScale: 5,
@@ -209,7 +209,7 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
                         child: OutlinedButton.icon(
                           onPressed: () => Navigator.pop(dialogContext),
                           icon: const Icon(Icons.arrow_back),
-                          label: const Text('В 3D'),
+                          label: const Text('Вернуться в 3D'),
                         ),
                       ),
                       const SizedBox(width: 10),
@@ -219,7 +219,7 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
                             XFile(file.path),
                           ], text: '$label • фоторендер «Замер»'),
                           icon: const Icon(Icons.share_outlined),
-                          label: const Text('Сохранить / поделиться'),
+                          label: const Text('Сохранить кадр'),
                         ),
                       ),
                     ],
@@ -253,30 +253,89 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
     final fourKHeight = portrait ? 3840 : 2160;
     await showModalBottomSheet<void>(
       context: context,
-      showDragHandle: true,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: false,
       builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
+        top: false,
+        child: Container(
+          decoration: const BoxDecoration(
+            color: Color(0xFF0E161B),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            border: Border(top: BorderSide(color: Color(0xFF2A3941))),
+          ),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                'Финальный рендер',
-                style: Theme.of(context).textTheme.titleLarge
-                    ?.copyWith(fontWeight: FontWeight.w800),
+              Center(
+                child: Container(
+                  width: 42,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF43515A),
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
               ),
-              const SizedBox(height: 6),
-              const Text(
-                'Это отдельный GPU-рендер, а не увеличенный скриншот. '
-                'Для финального кадра включаются PBR-материалы, полноразмерный AO, '
-                'отражения, мягкие тени 2048 px, emissive-свет и цветокоррекция. '
-                'После расчёта откроется полноэкранный предпросмотр без интерфейса.',
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2A211B),
+                      borderRadius: BorderRadius.circular(13),
+                      border: Border.all(color: const Color(0xFF5A4332)),
+                    ),
+                    child: const Icon(
+                      Icons.photo_camera_outlined,
+                      color: Color(0xFFF1C79E),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Рендер / Фото',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'Финальный GPU-кадр без интерфейса',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFF8C989D),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const _PhotoBadge(),
+                ],
+              ),
+              const SizedBox(height: 12),
+              const Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  _RenderFeatureChip(label: 'PBR'),
+                  _RenderFeatureChip(label: 'AO'),
+                  _RenderFeatureChip(label: 'Мягкие тени'),
+                  _RenderFeatureChip(label: 'Отражения'),
+                  _RenderFeatureChip(label: 'Цветокоррекция'),
+                ],
               ),
               const SizedBox(height: 14),
               _RenderPresetTile(
                 title: 'HD',
-                subtitle: '${hdWidth} × ${hdHeight} • быстро',
+                subtitle: '${hdWidth} × ${hdHeight} • быстрый просмотр',
                 icon: Icons.hd_outlined,
                 onTap: () {
                   Navigator.pop(context);
@@ -297,10 +356,10 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
                 },
               ),
               _RenderPresetTile(
-                title: '4K',
-                subtitle:
-                    '${fourKWidth} × ${fourKHeight} • максимальное качество',
+                title: '4K Photo',
+                subtitle: '${fourKWidth} × ${fourKHeight} • максимум качества',
                 icon: Icons.high_quality_outlined,
+                accent: true,
                 onTap: () {
                   Navigator.pop(context);
                   _exportRender(
@@ -309,6 +368,12 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
                     label: '4K',
                   );
                 },
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                '4K формируется рендерером в целевом разрешении. Это не увеличение скриншота.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 10.5, color: Color(0xFF7F8B91)),
               ),
             ],
           ),
@@ -541,7 +606,7 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
                               icon: _rendering
                                   ? Icons.hourglass_top_rounded
                                   : Icons.photo_camera_outlined,
-                              label: 'Рендер',
+                              label: 'Фото',
                               onTap: _rendering ? null : _showRenderSheet,
                             ),
                           ),
@@ -582,7 +647,7 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
                               icon: _rendering
                                   ? Icons.hourglass_top_rounded
                                   : Icons.photo_camera_outlined,
-                              label: 'Рендер',
+                              label: 'Фото',
                               onTap: _rendering ? null : _showRenderSheet,
                             ),
                           ),
@@ -866,28 +931,136 @@ class _HoldMoveButtonState extends State<_HoldMoveButton> {
   }
 }
 
+class _PhotoBadge extends StatelessWidget {
+  const _PhotoBadge();
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+    decoration: BoxDecoration(
+      color: const Color(0xFF20352C),
+      borderRadius: BorderRadius.circular(9),
+      border: Border.all(color: const Color(0xFF345A49)),
+    ),
+    child: const Text(
+      'PHOTO',
+      style: TextStyle(
+        fontSize: 9,
+        fontWeight: FontWeight.w900,
+        letterSpacing: 1.1,
+        color: Color(0xFF8AC8AE),
+      ),
+    ),
+  );
+}
+
+class _RenderFeatureChip extends StatelessWidget {
+  const _RenderFeatureChip({required this.label});
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+    decoration: BoxDecoration(
+      color: const Color(0xFF141E23),
+      borderRadius: BorderRadius.circular(8),
+      border: Border.all(color: const Color(0xFF26363E)),
+    ),
+    child: Text(
+      label,
+      style: const TextStyle(
+        fontSize: 10,
+        fontWeight: FontWeight.w700,
+        color: Color(0xFFB9C2C6),
+      ),
+    ),
+  );
+}
+
 class _RenderPresetTile extends StatelessWidget {
   const _RenderPresetTile({
     required this.title,
     required this.subtitle,
     required this.icon,
     required this.onTap,
+    this.accent = false,
   });
 
   final String title;
   final String subtitle;
   final IconData icon;
   final VoidCallback onTap;
+  final bool accent;
 
   @override
-  Widget build(BuildContext context) => Card(
-    margin: const EdgeInsets.only(bottom: 8),
-    child: ListTile(
-      leading: CircleAvatar(child: Icon(icon)),
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
-      subtitle: Text(subtitle),
-      trailing: const Icon(Icons.chevron_right),
-      onTap: onTap,
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Material(
+      color: accent ? const Color(0xFF2A211B) : const Color(0xFF141E23),
+      borderRadius: BorderRadius.circular(15),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(15),
+            border: Border.all(
+              color: accent ? const Color(0xFF6C503A) : const Color(0xFF26363E),
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: accent
+                      ? const Color(0xFFF1C79E)
+                      : const Color(0xFF1D2A30),
+                  borderRadius: BorderRadius.circular(11),
+                ),
+                child: Icon(
+                  icon,
+                  color: accent
+                      ? const Color(0xFF22170F)
+                      : const Color(0xFFD7DDDF),
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        fontSize: 10.5,
+                        color: Color(0xFF8C989D),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.chevron_right,
+                color: accent
+                    ? const Color(0xFFF1C79E)
+                    : const Color(0xFF758187),
+              ),
+            ],
+          ),
+        ),
+      ),
     ),
   );
 }
