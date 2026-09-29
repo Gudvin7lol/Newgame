@@ -65,6 +65,8 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
   int _retryAttempt = 0;
   Timer? _retryTimer;
   int _lastFloorFingerprint = 0;
+  bool _liveRebuildInProgress = false;
+  bool _liveRebuildPending = false;
 
   @override
   void initState() {
@@ -106,22 +108,34 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
   }
 
   Future<void> _rebuildSceneAfterUpdate() async {
+    if (_liveRebuildInProgress) {
+      _liveRebuildPending = true;
+      return;
+    }
+    _liveRebuildInProgress = true;
     try {
-      await _rebuildScene();
-      if (!mounted) return;
-      if (!_ready && _loadError != null) {
-        _scheduleRetry(immediate: true);
-      }
-    } catch (error) {
-      if (!mounted) return;
-      setState(() {
-        _loadError = error;
-        _ready = false;
-      });
-      // Editing the plan must never leave the GPU viewport permanently
-      // blank. Recreate the GPU scene on the next frame instead of
-      // requiring the user to restart the whole application.
-      _scheduleRetry(immediate: true);
+      do {
+        _liveRebuildPending = false;
+        try {
+          await _rebuildScene();
+          if (!mounted) return;
+          if (!_ready && _loadError != null) {
+            _scheduleRetry(immediate: true);
+          }
+        } catch (error) {
+          if (!mounted) return;
+          setState(() {
+            _loadError = error;
+            _ready = false;
+          });
+          // Editing the plan must never leave the GPU viewport permanently
+          // blank. Recreate the GPU scene on the next frame instead of
+          // requiring the user to restart the whole application.
+          _scheduleRetry(immediate: true);
+        }
+      } while (mounted && _liveRebuildPending);
+    } finally {
+      _liveRebuildInProgress = false;
     }
   }
 
