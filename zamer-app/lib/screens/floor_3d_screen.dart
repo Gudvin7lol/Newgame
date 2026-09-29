@@ -317,45 +317,159 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
     );
   }
 
+  Future<void> _showWalkSettingsSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheet) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 0, 18, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  'Настройки прогулки',
+                  style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    const Icon(Icons.speed, size: 19),
+                    const SizedBox(width: 8),
+                    const SizedBox(width: 96, child: Text('Скорость')),
+                    Expanded(
+                      child: Slider(
+                        value: _walkStepMm,
+                        min: 55,
+                        max: 220,
+                        divisions: 11,
+                        label: '${_walkStepMm.round()} мм',
+                        onChanged: (value) {
+                          setState(() => _walkStepMm = value);
+                          setSheet(() {});
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                Row(
+                  children: [
+                    const Icon(Icons.visibility_outlined, size: 19),
+                    const SizedBox(width: 8),
+                    const SizedBox(width: 96, child: Text('Осмотр')),
+                    Expanded(
+                      child: Slider(
+                        value: _lookSensitivity,
+                        min: 0.005,
+                        max: 0.018,
+                        divisions: 13,
+                        label: '${(_lookSensitivity * 1000).round()}',
+                        onChanged: (value) {
+                          setState(() => _lookSensitivity = value);
+                          setSheet(() {});
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Левый стик отвечает только за движение. Осмотр выполняется одним пальцем прямо по сцене.',
+                  style: TextStyle(fontSize: 12, color: Color(0xFF94A0A6)),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    if (widget.floor.walls.isEmpty)
+    if (widget.floor.walls.isEmpty) {
       return const Center(child: Text('Построй стены, чтобы увидеть 3D.'));
-    return Column(
+    }
+    return Stack(
+      fit: StackFit.expand,
       children: [
-        Expanded(
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onScaleStart: _onScaleStart,
-            onScaleUpdate: _onScaleUpdate,
-            child: ClipRect(
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  ZamerGpuViewport(
-                    key: _gpuKey,
-                    floor: widget.floor,
-                    rotation: _rotation,
-                    tilt: _tilt,
-                    zoom: _zoom,
-                    cutaway: !_walkMode && _cutaway,
-                    pan: _pan,
-                    walkMode: _walkMode,
-                    walkX: _walkX,
-                    walkY: _walkY,
-                  ),
-                  if (_walkMode)
-                    const IgnorePointer(
-                      child: Center(
-                        child: Icon(
-                          Icons.add,
-                          size: 25,
-                          color: Color(0xBFFFFFFF),
-                          shadows: [
-                            Shadow(blurRadius: 4, color: Colors.black54),
-                          ],
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onScaleStart: _onScaleStart,
+          onScaleUpdate: _onScaleUpdate,
+          child: ClipRect(
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                ZamerGpuViewport(
+                  key: _gpuKey,
+                  floor: widget.floor,
+                  rotation: _rotation,
+                  tilt: _tilt,
+                  zoom: _zoom,
+                  cutaway: !_walkMode && _cutaway,
+                  pan: _pan,
+                  walkMode: _walkMode,
+                  walkX: _walkX,
+                  walkY: _walkY,
+                ),
+                if (_walkMode)
+                  const IgnorePointer(
+                    child: Center(
+                      child: SizedBox.square(
+                        dimension: 18,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.fromBorderSide(
+                              BorderSide(color: Color(0xCCF1C79E), width: 1.4),
+                            ),
+                          ),
+                          child: Center(
+                            child: SizedBox.square(
+                              dimension: 3,
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  color: Color(0xFFF1C79E),
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
                       ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        Positioned(
+          top: 12,
+          right: 12,
+          child: SafeArea(
+            bottom: false,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: const Color(0xD9111A1F),
+                borderRadius: BorderRadius.circular(13),
+                border: Border.all(color: const Color(0xFF2A3941)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    tooltip: _walkMode ? 'В центр комнаты' : 'Сбросить вид',
+                    onPressed: _reset,
+                    icon: const Icon(Icons.my_location_outlined),
+                  ),
+                  if (!_walkMode)
+                    IconButton(
+                      tooltip: 'Вид сверху',
+                      onPressed: _topView,
+                      icon: const Icon(Icons.vertical_align_top),
                     ),
                 ],
               ),
@@ -363,207 +477,177 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
           ),
         ),
         if (_walkMode)
-          Card(
-            margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+          Positioned(
+            left: 10,
+            bottom: 78,
+            child: SafeArea(
+              top: false,
+              right: false,
+              child: _WalkJoystick(
+                onStep: (forward, sideways) =>
+                    _walk(forward * _walkStepMm, sideways * _walkStepMm),
+              ),
+            ),
+          ),
+        Positioned(
+          left: 10,
+          right: 10,
+          bottom: 8,
+          child: SafeArea(
+            top: false,
+            child: Card(
+              elevation: 0,
+              color: const Color(0xF5111A1F),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: const BorderSide(color: Color(0xFF2A3941)),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 6),
+                child: Row(
+                  children: _walkMode
+                      ? [
+                          Expanded(
+                            child: _SceneAction(
+                              icon: Icons.home_outlined,
+                              label: 'Обзор',
+                              onTap: _toggleWalk,
+                            ),
+                          ),
+                          Expanded(
+                            child: _SceneAction(
+                              icon: Icons.blur_on,
+                              label: 'Сквозь',
+                              selected: _noclip,
+                              onTap: () => setState(() => _noclip = !_noclip),
+                            ),
+                          ),
+                          Expanded(
+                            child: _SceneAction(
+                              icon: Icons.tune_rounded,
+                              label: 'Настройки',
+                              onTap: _showWalkSettingsSheet,
+                            ),
+                          ),
+                          Expanded(
+                            child: _SceneAction(
+                              icon: Icons.my_location_outlined,
+                              label: 'Центр',
+                              onTap: _reset,
+                            ),
+                          ),
+                          Expanded(
+                            child: _SceneAction(
+                              icon: _rendering
+                                  ? Icons.hourglass_top_rounded
+                                  : Icons.photo_camera_outlined,
+                              label: 'Рендер',
+                              onTap: _rendering ? null : _showRenderSheet,
+                            ),
+                          ),
+                        ]
+                      : [
+                          Expanded(
+                            child: _SceneAction(
+                              icon: Icons.view_in_ar_outlined,
+                              label: 'Обзор',
+                              selected: true,
+                              onTap: _reset,
+                            ),
+                          ),
+                          Expanded(
+                            child: _SceneAction(
+                              icon: Icons.directions_walk,
+                              label: 'Прогулка',
+                              onTap: _toggleWalk,
+                            ),
+                          ),
+                          Expanded(
+                            child: _SceneAction(
+                              icon: Icons.layers_clear_outlined,
+                              label: 'Разрез',
+                              selected: _cutaway,
+                              onTap: () => setState(() => _cutaway = !_cutaway),
+                            ),
+                          ),
+                          Expanded(
+                            child: _SceneAction(
+                              icon: Icons.vertical_align_top,
+                              label: 'Сверху',
+                              onTap: _topView,
+                            ),
+                          ),
+                          Expanded(
+                            child: _SceneAction(
+                              icon: _rendering
+                                  ? Icons.hourglass_top_rounded
+                                  : Icons.photo_camera_outlined,
+                              label: 'Рендер',
+                              onTap: _rendering ? null : _showRenderSheet,
+                            ),
+                          ),
+                        ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SceneAction extends StatelessWidget {
+  const _SceneAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.selected = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final foreground = selected
+        ? const Color(0xFF22170F)
+        : const Color(0xFFD7DDDF);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 2),
+      child: Material(
+        color: selected ? const Color(0xFFF1C79E) : Colors.transparent,
+        borderRadius: BorderRadius.circular(11),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Opacity(
+            opacity: onTap == null ? .45 : 1,
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+              padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 7),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Row(
-                    children: [
-                      TextButton.icon(
-                        onPressed: _toggleWalk,
-                        icon: const Icon(Icons.home_outlined),
-                        label: const Text('Общий вид'),
-                      ),
-                      const Spacer(),
-                      FilterChip(
-                        selected: _noclip,
-                        onSelected: (value) => setState(() => _noclip = value),
-                        avatar: const Icon(Icons.blur_on, size: 18),
-                        label: const Text('Сквозь стены'),
-                      ),
-                      IconButton(
-                        onPressed: _reset,
-                        tooltip: 'В центр комнаты',
-                        icon: const Icon(Icons.my_location),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      SizedBox(
-                        width: 150,
-                        child: _WalkJoystick(
-                          onStep: (forward, sideways) => _walk(
-                            forward * _walkStepMm,
-                            sideways * _walkStepMm,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            const Text(
-                              'Стик — движение по направлению камеры. Проведи по сцене — осмотр.',
-                              style: TextStyle(fontSize: 12),
-                            ),
-                            const SizedBox(height: 4),
-                            Row(
-                              children: [
-                                const Tooltip(
-                                  message: 'Скорость движения',
-                                  child: Icon(Icons.speed, size: 18),
-                                ),
-                                Expanded(
-                                  child: Slider(
-                                    value: _walkStepMm,
-                                    min: 55,
-                                    max: 220,
-                                    divisions: 11,
-                                    label: '${_walkStepMm.round()} мм',
-                                    onChanged: (v) =>
-                                        setState(() => _walkStepMm = v),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            Row(
-                              children: [
-                                const Tooltip(
-                                  message: 'Чувствительность обзора',
-                                  child: Icon(
-                                    Icons.visibility_outlined,
-                                    size: 18,
-                                  ),
-                                ),
-                                Expanded(
-                                  child: Slider(
-                                    value: _lookSensitivity,
-                                    min: 0.005,
-                                    max: 0.018,
-                                    divisions: 13,
-                                    label:
-                                        '${(_lookSensitivity * 1000).round()}',
-                                    onChanged: (v) =>
-                                        setState(() => _lookSensitivity = v),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            FilledButton.tonalIcon(
-                              onPressed: _rendering ? null : _showRenderSheet,
-                              icon: const Icon(Icons.high_quality_outlined),
-                              label: const Text('Рендер'),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          )
-        else
-          Card(
-            margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.rotate_right),
-                      Expanded(
-                        child: Slider(
-                          value: _rotation,
-                          min: -math.pi,
-                          max: math.pi,
-                          onChanged: (v) => setState(() => _rotation = v),
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: _reset,
-                        tooltip: '3/4 сверху',
-                        icon: const Icon(Icons.restart_alt),
-                      ),
-                      IconButton(
-                        onPressed: _topView,
-                        tooltip: 'Вид сверху',
-                        icon: const Icon(Icons.vertical_align_top),
-                      ),
-                    ],
-                  ),
-                  Row(
-                    children: [
-                      const Icon(Icons.zoom_out_map),
-                      Expanded(
-                        child: Slider(
-                          value: _zoom,
-                          min: 0.15,
-                          max: 10.0,
-                          onChanged: (v) => setState(() => _zoom = v),
-                        ),
-                      ),
-                    ],
-                  ),
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        TextButton.icon(
-                          onPressed: _toggleWalk,
-                          icon: const Icon(Icons.directions_walk),
-                          label: const Text('Прогулка'),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: SwitchListTile.adaptive(
-                          dense: true,
-                          contentPadding: EdgeInsets.zero,
-                          value: _cutaway,
-                          onChanged: (v) => setState(() => _cutaway = v),
-                          title: const Text('Открытая комната'),
-                          subtitle: const Text(
-                            'Скрываются наружные стены со стороны камеры.',
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      FilledButton.tonalIcon(
-                        onPressed: _rendering ? null : _showRenderSheet,
-                        icon: _rendering
-                            ? const SizedBox.square(
-                                dimension: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Icon(Icons.high_quality_outlined),
-                        label: const Text('Рендер'),
-                      ),
-                    ],
-                  ),
+                  Icon(icon, size: 19, color: foreground),
+                  const SizedBox(height: 3),
                   Text(
-                    '1 палец — вращение/наклон. 2 пальца — перемещение и масштаб.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 12, color: Color(0xFF68717D)),
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: foreground,
+                      fontSize: 9.5,
+                      fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
+                    ),
                   ),
                 ],
               ),
             ),
           ),
-      ],
+        ),
+      ),
     );
   }
 }
