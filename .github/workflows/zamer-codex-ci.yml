@@ -31,7 +31,7 @@ jobs:
           ref: ${{ github.head_ref || github.ref_name }}
 
       - name: Apply pending +54 visual foundation fixes
-        run: python3 tools/apply_zamer_1_5_6_54_visual_foundation.py
+        run: python3 tools/run_zamer_1_5_6_54.py
 
       - name: Set up Java 17
         uses: actions/setup-java@v5
