@@ -421,6 +421,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     _ceilingNodes.clear();
 
     final floorMaterialCache = <String, PhysicallyBasedMaterial>{};
+    final activeModelPaths = <String>{};
     for (final surface in geometry.floors) {
       final node = _buildFloorNode(
         surface,
@@ -461,12 +462,18 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
         geometry.bounds,
         visibleObjectCount: geometry.objects.length,
         photoQuality: photoQuality,
+        activeModelPaths: activeModelPaths,
       );
       if (generation != _buildGeneration) return;
       scene.add(node);
     }
 
     if (!mounted || generation != _buildGeneration) return;
+    // Templates are only construction caches. Scene clones already own the
+    // nodes they need, so retaining inactive LODs after a rebuild wastes GPU
+    // and Dart memory. This is especially important after a true 4K export,
+    // which temporarily forces every production asset to full LOD0.
+    _modelTemplates.removeWhere((path, _) => !activeModelPaths.contains(path));
     setState(() => _ready = true);
   }
 
@@ -1102,6 +1109,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     ZamerSceneBounds bounds, {
     required int visibleObjectCount,
     bool photoQuality = false,
+    required Set<String> activeModelPaths,
   }) async {
     final asset = ZamerModelAssetCatalog.byId(object.catalogId);
     final root = Node(name: 'object:${object.id}:${object.catalogId}');
@@ -1117,6 +1125,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
           photoQuality: photoQuality,
           walkMode: widget.walkMode,
         );
+        activeModelPaths.add(modelPath);
         final template = _modelTemplates[modelPath] ??= await Node.fromGlbAsset(
           modelPath,
         );

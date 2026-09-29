@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -26,6 +27,15 @@ class ZamerModelThumbnail extends StatelessWidget {
 
   static final Map<String, Future<Uint8List?>> _cache =
       <String, Future<Uint8List?>>{};
+  static Future<void> _renderQueue = Future<void>.value();
+
+  static Future<Uint8List?> _enqueueRender(String catalogId) {
+    final result = Completer<Uint8List?>();
+    _renderQueue = _renderQueue.then((_) async {
+      result.complete(await _render(catalogId));
+    });
+    return result.future;
+  }
 
   static Future<Uint8List?> _render(String catalogId) async {
     final asset = ZamerModelAssetCatalog.byId(catalogId);
@@ -33,6 +43,28 @@ class ZamerModelThumbnail extends StatelessWidget {
     try {
       await Scene.initializeStaticResources();
       final scene = Scene();
+      scene.environmentSettings = EnvironmentSettings(
+        toneMapping: ToneMappingMode.pbrNeutral,
+        environmentIntensity: 0.92,
+        exposure: 1.0,
+        ambientOcclusionEnabled: false,
+        screenSpaceReflectionsEnabled: false,
+        bloomEnabled: false,
+        vignetteEnabled: false,
+        autoExposureEnabled: false,
+      );
+      scene.antiAliasingMode = AntiAliasingMode.auto;
+      scene.environmentIntensity = 0.92;
+      scene.directionalLight = DirectionalLight(
+        direction: vm.Vector3(-0.45, -1.0, -0.35)..normalize(),
+        color: vm.Vector3(1.0, 0.97, 0.92),
+        intensity: 2.35,
+        castsShadow: false,
+        cacheStaticShadows: false,
+        shadowMapResolution: 256,
+        shadowMaxDistance: 10,
+        shadowSoftness: 0.16,
+      );
       final model = await Node.fromGlbAsset(
         asset.pathForLod(ZamerModelLod.lod2),
       );
@@ -98,7 +130,10 @@ class ZamerModelThumbnail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final future = _cache.putIfAbsent(catalogId, () => _render(catalogId));
+    final future = _cache.putIfAbsent(
+      catalogId,
+      () => _enqueueRender(catalogId),
+    );
     return SizedBox.square(
       dimension: size,
       child: FutureBuilder<Uint8List?>(

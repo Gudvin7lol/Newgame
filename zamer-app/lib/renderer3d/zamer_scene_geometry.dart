@@ -178,6 +178,7 @@ class ZamerSceneGeometry {
               .toList();
           final sample = groupWalls.isEmpty ? wall : groupWalls.first;
           final height = sample.heightOverrideMm ?? floor.defaultHeightMm;
+          var textureCursorMm = 0.0;
           for (var i = 0; i < points.length - 1; i++) {
             final a = points[i];
             final b = points[i + 1];
@@ -196,6 +197,7 @@ class ZamerSceneGeometry {
                 thicknessMm: sample.thicknessMm,
                 bottomMm: 0,
                 heightMm: height,
+                textureStartMm: textureCursorMm,
                 materialId: finish.wallMaterialId,
                 tileMaterialId: finish.wallTileMaterialId,
                 tileEnabled: finish.wallTileEnabledFor(groupId),
@@ -216,6 +218,7 @@ class ZamerSceneGeometry {
                 ),
               ),
             );
+            textureCursorMm += len;
           }
         }
         continue;
