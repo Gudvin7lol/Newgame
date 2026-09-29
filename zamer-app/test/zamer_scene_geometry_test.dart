@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zamer_app/models/models.dart';
 import 'package:zamer_app/renderer3d/zamer_scene_geometry.dart';
@@ -116,6 +118,41 @@ void main() {
     expect(scene.walls.every((wall) => wall.tileMaterialId == 'tile-marble'), isTrue);
   });
 
+  test('plan object keeps its authored orientation at the 3D geometry boundary', () {
+    final floor = FloorPlan(id: 'orientation', name: 'Orientation')
+      ..planObjects.addAll(<PlanObject>[
+        PlanObject(
+          id: 'bed-90',
+          type: PlanObjectType.furniture,
+          catalogId: 'bed-160',
+          xMm: 1200,
+          yMm: 900,
+          widthMm: 1700,
+          depthMm: 2100,
+          heightMm: 950,
+          rotationDeg: 90,
+        ),
+        PlanObject(
+          id: 'bed-270',
+          type: PlanObjectType.furniture,
+          catalogId: 'bed-160',
+          xMm: 3200,
+          yMm: 900,
+          widthMm: 1700,
+          depthMm: 2100,
+          heightMm: 950,
+          rotationDeg: 270,
+        ),
+      ]);
+
+    final scene = ZamerSceneGeometry.fromFloor(floor);
+    final bed90 = scene.objects.singleWhere((o) => o.id == 'bed-90');
+    final bed270 = scene.objects.singleWhere((o) => o.id == 'bed-270');
+
+    expect(bed90.rotationRad, closeTo(math.pi / 2, 0.0001));
+    expect(bed270.rotationRad, closeTo(3 * math.pi / 2, 0.0001));
+  });
+
   test('fixture electrical marker is not duplicated beside the 3D light object', () {
     final floor = FloorPlan(id: 'lights', name: 'Lights')
       ..planObjects.add(
@@ -145,7 +182,4 @@ void main() {
     expect(scene.objects.where((o) => o.type == PlanObjectType.lighting), hasLength(1));
     expect(scene.electrical.where((e) => e.type == ElectricalPointType.wallLight), isEmpty);
   });
-
-
 }
-
