@@ -27,6 +27,7 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Retry +49 after correcting the named-record type in the winding test.
       - name: Apply pending +49 floor winding fix
         run: python3 tools/apply_zamer_1_5_6_49_floor_winding.py
 
