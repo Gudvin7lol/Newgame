@@ -69,7 +69,9 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
             project.id != DemoProjectFactory.projectId,
       );
       changed = loaded.length != before;
-      if (!loaded.any((project) => project.id == DemoProjectFactory.projectId)) {
+      if (!loaded.any(
+        (project) => project.id == DemoProjectFactory.projectId,
+      )) {
         loaded.insert(0, DemoProjectFactory.create());
         changed = true;
       }
@@ -245,7 +247,9 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         _dataWarning = null;
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Проект восстановлен как отдельная копия')),
+        const SnackBar(
+          content: Text('Проект восстановлен как отдельная копия'),
+        ),
       );
     } catch (e) {
       _error(e);
@@ -394,7 +398,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   void _scrollToProjects() {
     if (!_scrollController.hasClients) return;
     _scrollController.animateTo(
-      math.min(360, _scrollController.position.maxScrollExtent),
+      math.min(360.0, _scrollController.position.maxScrollExtent),
       duration: const Duration(milliseconds: 280),
       curve: Curves.easeOutCubic,
     );
@@ -407,8 +411,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       return project.name.toLowerCase().contains(query) ||
           project.address.toLowerCase().contains(query) ||
           project.client.toLowerCase().contains(query);
-    }).toList()
-      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    }).toList()..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     if (query.isNotEmpty || _showAllProjects || projects.length <= 3) {
       return projects;
     }
@@ -425,15 +428,11 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     return '${value.day.toString().padLeft(2, '0')}.${value.month.toString().padLeft(2, '0')}.${value.year}';
   }
 
-  int _roomCount(MeasureProject project) => project.floors.fold<int>(
-    0,
-    (sum, floor) => sum + floor.roomMetas.length,
-  );
+  int _roomCount(MeasureProject project) =>
+      project.floors.fold<int>(0, (sum, floor) => sum + floor.roomMetas.length);
 
-  int _wallCount(MeasureProject project) => project.floors.fold<int>(
-    0,
-    (sum, floor) => sum + floor.walls.length,
-  );
+  int _wallCount(MeasureProject project) =>
+      project.floors.fold<int>(0, (sum, floor) => sum + floor.walls.length);
 
   Widget _sectionTitle(String title, {Widget? trailing}) {
     return Row(
@@ -859,9 +858,7 @@ class _QuickActionCard extends StatelessWidget {
       color: filled ? accent : const Color(0xFF111A1F),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(
-          color: filled ? accent : const Color(0xFF2A3941),
-        ),
+        side: BorderSide(color: filled ? accent : const Color(0xFF2A3941)),
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -939,11 +936,7 @@ class _TemplateCard extends StatelessWidget {
                 Positioned(
                   right: -10,
                   top: -12,
-                  child: Icon(
-                    icon,
-                    size: 92,
-                    color: const Color(0x18F1C79E),
-                  ),
+                  child: Icon(icon, size: 92, color: const Color(0x18F1C79E)),
                 ),
                 Padding(
                   padding: const EdgeInsets.all(13),
@@ -1099,14 +1092,15 @@ class _ProjectPlanPreviewPainter extends CustomPainter {
       final start = currentFloor.nodeById(wall.startNodeId);
       final end = currentFloor.nodeById(wall.endNodeId);
       if (start == null || end == null) continue;
-      final color = wall.demolition || wall.projectLayer == ProjectLayer.demolition
+      final color =
+          wall.demolition || wall.projectLayer == ProjectLayer.demolition
           ? const Color(0xFFE66B61)
           : wall.projectLayer == ProjectLayer.proposed
           ? const Color(0xFFF1C79E)
           : const Color(0xFFDDE2E4);
       final paint = Paint()
         ..color = color
-        ..strokeWidth = (wall.thicknessMm * scale).clamp(1.35, 4.2)
+        ..strokeWidth = (wall.thicknessMm * scale).clamp(1.35, 4.2).toDouble()
         ..strokeCap = StrokeCap.square;
       canvas.drawLine(mapNode(start), mapNode(end), paint);
     }
