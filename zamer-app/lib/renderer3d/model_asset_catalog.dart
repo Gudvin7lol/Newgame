@@ -67,6 +67,30 @@ class ZamerModelAssetCatalog {
     'wardrobe-sliding-2000',
   };
 
+  /// Native GLB bounds in millimetres, in width/depth/height order. They are
+  /// intentionally separate from ObjectCatalog dimensions: the latter describe
+  /// the requested plan footprint, while these values describe the authored
+  /// mesh that must be scaled into that footprint.
+  static const _productionNativeDimensionsMm =
+      <String, (double width, double depth, double height)>{
+        'armchair': (900, 900, 900),
+        'bed-160': (1800, 2150, 1050),
+        'bed-180': (2000, 2180, 1080),
+        'coffee-table': (1100, 620, 420),
+        'dining-chair-upholstered': (500, 580, 860),
+        'dining-table-1800': (1800, 900, 760),
+        'dresser-1200': (1200, 500, 950),
+        'nightstand': (550, 450, 620),
+        'office-desk-1400': (1400, 700, 760),
+        'sofa-2': (1750, 900, 860),
+        'sofa-3': (2200, 900, 850),
+        'sofa-corner': (2800, 1900, 880),
+        'sofa-modular': (2400, 1050, 780),
+        'table-round': (1100, 1100, 760),
+        'tv-console-1600': (1600, 450, 550),
+        'wardrobe-sliding-2000': (2000, 650, 2400),
+      };
+
   static ZamerModelAsset? byId(String id) {
     if (id.isEmpty) return null;
     final matches = ObjectCatalog.items.where((e) => e.id == id);
@@ -74,14 +98,15 @@ class ZamerModelAssetCatalog {
     final item = matches.first;
     final basePath = 'assets/models/zamer_catalog/$id';
     final hasProductionLods = productionLodIds.contains(id);
+    final native = _productionNativeDimensionsMm[id];
     final asset = ZamerModelAsset(
       catalogId: id,
       assetPath: '$basePath.glb',
       lod1AssetPath: hasProductionLods ? '${basePath}_lod1.glb' : null,
       lod2AssetPath: hasProductionLods ? '${basePath}_lod2.glb' : null,
-      nativeWidthMm: item.widthMm,
-      nativeDepthMm: item.depthMm,
-      nativeHeightMm: item.heightMm,
+      nativeWidthMm: native?.$1 ?? item.widthMm,
+      nativeDepthMm: native?.$2 ?? item.depthMm,
+      nativeHeightMm: native?.$3 ?? item.heightMm,
     );
     return asset.hasRenderableDimensions ? asset : null;
   }
