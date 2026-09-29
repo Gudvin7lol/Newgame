@@ -1,0 +1,107 @@
+name: Apply runtime model LOD integration
+
+on:
+  push:
+    branches:
+      - 'codex/zamer-1.5.6-3d-stability'
+    paths:
+      - '.github/workflows/apply-runtime-lod.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: codex/zamer-1.5.6-3d-stability
+
+      - name: Patch GPU viewport to use adaptive LODs
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('zamer-app/lib/renderer3d/zamer_gpu_viewport.dart')
+          text = path.read_text(encoding='utf-8')
+
+          def replace_once(old: str, new: str, label: str) -> None:
+              global text
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected exactly one match, found {count}')
+              text = text.replace(old, new, 1)
+
+          replace_once(
+              "import 'model_asset_catalog.dart';\n",
+              "import 'model_asset_catalog.dart';\nimport 'model_lod_policy.dart';\n",
+              'LOD policy import',
+          )
+
+          replace_once(
+              '  Future<void> _rebuildScene() async {',
+              '  Future<void> _rebuildScene({bool photoQuality = false}) async {',
+              'scene rebuild signature',
+          )
+
+          replace_once(
+              '      final node = await _buildObjectNode(object, geometry.bounds);',
+              '''      final node = await _buildObjectNode(\n        object,\n        geometry.bounds,\n        visibleObjectCount: geometry.objects.length,\n        photoQuality: photoQuality,\n      );''',
+              'object build call',
+          )
+
+          replace_once(
+              '''  Future<Node> _buildObjectNode(\n    ZamerObjectPlacement object,\n    ZamerSceneBounds bounds,\n  ) async {''',
+              '''  Future<Node> _buildObjectNode(\n    ZamerObjectPlacement object,\n    ZamerSceneBounds bounds, {\n    required int visibleObjectCount,\n    bool photoQuality = false,\n  }) async {''',
+              'object build signature',
+          )
+
+          replace_once(
+              '''        final template = _modelTemplates[asset.assetPath] ??=\n            await Node.fromGlbAsset(asset.assetPath);''',
+              '''        final modelPath = ZamerModelLodPolicy.pathFor(\n          asset: asset,\n          visibleObjectCount: visibleObjectCount,\n          photoQuality: photoQuality,\n          walkMode: widget.walkMode,\n        );\n        final template = _modelTemplates[modelPath] ??=\n            await Node.fromGlbAsset(modelPath);''',
+              'model loading path',
+          )
+
+          replace_once(
+              '''    final camera = _camera();\n    _applyCutaway(camera);''',
+              '''    if (photoQuality) {\n      // Rebuild only model nodes at full production detail for the exported\n      // frame. The on-screen scene may deliberately be using LOD1/LOD2.\n      await _rebuildScene(photoQuality: true);\n      if (!mounted || !_ready) {\n        return _renderFallbackPng(width: width, height: height);\n      }\n    }\n\n    final camera = _camera();\n    _applyCutaway(camera);''',
+              'photo render LOD0 rebuild',
+          )
+
+          replace_once(
+              '      if (photoQuality) _configureScene();',
+              '''      if (photoQuality) {\n        _configureScene();\n        try {\n          // Restore the adaptive interactive LOD immediately after export so\n          // a 4K render does not leave a heavy LOD0 scene on the phone.\n          await _rebuildScene();\n        } catch (_) {\n          _scheduleRetry(immediate: true);\n        }\n      }''',
+              'interactive LOD restore',
+          )
+
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Install Dart
+        uses: dart-lang/setup-dart@v1
+
+      - name: Format patched files
+        run: dart format zamer-app/lib/renderer3d/zamer_gpu_viewport.dart zamer-app/lib/renderer3d/model_asset_catalog.dart zamer-app/lib/renderer3d/model_lod_policy.dart zamer-app/test/model_asset_catalog_test.dart zamer-app/test/model_lod_policy_test.dart
+
+      - name: Commit runtime LOD integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            zamer-app/lib/renderer3d/zamer_gpu_viewport.dart \
+            zamer-app/lib/renderer3d/model_asset_catalog.dart \
+            zamer-app/lib/renderer3d/model_lod_policy.dart \
+            zamer-app/test/model_asset_catalog_test.dart \
+            zamer-app/test/model_lod_policy_test.dart
+          if git diff --cached --quiet; then
+            echo 'Runtime LOD integration is already applied.'
+            exit 0
+          fi
+          git commit -m 'Wire adaptive GLB LODs into GPU viewport and 4K render'
+          git push origin HEAD:codex/zamer-1.5.6-3d-stability
