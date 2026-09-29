@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import '../services/object_catalog.dart';
 
 enum ZamerModelLod { lod0, lod1, lod2 }
@@ -11,6 +13,7 @@ class ZamerModelAsset {
     required this.nativeHeightMm,
     this.lod1AssetPath,
     this.lod2AssetPath,
+    this.yawCorrectionRad = 0,
   });
 
   final String catalogId;
@@ -18,6 +21,15 @@ class ZamerModelAsset {
   final String? lod1AssetPath;
   final String? lod2AssetPath;
   final double nativeWidthMm, nativeDepthMm, nativeHeightMm;
+
+  /// Extra yaw applied after converting the plan angle into GPU coordinates.
+  ///
+  /// Plan icons use a semantic front/back direction. Some generated GLBs were
+  /// authored with the same geometry facing the opposite glTF forward axis,
+  /// which made a bed placed headboard-to-wall appear headboard-away in 3D.
+  /// Keeping this correction on the asset avoids corrupting the stored plan
+  /// angle and keeps wall/opening coordinate transforms untouched.
+  final double yawCorrectionRad;
 
   /// Invalid catalogue dimensions can turn the GLB scale into NaN/infinity and
   /// make an otherwise healthy GPU scene disappear. Treat such entries as
@@ -67,6 +79,20 @@ class ZamerModelAssetCatalog {
     'wardrobe-sliding-2000',
   };
 
+  /// Directional generated assets whose semantic rear side (headboard/back)
+  /// currently arrives from the glTF importer opposite to the plan preview.
+  /// Symmetric tables and storage items stay at zero correction.
+  static const _reverseFacingProductionIds = <String>{
+    'armchair',
+    'bed-160',
+    'bed-180',
+    'dining-chair-upholstered',
+    'sofa-2',
+    'sofa-3',
+    'sofa-corner',
+    'sofa-modular',
+  };
+
   /// Native GLB bounds in millimetres, in width/depth/height order. They are
   /// intentionally separate from ObjectCatalog dimensions: the latter describe
   /// the requested plan footprint, while these values describe the authored
@@ -107,6 +133,7 @@ class ZamerModelAssetCatalog {
       nativeWidthMm: native?.$1 ?? item.widthMm,
       nativeDepthMm: native?.$2 ?? item.depthMm,
       nativeHeightMm: native?.$3 ?? item.heightMm,
+      yawCorrectionRad: _reverseFacingProductionIds.contains(id) ? math.pi : 0,
     );
     return asset.hasRenderableDimensions ? asset : null;
   }
