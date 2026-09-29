@@ -8,6 +8,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../models/models.dart';
 import '../renderer3d/zamer_gpu_viewport.dart';
+import '../services/walk_input_service.dart';
 import '../services/walk_navigation_service.dart';
 
 class Floor3DScreen extends StatefulWidget {
@@ -590,15 +591,20 @@ class _WalkJoystickState extends State<_WalkJoystick> {
     setState(() => _vector = clamped / _radius);
   }
 
+  void _emitStep() {
+    final input = WalkInputService.fromStick(_vector.dx, _vector.dy);
+    if (input.forward == 0 && input.sideways == 0) return;
+    widget.onStep(input.forward, input.sideways);
+  }
+
   void _start(Offset local) {
     _update(local);
     _timer?.cancel();
-    widget.onStep(-_vector.dy, _vector.dx);
-    _timer = Timer.periodic(const Duration(milliseconds: 48), (_) {
-      if (_vector.distance < 0.08) return;
-      final strength = _vector.distance.clamp(0.0, 1.0).toDouble();
-      widget.onStep(-_vector.dy * strength, _vector.dx * strength);
-    });
+    _emitStep();
+    _timer = Timer.periodic(
+      const Duration(milliseconds: 48),
+      (_) => _emitStep(),
+    );
   }
 
   void _stop() {
@@ -663,6 +669,14 @@ class _JoystickPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2,
     );
+    canvas.drawCircle(
+      center,
+      baseRadius * 0.18,
+      Paint()
+        ..color = ringColor.withValues(alpha: .55)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1,
+    );
     final knob = center + vector * baseRadius;
     canvas.drawCircle(knob, 25, Paint()..color = knobColor);
     final arrow = Paint()
@@ -690,7 +704,9 @@ class _JoystickPainter extends CustomPainter {
   bool shouldRepaint(covariant _JoystickPainter oldDelegate) =>
       oldDelegate.vector != vector ||
       oldDelegate.baseColor != baseColor ||
-      oldDelegate.knobColor != knobColor;
+      oldDelegate.ringColor != ringColor ||
+      oldDelegate.knobColor != knobColor ||
+      oldDelegate.iconColor != iconColor;
 }
 
 class _HoldMoveButton extends StatefulWidget {
