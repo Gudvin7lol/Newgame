@@ -48,6 +48,10 @@ class ZamerSceneGeometry {
       if (polygon.length < 3) continue;
       final meta = floor.roomMetaByKey(face.key);
       final settings = meta?.materials ?? RoomMaterialSettings();
+      final sharedFloorAnchor =
+          meta != null &&
+          floor.carpetRoomIds.length > 1 &&
+          floor.carpetRoomIds.contains(meta.id);
       floorSurfaces.add(
         ZamerFloorSurface(
           roomKey: face.key,
@@ -66,8 +70,9 @@ class ZamerSceneGeometry {
           tilePattern: settings.tilePattern,
           tileOffsetXMm: settings.tileOffsetXMm,
           tileOffsetYMm: settings.tileOffsetYMm,
-          anchorXMm: face.centroid.x,
-          anchorYMm: face.centroid.y,
+          groutMm: settings.floorTileGroutMm,
+          anchorXMm: sharedFloorAnchor ? floor.carpetAnchorX : face.centroid.x,
+          anchorYMm: sharedFloorAnchor ? floor.carpetAnchorY : face.centroid.y,
           ceilingHeightMm: meta?.ceilingHeightMm ?? floor.defaultHeightMm,
         ),
       );
@@ -478,6 +483,7 @@ class ZamerFloorSurface {
     required this.tilePattern,
     required this.tileOffsetXMm,
     required this.tileOffsetYMm,
+    required this.groutMm,
     required this.anchorXMm,
     required this.anchorYMm,
     required this.ceilingHeightMm,
@@ -490,7 +496,7 @@ class ZamerFloorSurface {
   final double tileWidthMm, tileHeightMm, plankLengthMm, plankWidthMm;
   final String laminatePattern, laminateOffsetMode, tilePattern;
   final double laminateOffsetXMm, laminateOffsetYMm;
-  final double tileOffsetXMm, tileOffsetYMm;
+  final double tileOffsetXMm, tileOffsetYMm, groutMm;
   final double anchorXMm, anchorYMm;
   final double ceilingHeightMm;
 }

@@ -195,6 +195,8 @@ class _LayoutsScreenState extends State<LayoutsScreen> {
       v = await _number('Сдвиг раскладки по X', s.tileOffsetXMm, 'мм');
     if (field == 'offY')
       v = await _number('Сдвиг раскладки по Y', s.tileOffsetYMm, 'мм');
+    if (field == 'grout')
+      v = await _number('Ширина плиточного шва', s.floorTileGroutMm, 'мм');
     if (field == 'minCut')
       v = await _number(
         'Минимальная желательная подрезка',
@@ -244,6 +246,7 @@ class _LayoutsScreenState extends State<LayoutsScreen> {
     if (field == 'tileH') s.tileHeightMm = v;
     if (field == 'offX') s.tileOffsetXMm = v;
     if (field == 'offY') s.tileOffsetYMm = v;
+    if (field == 'grout') s.floorTileGroutMm = v.clamp(0.5, 50);
     if (field == 'minCut') s.tileMinCutMm = v;
     await _changedLayout(s);
     if (mounted) setState(() {});
@@ -765,16 +768,22 @@ class _LayoutsScreenState extends State<LayoutsScreen> {
                           },
                         ),
                         const SizedBox(height: 8),
-                        Row(
+                        Wrap(
+                          alignment: WrapAlignment.center,
+                          spacing: 8,
+                          runSpacing: 6,
                           children: [
-                            Expanded(
-                              child: FilledButton.icon(
-                                onPressed: () => _autoBalance(face, s),
-                                icon: const Icon(Icons.center_focus_strong),
-                                label: const Text('Авто без узких'),
+                            FilledButton.icon(
+                              onPressed: () => _autoBalance(face, s),
+                              icon: const Icon(Icons.center_focus_strong),
+                              label: const Text('Авто без узких'),
+                            ),
+                            OutlinedButton(
+                              onPressed: () => _edit(s, 'grout'),
+                              child: Text(
+                                'Шов ${s.floorTileGroutMm.toStringAsFixed(s.floorTileGroutMm % 1 == 0 ? 0 : 1)} мм',
                               ),
                             ),
-                            const SizedBox(width: 8),
                             OutlinedButton(
                               onPressed: () => _edit(s, 'minCut'),
                               child: Text('Мин. ${s.tileMinCutMm.round()}'),

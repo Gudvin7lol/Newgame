@@ -27,12 +27,8 @@ void main() {
     final a = quad.pointsMm[0];
     final b = quad.pointsMm[1];
     final d = quad.pointsMm[3];
-    final sideAb = math.sqrt(
-      math.pow(a.x - b.x, 2) + math.pow(a.y - b.y, 2),
-    );
-    final sideAd = math.sqrt(
-      math.pow(a.x - d.x, 2) + math.pow(a.y - d.y, 2),
-    );
+    final sideAb = math.sqrt(math.pow(a.x - b.x, 2) + math.pow(a.y - b.y, 2));
+    final sideAd = math.sqrt(math.pow(a.x - d.x, 2) + math.pow(a.y - d.y, 2));
     expect(math.min(sideAb, sideAd), closeTo(4, 0.0001));
   });
 

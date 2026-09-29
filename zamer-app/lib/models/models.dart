@@ -683,6 +683,7 @@ class RoomMaterialSettings {
     this.tilePattern = 'straight',
     this.tileOffsetXMm = 0,
     this.tileOffsetYMm = 0,
+    this.floorTileGroutMm = 2,
     this.tileMinCutMm = 120,
     this.wallTileWidthMm = 600,
     this.wallTileHeightMm = 300,
@@ -750,6 +751,7 @@ class RoomMaterialSettings {
   String tilePattern;
   double tileOffsetXMm;
   double tileOffsetYMm;
+  double floorTileGroutMm;
   double tileMinCutMm;
   double wallTileWidthMm;
   double wallTileHeightMm;
@@ -792,6 +794,7 @@ class RoomMaterialSettings {
     laminatePlankWidthMm = valid(laminatePlankWidthMm, 40, 193);
     tileWidthMm = valid(tileWidthMm, 20, 600);
     tileHeightMm = valid(tileHeightMm, 20, 600);
+    floorTileGroutMm = valid(floorTileGroutMm, 0.5, 2);
     wallTileWidthMm = valid(wallTileWidthMm, 20, 600);
     wallTileHeightMm = valid(wallTileHeightMm, 20, 300);
     underlayRollWidthMm = valid(underlayRollWidthMm, 20, 1000);
@@ -860,6 +863,7 @@ class RoomMaterialSettings {
     'tilePattern': tilePattern,
     'tileOffsetXMm': tileOffsetXMm,
     'tileOffsetYMm': tileOffsetYMm,
+    'floorTileGroutMm': floorTileGroutMm,
     'tileMinCutMm': tileMinCutMm,
     'wallTileWidthMm': wallTileWidthMm,
     'wallTileHeightMm': wallTileHeightMm,
@@ -931,6 +935,7 @@ class RoomMaterialSettings {
     tilePattern: json['tilePattern'] as String? ?? 'straight',
     tileOffsetXMm: (json['tileOffsetXMm'] as num?)?.toDouble() ?? 0,
     tileOffsetYMm: (json['tileOffsetYMm'] as num?)?.toDouble() ?? 0,
+    floorTileGroutMm: (json['floorTileGroutMm'] as num?)?.toDouble() ?? 2,
     tileMinCutMm: (json['tileMinCutMm'] as num?)?.toDouble() ?? 120,
     wallTileWidthMm: (json['wallTileWidthMm'] as num?)?.toDouble() ?? 600,
     wallTileHeightMm: (json['wallTileHeightMm'] as num?)?.toDouble() ?? 300,

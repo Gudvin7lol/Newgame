@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import 'screens/projects_screen.dart';
 
 void main() {
@@ -68,7 +69,10 @@ class ZamerApp extends StatelessWidget {
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
           fillColor: const Color(0xFF0E171B),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 12,
+          ),
           hintStyle: const TextStyle(color: Color(0xFF78858B)),
           labelStyle: const TextStyle(color: Color(0xFFB5BDC0)),
           border: OutlineInputBorder(
@@ -91,7 +95,9 @@ class ZamerApp extends StatelessWidget {
             backgroundColor: accent,
             minimumSize: const Size(44, 46),
             textStyle: const TextStyle(fontWeight: FontWeight.w800),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
         ),
         outlinedButtonTheme: OutlinedButtonThemeData(
@@ -99,14 +105,18 @@ class ZamerApp extends StatelessWidget {
             foregroundColor: const Color(0xFFE7E1DA),
             side: const BorderSide(color: outline),
             minimumSize: const Size(44, 44),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
         ),
         textButtonTheme: TextButtonThemeData(
           style: TextButton.styleFrom(
             foregroundColor: accent,
             minimumSize: const Size(44, 44),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
         ),
         segmentedButtonTheme: SegmentedButtonThemeData(

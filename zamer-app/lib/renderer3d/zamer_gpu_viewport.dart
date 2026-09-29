@@ -10,6 +10,7 @@ import 'package:vector_math/vector_math.dart' as vm;
 import '../models/models.dart';
 import '../services/material_catalog.dart';
 import '../widgets/floor_3d_painter.dart';
+import 'floor_grout_geometry.dart';
 import 'model_asset_catalog.dart';
 import 'model_lod_policy.dart';
 import 'scene_mesh_winding.dart';
@@ -182,6 +183,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
         m.tilePattern,
         m.tileOffsetXMm,
         m.tileOffsetYMm,
+        m.floorTileGroutMm,
         m.laminatePlankLengthMm,
         m.laminatePlankWidthMm,
         m.laminatePattern,
@@ -487,15 +489,14 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     if (indices.isEmpty) return null;
 
     final uvScale = _floorUvScaleMm(surface);
-    final effectiveDirection =
-        surface.materialMode.toLowerCase().contains('tile')
+    final isTile =
+        surface.materialMode.toLowerCase().contains('tile') ||
+        MaterialCatalog.byId(surface.materialId).pattern == 'tile';
+    final effectiveDirection = isTile
         ? surface.directionDeg + (surface.tilePattern == 'diagonal' ? 45 : 0)
         : surface.directionDeg;
     final angle = effectiveDirection * math.pi / 180;
     final ca = math.cos(angle), sa = math.sin(angle);
-    final isTile =
-        surface.materialMode.toLowerCase().contains('tile') ||
-        MaterialCatalog.byId(surface.materialId).pattern == 'tile';
     final offX = isTile ? surface.tileOffsetXMm : surface.laminateOffsetXMm;
     final offY = isTile ? surface.tileOffsetYMm : surface.laminateOffsetYMm;
     final builder = GeometryBuilder(deduplicate: false)
@@ -503,17 +504,17 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     for (final point in surface.polygonMm) {
       final dx = point.x - surface.anchorXMm;
       final dy = point.y - surface.anchorYMm;
-      final rx = dx * ca + dy * sa + offX;
-      final ry = -dx * sa + dy * ca + offY;
+      // 2D places a seam at n*module + offset. Therefore the texture-space
+      // coordinate must subtract that offset. The old +offset made the GPU
+      // layout move in the opposite direction from the 2D editor.
+      final rx = dx * ca + dy * sa - offX;
+      final ry = -dx * sa + dy * ca - offY;
       builder
         ..texCoord(vm.Vector2(rx / uvScale.$1, ry / uvScale.$2))
         ..addVertex(
           vm.Vector3(_mx(point.x, bounds), 0.006, _mz(point.y, bounds)),
         );
     }
-    // Plan polygons are CCW in XY, but mapping plan Y to GPU +Z flips
-    // handedness. Reverse every triangle so the visible floor face has a
-    // +Y geometric normal, matching the authored +Y vertex normal.
     final floorIndices = floorFacingTriangleIndices(indices);
     for (var i = 0; i < floorIndices.length; i += 3) {
       builder.addTriangle(
@@ -529,8 +530,65 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       key,
       () => _floorMaterial(surface),
     );
+    final root = Node(name: 'floor-root:${surface.roomKey}');
+    root.add(
+      Node(
+          name: 'floor:${surface.roomKey}',
+          mesh: Mesh(builder.build(), material),
+        )
+        ..castsShadows = false
+        ..shadowStatic = true,
+    );
+    if (isTile && surface.groutMm > 0) {
+      final grout = _buildFloorGroutNode(surface, bounds, effectiveDirection);
+      if (grout != null) root.add(grout);
+    }
+    return root;
+  }
+
+  Node? _buildFloorGroutNode(
+    ZamerFloorSurface surface,
+    ZamerSceneBounds bounds,
+    double effectiveDirection,
+  ) {
+    final quads = buildFloorTileGroutQuads(
+      polygonMm: surface.polygonMm,
+      anchorXMm: surface.anchorXMm,
+      anchorYMm: surface.anchorYMm,
+      directionDeg: effectiveDirection,
+      tileWidthMm: surface.tileWidthMm,
+      tileHeightMm: surface.tileHeightMm,
+      offsetXMm: surface.tileOffsetXMm,
+      offsetYMm: surface.tileOffsetYMm,
+      groutMm: surface.groutMm,
+      pattern: surface.tilePattern,
+    );
+    if (quads.isEmpty) return null;
+
+    final builder = GeometryBuilder(deduplicate: false)
+      ..normal(vm.Vector3(0, 1, 0));
+    var vertex = 0;
+    for (final quad in quads) {
+      if (quad.pointsMm.length != 4) continue;
+      for (final point in quad.pointsMm) {
+        builder
+          ..texCoord(vm.Vector2.zero())
+          ..addVertex(
+            vm.Vector3(_mx(point.x, bounds), 0.0068, _mz(point.y, bounds)),
+          );
+      }
+      // XY plan -> XZ scene flips handedness, so reverse the triangle order
+      // to keep the physical grout face pointing upward.
+      builder
+        ..addTriangle(vertex, vertex + 2, vertex + 1)
+        ..addTriangle(vertex, vertex + 3, vertex + 2);
+      vertex += 4;
+    }
+    if (vertex == 0) return null;
+    final material = _pbr(vm.Vector4(0.68, 0.69, 0.68, 1), roughness: 0.94)
+      ..doubleSided = false;
     return Node(
-        name: 'floor:${surface.roomKey}',
+        name: 'floor-grout:${surface.roomKey}',
         mesh: Mesh(builder.build(), material),
       )
       ..castsShadows = false

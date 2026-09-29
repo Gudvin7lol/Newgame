@@ -883,7 +883,7 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
                                 SizedBox(
-                                  width: 118,
+                                  width: 96,
                                   child: ListView.separated(
                                     itemCount: ObjectCatalog.groups.length,
                                     separatorBuilder: (_, __) =>
@@ -894,7 +894,7 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
                                       final selected = candidate == group;
                                       return Material(
                                         color: selected
-                                            ? const Color(0xFF24483D)
+                                            ? const Color(0xFF3B3028)
                                             : Colors.transparent,
                                         borderRadius: BorderRadius.circular(12),
                                         child: InkWell(
@@ -926,7 +926,7 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
                                                         : FontWeight.w500,
                                                     color: selected
                                                         ? const Color(
-                                                            0xFF79E1B9,
+                                                            0xFFF1C79E,
                                                           )
                                                         : Colors.white70,
                                                   ),
@@ -938,7 +938,7 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
                                                     fontSize: 9,
                                                     color: selected
                                                         ? const Color(
-                                                            0xFF79E1B9,
+                                                            0xFFF1C79E,
                                                           ).withValues(
                                                             alpha: .75,
                                                           )
@@ -966,7 +966,7 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
                                                 crossAxisCount: 2,
                                                 mainAxisSpacing: 8,
                                                 crossAxisSpacing: 8,
-                                                childAspectRatio: .88,
+                                                childAspectRatio: .64,
                                               ),
                                           itemBuilder: (context, index) {
                                             final item = items[index];
@@ -989,7 +989,7 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
                                                   border: Border.all(
                                                     color: selected
                                                         ? const Color(
-                                                            0xFF56D6A3,
+                                                            0xFFF1C79E,
                                                           )
                                                         : const Color(
                                                             0xFF29373B,
@@ -1003,7 +1003,7 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
                                                       child: Center(
                                                         child: _modelPreview(
                                                           item,
-                                                          108,
+                                                          118,
                                                         ),
                                                       ),
                                                     ),

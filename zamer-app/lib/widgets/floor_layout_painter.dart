@@ -271,7 +271,7 @@ class FloorLayoutPainter extends CustomPainter {
     final stroke = Paint()
       ..color = const Color(0xFF8E99A5)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
+      ..strokeWidth = math.max(0.55, settings.floorTileGroutMm * scale);
     final fill = Paint()..color = const Color(0xFFF1F2F4);
     for (
       double y = ((clip.top - offsetY) / th).floor() * th + offsetY;

@@ -40,9 +40,9 @@ List<FloorGroutQuad> buildFloorTileGroutQuads({
   }
 
   math.Point<double> toWorld(math.Point<double> p) => math.Point<double>(
-        anchorXMm + p.x * ca - p.y * sa,
-        anchorYMm + p.x * sa + p.y * ca,
-      );
+    anchorXMm + p.x * ca - p.y * sa,
+    anchorYMm + p.x * sa + p.y * ca,
+  );
 
   final polygon = polygonMm.map(toLocal).toList(growable: false);
   final minX = polygon.map((p) => p.x).reduce(math.min);
@@ -113,8 +113,8 @@ List<FloorGroutQuad> buildFloorTileGroutQuads({
     );
   }
 
-  final firstY = ((minY - offsetYMm) / tileHeightMm).floor() * tileHeightMm +
-      offsetYMm;
+  final firstY =
+      ((minY - offsetYMm) / tileHeightMm).floor() * tileHeightMm + offsetYMm;
   for (var y = firstY; y <= maxY + .01; y += tileHeightMm) {
     for (final interval in horizontalIntervals(y)) {
       addHorizontal(y, interval.$1, interval.$2);
@@ -123,13 +123,15 @@ List<FloorGroutQuad> buildFloorTileGroutQuads({
 
   if (pattern == 'half') {
     var row = ((minY - offsetYMm) / tileHeightMm).floor();
-    for (var y0 = row * tileHeightMm + offsetYMm;
-        y0 < maxY;
-        y0 += tileHeightMm, row++) {
+    for (
+      var y0 = row * tileHeightMm + offsetYMm;
+      y0 < maxY;
+      y0 += tileHeightMm, row++
+    ) {
       final y1 = y0 + tileHeightMm;
       final shift = row.isOdd ? tileWidthMm / 2 : 0.0;
-      final firstX = ((minX - offsetXMm - shift) / tileWidthMm).floor() *
-              tileWidthMm +
+      final firstX =
+          ((minX - offsetXMm - shift) / tileWidthMm).floor() * tileWidthMm +
           offsetXMm +
           shift;
       for (var x = firstX; x <= maxX + .01; x += tileWidthMm) {
@@ -141,8 +143,8 @@ List<FloorGroutQuad> buildFloorTileGroutQuads({
       }
     }
   } else {
-    final firstX = ((minX - offsetXMm) / tileWidthMm).floor() * tileWidthMm +
-        offsetXMm;
+    final firstX =
+        ((minX - offsetXMm) / tileWidthMm).floor() * tileWidthMm + offsetXMm;
     for (var x = firstX; x <= maxX + .01; x += tileWidthMm) {
       for (final interval in verticalIntervals(x)) {
         addVertical(x, interval.$1, interval.$2);
