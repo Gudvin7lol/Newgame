@@ -39,6 +39,24 @@ def _seed(text: str) -> int:
 
 
 def _base_color(material) -> np.ndarray:
+    """Recover the material colour from either an existing texture or factor.
+
+    The baker is intentionally repeat-safe: once a GLB has been textured its
+    baseColorFactor is white, so reading only that factor would wash a second
+    bake to white. Prefer the mean colour of the embedded base map when present.
+    """
+    texture = getattr(material, "baseColorTexture", None)
+    if texture is not None:
+        try:
+            image = texture.convert("RGB") if hasattr(texture, "convert") else Image.fromarray(np.asarray(texture)).convert("RGB")
+            pixels = np.asarray(image, dtype=np.float32)
+            if pixels.ndim == 3 and pixels.shape[2] >= 3 and pixels.size:
+                color = np.mean(pixels[:, :, :3], axis=(0, 1)) / 255.0
+                if np.all(np.isfinite(color)):
+                    return np.clip(color, 0.025, 0.98)
+        except Exception:
+            pass
+
     factor = getattr(material, "baseColorFactor", None)
     if factor is None:
         return np.array([0.45, 0.45, 0.45], dtype=float)
@@ -170,7 +188,7 @@ def _triangle_count(scene: trimesh.Scene) -> int:
     return sum(len(mesh.faces) for mesh in scene.geometry.values())
 
 
-def _bake(path: Path, texture_size: int) -> tuple[int, int]:
+def _bake(path: Path, texture_size: int, include_detail_maps: bool) -> tuple[int, int]:
     scene = trimesh.load(path, force="scene", process=False)
     before_triangles = _triangle_count(scene)
     before_extents = scene.extents.copy()
@@ -183,15 +201,17 @@ def _bake(path: Path, texture_size: int) -> tuple[int, int]:
         base_tex, normal_tex, mr_tex, roughness, metallic = _textures(
             style, base, material_name, texture_size
         )
-        material = PBRMaterial(
+        material_kwargs = dict(
             name=material_name,
             baseColorFactor=[1.0, 1.0, 1.0, 1.0],
             baseColorTexture=base_tex,
-            normalTexture=normal_tex,
-            metallicRoughnessTexture=mr_tex,
             metallicFactor=metallic,
             roughnessFactor=roughness,
         )
+        if include_detail_maps:
+            material_kwargs["normalTexture"] = normal_tex
+            material_kwargs["metallicRoughnessTexture"] = mr_tex
+        material = PBRMaterial(**material_kwargs)
         mesh.visual = trimesh.visual.TextureVisuals(
             uv=_uv(mesh, style),
             material=material,
@@ -220,16 +240,27 @@ def _bake(path: Path, texture_size: int) -> tuple[int, int]:
     return before_triangles, path.stat().st_size
 
 
+def _profile(suffix: str) -> tuple[int, bool, str]:
+    if suffix == "":
+        return 512, True, "full"
+    if suffix == "_lod1":
+        return 256, True, "full"
+    # LOD2 is used in the heaviest mobile scenes. Keep the visible base material
+    # but drop tangent-space detail maps, which dominate download/GPU memory and
+    # are largely invisible at the distances where LOD2 is selected.
+    return 128, False, "base-only"
+
+
 def main() -> None:
     for asset_id in PRODUCTION_IDS:
         for suffix in LODS:
             path = OUT / f"{asset_id}{suffix}.glb"
             if not path.exists():
                 raise FileNotFoundError(path)
-            size = 512 if suffix == "" else 256
-            triangles, bytes_size = _bake(path, size)
+            size, include_detail_maps, profile = _profile(suffix)
+            triangles, bytes_size = _bake(path, size, include_detail_maps)
             print(
-                f"{path.name}: {triangles} triangles, embedded {size}px PBR maps, {bytes_size} bytes"
+                f"{path.name}: {triangles} triangles, embedded {size}px {profile} PBR, {bytes_size} bytes"
             )
 
 
