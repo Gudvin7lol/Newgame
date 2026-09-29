@@ -807,7 +807,7 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
       backgroundColor: const Color(0xFF0E1517),
       showDragHandle: true,
       builder: (sheetContext) => FractionallySizedBox(
-        heightFactor: .90,
+        heightFactor: .94,
         child: StatefulBuilder(
           builder: (context, refresh) {
             final normalizedQuery = query.trim().toLowerCase();
@@ -883,7 +883,7 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
                                 SizedBox(
-                                  width: 96,
+                                  width: 88,
                                   child: ListView.separated(
                                     itemCount: ObjectCatalog.groups.length,
                                     separatorBuilder: (_, __) =>
@@ -966,7 +966,7 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
                                                 crossAxisCount: 2,
                                                 mainAxisSpacing: 8,
                                                 crossAxisSpacing: 8,
-                                                childAspectRatio: .64,
+                                                childAspectRatio: .72,
                                               ),
                                           itemBuilder: (context, index) {
                                             final item = items[index];
@@ -1031,7 +1031,7 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
                                                       style: const TextStyle(
                                                         fontSize: 9,
                                                         color: Color(
-                                                          0xFF77BFA4,
+                                                          0xFFB8A28F,
                                                         ),
                                                         fontWeight:
                                                             FontWeight.w600,
@@ -1127,89 +1127,156 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(10, 8, 10, 4),
-          child: Card(
-            child: Padding(
-              padding: const EdgeInsets.all(10),
-              child: Column(
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
                 children: [
-                  const Text(
-                    'Объекты: добавление и перемещение',
-                    style: TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                  ...[
-                    const SizedBox(height: 8),
-                    SegmentedButton<_AddSource>(
-                      segments: const [
-                        ButtonSegment(
-                          value: _AddSource.catalog,
-                          icon: Icon(Icons.chair_alt_outlined),
-                          label: Text('Библиотека'),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Оснащение',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: .1,
+                          ),
                         ),
-                        ButtonSegment(
-                          value: _AddSource.engineering,
-                          icon: Icon(Icons.engineering_outlined),
-                          label: Text('Инженерия'),
+                        SizedBox(height: 2),
+                        Text(
+                          'Выбери объект и размести его касанием по плану',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFF8C989D),
+                          ),
                         ),
                       ],
-                      selected: {_source},
-                      onSelectionChanged: (v) =>
-                          setState(() => _source = v.first),
                     ),
-                    const SizedBox(height: 8),
-                    if (_source == _AddSource.catalog) ...[
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: _modelPreview(
-                          ObjectCatalog.byId(_catalogId),
-                          52,
-                        ),
-                        title: Text(ObjectCatalog.byId(_catalogId).name),
-                        subtitle: Text(
-                          '$_group · '
-                          '${ObjectCatalog.byId(_catalogId).widthMm.round()} × '
-                          '${ObjectCatalog.byId(_catalogId).depthMm.round()} × '
-                          '${ObjectCatalog.byId(_catalogId).heightMm.round()} мм',
-                        ),
-                        trailing: const Icon(Icons.grid_view_outlined),
-                        onTap: _chooseModel,
-                      ),
-                    ] else
-                      DropdownButtonFormField<PlanObjectType>(
-                        value: _engineeringType,
-                        decoration: const InputDecoration(
-                          labelText: 'Инженерный / конструктивный элемент',
-                        ),
-                        items: _engineeringTypes
-                            .map(
-                              (e) => DropdownMenuItem(
-                                value: e,
-                                child: Text(e.label),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (v) => setState(
-                          () => _engineeringType = v ?? _engineeringType,
-                        ),
-                      ),
-                    const SizedBox(height: 8),
-                    DropdownButtonFormField<ProjectLayer>(
-                      value: _layer,
-                      decoration: const InputDecoration(labelText: 'Слой'),
-                      items: ProjectLayer.values
-                          .map(
-                            (e) => DropdownMenuItem(
-                              value: e,
-                              child: Text(e.label),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (v) => setState(() => _layer = v ?? _layer),
-                    ),
-                  ],
+                  ),
+                  IconButton.filledTonal(
+                    tooltip: 'Открыть каталог',
+                    onPressed: _source == _AddSource.catalog
+                        ? _chooseModel
+                        : null,
+                    icon: const Icon(Icons.grid_view_rounded),
+                  ),
                 ],
               ),
-            ),
+              const SizedBox(height: 9),
+              SegmentedButton<_AddSource>(
+                showSelectedIcon: false,
+                segments: const [
+                  ButtonSegment(
+                    value: _AddSource.catalog,
+                    icon: Icon(Icons.chair_alt_outlined),
+                    label: Text('Каталог'),
+                  ),
+                  ButtonSegment(
+                    value: _AddSource.engineering,
+                    icon: Icon(Icons.engineering_outlined),
+                    label: Text('Инженерия'),
+                  ),
+                ],
+                selected: {_source},
+                onSelectionChanged: (value) =>
+                    setState(() => _source = value.first),
+              ),
+              const SizedBox(height: 9),
+              if (_source == _AddSource.catalog)
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF111A1F),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFF2A3941)),
+                  ),
+                  child: Row(
+                    children: [
+                      _modelPreview(ObjectCatalog.byId(_catalogId), 82),
+                      const SizedBox(width: 11),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              ObjectCatalog.byId(_catalogId).name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${ObjectCatalog.byId(_catalogId).widthMm.round()} × '
+                              '${ObjectCatalog.byId(_catalogId).depthMm.round()} × '
+                              '${ObjectCatalog.byId(_catalogId).heightMm.round()} мм',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Color(0xFFB3BDC1),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 4,
+                              children: [
+                                _EquipmentChip(label: _group),
+                                _EquipmentChip(
+                                  label: ObjectCatalog.byId(_catalogId)
+                                      .mountLabel,
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      IconButton(
+                        tooltip: 'Сменить модель',
+                        onPressed: _chooseModel,
+                        icon: const Icon(Icons.chevron_right_rounded),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                DropdownButtonFormField<PlanObjectType>(
+                  value: _engineeringType,
+                  decoration: const InputDecoration(
+                    labelText: 'Инженерный / конструктивный элемент',
+                  ),
+                  items: _engineeringTypes
+                      .map(
+                        (item) => DropdownMenuItem(
+                          value: item,
+                          child: Text(item.label),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) => setState(
+                    () => _engineeringType = value ?? _engineeringType,
+                  ),
+                ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<ProjectLayer>(
+                value: _layer,
+                decoration: const InputDecoration(labelText: 'Слой проекта'),
+                items: ProjectLayer.values
+                    .map(
+                      (item) => DropdownMenuItem(
+                        value: item,
+                        child: Text(item.label),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) => setState(() => _layer = value ?? _layer),
+              ),
+            ],
           ),
         ),
         Expanded(
@@ -1295,6 +1362,34 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
   }
 }
 
+class _EquipmentChip extends StatelessWidget {
+  const _EquipmentChip({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0B1216),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFF2A3941)),
+      ),
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          fontSize: 9.5,
+          color: Color(0xFFC7CFD2),
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
 class _PlanningPainter extends CustomPainter {
   const _PlanningPainter({
     required this.floor,
@@ -1319,7 +1414,7 @@ class _PlanningPainter extends CustomPainter {
       Paint()
         ..color = darkPreview
             ? const Color(0xFF10181B)
-            : const Color(0xFFF7F8FA),
+            : const Color(0xFF0B1115),
     );
     for (final w in floor.walls) {
       final a = floor.nodeById(w.startNodeId), b = floor.nodeById(w.endNodeId);
@@ -1328,7 +1423,7 @@ class _PlanningPainter extends CustomPainter {
           ? const Color(0xFFD85B68)
           : w.projectLayer == ProjectLayer.proposed
           ? const Color(0xFF55B98C)
-          : const Color(0xFF3B4148);
+          : const Color(0xFFD6DEE1);
       canvas.drawLine(
         p(a.xMm, a.yMm),
         p(b.xMm, b.yMm),
@@ -1364,11 +1459,11 @@ class _PlanningPainter extends CustomPainter {
     final color = switch (o.layer) {
       ProjectLayer.existing => const Color(0xFF64717D),
       ProjectLayer.demolition => const Color(0xFFC04E5A),
-      ProjectLayer.proposed => const Color(0xFF4E68A7),
+      ProjectLayer.proposed => const Color(0xFFB88862),
     };
     final fill = Paint()..color = color.withValues(alpha: 0.12);
     final stroke = Paint()
-      ..color = selected ? const Color(0xFF0D5BD7) : color
+      ..color = selected ? const Color(0xFFF1C79E) : color
       ..style = PaintingStyle.stroke
       ..strokeWidth = selected ? 2.5 : 1.5;
     canvas.save();
