@@ -19,7 +19,7 @@ if "find.text('Трассы')" in text and 'scrollUntilVisible' in text:
 text = replace_once(
     text,
     "    await tester.ensureVisible(find.text('Ш 1200'));\n    await tester.tap(find.text('Ш 1200'));\n",
-    "    await tester.scrollUntilVisible(\n      find.text('Ш 1200'),\n      180,\n      scrollable: find.byType(ListView).first,\n    );\n    await tester.tap(find.text('Ш 1200'));\n",
+    "    await tester.scrollUntilVisible(\n      find.text('Ш 1200'),\n      180,\n      scrollable: find.byType(Scrollable).first,\n    );\n    await tester.tap(find.text('Ш 1200'));\n",
     'scroll to ceiling zone size control',
 )
 text = replace_once(
