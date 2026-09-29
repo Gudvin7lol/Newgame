@@ -116,10 +116,10 @@ import 'package:zamer_app/renderer3d/scene_mesh_winding.dart';
 
 void main() {
   test('plan CCW triangles are reversed for an upward GPU floor face', () {
-    const plan = <(double x, double y)>[
-      (x: 0, y: 0),
-      (x: 4, y: 0),
-      (x: 4, y: 3),
+    const plan = <({double x, double y})>[
+      (x: 0.0, y: 0.0),
+      (x: 4.0, y: 0.0),
+      (x: 4.0, y: 3.0),
     ];
     final indices = floorFacingTriangleIndices(const <int>[0, 1, 2]);
     expect(indices, const <int>[2, 1, 0]);
