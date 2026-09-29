@@ -29,8 +29,18 @@ class FloorLayoutPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     canvas.drawRect(
       Offset.zero & size,
-      Paint()..color = const Color(0xFFF6F7F9),
+      Paint()..color = const Color(0xFF0B1115),
     );
+    final gridPaint = Paint()
+      ..color = const Color(0xFF162229)
+      ..strokeWidth = .7;
+    const gridStep = 32.0;
+    for (var x = 0.0; x <= size.width; x += gridStep) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
+    }
+    for (var y = 0.0; y <= size.height; y += gridStep) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
+    }
     final roomPolygons = (selectedFaces ?? [face])
         .map(LayoutService.finishPolygon)
         .where((points) => points.length >= 3)
@@ -85,7 +95,7 @@ class FloorLayoutPainter extends CustomPainter {
     for (final path in paths.skip(1)) {
       surface = Path.combine(PathOperation.union, surface, path);
     }
-    canvas.drawPath(surface, Paint()..color = Colors.white);
+    canvas.drawPath(surface, Paint()..color = const Color(0xFF121B20));
     // One anchor in floor coordinates keeps the pattern phase continuous
     // across selected rooms, including when their previews are inspected.
     final center = map(worldAnchor ?? face.centroid);
@@ -113,9 +123,9 @@ class FloorLayoutPainter extends CustomPainter {
     canvas.drawPath(
       surface,
       Paint()
-        ..color = const Color(0xFF28313A)
+        ..color = const Color(0xFFD4DEE2)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2,
+        ..strokeWidth = 1.6,
     );
 
     // Edge cuts are shown below the drawing; labels on a small plan overlap.
@@ -133,10 +143,10 @@ class FloorLayoutPainter extends CustomPainter {
     final offY =
         (settings.laminateOffsetYMm % settings.laminatePlankWidthMm) * scale;
     final paint = Paint()
-      ..color = const Color(0xFF98A4AF)
+      ..color = const Color(0xFF7A665A)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 0.9;
-    final fill = Paint()..color = const Color(0xFFE5E1DA);
+    final fill = Paint()..color = const Color(0xFFC9A987);
     final clip = canvas.getLocalClipBounds().inflate(math.max(plankL, plankW));
     for (
       double y = ((clip.top - offY) / plankW).floor() * plankW + offY;
@@ -173,11 +183,11 @@ class FloorLayoutPainter extends CustomPainter {
         (settings.laminateOffsetYMm % settings.laminatePlankWidthMm) * scale;
     final clip = canvas.getLocalClipBounds().inflate(boardL + boardW);
     final outline = Paint()
-      ..color = const Color(0xFF9B9286)
+      ..color = const Color(0xFF79685D)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 0.72;
-    final fillA = Paint()..color = const Color(0xFFE4DDD2);
-    final fillB = Paint()..color = const Color(0xFFDDD5C9);
+    final fillA = Paint()..color = const Color(0xFFCBAE91);
+    final fillB = Paint()..color = const Color(0xFFBFA184);
 
     // Continuous mitred chevrons. Parallel zigzag boundaries are exactly one
     // plank width apart, so the pattern fills the room with no intersections.
@@ -215,10 +225,10 @@ class FloorLayoutPainter extends CustomPainter {
         : settings.underlayRollWidthMm;
     final offX = (settings.underlayOffsetXMm % moduleX) * scale;
     final offY = (settings.underlayOffsetYMm % moduleY) * scale;
-    final p1 = Paint()..color = const Color(0xFFE7F0EC);
-    final p2 = Paint()..color = const Color(0xFFD9E7E0);
+    final p1 = Paint()..color = const Color(0xFF244036);
+    final p2 = Paint()..color = const Color(0xFF1C332B);
     final line = Paint()
-      ..color = const Color(0xFF7A9085)
+      ..color = const Color(0xFF75AA94)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1;
     if (settings.underlayMode == 'sheet') {
@@ -269,10 +279,10 @@ class FloorLayoutPainter extends CustomPainter {
     final offsetY = (settings.tileOffsetYMm % settings.tileHeightMm) * scale;
     final clip = canvas.getLocalClipBounds().inflate(math.max(tw, th));
     final stroke = Paint()
-      ..color = const Color(0xFF8E99A5)
+      ..color = const Color(0xFF9A877B)
       ..style = PaintingStyle.stroke
       ..strokeWidth = math.max(0.55, settings.floorTileGroutMm * scale);
-    final fill = Paint()..color = const Color(0xFFF1F2F4);
+    final fill = Paint()..color = const Color(0xFFD8C7B8);
     for (
       double y = ((clip.top - offsetY) / th).floor() * th + offsetY;
       y < clip.bottom;
