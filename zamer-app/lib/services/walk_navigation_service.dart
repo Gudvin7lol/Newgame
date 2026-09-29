@@ -134,8 +134,8 @@ class WalkNavigationService {
         if (!canStand(
           floor,
           math.Point(
-            start.x + math.sin(angle) * d,
-            start.y + math.cos(angle) * d,
+            start.x + math.cos(angle) * d,
+            start.y + math.sin(angle) * d,
           ),
           rooms: rooms,
         )) {
@@ -159,8 +159,13 @@ class WalkNavigationService {
     double sideways, {
     bool ignoreCollisions = false,
   }) {
-    final dx = forward * math.sin(rotation) + sideways * math.cos(rotation);
-    final dy = forward * math.cos(rotation) - sideways * math.sin(rotation);
+    // Keep navigation in the exact same basis as the GPU camera:
+    // camera forward = (cos(rotation), sin(rotation)) in plan X/Y.
+    // Positive sideways follows the camera's screen-right vector.
+    final cosRotation = math.cos(rotation);
+    final sinRotation = math.sin(rotation);
+    final dx = forward * cosRotation - sideways * sinRotation;
+    final dy = forward * sinRotation + sideways * cosRotation;
 
     // Noclip is intentional in survey work: it lets the user inspect cramped
     // corners, shafts and neighbouring rooms without fighting collision rules.
@@ -189,8 +194,10 @@ class WalkNavigationService {
       // objects.
       final alongX = math.Point(current.x + stepX, current.y);
       final alongY = math.Point(current.x, current.y + stepY);
-      final canMoveX = stepX.abs() > 0.0001 && canStand(floor, alongX, rooms: rooms);
-      final canMoveY = stepY.abs() > 0.0001 && canStand(floor, alongY, rooms: rooms);
+      final canMoveX =
+          stepX.abs() > 0.0001 && canStand(floor, alongX, rooms: rooms);
+      final canMoveY =
+          stepY.abs() > 0.0001 && canStand(floor, alongY, rooms: rooms);
 
       if (canMoveX && canMoveY) {
         current = stepX.abs() >= stepY.abs() ? alongX : alongY;
