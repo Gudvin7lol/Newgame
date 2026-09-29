@@ -16,7 +16,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   validate:
@@ -29,9 +29,6 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ github.head_ref || github.ref_name }}
-
-      - name: Apply pending +61 materials layout pass
-        run: python3 tools/apply_zamer_1_5_6_61_layouts_ui.py
 
       - name: Set up Java 17
         uses: actions/setup-java@v5
@@ -46,9 +43,6 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Format patched layouts UI
-        run: dart format zamer-app/lib/screens/layouts_screen.dart zamer-app/lib/widgets/floor_layout_painter.dart
-
       - name: Get packages
         working-directory: zamer-app
         run: flutter pub get
@@ -57,19 +51,12 @@ jobs:
         working-directory: zamer-app
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
 
-      - name: Test layout geometry
-        working-directory: zamer-app
-        run: flutter test test/carpet_layout_test.dart test/floor_grout_geometry_test.dart test/v155_materials_library_test.dart
-
       - name: Test headless-safe suite
         working-directory: zamer-app
         shell: bash
         run: |
           set -euo pipefail
           mapfile -d '' tests < <(find test -name '*_test.dart' \
-            ! -name 'carpet_layout_test.dart' \
-            ! -name 'floor_grout_geometry_test.dart' \
-            ! -name 'v155_materials_library_test.dart' \
             ! -name 'workspace_history_test.dart' \
             ! -name 'v102_screen_smoke_test.dart' -print0)
           if [ "${#tests[@]}" -gt 0 ]; then
@@ -84,25 +71,6 @@ jobs:
       - name: Build release APK
         working-directory: zamer-app
         run: flutter build apk --release
-
-      - name: Commit verified +61 fixes
-        if: github.event_name == 'pull_request'
-        shell: bash
-        run: |
-          git config user.name 'zamer-codex-bot'
-          git config user.email 'zamer-codex-bot@users.noreply.github.com'
-          git add \
-            zamer-app/lib/screens/layouts_screen.dart \
-            zamer-app/lib/widgets/floor_layout_painter.dart \
-            zamer-app/pubspec.yaml \
-            zamer-app/CHANGELOG.md
-          if git diff --cached --quiet; then
-            echo 'No +61 generated source changes to commit.'
-            exit 0
-          fi
-          git diff --cached --check
-          git commit -m 'Build Zamer 1.5.6+61 master-concept materials layout UI'
-          git push origin HEAD:codex/zamer-1.5.6-3d-stability
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
