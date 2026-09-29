@@ -106,32 +106,35 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
   }
 
   Future<void> _rebuildSceneAfterUpdate() async {
-  try {
-    await _rebuildScene();
-    if (!mounted) return;
-    if (!_ready && _loadError != null) {
+    try {
+      await _rebuildScene();
+      if (!mounted) return;
+      if (!_ready && _loadError != null) {
+        _scheduleRetry(immediate: true);
+      }
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _loadError = error;
+        _ready = false;
+      });
+      // Editing the plan must never leave the GPU viewport permanently
+      // blank. Recreate the GPU scene on the next frame instead of
+      // requiring the user to restart the whole application.
       _scheduleRetry(immediate: true);
     }
-  } catch (error) {
-    if (!mounted) return;
-    setState(() {
-      _loadError = error;
-      _ready = false;
-    });
-    // Editing the plan must never leave the GPU viewport permanently
-    // blank. Recreate the GPU scene on the next frame instead of
-    // requiring the user to restart the whole application.
-    _scheduleRetry(immediate: true);
   }
-}
 
-int _floorFingerprint() {
+  int _floorFingerprint() {
     final values = <Object?>[
       widget.floor.defaultHeightMm,
       widget.floor.walls.length,
       widget.floor.planObjects.length,
       widget.floor.electricalPoints.length,
     ];
+    for (final node in widget.floor.nodes) {
+      values.addAll(<Object?>[node.id, node.xMm, node.yMm]);
+    }
     for (final wall in widget.floor.walls) {
       values.addAll(<Object?>[
         wall.id,
@@ -141,6 +144,15 @@ int _floorFingerprint() {
         wall.heightOverrideMm,
         wall.openings.length,
       ]);
+      for (final opening in wall.openings) {
+        values.addAll(<Object?>[
+          opening.id,
+          opening.type,
+          opening.widthMm,
+          opening.heightMm,
+          opening.offsetFromStartMm,
+        ]);
+      }
     }
     for (final meta in widget.floor.roomMetas) {
       final m = meta.materials;
@@ -392,7 +404,11 @@ int _floorFingerprint() {
 
     final floorMaterialCache = <String, PhysicallyBasedMaterial>{};
     for (final surface in geometry.floors) {
-      final node = _buildFloorNode(surface, geometry.bounds, floorMaterialCache);
+      final node = _buildFloorNode(
+        surface,
+        geometry.bounds,
+        floorMaterialCache,
+      );
       if (node != null) scene.add(node);
       final ceiling = _buildCeilingNode(surface, geometry.bounds);
       if (ceiling != null) {
@@ -441,12 +457,14 @@ int _floorFingerprint() {
     if (indices.isEmpty) return null;
 
     final uvScale = _floorUvScaleMm(surface);
-    final effectiveDirection = surface.materialMode.toLowerCase().contains('tile')
+    final effectiveDirection =
+        surface.materialMode.toLowerCase().contains('tile')
         ? surface.directionDeg + (surface.tilePattern == 'diagonal' ? 45 : 0)
         : surface.directionDeg;
     final angle = effectiveDirection * math.pi / 180;
     final ca = math.cos(angle), sa = math.sin(angle);
-    final isTile = surface.materialMode.toLowerCase().contains('tile') ||
+    final isTile =
+        surface.materialMode.toLowerCase().contains('tile') ||
         MaterialCatalog.byId(surface.materialId).pattern == 'tile';
     final offX = isTile ? surface.tileOffsetXMm : surface.laminateOffsetXMm;
     final offY = isTile ? surface.tileOffsetYMm : surface.laminateOffsetYMm;
@@ -460,11 +478,7 @@ int _floorFingerprint() {
       builder
         ..texCoord(vm.Vector2(rx / uvScale.$1, ry / uvScale.$2))
         ..addVertex(
-          vm.Vector3(
-            _mx(point.x, bounds),
-            0.006,
-            _mz(point.y, bounds),
-          ),
+          vm.Vector3(_mx(point.x, bounds), 0.006, _mz(point.y, bounds)),
         );
     }
     for (var i = 0; i < indices.length; i += 3) {
@@ -477,9 +491,9 @@ int _floorFingerprint() {
       () => _floorMaterial(surface),
     );
     return Node(
-      name: 'floor:${surface.roomKey}',
-      mesh: Mesh(builder.build(), material),
-    )
+        name: 'floor:${surface.roomKey}',
+        mesh: Mesh(builder.build(), material),
+      )
       ..castsShadows = false
       ..shadowStatic = true;
   }
@@ -488,14 +502,15 @@ int _floorFingerprint() {
     final preset = MaterialCatalog.byId(surface.materialId);
     final mode = surface.materialMode.toLowerCase();
     final texture = _textureForFloorSurface(surface, preset);
-    final roughness = preset.roughness ??
+    final roughness =
+        preset.roughness ??
         (preset.pattern == 'tile'
             ? 0.40
             : preset.pattern == 'wood'
-                ? 0.54
-                : preset.pattern == 'concrete'
-                    ? 0.86
-                    : 0.70);
+            ? 0.54
+            : preset.pattern == 'concrete'
+            ? 0.86
+            : 0.70);
     final tint = texture == null
         ? _vectorColor(preset.color)
         : vm.Vector4(0.98, 0.98, 0.98, 1);
@@ -509,7 +524,8 @@ int _floorFingerprint() {
     VisualMaterialPreset preset,
   ) {
     final asset = preset.textureAsset;
-    if (asset != null && preset.pattern == 'wood' &&
+    if (asset != null &&
+        preset.pattern == 'wood' &&
         surface.laminatePattern != 'herringbone') {
       if (surface.laminateOffsetMode == 'half') {
         final candidate = asset.replaceFirst('.png', '_half.png');
@@ -521,13 +537,18 @@ int _floorFingerprint() {
         if (texture != null) return texture;
       }
     }
-    return _textureForPreset(preset, fallbackMode: surface.materialMode.toLowerCase());
+    return _textureForPreset(
+      preset,
+      fallbackMode: surface.materialMode.toLowerCase(),
+    );
   }
 
   (double, double) _floorUvScaleMm(ZamerFloorSurface surface) {
     final preset = MaterialCatalog.byId(surface.materialId);
     final mode = surface.materialMode.toLowerCase();
-    if (preset.pattern == 'tile' || mode.contains('tile') || mode.contains('плит')) {
+    if (preset.pattern == 'tile' ||
+        mode.contains('tile') ||
+        mode.contains('плит')) {
       return (
         math.max(60.0, surface.tileWidthMm),
         math.max(60.0, surface.tileHeightMm),
@@ -542,20 +563,25 @@ int _floorFingerprint() {
         math.max(80.0, surface.plankWidthMm),
       );
     }
-    final repeatX = surface.laminateOffsetMode == 'third' ? 3.0 :
-        surface.laminateOffsetMode == 'half' ? 2.0 : 1.0;
-    final repeatY = surface.laminateOffsetMode == 'third' ? 3.0 :
-        surface.laminateOffsetMode == 'half' ? 2.0 : 1.0;
+    final repeatX = surface.laminateOffsetMode == 'third'
+        ? 3.0
+        : surface.laminateOffsetMode == 'half'
+        ? 2.0
+        : 1.0;
+    final repeatY = surface.laminateOffsetMode == 'third'
+        ? 3.0
+        : surface.laminateOffsetMode == 'half'
+        ? 2.0
+        : 1.0;
     return (
       math.max(240.0, surface.plankLengthMm) * repeatX,
       math.max(80.0, surface.plankWidthMm) * repeatY,
     );
   }
 
-  PhysicallyBasedMaterial _wallCoreMaterial() => _pbr(
-        vm.Vector4(0.78, 0.79, 0.79, 1),
-        roughness: 0.92,
-      )..doubleSided = true;
+  PhysicallyBasedMaterial _wallCoreMaterial() =>
+      _pbr(vm.Vector4(0.78, 0.79, 0.79, 1), roughness: 0.92)
+        ..doubleSided = true;
 
   PhysicallyBasedMaterial _wallFinishMaterial(
     ZamerWallFinishLayer finish,
@@ -570,29 +596,30 @@ int _floorFingerprint() {
     final presetColor = finish.tileEnabled
         ? Color(finish.tileTintArgb)
         : (finish.materialId.startsWith('paint-')
-            ? (finish.wallColorArgb == 0
-                ? preset.color
-                : Color(finish.wallColorArgb))
-            : preset.color);
+              ? (finish.wallColorArgb == 0
+                    ? preset.color
+                    : Color(finish.wallColorArgb))
+              : preset.color);
     final source = _vectorColor(presetColor);
     final tint = texture == null
         ? source
         : (finish.tileEnabled
-            ? vm.Vector4(
-                0.28 + source.x * 0.72,
-                0.28 + source.y * 0.72,
-                0.28 + source.z * 0.72,
-                1,
-              )
-            : vm.Vector4(
-                0.92 + source.x * 0.08,
-                0.92 + source.y * 0.08,
-                0.92 + source.z * 0.08,
-                1,
-              ));
+              ? vm.Vector4(
+                  0.28 + source.x * 0.72,
+                  0.28 + source.y * 0.72,
+                  0.28 + source.z * 0.72,
+                  1,
+                )
+              : vm.Vector4(
+                  0.92 + source.x * 0.08,
+                  0.92 + source.y * 0.08,
+                  0.92 + source.z * 0.08,
+                  1,
+                ));
     final material = _pbr(
       tint,
-      roughness: preset.roughness ??
+      roughness:
+          preset.roughness ??
           (finish.tileEnabled
               ? 0.40
               : (preset.pattern == 'concrete' ? 0.90 : 0.82)),
@@ -633,17 +660,10 @@ int _floorFingerprint() {
     return null;
   }
 
-  vm.Vector4 _vectorColor(Color color) => vm.Vector4(
-        color.r,
-        color.g,
-        color.b,
-        color.a,
-      );
+  vm.Vector4 _vectorColor(Color color) =>
+      vm.Vector4(color.r, color.g, color.b, color.a);
 
-  Node? _buildCeilingNode(
-    ZamerFloorSurface surface,
-    ZamerSceneBounds bounds,
-  ) {
+  Node? _buildCeilingNode(ZamerFloorSurface surface, ZamerSceneBounds bounds) {
     if (surface.polygonMm.length < 3) return null;
     final indices = _triangulate(surface.polygonMm);
     if (indices.isEmpty) return null;
@@ -652,23 +672,23 @@ int _floorFingerprint() {
     for (final point in surface.polygonMm) {
       builder
         ..texCoord(vm.Vector2(point.x / 1000, point.y / 1000))
-        ..addVertex(vm.Vector3(
-          _mx(point.x, bounds),
-          surface.ceilingHeightMm / 1000,
-          _mz(point.y, bounds),
-        ));
+        ..addVertex(
+          vm.Vector3(
+            _mx(point.x, bounds),
+            surface.ceilingHeightMm / 1000,
+            _mz(point.y, bounds),
+          ),
+        );
     }
     for (var i = 0; i < indices.length; i += 3) {
       builder.addTriangle(indices[i + 2], indices[i + 1], indices[i]);
     }
-    final material = _pbr(
-      vm.Vector4(0.94, 0.94, 0.92, 1),
-      roughness: 0.88,
-    )..doubleSided = true;
+    final material = _pbr(vm.Vector4(0.94, 0.94, 0.92, 1), roughness: 0.88)
+      ..doubleSided = true;
     return Node(
-      name: 'ceiling:${surface.roomKey}',
-      mesh: Mesh(builder.build(), material),
-    )
+        name: 'ceiling:${surface.roomKey}',
+        mesh: Mesh(builder.build(), material),
+      )
       ..castsShadows = true
       ..shadowStatic = true
       ..visible = widget.walkMode;
@@ -723,49 +743,41 @@ int _floorFingerprint() {
         -0.002,
         _mz(wall.centerYMm, geometry.bounds),
       )
-      ..rotation = vm.Quaternion.axisAngle(
-        vm.Vector3(0, 1, 0),
-        -wall.angleRad,
-      )
+      ..rotation = vm.Quaternion.axisAngle(vm.Vector3(0, 1, 0), -wall.angleRad)
       ..castsShadows = false
       ..shadowStatic = true;
     return node;
   }
 
-  Node _buildWallNode(
-    ZamerWallPiece wall,
-    ZamerSceneBounds bounds,
-  ) {
+  Node _buildWallNode(ZamerWallPiece wall, ZamerSceneBounds bounds) {
     final root = Node(name: 'wall:${wall.wallId}')
       ..position = vm.Vector3(
         _mx(wall.centerXMm, bounds),
         0,
         _mz(wall.centerYMm, bounds),
       )
-      ..rotation = vm.Quaternion.axisAngle(
-        vm.Vector3(0, 1, 0),
-        -wall.angleRad,
-      );
+      ..rotation = vm.Quaternion.axisAngle(vm.Vector3(0, 1, 0), -wall.angleRad);
 
-    final core = Node(
-      name: 'wall-core:${wall.wallId}',
-      mesh: Mesh(
-        CuboidGeometry(
-          vm.Vector3(
-            math.max(0.002, wall.lengthMm / 1000),
-            math.max(0.002, wall.heightMm / 1000),
-            math.max(0.002, wall.thicknessMm / 1000),
-          ),
-        ),
-        _wallCoreMaterial(),
-      ),
-    )
-      ..position = vm.Vector3(
-        0,
-        (wall.bottomMm + wall.heightMm / 2) / 1000,
-        0,
-      )
-      ..shadowStatic = true;
+    final core =
+        Node(
+            name: 'wall-core:${wall.wallId}',
+            mesh: Mesh(
+              CuboidGeometry(
+                vm.Vector3(
+                  math.max(0.002, wall.lengthMm / 1000),
+                  math.max(0.002, wall.heightMm / 1000),
+                  math.max(0.002, wall.thicknessMm / 1000),
+                ),
+              ),
+              _wallCoreMaterial(),
+            ),
+          )
+          ..position = vm.Vector3(
+            0,
+            (wall.bottomMm + wall.heightMm / 2) / 1000,
+            0,
+          )
+          ..shadowStatic = true;
     root.add(core);
 
     for (final finish in wall.finishes) {
@@ -774,26 +786,28 @@ int _floorFingerprint() {
       // room while still allowing each side of a shared wall to have its own
       // paint/tile settings.
       final thin = finish.tileEnabled ? 0.004 : 0.002;
-      final layer = Node(
-        name: 'wall-finish:${wall.wallId}:${finish.roomKey}:${finish.sideSign}',
-        mesh: Mesh(
-          CuboidGeometry(
-            vm.Vector3(
-              math.max(0.002, wall.lengthMm / 1000),
-              math.max(0.002, wall.heightMm / 1000),
-              thin,
-            ),
-          ),
-          _wallFinishMaterial(finish, wall),
-        ),
-      )
-        ..position = vm.Vector3(
-          0,
-          (wall.bottomMm + wall.heightMm / 2) / 1000,
-          finish.sideSign * (wall.thicknessMm / 2000 + thin / 2 + 0.0005),
-        )
-        ..castsShadows = finish.tileEnabled
-        ..shadowStatic = true;
+      final layer =
+          Node(
+              name:
+                  'wall-finish:${wall.wallId}:${finish.roomKey}:${finish.sideSign}',
+              mesh: Mesh(
+                CuboidGeometry(
+                  vm.Vector3(
+                    math.max(0.002, wall.lengthMm / 1000),
+                    math.max(0.002, wall.heightMm / 1000),
+                    thin,
+                  ),
+                ),
+                _wallFinishMaterial(finish, wall),
+              ),
+            )
+            ..position = vm.Vector3(
+              0,
+              (wall.bottomMm + wall.heightMm / 2) / 1000,
+              finish.sideSign * (wall.thicknessMm / 2000 + thin / 2 + 0.0005),
+            )
+            ..castsShadows = finish.tileEnabled
+            ..shadowStatic = true;
       root.add(layer);
     }
 
@@ -840,21 +854,22 @@ int _floorFingerprint() {
       double depth = 0,
       PhysicallyBasedMaterial? material,
     }) {
-      final node = Node(
-        name: name,
-        mesh: Mesh(
-          CuboidGeometry(
-            vm.Vector3(
-              math.max(0.008, width),
-              math.max(0.008, height),
-              depth > 0 ? depth : depthM,
-            ),
-          ),
-          material ?? frame,
-        ),
-      )
-        ..position = vm.Vector3(x, y, 0)
-        ..shadowStatic = true;
+      final node =
+          Node(
+              name: name,
+              mesh: Mesh(
+                CuboidGeometry(
+                  vm.Vector3(
+                    math.max(0.008, width),
+                    math.max(0.008, height),
+                    depth > 0 ? depth : depthM,
+                  ),
+                ),
+                material ?? frame,
+              ),
+            )
+            ..position = vm.Vector3(x, y, 0)
+            ..shadowStatic = true;
       return node;
     }
 
@@ -909,10 +924,8 @@ int _floorFingerprint() {
           depth: math.max(0.035, depthM * 0.62),
         ),
       );
-      final glass = _pbr(
-        vm.Vector4(0.72, 0.88, 0.96, 0.28),
-        roughness: 0.10,
-      )..doubleSided = true;
+      final glass = _pbr(vm.Vector4(0.72, 0.88, 0.96, 0.28), roughness: 0.10)
+        ..doubleSided = true;
       root.add(
         bar(
           name: 'window-glass',
@@ -925,20 +938,18 @@ int _floorFingerprint() {
         ),
       );
     } else {
-      final leftHinge = opening.doorSwing == DoorSwing.leftIn ||
+      final leftHinge =
+          opening.doorSwing == DoorSwing.leftIn ||
           opening.doorSwing == DoorSwing.leftOut;
-      final opensIn = opening.doorSwing == DoorSwing.leftIn ||
+      final opensIn =
+          opening.doorSwing == DoorSwing.leftIn ||
           opening.doorSwing == DoorSwing.rightIn;
       final hingeSign = leftHinge ? -1.0 : 1.0;
       final swingSign = (opensIn ? 1.0 : -1.0) * hingeSign;
       final leafWidth = math.max(0.12, widthM - frameBarM * 1.5);
       final leafHeight = math.max(0.18, heightM - frameBarM);
       final hinge = Node(name: 'door-hinge')
-        ..position = vm.Vector3(
-          hingeSign * (widthM / 2 - frameBarM),
-          0,
-          0,
-        )
+        ..position = vm.Vector3(hingeSign * (widthM / 2 - frameBarM), 0, 0)
         ..rotation = vm.Quaternion.axisAngle(
           vm.Vector3(0, 1, 0),
           swingSign * 32 * math.pi / 180,
@@ -949,12 +960,12 @@ int _floorFingerprint() {
       );
       hinge.add(
         Node(
-          name: 'door-leaf',
-          mesh: Mesh(
-            CuboidGeometry(vm.Vector3(leafWidth, leafHeight, 0.038)),
-            leafMaterial,
-          ),
-        )
+            name: 'door-leaf',
+            mesh: Mesh(
+              CuboidGeometry(vm.Vector3(leafWidth, leafHeight, 0.038)),
+              leafMaterial,
+            ),
+          )
           ..position = vm.Vector3(-hingeSign * leafWidth / 2, leafHeight / 2, 0)
           ..shadowStatic = true,
       );
@@ -1005,12 +1016,12 @@ int _floorFingerprint() {
 
     if (isCeiling) {
       return Node(
-        name: 'electrical:${point.id}:${point.type.name}',
-        mesh: Mesh(
-          CuboidGeometry(vm.Vector3(0.16, 0.025, 0.16)),
-          _pbr(vm.Vector4(1.0, 0.94, 0.72, 1), roughness: 0.35),
-        ),
-      )
+          name: 'electrical:${point.id}:${point.type.name}',
+          mesh: Mesh(
+            CuboidGeometry(vm.Vector3(0.16, 0.025, 0.16)),
+            _pbr(vm.Vector4(1.0, 0.94, 0.72, 1), roughness: 0.35),
+          ),
+        )
         ..position = vm.Vector3(
           _mx(point.xMm, bounds),
           point.heightMm / 1000,
@@ -1026,12 +1037,12 @@ int _floorFingerprint() {
     final y = point.yMm + ny * offsetMm * point.wallSide;
     final depthM = isPanel ? 0.055 : (isWallLight ? 0.075 : 0.018);
     return Node(
-      name: 'electrical:${point.id}:${point.type.name}',
-      mesh: Mesh(
-        CuboidGeometry(vm.Vector3(widthM, heightM, depthM)),
-        material,
-      ),
-    )
+        name: 'electrical:${point.id}:${point.type.name}',
+        mesh: Mesh(
+          CuboidGeometry(vm.Vector3(widthM, heightM, depthM)),
+          material,
+        ),
+      )
       ..position = vm.Vector3(
         _mx(x, bounds),
         math.max(heightM / 2, point.heightMm / 1000),
@@ -1116,10 +1127,10 @@ int _floorFingerprint() {
 
     final localY = importedModel
         ? (isFloor
-            ? math.max(0.15, object.heightMm / 1000 * 0.82)
-            : isWall
-                ? math.max(0.05, object.heightMm / 1000 * 0.50)
-                : math.max(0.035, object.heightMm / 1000 * 0.20))
+              ? math.max(0.15, object.heightMm / 1000 * 0.82)
+              : isWall
+              ? math.max(0.05, object.heightMm / 1000 * 0.50)
+              : math.max(0.035, object.heightMm / 1000 * 0.20))
         : math.max(0.02, object.heightMm / 1000 * 0.45);
 
     final lightNode = Node(name: 'light:${object.id}')
@@ -1127,19 +1138,19 @@ int _floorFingerprint() {
     final intensity = isWall
         ? 9.0
         : isFloor
-            ? 7.0
-            : isTrack
-                ? 22.0
-                : isPendant
-                    ? 28.0
-                    : isCeiling
-                        ? 20.0
-                        : 8.0;
+        ? 7.0
+        : isTrack
+        ? 22.0
+        : isPendant
+        ? 28.0
+        : isCeiling
+        ? 20.0
+        : 8.0;
     final range = isWall
         ? 5.0
         : isFloor
-            ? 5.5
-            : 9.5;
+        ? 5.5
+        : 9.5;
     lightNode.addComponent(
       PointLightComponent(
         PointLight(
@@ -1154,10 +1165,7 @@ int _floorFingerprint() {
     // Make the light source itself visibly luminous. A point light can brighten
     // nearby surfaces while the chandelier mesh still looks "off", which is
     // exactly what users were seeing with the ceiling fixtures.
-    final glowMaterial = _pbr(
-      vm.Vector4(1.0, 0.88, 0.62, 1),
-      roughness: 0.18,
-    )
+    final glowMaterial = _pbr(vm.Vector4(1.0, 0.88, 0.62, 1), roughness: 0.18)
       ..emissiveFactor = vm.Vector4(1.0, 0.62, 0.28, 1)
       ..emissiveStrength = isWall ? 2.8 : 4.8;
     final glowRadius = isWall ? 0.035 : (isTrack ? 0.045 : 0.055);
@@ -1173,10 +1181,7 @@ int _floorFingerprint() {
   }
 
   Node _fallbackObject(ZamerObjectPlacement object) {
-    final material = _pbr(
-      vm.Vector4(0.31, 0.38, 0.45, 1),
-      roughness: 0.72,
-    );
+    final material = _pbr(vm.Vector4(0.31, 0.38, 0.45, 1), roughness: 0.72);
     final node = Node(
       name: 'fallback:${object.id}',
       mesh: Mesh(
@@ -1269,7 +1274,8 @@ int _floorFingerprint() {
       math.max(0.35, math.min(1.25, maxDimension * 0.08)),
       -widget.pan.dy * panScale,
     );
-    final eye = target +
+    final eye =
+        target +
         vm.Vector3(
           math.cos(widget.rotation) * horizontal,
           math.sin(elevation) * distance,
@@ -1357,7 +1363,8 @@ int _floorFingerprint() {
       final image = await picture.toImage(width, height);
       try {
         final data = await image.toByteData(format: ui.ImageByteFormat.png);
-        if (data == null) throw StateError('GPU-кадр не удалось преобразовать в PNG');
+        if (data == null)
+          throw StateError('GPU-кадр не удалось преобразовать в PNG');
         return data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
       } finally {
         image.dispose();
@@ -1420,7 +1427,8 @@ int _floorFingerprint() {
           top: 12,
           child: DecoratedBox(
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.92),
+              color: Theme.of(context).colorScheme.surface
+                  .withValues(alpha: 0.92),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Padding(
@@ -1491,11 +1499,7 @@ int _floorFingerprint() {
           colors: <Color>[Color(0xFFDDE8EE), Color(0xFFF4F1EA)],
         ),
       ),
-      child: SceneView(
-        scene,
-        camera: camera,
-        warmUp: true,
-      ),
+      child: SceneView(scene, camera: camera, warmUp: true),
     );
   }
 }
@@ -1531,7 +1535,8 @@ List<int> _triangulate(List<math.Point<double>> polygon) {
 
       var contains = false;
       for (final candidate in vertices) {
-        if (candidate == prev || candidate == cur || candidate == next) continue;
+        if (candidate == prev || candidate == cur || candidate == next)
+          continue;
         if (_pointInTriangle(polygon[candidate], a, b, c)) {
           contains = true;
           break;
