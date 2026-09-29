@@ -27,7 +27,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install model tooling
-        run: python -m pip install --disable-pip-version-check numpy scipy trimesh
+        run: python -m pip install --disable-pip-version-check numpy scipy networkx trimesh
 
       - name: Generate sofa and LODs
         run: python zamer-app/tool/asset_pipeline/generate_sofa3.py
