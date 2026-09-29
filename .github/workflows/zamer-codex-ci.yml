@@ -26,12 +26,10 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.head_ref || github.ref_name }}
 
-      - name: Prepare guarded +50 geometry patch
-        run: python3 tools/prepare_zamer_50_geometry.py
-
-      - name: Apply pending +50 interaction and tile fixes
-        run: python3 tools/apply_zamer_1_5_6_50_interaction_tiles.py
+      - name: Apply pending +51 render resource fixes
+        run: python3 tools/apply_zamer_1_5_6_51_render_resources.py
 
       - name: Set up Java 17
         uses: actions/setup-java@v5
@@ -49,18 +47,11 @@ jobs:
       - name: Format patched sources
         run: |
           dart format \
-            zamer-app/lib/models/models.dart \
             zamer-app/lib/renderer3d/zamer_gpu_viewport.dart \
             zamer-app/lib/renderer3d/zamer_scene_geometry.dart \
-            zamer-app/lib/screens/elevations_screen.dart \
-            zamer-app/lib/screens/floor_3d_screen.dart \
-            zamer-app/lib/screens/planning_objects_screen.dart \
-            zamer-app/lib/services/angle_snap_service.dart \
-            zamer-app/lib/services/walk_navigation_service.dart \
-            zamer-app/lib/widgets/elevation_painter.dart \
             zamer-app/lib/widgets/model_thumbnail.dart \
-            zamer-app/test/angle_snap_service_test.dart \
-            zamer-app/test/walk_navigation_test.dart
+            zamer-app/test/model_lod_policy_test.dart \
+            zamer-app/test/zamer_scene_geometry_test.dart
 
       - name: Get packages
         working-directory: zamer-app
@@ -91,29 +82,26 @@ jobs:
         working-directory: zamer-app
         run: flutter build apk --release
 
-      - name: Commit verified +50 fixes
+      - name: Commit verified +51 fixes
         if: github.event_name == 'pull_request'
         shell: bash
         run: |
           git config user.name 'zamer-codex-bot'
           git config user.email 'zamer-codex-bot@users.noreply.github.com'
           git add \
-            zamer-app/lib/models/models.dart \
             zamer-app/lib/renderer3d/zamer_gpu_viewport.dart \
             zamer-app/lib/renderer3d/zamer_scene_geometry.dart \
-            zamer-app/lib/screens/elevations_screen.dart \
-            zamer-app/lib/screens/floor_3d_screen.dart \
-            zamer-app/lib/screens/planning_objects_screen.dart \
-            zamer-app/lib/widgets/elevation_painter.dart \
-            zamer-app/test/angle_snap_service_test.dart \
+            zamer-app/lib/widgets/model_thumbnail.dart \
+            zamer-app/test/model_lod_policy_test.dart \
+            zamer-app/test/zamer_scene_geometry_test.dart \
             zamer-app/pubspec.yaml \
             zamer-app/CHANGELOG.md
           if git diff --cached --quiet; then
-            echo 'No +50 generated source changes to commit.'
+            echo 'No +51 generated source changes to commit.'
             exit 0
           fi
           git diff --cached --check
-          git commit -m 'Polish 3D controls, tile UVs and object previews'
+          git commit -m 'Stabilize 4K model resources and curved wall UVs'
           git push origin HEAD:codex/zamer-1.5.6-3d-stability
 
       - name: Upload APK
