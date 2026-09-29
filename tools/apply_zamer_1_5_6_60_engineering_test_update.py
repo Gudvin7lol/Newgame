@@ -12,14 +12,14 @@ def replace_once(text: str, old: str, new: str, label: str) -> str:
 
 
 text = TEST.read_text()
-if "find.text('Трассы')" in text and 'scrollUntilVisible' in text:
+if "find.text('Трассы')" in text and "tester.drag(find.byType(ListView).first" in text:
     print('engineering +60 test update already applied')
     raise SystemExit(0)
 
 text = replace_once(
     text,
     "    await tester.ensureVisible(find.text('Ш 1200'));\n    await tester.tap(find.text('Ш 1200'));\n",
-    "    await tester.scrollUntilVisible(\n      find.text('Ш 1200'),\n      180,\n      scrollable: find.byType(Scrollable).first,\n    );\n    await tester.tap(find.text('Ш 1200'));\n",
+    "    await tester.drag(\n      find.byType(ListView).first,\n      const Offset(0, -320),\n    );\n    await tester.pumpAndSettle();\n    await tester.tap(find.text('Ш 1200'));\n",
     'scroll to ceiling zone size control',
 )
 text = replace_once(
