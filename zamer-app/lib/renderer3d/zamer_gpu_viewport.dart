@@ -12,6 +12,7 @@ import '../services/material_catalog.dart';
 import '../widgets/floor_3d_painter.dart';
 import 'model_asset_catalog.dart';
 import 'model_lod_policy.dart';
+import 'scene_mesh_winding.dart';
 import 'zamer_scene_geometry.dart';
 
 /// GPU-backed 3D viewport for Zamер.
@@ -501,8 +502,16 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
           vm.Vector3(_mx(point.x, bounds), 0.006, _mz(point.y, bounds)),
         );
     }
-    for (var i = 0; i < indices.length; i += 3) {
-      builder.addTriangle(indices[i], indices[i + 1], indices[i + 2]);
+    // Plan polygons are CCW in XY, but mapping plan Y to GPU +Z flips
+    // handedness. Reverse every triangle so the visible floor face has a
+    // +Y geometric normal, matching the authored +Y vertex normal.
+    final floorIndices = floorFacingTriangleIndices(indices);
+    for (var i = 0; i < floorIndices.length; i += 3) {
+      builder.addTriangle(
+        floorIndices[i],
+        floorIndices[i + 1],
+        floorIndices[i + 2],
+      );
     }
 
     final key =
@@ -542,7 +551,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
             1,
           );
     final material = _pbr(tint, roughness: roughness, texture: texture)
-      ..doubleSided = true;
+      ..doubleSided = false;
     return material;
   }
 
@@ -707,11 +716,13 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
           ),
         );
     }
+    // The original plan winding maps to -Y in XZ, which is exactly the
+    // visible underside of the ceiling in Walk Mode. Do not reverse it.
     for (var i = 0; i < indices.length; i += 3) {
-      builder.addTriangle(indices[i + 2], indices[i + 1], indices[i]);
+      builder.addTriangle(indices[i], indices[i + 1], indices[i + 2]);
     }
     final material = _pbr(vm.Vector4(0.94, 0.94, 0.92, 1), roughness: 0.88)
-      ..doubleSided = true;
+      ..doubleSided = false;
     return Node(
         name: 'ceiling:${surface.roomKey}',
         mesh: Mesh(builder.build(), material),
