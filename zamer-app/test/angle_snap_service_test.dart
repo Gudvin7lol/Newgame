@@ -24,4 +24,33 @@ void main() {
     expect(AngleSnapService.snapQuarterTurn(84, thresholdDeg: 5), 84);
     expect(AngleSnapService.snapQuarterTurn(86, thresholdDeg: 5), 90);
   });
+
+  test('hysteresis keeps a quarter-turn lock until the release threshold', () {
+    final engaged = AngleSnapService.snapQuarterTurnWithLock(84);
+    expect(engaged.angleDeg, 90);
+    expect(engaged.lockedAngleDeg, 90);
+
+    final held = AngleSnapService.snapQuarterTurnWithLock(
+      78,
+      lockedAngleDeg: engaged.lockedAngleDeg,
+    );
+    expect(held.angleDeg, 90);
+    expect(held.lockedAngleDeg, 90);
+
+    final released = AngleSnapService.snapQuarterTurnWithLock(
+      77,
+      lockedAngleDeg: held.lockedAngleDeg,
+    );
+    expect(released.angleDeg, 77);
+    expect(released.lockedAngleDeg, isNull);
+  });
+
+  test('snap lock handles equivalent angles across the 0/360 boundary', () {
+    final held = AngleSnapService.snapQuarterTurnWithLock(
+      -2,
+      lockedAngleDeg: 360,
+    );
+    expect(held.angleDeg, 360);
+    expect(held.lockedAngleDeg, 360);
+  });
 }

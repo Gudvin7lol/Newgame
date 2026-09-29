@@ -33,6 +33,7 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
   String? _selectedId;
   String? _gestureObjectId;
   double _gestureBaseRotation = 0;
+  double? _gestureSnapAngleDeg;
   Offset _gestureGrabOffset = Offset.zero;
   bool _gestureDirty = false;
 
@@ -356,6 +357,7 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
       _gestureObjectId = o?.id;
       _selectedId = o?.id;
       _gestureBaseRotation = o?.rotationDeg ?? 0;
+      _gestureSnapAngleDeg = null;
       _gestureGrabOffset = o == null
           ? Offset.zero
           : d.localFocalPoint - (tx.origin + Offset(o.xMm, o.yMm) * tx.scale);
@@ -373,8 +375,14 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
     o.yMm = target.y;
     if (d.pointerCount >= 2) {
       final rawRotation = _gestureBaseRotation + d.rotation * 180 / math.pi;
-      o.rotationDeg = AngleSnapService.snapQuarterTurn(rawRotation);
+      final snap = AngleSnapService.snapQuarterTurnWithLock(
+        rawRotation,
+        lockedAngleDeg: _gestureSnapAngleDeg,
+      );
+      o.rotationDeg = snap.angleDeg;
+      _gestureSnapAngleDeg = snap.lockedAngleDeg;
     } else {
+      _gestureSnapAngleDeg = null;
       _snapObjectGuides(o);
       _snapRadiatorToWall(o);
       _snapCatalogMount(o);
@@ -431,6 +439,7 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
     if (mounted)
       setState(() {
         _gestureObjectId = null;
+        _gestureSnapAngleDeg = null;
         _gestureDirty = false;
       });
   }
@@ -1220,6 +1229,7 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
                     scale: tx.scale,
                     origin: tx.origin,
                     selectedId: _selectedId,
+                    snapAngleDeg: _gestureSnapAngleDeg,
                   ),
                   child: const SizedBox.expand(),
                 ),
@@ -1275,7 +1285,7 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
           child: Text(
-            'Нажми на свободное место для установки. Потяни объект одним пальцем; двумя — поверни. Касание объекта открывает размеры.',
+            'Нажми на свободное место для установки. Потяни объект одним пальцем; двумя — поверни. Возле 0/90/180/270° включается магнитная привязка.',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodySmall,
           ),
@@ -1291,12 +1301,14 @@ class _PlanningPainter extends CustomPainter {
     required this.scale,
     required this.origin,
     this.selectedId,
+    this.snapAngleDeg,
     this.darkPreview = false,
   });
   final FloorPlan floor;
   final double scale;
   final Offset origin;
   final String? selectedId;
+  final double? snapAngleDeg;
   final bool darkPreview;
   Offset p(double x, double y) => origin + Offset(x * scale, y * scale);
 
@@ -1325,6 +1337,23 @@ class _PlanningPainter extends CustomPainter {
           ..strokeWidth = math.max(2, w.thicknessMm * scale)
           ..strokeCap = StrokeCap.square,
       );
+    }
+    if (selectedId != null && snapAngleDeg != null) {
+      PlanObject? active;
+      for (final object in floor.planObjects) {
+        if (object.id == selectedId) {
+          active = object;
+          break;
+        }
+      }
+      if (active != null) {
+        final c = p(active.xMm, active.yMm);
+        final guide = Paint()
+          ..color = const Color(0xFF18A979).withValues(alpha: .48)
+          ..strokeWidth = 1.2;
+        canvas.drawLine(Offset(0, c.dy), Offset(size.width, c.dy), guide);
+        canvas.drawLine(Offset(c.dx, 0), Offset(c.dx, size.height), guide);
+      }
     }
     for (final o in floor.planObjects) _object(canvas, o, size);
   }
@@ -1631,13 +1660,17 @@ class _PlanningPainter extends CustomPainter {
 
     if (!selected) return;
     final name = o.label.isEmpty ? o.type.label : o.label;
+    final snapped = snapAngleDeg != null;
+    final label = snapped
+        ? '$name • ${o.rotationDeg.round()}° • 90°'
+        : '$name • ${o.rotationDeg.round()}°';
     final tp = TextPainter(
       text: TextSpan(
-        text: name,
-        style: const TextStyle(
+        text: label,
+        style: TextStyle(
           fontSize: 9,
           fontWeight: FontWeight.w700,
-          color: Color(0xFF30363D),
+          color: snapped ? const Color(0xFF087A5B) : const Color(0xFF30363D),
         ),
       ),
       textDirection: TextDirection.ltr,
@@ -1653,7 +1686,10 @@ class _PlanningPainter extends CustomPainter {
     final labelRect = Rect.fromLTWH(x - 4, y - 2, tp.width + 8, tp.height + 4);
     canvas.drawRRect(
       RRect.fromRectAndRadius(labelRect, const Radius.circular(4)),
-      Paint()..color = const Color(0xFFF7F8FA),
+      Paint()
+        ..color = snapAngleDeg != null
+            ? const Color(0xFFE5F7F0)
+            : const Color(0xFFF7F8FA),
     );
     tp.paint(canvas, Offset(x, y));
   }
