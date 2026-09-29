@@ -21,6 +21,37 @@ void main() {
     }
   });
 
+  test('production assets expose complete existing LOD chains', () {
+    expect(ZamerModelAssetCatalog.productionLodIds, hasLength(16));
+    for (final id in ZamerModelAssetCatalog.productionLodIds) {
+      final model = ZamerModelAssetCatalog.byId(id);
+      expect(model, isNotNull, reason: 'Missing production catalog item $id');
+      expect(model!.hasCompleteLodChain, isTrue, reason: '$id has no LOD chain');
+      expect(File(model.assetPath).existsSync(), isTrue);
+      expect(File(model.lod1AssetPath!).existsSync(), isTrue,
+          reason: 'Missing LOD1 for $id');
+      expect(File(model.lod2AssetPath!).existsSync(), isTrue,
+          reason: 'Missing LOD2 for $id');
+      expect(model.pathForLod(ZamerModelLod.lod0), model.assetPath);
+      expect(model.pathForLod(ZamerModelLod.lod1), model.lod1AssetPath);
+      expect(model.pathForLod(ZamerModelLod.lod2), model.lod2AssetPath);
+    }
+  });
+
+  test('legacy assets fall back safely when an LOD is unavailable', () {
+    const model = ZamerModelAsset(
+      catalogId: 'legacy',
+      assetPath: 'legacy.glb',
+      nativeWidthMm: 500,
+      nativeDepthMm: 500,
+      nativeHeightMm: 500,
+    );
+    expect(model.hasCompleteLodChain, isFalse);
+    expect(model.pathForLod(ZamerModelLod.lod0), 'legacy.glb');
+    expect(model.pathForLod(ZamerModelLod.lod1), 'legacy.glb');
+    expect(model.pathForLod(ZamerModelLod.lod2), 'legacy.glb');
+  });
+
   test('unknown catalogue id does not produce a GLB asset', () {
     expect(ZamerModelAssetCatalog.byId('missing-model-id'), isNull);
   });
