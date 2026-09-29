@@ -23,11 +23,17 @@ void main() {
     );
 
     expect(quads, isNotEmpty);
-    final vertical = quads.firstWhere(
-      (q) => (q.pointsMm[0].x - q.pointsMm[1].x).abs() > 0.1,
+    final quad = quads.first;
+    final a = quad.pointsMm[0];
+    final b = quad.pointsMm[1];
+    final d = quad.pointsMm[3];
+    final sideAb = math.sqrt(
+      math.pow(a.x - b.x, 2) + math.pow(a.y - b.y, 2),
     );
-    final width = (vertical.pointsMm[0].x - vertical.pointsMm[1].x).abs();
-    expect(width, closeTo(4, 0.0001));
+    final sideAd = math.sqrt(
+      math.pow(a.x - d.x, 2) + math.pow(a.y - d.y, 2),
+    );
+    expect(math.min(sideAb, sideAd), closeTo(4, 0.0001));
   });
 
   test('half pattern staggers vertical joints by half a tile', () {
