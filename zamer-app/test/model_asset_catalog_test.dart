@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zamer_app/renderer3d/model_asset_catalog.dart';
@@ -67,6 +68,23 @@ void main() {
     expect(corner.nativeHeightMm, 880);
   });
 
+  test('directional furniture carries a semantic facing correction', () {
+    expect(
+      ZamerModelAssetCatalog.byId('bed-160')!.yawCorrectionRad,
+      closeTo(math.pi, 0.000001),
+    );
+    expect(
+      ZamerModelAssetCatalog.byId('sofa-3')!.yawCorrectionRad,
+      closeTo(math.pi, 0.000001),
+    );
+    expect(
+      ZamerModelAssetCatalog.byId('dining-chair-upholstered')!.yawCorrectionRad,
+      closeTo(math.pi, 0.000001),
+    );
+    expect(ZamerModelAssetCatalog.byId('dining-table-1800')!.yawCorrectionRad, 0);
+    expect(ZamerModelAssetCatalog.byId('coffee-table')!.yawCorrectionRad, 0);
+  });
+
   test('legacy assets fall back safely when an LOD is unavailable', () {
     const model = ZamerModelAsset(
       catalogId: 'legacy',
@@ -79,6 +97,7 @@ void main() {
     expect(model.pathForLod(ZamerModelLod.lod0), 'legacy.glb');
     expect(model.pathForLod(ZamerModelLod.lod1), 'legacy.glb');
     expect(model.pathForLod(ZamerModelLod.lod2), 'legacy.glb');
+    expect(model.yawCorrectionRad, 0);
   });
 
   test('unknown catalogue id does not produce a GLB asset', () {
