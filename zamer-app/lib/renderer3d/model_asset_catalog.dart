@@ -11,6 +11,17 @@ class ZamerModelAsset {
   final String catalogId;
   final String assetPath;
   final double nativeWidthMm, nativeDepthMm, nativeHeightMm;
+
+  /// Invalid catalogue dimensions can turn the GLB scale into NaN/infinity and
+  /// make an otherwise healthy GPU scene disappear. Treat such entries as
+  /// unavailable so the renderer can use its safe fallback object instead.
+  bool get hasRenderableDimensions =>
+      nativeWidthMm.isFinite &&
+      nativeDepthMm.isFinite &&
+      nativeHeightMm.isFinite &&
+      nativeWidthMm > 0 &&
+      nativeDepthMm > 0 &&
+      nativeHeightMm > 0;
 }
 
 /// Maps plan catalog IDs to bundled GLB models. The GLBs are authored in metres
@@ -22,12 +33,13 @@ class ZamerModelAssetCatalog {
     final matches = ObjectCatalog.items.where((e) => e.id == id);
     if (matches.isEmpty) return null;
     final item = matches.first;
-    return ZamerModelAsset(
+    final asset = ZamerModelAsset(
       catalogId: id,
       assetPath: 'assets/models/zamer_catalog/$id.glb',
       nativeWidthMm: item.widthMm,
       nativeDepthMm: item.depthMm,
       nativeHeightMm: item.heightMm,
     );
+    return asset.hasRenderableDimensions ? asset : null;
   }
 }
