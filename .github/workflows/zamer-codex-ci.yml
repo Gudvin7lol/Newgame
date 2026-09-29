@@ -30,8 +30,8 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.head_ref || github.ref_name }}
 
-      - name: Apply pending +64 exact home pass
-        run: python3 tools/apply_zamer_1_5_6_64_home_exact.py
+      - name: Apply pending +65 page-1 completion
+        run: python3 tools/apply_zamer_1_5_6_65_home_page1_complete.py
 
       - name: Set up Java 17
         uses: actions/setup-java@v5
@@ -78,7 +78,7 @@ jobs:
         working-directory: zamer-app
         run: flutter build apk --release
 
-      - name: Commit verified +64 fixes
+      - name: Commit verified +65 fixes
         if: github.event_name == 'pull_request'
         shell: bash
         run: |
@@ -89,11 +89,11 @@ jobs:
             zamer-app/pubspec.yaml \
             zamer-app/CHANGELOG.md
           if git diff --cached --quiet; then
-            echo 'No +64 generated source changes to commit.'
+            echo 'No +65 generated source changes to commit.'
             exit 0
           fi
           git diff --cached --check
-          git commit -m 'Build Zamer 1.5.6+64 exact master-concept home'
+          git commit -m 'Build Zamer 1.5.6+65 complete master-concept page 1'
           git push origin HEAD:codex/zamer-1.5.6-3d-stability
 
       - name: Upload APK
