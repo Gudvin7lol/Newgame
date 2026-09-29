@@ -27,19 +27,14 @@ jobs:
           path = Path('zamer-app/lib/renderer3d/zamer_gpu_viewport.dart')
           text = path.read_text()
 
-          old_call = '''      _lastFloorFingerprint = fingerprint;
-              _rebuildScene();
-          '''
-          new_call = '''      _lastFloorFingerprint = fingerprint;
-              _rebuildSceneAfterUpdate();
-          '''
-          if old_call not in text:
+          anchor = "      _lastFloorFingerprint = fingerprint;\n      _rebuildScene();\n"
+          replacement = "      _lastFloorFingerprint = fingerprint;\n      _rebuildSceneAfterUpdate();\n"
+          if anchor not in text:
               raise SystemExit('Expected didUpdateWidget rebuild call was not found')
-          text = text.replace(old_call, new_call, 1)
+          text = text.replace(anchor, replacement, 1)
 
-          marker = '''  int _floorFingerprint() {
-          '''
-          guard = '''  Future<void> _rebuildSceneAfterUpdate() async {
+          marker = "  int _floorFingerprint() {\n"
+          guard = """  Future<void> _rebuildSceneAfterUpdate() async {
             try {
               await _rebuildScene();
               if (!mounted) return;
@@ -60,7 +55,7 @@ jobs:
           }
 
           int _floorFingerprint() {
-          '''
+          """
           if marker not in text:
               raise SystemExit('Expected fingerprint marker was not found')
           text = text.replace(marker, guard, 1)
