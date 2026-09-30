@@ -7,6 +7,7 @@ import '../models/models.dart';
 import '../services/geometry_service.dart';
 import '../services/report_service.dart';
 import '../widgets/workspace_master_header.dart';
+import '../widgets/workspace_mode_context.dart';
 import '../widgets/workspace_navigation.dart';
 import 'elevations_screen.dart';
 import 'electrical_screen.dart';
@@ -227,6 +228,56 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
 
     final modeTabs = _modeTabs[_mode];
     final subItems = [for (final i in modeTabs) tabs[i]];
+    final roomCount = GeometryService.roomFaces(widget.floor).length;
+    final contextTitle = switch (_mode) {
+      0 => 'Обмер и геометрия',
+      1 => 'Пространственная модель',
+      2 => 'Комплектация объекта',
+      _ => 'Рабочая документация',
+    };
+    final contextSubtitle = switch (_mode) {
+      0 => 'Стены, помещения, проёмы и контроль размеров',
+      1 => 'Realtime-сцена, прогулка и фоторендер',
+      2 => 'Мебель, электрика, сантехника и инженерия',
+      _ => 'Развёртки стен, раскладки пола и материалы',
+    };
+    final contextIcon = switch (_mode) {
+      0 => Icons.architecture_outlined,
+      1 => Icons.view_in_ar_outlined,
+      2 => Icons.chair_alt_outlined,
+      _ => Icons.view_carousel_outlined,
+    };
+    final contextMetrics = <ZWorkspaceMetric>[
+      ZWorkspaceMetric(
+        icon: tabs[_index].$2,
+        value: tabs[_index].$1,
+        emphasized: true,
+      ),
+      if (_mode == 0 || _mode == 1 || _mode == 3)
+        ZWorkspaceMetric(
+          icon: Icons.square_foot_outlined,
+          value: '${widget.floor.walls.length}',
+          label: 'стен',
+        ),
+      if (_mode == 0 || _mode == 3)
+        ZWorkspaceMetric(
+          icon: Icons.grid_view_outlined,
+          value: '$roomCount',
+          label: 'пом.',
+        ),
+      if (_mode == 1 || _mode == 2)
+        ZWorkspaceMetric(
+          icon: Icons.chair_alt_outlined,
+          value: '${widget.floor.planObjects.length}',
+          label: 'объектов',
+        ),
+      if (_mode == 2)
+        ZWorkspaceMetric(
+          icon: Icons.electrical_services_outlined,
+          value: '${widget.floor.electricalPoints.length}',
+          label: 'точек',
+        ),
+    ];
 
     return Scaffold(
       appBar: ZWorkspaceHeader(
@@ -242,6 +293,12 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
       ),
       body: Column(
         children: [
+          ZWorkspaceContextStrip(
+            icon: contextIcon,
+            title: contextTitle,
+            subtitle: contextSubtitle,
+            metrics: contextMetrics,
+          ),
           // Layer legend belongs to the measurement workflow only. Keeping it
           // above 3D/equipment/elevations wastes precious mobile workspace.
           if (_mode == 0) const ZWorkspaceLayerLegend(),
