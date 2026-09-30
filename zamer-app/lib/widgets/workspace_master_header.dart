@@ -35,13 +35,28 @@ class ZWorkspaceHeader extends StatelessWidget implements PreferredSizeWidget {
   Widget build(BuildContext context) {
     return AppBar(
       toolbarHeight: 56,
-      titleSpacing: ZamerSpace.sm,
+      automaticallyImplyLeading: false,
+      leadingWidth: 44,
+      leading: Padding(
+        padding: const EdgeInsets.only(left: 6),
+        child: ZPressEffect(
+          scale: .90,
+          child: IconButton(
+            tooltip: 'Назад',
+            onPressed: () => Navigator.maybePop(context),
+            padding: EdgeInsets.zero,
+            visualDensity: VisualDensity.compact,
+            icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+          ),
+        ),
+      ),
+      titleSpacing: 4,
       title: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            floorName,
+            projectName,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: ZamerTypography.h5.copyWith(
@@ -54,7 +69,7 @@ class ZWorkspaceHeader extends StatelessWidget implements PreferredSizeWidget {
             children: [
               Flexible(
                 child: Text(
-                  projectName,
+                  floorName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: ZamerTypography.caption,
