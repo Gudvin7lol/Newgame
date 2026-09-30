@@ -25,11 +25,15 @@ class FloorWorkspaceScreen extends StatefulWidget {
     required this.project,
     required this.floor,
     required this.onChanged,
+    this.initialMode = 0,
   });
 
   final MeasureProject project;
   final FloorPlan floor;
   final Future<void> Function() onChanged;
+
+  /// Master-mode index: 0 = Measure, 1 = 3D, 2 = Equipment, 3 = Elevations.
+  final int initialMode;
 
   @override
   State<FloorWorkspaceScreen> createState() => _FloorWorkspaceScreenState();
@@ -38,8 +42,8 @@ class FloorWorkspaceScreen extends StatefulWidget {
 class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
   int _index = 0;
 
-  // The project workspace follows the four master working pages. Home lives
-  // one level above this screen in ProjectsScreen.
+  // Home lives one level above this screen. The remaining four master pages
+  // are mapped to the working subpages below.
   final _lastByMode = [0, 8, 5, 2];
   static const _modeTabs = <List<int>>[
     [0, 1], // Замер: план + помещения.
@@ -56,6 +60,10 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
   @override
   void initState() {
     super.initState();
+    final mode = widget.initialMode < 0
+        ? 0
+        : (widget.initialMode > 3 ? 3 : widget.initialMode);
+    _index = _lastByMode[mode];
     _history.add(jsonEncode(widget.floor.toJson()));
   }
 
@@ -98,6 +106,10 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
       _index = page;
       _lastByMode[_mode] = page;
     });
+  }
+
+  void _goHome() {
+    Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
   @override
@@ -146,6 +158,7 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        titleSpacing: 8,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -184,27 +197,44 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
                 : null,
             icon: const Icon(Icons.redo),
           ),
-          IconButton(
-            tooltip: 'Скан / импорт плана',
-            onPressed: () async {
-              await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => ScanPlanScreen(
-                    floor: widget.floor,
-                    onChanged: _changed,
+          PopupMenuButton<String>(
+            tooltip: 'Действия проекта',
+            icon: const Icon(Icons.more_vert_rounded),
+            onSelected: (value) async {
+              if (value == 'scan') {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ScanPlanScreen(
+                      floor: widget.floor,
+                      onChanged: _changed,
+                    ),
                   ),
-                ),
-              );
-              if (mounted) setState(() {});
+                );
+                if (mounted) setState(() {});
+              }
+              if (value == 'pdf') {
+                await ReportService.shareFloorPdf(widget.project, widget.floor);
+              }
             },
-            icon: const Icon(Icons.document_scanner_outlined),
-          ),
-          IconButton(
-            tooltip: 'PDF-отчёт',
-            onPressed: () =>
-                ReportService.shareFloorPdf(widget.project, widget.floor),
-            icon: const Icon(Icons.picture_as_pdf_outlined),
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                value: 'scan',
+                child: ListTile(
+                  dense: true,
+                  leading: Icon(Icons.document_scanner_outlined),
+                  title: Text('Скан / импорт плана'),
+                ),
+              ),
+              PopupMenuItem(
+                value: 'pdf',
+                child: ListTile(
+                  dense: true,
+                  leading: Icon(Icons.picture_as_pdf_outlined),
+                  title: Text('PDF-отчёт'),
+                ),
+              ),
+            ],
           ),
           const SizedBox(width: ZamerSpace.xs),
         ],
@@ -221,6 +251,7 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
           ZWorkspacePrimaryNav(
             selectedIndex: _mode,
             onSelected: _selectPrimaryMode,
+            onHome: _goHome,
           ),
         ],
       ),
