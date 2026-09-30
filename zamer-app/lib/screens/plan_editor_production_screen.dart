@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/models.dart';
-import 'plan_editor_master_screen.dart';
+import 'plan_editor_master_v2_screen.dart';
 
 class PlanEditorProductionScreen extends StatelessWidget {
   const PlanEditorProductionScreen({
@@ -21,7 +21,7 @@ class PlanEditorProductionScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return PlanEditorMasterScreen(
+    return PlanEditorMasterV2Screen(
       floor: floor,
       onChanged: onChanged,
       onOpenObjects: onOpenObjects,
