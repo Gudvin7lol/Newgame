@@ -3,11 +3,12 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../design_system/zamer_components.dart';
+import '../design_system/zamer_tokens.dart';
 import '../models/models.dart';
 import '../renderer3d/zamer_gpu_viewport.dart';
 import '../services/walk_input_service.dart';
 import '../services/walk_navigation_service.dart';
-
 import 'photo_studio_screen.dart';
 
 class Floor3DScreen extends StatefulWidget {
@@ -158,67 +159,55 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
   Future<void> _showWalkSettingsSheet() async {
     await showModalBottomSheet<void>(
       context: context,
-      showDragHandle: true,
       builder: (sheetContext) => StatefulBuilder(
-        builder: (context, setSheet) => SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(18, 0, 18, 20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Text(
-                  'Настройки прогулки',
-                  style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900),
-                ),
-                const SizedBox(height: 14),
-                Row(
-                  children: [
-                    const Icon(Icons.speed, size: 19),
-                    const SizedBox(width: 8),
-                    const SizedBox(width: 96, child: Text('Скорость')),
-                    Expanded(
-                      child: Slider(
-                        value: _walkStepMm,
-                        min: 55,
-                        max: 220,
-                        divisions: 11,
-                        label: '${_walkStepMm.round()} мм',
-                        onChanged: (value) {
-                          setState(() => _walkStepMm = value);
-                          setSheet(() {});
-                        },
-                      ),
+        builder: (context, setSheet) => ZSheetFrame(
+          title: 'Настройки прогулки',
+          description:
+              'Левый стик отвечает за движение. Осмотр выполняется одним пальцем прямо по сцене.',
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.speed, size: 19),
+                  const SizedBox(width: ZamerSpace.sm),
+                  const SizedBox(width: 96, child: Text('Скорость')),
+                  Expanded(
+                    child: Slider(
+                      value: _walkStepMm,
+                      min: 55,
+                      max: 220,
+                      divisions: 11,
+                      label: '${_walkStepMm.round()} мм',
+                      onChanged: (value) {
+                        setState(() => _walkStepMm = value);
+                        setSheet(() {});
+                      },
                     ),
-                  ],
-                ),
-                Row(
-                  children: [
-                    const Icon(Icons.visibility_outlined, size: 19),
-                    const SizedBox(width: 8),
-                    const SizedBox(width: 96, child: Text('Осмотр')),
-                    Expanded(
-                      child: Slider(
-                        value: _lookSensitivity,
-                        min: 0.005,
-                        max: 0.018,
-                        divisions: 13,
-                        label: '${(_lookSensitivity * 1000).round()}',
-                        onChanged: (value) {
-                          setState(() => _lookSensitivity = value);
-                          setSheet(() {});
-                        },
-                      ),
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  const Icon(Icons.visibility_outlined, size: 19),
+                  const SizedBox(width: ZamerSpace.sm),
+                  const SizedBox(width: 96, child: Text('Осмотр')),
+                  Expanded(
+                    child: Slider(
+                      value: _lookSensitivity,
+                      min: 0.005,
+                      max: 0.018,
+                      divisions: 13,
+                      label: '${(_lookSensitivity * 1000).round()}',
+                      onChanged: (value) {
+                        setState(() => _lookSensitivity = value);
+                        setSheet(() {});
+                      },
                     ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                const Text(
-                  'Левый стик отвечает только за движение. Осмотр выполняется одним пальцем прямо по сцене.',
-                  style: TextStyle(fontSize: 12, color: Color(0xFF94A0A6)),
-                ),
-              ],
-            ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
       ),
@@ -262,7 +251,10 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             border: Border.fromBorderSide(
-                              BorderSide(color: Color(0xCCF1C79E), width: 1.4),
+                              BorderSide(
+                                color: ZamerColors.accent,
+                                width: 1.4,
+                              ),
                             ),
                           ),
                           child: Center(
@@ -270,7 +262,7 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
                               dimension: 3,
                               child: DecoratedBox(
                                 decoration: BoxDecoration(
-                                  color: Color(0xFFF1C79E),
+                                  color: ZamerColors.accent,
                                   shape: BoxShape.circle,
                                 ),
                               ),
@@ -285,15 +277,15 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
           ),
         ),
         Positioned(
-          top: 12,
-          right: 12,
+          top: ZamerSpace.md,
+          right: ZamerSpace.md,
           child: SafeArea(
             bottom: false,
             child: DecoratedBox(
               decoration: BoxDecoration(
-                color: const Color(0xD9111A1F),
-                borderRadius: BorderRadius.circular(13),
-                border: Border.all(color: const Color(0xFF2A3941)),
+                color: ZamerColors.surface.withValues(alpha: .90),
+                borderRadius: BorderRadius.circular(ZamerRadius.md),
+                border: Border.all(color: ZamerColors.outline),
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -330,158 +322,103 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
         Positioned(
           left: 10,
           right: 10,
-          bottom: 8,
+          bottom: ZamerSpace.sm,
           child: SafeArea(
             top: false,
-            child: Card(
-              elevation: 0,
-              color: const Color(0xF5111A1F),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-                side: const BorderSide(color: Color(0xFF2A3941)),
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: ZamerSpace.xxs,
+                vertical: ZamerSpace.xs,
               ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 6),
-                child: Row(
-                  children: _walkMode
-                      ? [
-                          Expanded(
-                            child: _SceneAction(
-                              icon: Icons.home_outlined,
-                              label: 'Обзор',
-                              onTap: _toggleWalk,
-                            ),
+              decoration: BoxDecoration(
+                color: ZamerColors.surface.withValues(alpha: .96),
+                borderRadius: BorderRadius.circular(ZamerRadius.lg),
+                border: Border.all(color: ZamerColors.outline),
+              ),
+              child: Row(
+                children: _walkMode
+                    ? [
+                        Expanded(
+                          child: ZToolAction(
+                            icon: Icons.home_outlined,
+                            label: 'Обзор',
+                            onTap: _toggleWalk,
                           ),
-                          Expanded(
-                            child: _SceneAction(
-                              icon: Icons.blur_on,
-                              label: 'Сквозь',
-                              selected: _noclip,
-                              onTap: () => setState(() => _noclip = !_noclip),
-                            ),
+                        ),
+                        Expanded(
+                          child: ZToolAction(
+                            icon: Icons.blur_on,
+                            label: 'Сквозь',
+                            selected: _noclip,
+                            onTap: () => setState(() => _noclip = !_noclip),
                           ),
-                          Expanded(
-                            child: _SceneAction(
-                              icon: Icons.tune_rounded,
-                              label: 'Настройки',
-                              onTap: _showWalkSettingsSheet,
-                            ),
+                        ),
+                        Expanded(
+                          child: ZToolAction(
+                            icon: Icons.tune_rounded,
+                            label: 'Настройки',
+                            onTap: _showWalkSettingsSheet,
                           ),
-                          Expanded(
-                            child: _SceneAction(
-                              icon: Icons.my_location_outlined,
-                              label: 'Центр',
-                              onTap: _reset,
-                            ),
+                        ),
+                        Expanded(
+                          child: ZToolAction(
+                            icon: Icons.my_location_outlined,
+                            label: 'Центр',
+                            onTap: _reset,
                           ),
-                          Expanded(
-                            child: _SceneAction(
-                              icon: Icons.photo_camera_outlined,
-                              label: 'Фото',
-                              onTap: _showRenderSheet,
-                            ),
+                        ),
+                        Expanded(
+                          child: ZToolAction(
+                            icon: Icons.photo_camera_outlined,
+                            label: 'Фото',
+                            onTap: _showRenderSheet,
                           ),
-                        ]
-                      : [
-                          Expanded(
-                            child: _SceneAction(
-                              icon: Icons.view_in_ar_outlined,
-                              label: 'Обзор',
-                              selected: true,
-                              onTap: _reset,
-                            ),
+                        ),
+                      ]
+                    : [
+                        Expanded(
+                          child: ZToolAction(
+                            icon: Icons.view_in_ar_outlined,
+                            label: 'Обзор',
+                            selected: true,
+                            onTap: _reset,
                           ),
-                          Expanded(
-                            child: _SceneAction(
-                              icon: Icons.directions_walk,
-                              label: 'Прогулка',
-                              onTap: _toggleWalk,
-                            ),
+                        ),
+                        Expanded(
+                          child: ZToolAction(
+                            icon: Icons.directions_walk,
+                            label: 'Прогулка',
+                            onTap: _toggleWalk,
                           ),
-                          Expanded(
-                            child: _SceneAction(
-                              icon: Icons.layers_clear_outlined,
-                              label: 'Разрез',
-                              selected: _cutaway,
-                              onTap: () => setState(() => _cutaway = !_cutaway),
-                            ),
+                        ),
+                        Expanded(
+                          child: ZToolAction(
+                            icon: Icons.layers_clear_outlined,
+                            label: 'Разрез',
+                            selected: _cutaway,
+                            onTap: () => setState(() => _cutaway = !_cutaway),
                           ),
-                          Expanded(
-                            child: _SceneAction(
-                              icon: Icons.vertical_align_top,
-                              label: 'Сверху',
-                              onTap: _topView,
-                            ),
+                        ),
+                        Expanded(
+                          child: ZToolAction(
+                            icon: Icons.vertical_align_top,
+                            label: 'Сверху',
+                            onTap: _topView,
                           ),
-                          Expanded(
-                            child: _SceneAction(
-                              icon: Icons.photo_camera_outlined,
-                              label: 'Фото',
-                              onTap: _showRenderSheet,
-                            ),
+                        ),
+                        Expanded(
+                          child: ZToolAction(
+                            icon: Icons.photo_camera_outlined,
+                            label: 'Фото',
+                            onTap: _showRenderSheet,
                           ),
-                        ],
-                ),
+                        ),
+                      ],
               ),
             ),
           ),
         ),
       ],
-    );
-  }
-}
-
-class _SceneAction extends StatelessWidget {
-  const _SceneAction({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-    this.selected = false,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback? onTap;
-  final bool selected;
-
-  @override
-  Widget build(BuildContext context) {
-    final foreground = selected
-        ? const Color(0xFF22170F)
-        : const Color(0xFFD7DDDF);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 2),
-      child: Material(
-        color: selected ? const Color(0xFFF1C79E) : Colors.transparent,
-        borderRadius: BorderRadius.circular(11),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Opacity(
-            opacity: onTap == null ? .45 : 1,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 7),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(icon, size: 19, color: foreground),
-                  const SizedBox(height: 3),
-                  Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: foreground,
-                      fontSize: 9.5,
-                      fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
     );
   }
 }
@@ -685,7 +622,7 @@ class _HoldMoveButtonState extends State<_HoldMoveButton> {
             color: widget.primary
                 ? scheme.primaryContainer
                 : scheme.secondaryContainer,
-            borderRadius: BorderRadius.circular(15),
+            borderRadius: BorderRadius.circular(ZamerRadius.lg),
           ),
           alignment: Alignment.center,
           child: Icon(
