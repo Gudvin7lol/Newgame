@@ -42,6 +42,19 @@ abstract final class ZamerTheme {
         color: ZamerColors.textSecondary,
         size: ZamerSize.iconMd,
       ),
+      iconButtonTheme: IconButtonThemeData(
+        style: ButtonStyle(
+          foregroundColor: WidgetStateProperty.resolveWith(
+            (states) => states.contains(WidgetState.disabled)
+                ? ZamerColors.textFaint
+                : ZamerColors.textSecondary,
+          ),
+          overlayColor: WidgetStatePropertyAll(
+            ZamerColors.accent.withValues(alpha: .08),
+          ),
+          shape: WidgetStatePropertyAll(roundedMd),
+        ),
+      ),
       appBarTheme: const AppBarTheme(
         backgroundColor: ZamerColors.background,
         foregroundColor: ZamerColors.textPrimary,
@@ -66,6 +79,21 @@ abstract final class ZamerTheme {
           side: const BorderSide(color: ZamerColors.outline),
         ),
       ),
+      listTileTheme: const ListTileThemeData(
+        iconColor: ZamerColors.textSecondary,
+        textColor: ZamerColors.textPrimary,
+        subtitleTextStyle: TextStyle(
+          color: ZamerColors.textMuted,
+          fontSize: 11.5,
+          height: 1.25,
+        ),
+        contentPadding: EdgeInsets.symmetric(horizontal: ZamerSpace.md),
+      ),
+      dividerTheme: const DividerThemeData(
+        color: ZamerColors.divider,
+        thickness: 1,
+        space: 1,
+      ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: ZamerColors.surfaceInput,
@@ -78,6 +106,10 @@ abstract final class ZamerTheme {
           fontSize: 12.5,
         ),
         labelStyle: const TextStyle(color: ZamerColors.textSecondary),
+        floatingLabelStyle: const TextStyle(
+          color: ZamerColors.accent,
+          fontWeight: FontWeight.w700,
+        ),
         prefixIconColor: ZamerColors.textSecondary,
         suffixIconColor: ZamerColors.textSecondary,
         border: OutlineInputBorder(
@@ -170,10 +202,64 @@ abstract final class ZamerTheme {
                 ? ZamerColors.accent
                 : ZamerColors.surface,
           ),
-          side: const WidgetStatePropertyAll(
-            BorderSide(color: ZamerColors.outline),
+          overlayColor: WidgetStatePropertyAll(
+            ZamerColors.accent.withValues(alpha: .08),
+          ),
+          side: WidgetStateProperty.resolveWith(
+            (states) => BorderSide(
+              color: states.contains(WidgetState.selected)
+                  ? ZamerColors.accent
+                  : ZamerColors.outline,
+            ),
           ),
           shape: WidgetStatePropertyAll(roundedMd),
+          textStyle: const WidgetStatePropertyAll(
+            TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800),
+          ),
+        ),
+      ),
+      switchTheme: SwitchThemeData(
+        thumbColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? ZamerColors.accentInk
+              : ZamerColors.textMuted,
+        ),
+        trackColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? ZamerColors.accent
+              : ZamerColors.surfaceHighest,
+        ),
+        trackOutlineColor: const WidgetStatePropertyAll(ZamerColors.outline),
+      ),
+      checkboxTheme: CheckboxThemeData(
+        fillColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? ZamerColors.accent
+              : Colors.transparent,
+        ),
+        checkColor: const WidgetStatePropertyAll(ZamerColors.accentInk),
+        side: const BorderSide(color: ZamerColors.outline, width: 1.3),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(ZamerRadius.xs),
+        ),
+      ),
+      radioTheme: RadioThemeData(
+        fillColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? ZamerColors.accent
+              : ZamerColors.textMuted,
+        ),
+      ),
+      sliderTheme: SliderThemeData(
+        activeTrackColor: ZamerColors.accent,
+        inactiveTrackColor: ZamerColors.surfaceHighest,
+        thumbColor: ZamerColors.accent,
+        overlayColor: ZamerColors.accent.withValues(alpha: .12),
+        valueIndicatorColor: ZamerColors.surfaceHighest,
+        valueIndicatorTextStyle: const TextStyle(
+          color: ZamerColors.textPrimary,
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
         ),
       ),
       navigationBarTheme: const NavigationBarThemeData(
@@ -198,12 +284,17 @@ abstract final class ZamerTheme {
         ),
         contentTextStyle: ZamerTypography.bodySmall,
       ),
-      bottomSheetTheme: const BottomSheetThemeData(
+      bottomSheetTheme: BottomSheetThemeData(
         backgroundColor: ZamerColors.surfaceLow,
         surfaceTintColor: Colors.transparent,
         showDragHandle: true,
         dragHandleColor: ZamerColors.textFaint,
         modalBackgroundColor: ZamerColors.surfaceLow,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(ZamerRadius.xl),
+          ),
+        ),
       ),
       snackBarTheme: SnackBarThemeData(
         backgroundColor: ZamerColors.surfaceHighest,
@@ -222,6 +313,19 @@ abstract final class ZamerTheme {
           borderRadius: BorderRadius.circular(ZamerRadius.md),
           side: const BorderSide(color: ZamerColors.outline),
         ),
+      ),
+      tooltipTheme: TooltipThemeData(
+        decoration: BoxDecoration(
+          color: ZamerColors.surfaceHighest,
+          borderRadius: BorderRadius.circular(ZamerRadius.sm),
+          border: Border.all(color: ZamerColors.outline),
+        ),
+        textStyle: const TextStyle(
+          color: ZamerColors.textPrimary,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+        ),
+        waitDuration: const Duration(milliseconds: 450),
       ),
       progressIndicatorTheme: const ProgressIndicatorThemeData(
         color: ZamerColors.accent,
