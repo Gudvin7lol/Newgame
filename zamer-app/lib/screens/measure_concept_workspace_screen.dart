@@ -3,17 +3,11 @@ import 'package:flutter/material.dart';
 import '../design_system/zamer_measure_chrome.dart';
 import '../design_system/zamer_tokens.dart';
 import '../models/models.dart';
-import '../widgets/workspace_master_header.dart';
 import '../widgets/workspace_navigation.dart';
 import 'elevations_screen.dart';
 import 'plan_editor_production_screen.dart';
 
 /// Production shell for the master «Замер» page.
-///
-/// The shell owns project-level navigation and view switching while the actual
-/// 2D geometry work stays in [PlanEditorProductionScreen]. This keeps the
-/// approved master UI connected to the real editor instead of a parallel
-/// concept-only implementation.
 class MeasureConceptWorkspaceScreen extends StatefulWidget {
   const MeasureConceptWorkspaceScreen({
     super.key,
@@ -89,8 +83,6 @@ class _MeasureConceptWorkspaceScreenState
       return;
     }
 
-    // Compatibility path for the pre-master caller. Every item still performs
-    // real work; no decorative dead buttons are allowed in the production UI.
     switch (mode) {
       case 0:
         return;
@@ -115,15 +107,17 @@ class _MeasureConceptWorkspaceScreenState
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: ZamerColors.background,
-      appBar: ZWorkspaceHeader(
+      appBar: _MeasureMasterHeader(
         projectName: widget.project.name,
         floorName: widget.floor.name,
-        modeLabel: 'ЗАМЕР 2D',
         onCheck: widget.onOpenReview,
         onUndo: widget.onUndo,
         onRedo: widget.onRedo,
         canUndo: widget.canUndo,
         canRedo: widget.canRedo,
+        onSave: () {
+          widget.onChanged();
+        },
         onMore: widget.onMore,
       ),
       body: Column(
@@ -153,6 +147,168 @@ class _MeasureConceptWorkspaceScreenState
   }
 }
 
+class _MeasureMasterHeader extends StatelessWidget
+    implements PreferredSizeWidget {
+  const _MeasureMasterHeader({
+    required this.projectName,
+    required this.floorName,
+    required this.onCheck,
+    required this.onUndo,
+    required this.onRedo,
+    required this.canUndo,
+    required this.canRedo,
+    required this.onSave,
+    required this.onMore,
+  });
+
+  final String projectName;
+  final String floorName;
+  final VoidCallback onCheck;
+  final VoidCallback? onUndo;
+  final VoidCallback? onRedo;
+  final bool canUndo;
+  final bool canRedo;
+  final VoidCallback onSave;
+  final VoidCallback onMore;
+
+  @override
+  Size get preferredSize => const Size.fromHeight(60);
+
+  @override
+  Widget build(BuildContext context) => AppBar(
+        toolbarHeight: 60,
+        automaticallyImplyLeading: false,
+        leadingWidth: 42,
+        leading: IconButton(
+          tooltip: 'Назад',
+          onPressed: () => Navigator.maybePop(context),
+          padding: EdgeInsets.zero,
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
+        ),
+        titleSpacing: 0,
+        title: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'ЗАМЕР',
+                  style: ZamerTypography.caption.copyWith(
+                    color: ZamerColors.accent,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: .7,
+                  ),
+                ),
+                const SizedBox(width: 5),
+                Container(
+                  width: 3,
+                  height: 3,
+                  decoration: const BoxDecoration(
+                    color: ZamerColors.textSecondary,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 5),
+                Flexible(
+                  child: Text(
+                    floorName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: ZamerTypography.caption.copyWith(fontSize: 9),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 2),
+            Text(
+              projectName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: ZamerTypography.h5.copyWith(
+                color: ZamerColors.textPrimary,
+                fontWeight: FontWeight.w750,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          _HeaderButton(
+            tooltip: 'Проверка обмера',
+            icon: Icons.fact_check_outlined,
+            onTap: onCheck,
+          ),
+          _HeaderButton(
+            tooltip: 'Отменить',
+            icon: Icons.undo_rounded,
+            onTap: canUndo ? onUndo : null,
+          ),
+          _HeaderButton(
+            tooltip: 'Повторить',
+            icon: Icons.redo_rounded,
+            onTap: canRedo ? onRedo : null,
+          ),
+          _HeaderButton(
+            tooltip: 'Сохранить',
+            icon: Icons.save_outlined,
+            onTap: onSave,
+            accent: true,
+          ),
+          _HeaderButton(
+            tooltip: 'Ещё',
+            icon: Icons.more_vert_rounded,
+            onTap: onMore,
+          ),
+          const SizedBox(width: 3),
+        ],
+        bottom: const PreferredSize(
+          preferredSize: Size.fromHeight(1),
+          child: Divider(
+            height: 1,
+            thickness: 1,
+            color: ZamerColors.outlineSoft,
+          ),
+        ),
+      );
+}
+
+class _HeaderButton extends StatelessWidget {
+  const _HeaderButton({
+    required this.tooltip,
+    required this.icon,
+    required this.onTap,
+    this.accent = false,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback? onTap;
+  final bool accent;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        width: 34,
+        height: 36,
+        child: IconButton(
+          tooltip: tooltip,
+          onPressed: onTap,
+          visualDensity: VisualDensity.compact,
+          padding: EdgeInsets.zero,
+          icon: Icon(
+            icon,
+            size: 18,
+            color: onTap == null
+                ? ZamerColors.textSecondary.withValues(alpha: .35)
+                : accent
+                    ? ZamerColors.accent
+                    : ZamerColors.textSecondary,
+          ),
+        ),
+      );
+}
+
 class _MeasureViewStrip extends StatelessWidget {
   const _MeasureViewStrip({
     required this.wallCount,
@@ -167,10 +323,10 @@ class _MeasureViewStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 54,
+      height: 50,
       padding: const EdgeInsets.symmetric(
         horizontal: ZamerSpace.sm,
-        vertical: 7,
+        vertical: 5,
       ),
       decoration: const BoxDecoration(
         color: ZamerColors.surfaceLow,
@@ -185,7 +341,7 @@ class _MeasureViewStrip extends StatelessWidget {
               children: [
                 const Icon(
                   Icons.architecture_outlined,
-                  size: 17,
+                  size: 16,
                   color: ZamerColors.textSecondary,
                 ),
                 const SizedBox(width: 6),
