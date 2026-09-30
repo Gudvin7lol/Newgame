@@ -143,6 +143,20 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
     if (mounted) setState(() {});
   }
 
+  Widget _roomRequiredState(String title) {
+    return ZEmptyState(
+      icon: Icons.grid_off_outlined,
+      title: '$title пока недоступны',
+      subtitle:
+          'Сначала замкни контур помещения в «Замере». После этого рабочая область сформируется автоматически.',
+      actionLabel: 'Перейти в Замер',
+      onAction: () => setState(() {
+        _index = 0;
+        _lastByMode[0] = 0;
+      }),
+    );
+  }
+
   Future<void> _showProjectActions() async {
     await showModalBottomSheet<void>(
       context: context,
@@ -187,19 +201,27 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final roomCount = GeometryService.roomFaces(widget.floor).length;
+    final hasRooms = roomCount > 0;
     final screens = [
       PlanEditorScreen(floor: widget.floor, onChanged: _changed),
       RoomsScreen(floor: widget.floor, onChanged: _changed),
-      ElevationsScreen(floor: widget.floor, onChanged: _changed),
-      LayoutsScreen(floor: widget.floor, onChanged: _changed),
+      hasRooms
+          ? ElevationsScreen(floor: widget.floor, onChanged: _changed)
+          : _roomRequiredState('Развёртки стен'),
+      hasRooms
+          ? LayoutsScreen(floor: widget.floor, onChanged: _changed)
+          : _roomRequiredState('Раскладки пола'),
       ElectricalScreen(floor: widget.floor, onChanged: _changed),
       PlanningObjectsScreen(floor: widget.floor, onChanged: _changed),
       EngineeringScreen(floor: widget.floor, onChanged: _changed),
-      MaterialsScreen(
-        floor: widget.floor,
-        project: widget.project,
-        onChanged: _changed,
-      ),
+      hasRooms
+          ? MaterialsScreen(
+              floor: widget.floor,
+              project: widget.project,
+              onChanged: _changed,
+            )
+          : _roomRequiredState('Материалы и отделка'),
       // The GPU viewport is created only while 3D is visible. Initialising
       // Flutter Scene inside an offstage IndexedStack surface caused the old
       // "3D appears only after app restart" failure on some Android devices.
@@ -228,7 +250,6 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
 
     final modeTabs = _modeTabs[_mode];
     final subItems = [for (final i in modeTabs) tabs[i]];
-    final roomCount = GeometryService.roomFaces(widget.floor).length;
     final contextTitle = switch (_mode) {
       0 => 'Обмер и геометрия',
       1 => 'Пространственная модель',
