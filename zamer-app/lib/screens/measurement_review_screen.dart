@@ -363,6 +363,8 @@ class _MeasurementReviewScreenState extends State<MeasurementReviewScreen> {
   static String _kindLabel(MeasurementIssueKind kind) => switch (kind) {
         MeasurementIssueKind.openContour => 'Незамкнутый контур',
         MeasurementIssueKind.discrepancy => 'Несоответствие размеров',
+        MeasurementIssueKind.acuteAngle => 'Острый угол (<65°)',
+        MeasurementIssueKind.intersection => 'Пересечение стен',
         MeasurementIssueKind.missingOffset => 'Отступ проёма не подтверждён',
         MeasurementIssueKind.missingHeight => 'Высота не подтверждена',
         MeasurementIssueKind.missingDiagonal => 'Нет контрольной диагонали',
@@ -371,6 +373,8 @@ class _MeasurementReviewScreenState extends State<MeasurementReviewScreen> {
   static String _kindShortLabel(MeasurementIssueKind kind) => switch (kind) {
         MeasurementIssueKind.openContour => 'Контур',
         MeasurementIssueKind.discrepancy => 'Размеры',
+        MeasurementIssueKind.acuteAngle => 'Углы',
+        MeasurementIssueKind.intersection => 'Пересечения',
         MeasurementIssueKind.missingOffset => 'Отступы',
         MeasurementIssueKind.missingHeight => 'Высоты',
         MeasurementIssueKind.missingDiagonal => 'Диагонали',
@@ -379,9 +383,11 @@ class _MeasurementReviewScreenState extends State<MeasurementReviewScreen> {
   static IconData _kindIcon(MeasurementIssueKind kind) => switch (kind) {
         MeasurementIssueKind.openContour => Icons.polyline_outlined,
         MeasurementIssueKind.discrepancy => Icons.straighten_rounded,
+        MeasurementIssueKind.acuteAngle => Icons.change_history_rounded,
+        MeasurementIssueKind.intersection => Icons.close_fullscreen_rounded,
         MeasurementIssueKind.missingOffset => Icons.space_bar_rounded,
         MeasurementIssueKind.missingHeight => Icons.height_rounded,
-        MeasurementIssueKind.missingDiagonal => Icons.change_history_rounded,
+        MeasurementIssueKind.missingDiagonal => Icons.diagonal_line_rounded,
       };
 
   static String _issueWord(int count) {
