@@ -4,9 +4,9 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../design_system/zamer_components.dart';
+import '../design_system/zamer_graphics_selector.dart';
 import '../design_system/zamer_tokens.dart';
 import '../models/models.dart';
-import '../renderer3d/render_quality.dart';
 import '../renderer3d/zamer_gpu_viewport.dart';
 import '../services/walk_input_service.dart';
 import '../services/walk_navigation_service.dart';
@@ -38,7 +38,7 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
   Offset _gesturePan = Offset.zero;
   Offset _gestureFocal = Offset.zero;
   int _gesturePointers = 0;
-  ZamerRenderQuality _quality = ZamerRenderQuality.high;
+  ZGraphicsMode _graphicsMode = ZGraphicsMode.quality;
   final GlobalKey<ZamerGpuViewportState> _gpuKey =
       GlobalKey<ZamerGpuViewportState>();
 
@@ -158,11 +158,11 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
     );
   }
 
-  Future<void> _selectQuality(ZamerRenderQuality value) async {
-    setState(() => _quality = value);
-    if (value == ZamerRenderQuality.ultra4k) {
+  Future<void> _selectGraphicsMode(ZGraphicsMode value) async {
+    setState(() => _graphicsMode = value);
+    if (value == ZGraphicsMode.photo) {
       await _showRenderSheet();
-      if (mounted) setState(() => _quality = ZamerRenderQuality.high);
+      if (mounted) setState(() => _graphicsMode = ZGraphicsMode.quality);
     }
   }
 
@@ -230,7 +230,7 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
       return const ZEmptyState(
         icon: Icons.view_in_ar_outlined,
         title: '3D пока пуст',
-        description: 'Построй стены в разделе «Замер», и сцена появится здесь.',
+        subtitle: 'Построй стены в разделе «Замер», и сцена появится здесь.',
       );
     }
     return Stack(
@@ -296,33 +296,9 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
             top: ZamerSpace.md,
             child: SafeArea(
               bottom: false,
-              child: ZPanel(
-                padding: const EdgeInsets.all(4),
-                color: ZamerColors.surface.withValues(alpha: .92),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _QualityChip(
-                      label: 'Performance',
-                      icon: Icons.speed_rounded,
-                      selected: _quality == ZamerRenderQuality.interactive,
-                      onTap: () =>
-                          _selectQuality(ZamerRenderQuality.interactive),
-                    ),
-                    _QualityChip(
-                      label: 'Quality',
-                      icon: Icons.auto_awesome_outlined,
-                      selected: _quality == ZamerRenderQuality.high,
-                      onTap: () => _selectQuality(ZamerRenderQuality.high),
-                    ),
-                    _QualityChip(
-                      label: 'Photo',
-                      icon: Icons.photo_camera_outlined,
-                      selected: _quality == ZamerRenderQuality.ultra4k,
-                      onTap: () => _selectQuality(ZamerRenderQuality.ultra4k),
-                    ),
-                  ],
-                ),
+              child: ZGraphicsModeSelector(
+                value: _graphicsMode,
+                onChanged: _selectGraphicsMode,
               ),
             ),
           ),
@@ -462,56 +438,6 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _QualityChip extends StatelessWidget {
-  const _QualityChip({
-    required this.label,
-    required this.icon,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final IconData icon;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final foreground = selected
-        ? ZamerColors.accentInk
-        : ZamerColors.textSecondary;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 2),
-      child: Material(
-        color: selected ? ZamerColors.accent : Colors.transparent,
-        borderRadius: BorderRadius.circular(ZamerRadius.sm),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(ZamerRadius.sm),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, size: 15, color: foreground),
-                const SizedBox(width: 4),
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: foreground,
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
     );
   }
 }
