@@ -27,12 +27,16 @@ void main() {
     final measure = File(
       'lib/screens/measure_concept_workspace_screen.dart',
     ).readAsStringSync();
+    final production = File(
+      'lib/screens/plan_editor_production_screen.dart',
+    ).readAsStringSync();
 
     expect(workspace.contains('MeasureConceptWorkspaceScreen('), isTrue);
     expect(measure.contains('ZMeasureViewTabs('), isTrue);
-    expect(measure.contains('ZWorkspaceHeader('), isTrue);
+    expect(measure.contains('_MeasureMasterHeader('), isTrue);
     expect(measure.contains('ZWorkspacePrimaryNav('), isTrue);
     expect(measure.contains('PlanEditorProductionScreen('), isTrue);
+    expect(production.contains('PlanEditorMasterV2Screen('), isTrue);
     expect(measure.contains('PlanEditorConceptScreen('), isFalse);
     expect(measure.contains("'AR'"), isFalse);
   });
