@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 
 import '../design_system/zamer_components.dart';
 import '../design_system/zamer_measure_chrome.dart';
-import '../design_system/zamer_press_effect.dart';
 import '../design_system/zamer_tokens.dart';
 import '../models/models.dart';
 import '../services/geometry_service.dart';
@@ -18,12 +17,14 @@ import 'engineering_screen.dart';
 import 'floor_3d_screen.dart';
 import 'layouts_screen.dart';
 import 'materials_screen.dart';
+import 'measure_concept_workspace_screen.dart';
 import 'measurement_review_screen.dart';
 import 'photo_studio_screen.dart';
 import 'plan_editor_production_screen.dart';
 import 'plan_editor_screen.dart';
 import 'plan_geometry_tools_screen.dart';
 import 'planning_objects_screen.dart';
+import 'projects_screen.dart';
 import 'rooms_screen.dart';
 import 'scan_plan_screen.dart';
 
@@ -118,13 +119,6 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
     setState(() {
       _index = page;
       _lastByMode[_mode] = page;
-    });
-  }
-
-  void _toggleMeasureRooms() {
-    setState(() {
-      _index = _index == 1 ? 0 : 1;
-      _lastByMode[0] = _index;
     });
   }
 
@@ -275,6 +269,13 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
+  void _openProjects() {
+    Navigator.push(
+      context,
+      MaterialPageRoute<void>(builder: (_) => const ProjectsScreen()),
+    );
+  }
+
   void _openMeasurementReview() {
     Navigator.push(
       context,
@@ -396,6 +397,30 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
   Widget build(BuildContext context) {
     final roomCount = GeometryService.roomFaces(widget.floor).length;
     final hasRooms = roomCount > 0;
+
+    if (_mode == 0) {
+      return MeasureConceptWorkspaceScreen(
+        project: widget.project,
+        floor: widget.floor,
+        onChanged: _changed,
+        onUndo: _historyIndex > 0 ? () => _travel(-1) : null,
+        onRedo: _historyIndex < _history.length - 1 ? () => _travel(1) : null,
+        canUndo: _historyIndex > 0,
+        canRedo: _historyIndex < _history.length - 1,
+        onMore: _showProjectActions,
+        onOpen3D: () => _selectMeasureView(ZMeasureViewMode.threeD),
+        onOpenPhoto: () => _selectMeasureView(ZMeasureViewMode.photo),
+        onOpenObjects: _openObjectsFromMeasure,
+        onOpenReview: _openMeasurementReview,
+        onOpenGeometry: _openGeometryTools,
+        onOpenFloors: _showFloorPicker,
+        onOpenSettings: _showProjectActions,
+        onHome: _goHome,
+        onProjects: _openProjects,
+        onCatalog: _openObjectsFromMeasure,
+      );
+    }
+
     final screens = [
       PlanEditorProductionScreen(
         floor: widget.floor,
@@ -508,175 +533,22 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
       ),
       body: Column(
         children: [
-          if (_mode == 0)
-            _MeasureProductionStrip(
-              floorName: widget.floor.name,
-              floorCount: widget.project.floors.length,
-              roomsSelected: _index == 1,
-              roomCount: roomCount,
-              onFloorTap: _showFloorPicker,
-              onRoomsToggle: _toggleMeasureRooms,
-              onViewChanged: _selectMeasureView,
-            )
-          else
-            ZWorkspaceContextStrip(
-              icon: contextIcon,
-              title: contextTitle,
-              subtitle: contextSubtitle,
-              metrics: contextMetrics,
-            ),
+          ZWorkspaceContextStrip(
+            icon: contextIcon,
+            title: contextTitle,
+            subtitle: contextSubtitle,
+            metrics: contextMetrics,
+          ),
           Expanded(child: IndexedStack(index: _index, children: screens)),
-          if (_mode != 0)
-            ZWorkspaceSubnav(
-              items: subItems,
-              selectedIndex: modeTabs.indexOf(_index),
-              onSelected: (localIndex) => _selectSubpage(modeTabs, localIndex),
-            ),
-          if (_mode != 0)
-            ZWorkspacePrimaryNav(
-              selectedIndex: _mode,
-              onSelected: _selectPrimaryMode,
-              onHome: _goHome,
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MeasureProductionStrip extends StatelessWidget {
-  const _MeasureProductionStrip({
-    required this.floorName,
-    required this.floorCount,
-    required this.roomsSelected,
-    required this.roomCount,
-    required this.onFloorTap,
-    required this.onRoomsToggle,
-    required this.onViewChanged,
-  });
-
-  final String floorName;
-  final int floorCount;
-  final bool roomsSelected;
-  final int roomCount;
-  final VoidCallback onFloorTap;
-  final VoidCallback onRoomsToggle;
-  final ValueChanged<ZMeasureViewMode> onViewChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 54,
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      decoration: const BoxDecoration(
-        color: ZamerColors.surfaceLow,
-        border: Border(bottom: BorderSide(color: ZamerColors.outlineSoft)),
-      ),
-      child: Row(
-        children: [
-          ZPressEffect(
-            scale: .95,
-            child: Material(
-              color: ZamerColors.surface,
-              borderRadius: BorderRadius.circular(ZamerRadius.sm),
-              clipBehavior: Clip.antiAlias,
-              child: InkWell(
-                onTap: onFloorTap,
-                child: Container(
-                  height: 40,
-                  constraints: const BoxConstraints(minWidth: 70, maxWidth: 92),
-                  padding: const EdgeInsets.symmetric(horizontal: 7),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(ZamerRadius.sm),
-                    border: Border.all(color: ZamerColors.outlineSoft),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.layers_outlined,
-                        size: 15,
-                        color: ZamerColors.accent,
-                      ),
-                      const SizedBox(width: 5),
-                      Flexible(
-                        child: Text(
-                          floorName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: ZamerTypography.caption.copyWith(
-                            color: ZamerColors.textPrimary,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                      if (floorCount > 1)
-                        const Icon(
-                          Icons.keyboard_arrow_down_rounded,
-                          size: 13,
-                          color: ZamerColors.textMuted,
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
+          ZWorkspaceSubnav(
+            items: subItems,
+            selectedIndex: modeTabs.indexOf(_index),
+            onSelected: (localIndex) => _selectSubpage(modeTabs, localIndex),
           ),
-          const SizedBox(width: 6),
-          ZPressEffect(
-            scale: .92,
-            child: Material(
-              color: roomsSelected ? ZamerColors.accent : ZamerColors.surface,
-              borderRadius: BorderRadius.circular(ZamerRadius.sm),
-              clipBehavior: Clip.antiAlias,
-              child: InkWell(
-                onTap: onRoomsToggle,
-                child: Container(
-                  width: 42,
-                  height: 40,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(ZamerRadius.sm),
-                    border: Border.all(
-                      color: roomsSelected
-                          ? ZamerColors.accent
-                          : ZamerColors.outlineSoft,
-                    ),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        roomsSelected
-                            ? Icons.architecture_outlined
-                            : Icons.grid_view_outlined,
-                        size: 15,
-                        color: roomsSelected
-                            ? ZamerColors.accentInk
-                            : ZamerColors.textSecondary,
-                      ),
-                      Text(
-                        roomsSelected ? 'План' : '$roomCount',
-                        style: ZamerTypography.caption.copyWith(
-                          fontSize: 9,
-                          height: 1,
-                          color: roomsSelected
-                              ? ZamerColors.accentInk
-                              : ZamerColors.textSecondary,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-          const Spacer(),
-          ZMeasureViewTabs(
-            value: ZMeasureViewMode.twoD,
-            onChanged: onViewChanged,
+          ZWorkspacePrimaryNav(
+            selectedIndex: _mode,
+            onSelected: _selectPrimaryMode,
+            onHome: _goHome,
           ),
         ],
       ),
