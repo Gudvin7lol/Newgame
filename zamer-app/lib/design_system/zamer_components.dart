@@ -406,7 +406,7 @@ class ZLayerToggle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    minHeight: 46,
+    constraints: const BoxConstraints(minHeight: 46),
     padding: const EdgeInsets.symmetric(horizontal: 10),
     decoration: const BoxDecoration(
       border: Border(bottom: BorderSide(color: ZamerColors.outlineSoft)),
