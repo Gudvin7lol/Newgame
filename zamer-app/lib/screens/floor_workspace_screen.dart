@@ -2,10 +2,11 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
-import '../design_system/zamer_tokens.dart';
+import '../design_system/zamer_components.dart';
 import '../models/models.dart';
 import '../services/geometry_service.dart';
 import '../services/report_service.dart';
+import '../widgets/workspace_master_header.dart';
 import '../widgets/workspace_navigation.dart';
 import 'elevations_screen.dart';
 import 'electrical_screen.dart';
@@ -53,6 +54,13 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
   ];
 
   int get _mode => _modeTabs.indexWhere((group) => group.contains(_index));
+
+  String get _modeLabel => switch (_mode) {
+    0 => 'ЗАМЕР 2D',
+    1 => '3D',
+    2 => 'ОСНАЩЕНИЕ',
+    _ => 'РАЗВЁРТКИ',
+  };
 
   final _history = <String>[];
   int _historyIndex = 0;
@@ -112,6 +120,70 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
+  void _openMeasurementReview() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MeasurementReviewScreen(floor: widget.floor),
+      ),
+    );
+  }
+
+  Future<void> _scanOrImport() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ScanPlanScreen(
+          floor: widget.floor,
+          onChanged: _changed,
+        ),
+      ),
+    );
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _showProjectActions() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (sheetContext) => ZSheetFrame(
+        title: 'Действия проекта',
+        description: '${widget.project.name} • ${widget.floor.name}',
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ZActionTile(
+              icon: Icons.document_scanner_outlined,
+              title: 'Скан / импорт плана',
+              subtitle: 'Фото, план и калибровка масштаба',
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _scanOrImport();
+              },
+            ),
+            ZActionTile(
+              icon: Icons.picture_as_pdf_outlined,
+              title: 'PDF-отчёт',
+              subtitle: 'Рабочая документация текущего этажа',
+              onTap: () {
+                Navigator.pop(sheetContext);
+                ReportService.shareFloorPdf(widget.project, widget.floor);
+              },
+            ),
+            ZActionTile(
+              icon: Icons.fact_check_outlined,
+              title: 'Проверка обмера',
+              subtitle: 'Контур, размеры, диагонали и источники',
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _openMeasurementReview();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final screens = [
@@ -157,91 +229,22 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
     final subItems = [for (final i in modeTabs) tabs[i]];
 
     return Scaffold(
-      appBar: AppBar(
-        titleSpacing: 8,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              widget.floor.name,
-              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
-            ),
-            Text(
-              widget.project.name,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: ZamerColors.textMuted,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            tooltip: 'Проверка обмера',
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => MeasurementReviewScreen(floor: widget.floor),
-              ),
-            ),
-            icon: const Icon(Icons.fact_check_outlined),
-          ),
-          IconButton(
-            tooltip: 'Отменить изменение на этаже',
-            onPressed: _historyIndex > 0 ? () => _travel(-1) : null,
-            icon: const Icon(Icons.undo),
-          ),
-          IconButton(
-            tooltip: 'Повторить изменение на этаже',
-            onPressed: _historyIndex < _history.length - 1
-                ? () => _travel(1)
-                : null,
-            icon: const Icon(Icons.redo),
-          ),
-          PopupMenuButton<String>(
-            tooltip: 'Действия проекта',
-            icon: const Icon(Icons.more_vert_rounded),
-            onSelected: (value) async {
-              if (value == 'scan') {
-                await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => ScanPlanScreen(
-                      floor: widget.floor,
-                      onChanged: _changed,
-                    ),
-                  ),
-                );
-                if (mounted) setState(() {});
-              }
-              if (value == 'pdf') {
-                await ReportService.shareFloorPdf(widget.project, widget.floor);
-              }
-            },
-            itemBuilder: (_) => const [
-              PopupMenuItem(
-                value: 'scan',
-                child: ListTile(
-                  dense: true,
-                  leading: Icon(Icons.document_scanner_outlined),
-                  title: Text('Скан / импорт плана'),
-                ),
-              ),
-              PopupMenuItem(
-                value: 'pdf',
-                child: ListTile(
-                  dense: true,
-                  leading: Icon(Icons.picture_as_pdf_outlined),
-                  title: Text('PDF-отчёт'),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(width: ZamerSpace.xs),
-        ],
+      appBar: ZWorkspaceHeader(
+        projectName: widget.project.name,
+        floorName: widget.floor.name,
+        modeLabel: _modeLabel,
+        onCheck: _openMeasurementReview,
+        onUndo: _historyIndex > 0 ? () => _travel(-1) : null,
+        onRedo: _historyIndex < _history.length - 1 ? () => _travel(1) : null,
+        canUndo: _historyIndex > 0,
+        canRedo: _historyIndex < _history.length - 1,
+        onMore: _showProjectActions,
       ),
       body: Column(
         children: [
-          const ZWorkspaceLayerLegend(),
+          // Layer legend belongs to the measurement workflow only. Keeping it
+          // above 3D/equipment/elevations wastes precious mobile workspace.
+          if (_mode == 0) const ZWorkspaceLayerLegend(),
           Expanded(child: IndexedStack(index: _index, children: screens)),
           ZWorkspaceSubnav(
             items: subItems,
