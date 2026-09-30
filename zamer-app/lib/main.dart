@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'design_system/zamer_theme.dart';
-import 'screens/projects_screen.dart';
+import 'screens/home_ui_kit_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -17,7 +17,7 @@ class ZamerApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Замер',
       theme: ZamerTheme.dark,
-      home: const ProjectsScreen(),
+      home: const HomeUiKitScreen(),
     );
   }
 }
