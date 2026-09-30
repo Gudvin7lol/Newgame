@@ -51,27 +51,87 @@ class ZWorkspaceSubnav extends StatelessWidget {
   Widget build(BuildContext context) {
     if (items.length <= 1) return const SizedBox.shrink();
     return Container(
+      padding: const EdgeInsets.fromLTRB(
+        ZamerSpace.sm,
+        ZamerSpace.xs,
+        ZamerSpace.sm,
+        ZamerSpace.xs,
+      ),
       decoration: const BoxDecoration(
         color: ZamerColors.surfaceLow,
         border: Border(top: BorderSide(color: ZamerColors.outlineSoft)),
       ),
-      padding: const EdgeInsets.symmetric(vertical: ZamerSpace.xxs),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: ZamerSpace.sm),
+      child: Container(
+        height: 42,
+        padding: const EdgeInsets.all(3),
+        decoration: BoxDecoration(
+          color: ZamerColors.surface,
+          borderRadius: BorderRadius.circular(ZamerRadius.md),
+          border: Border.all(color: ZamerColors.outlineSoft),
+        ),
         child: Row(
           children: [
             for (var i = 0; i < items.length; i++)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 3),
-                child: ChoiceChip(
-                  label: Text(items[i].$1),
-                  avatar: Icon(items[i].$2, size: ZamerSize.iconSm),
+              Expanded(
+                child: _SubnavItem(
+                  icon: items[i].$2,
+                  label: items[i].$1,
                   selected: selectedIndex == i,
-                  onSelected: (_) => onSelected(i),
+                  onTap: () => onSelected(i),
                 ),
               ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SubnavItem extends StatelessWidget {
+  const _SubnavItem({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final foreground = selected
+        ? ZamerColors.accentInk
+        : ZamerColors.textSecondary;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 2),
+      child: Material(
+        color: selected ? ZamerColors.accent : Colors.transparent,
+        borderRadius: BorderRadius.circular(ZamerRadius.sm),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 16, color: foreground),
+              const SizedBox(width: 5),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: foreground,
+                    fontSize: 10.5,
+                    fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -109,7 +169,7 @@ class ZWorkspacePrimaryNav extends StatelessWidget {
     return SafeArea(
       top: false,
       child: Container(
-        height: 60,
+        height: 64,
         decoration: const BoxDecoration(
           color: ZamerColors.surfaceLow,
           border: Border(top: BorderSide(color: ZamerColors.outlineSoft)),
@@ -154,7 +214,7 @@ class ZMasterBottomNav extends StatelessWidget {
   Widget build(BuildContext context) => SafeArea(
     top: false,
     child: Container(
-      height: 60,
+      height: 64,
       decoration: const BoxDecoration(
         color: ZamerColors.surfaceLow,
         border: Border(top: BorderSide(color: ZamerColors.outlineSoft)),
@@ -196,35 +256,54 @@ class _PrimaryNavItem extends StatelessWidget {
         : ZamerColors.textSecondary;
     return InkWell(
       onTap: onTap,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+      child: Stack(
+        alignment: Alignment.topCenter,
         children: [
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            width: 34,
-            height: 28,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: selected
-                  ? ZamerColors.accent.withValues(alpha: .13)
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(ZamerRadius.sm),
-              border: selected
-                  ? Border.all(color: ZamerColors.accent.withValues(alpha: .6))
-                  : null,
+          if (selected)
+            Positioned(
+              top: 0,
+              child: Container(
+                width: 28,
+                height: 2,
+                decoration: BoxDecoration(
+                  color: ZamerColors.accent,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
             ),
-            child: Icon(icon, size: 19, color: foreground),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: foreground,
-              fontSize: 8.7,
-              fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
-            ),
+          Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                width: 38,
+                height: 29,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: selected
+                      ? ZamerColors.accent.withValues(alpha: .13)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(ZamerRadius.sm),
+                  border: selected
+                      ? Border.all(
+                          color: ZamerColors.accent.withValues(alpha: .55),
+                        )
+                      : null,
+                ),
+                child: Icon(icon, size: 19, color: foreground),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: foreground,
+                  fontSize: 8.8,
+                  fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
+                ),
+              ),
+            ],
           ),
         ],
       ),
