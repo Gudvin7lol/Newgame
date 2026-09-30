@@ -52,7 +52,9 @@ jobs:
           zamer-app/lib/main.dart
           zamer-app/lib/design_system
           zamer-app/lib/screens/projects_screen.dart
+          zamer-app/lib/screens/floor_workspace_screen.dart
           zamer-app/lib/widgets/projects_home_widgets.dart
+          zamer-app/lib/widgets/workspace_navigation.dart
 
       - name: Analyze
         working-directory: zamer-app
