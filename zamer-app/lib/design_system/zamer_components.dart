@@ -22,22 +22,26 @@ class ZCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final body = Container(
-      padding: padding,
-      decoration: BoxDecoration(
-        color: backgroundColor ?? ZamerColors.surface,
-        borderRadius: BorderRadius.circular(radius),
-        border: Border.all(color: borderColor),
-      ),
-      child: child,
+    final decoration = BoxDecoration(
+      color: backgroundColor ?? ZamerColors.surface,
+      borderRadius: BorderRadius.circular(radius),
+      border: Border.all(color: borderColor),
     );
-    if (onTap == null) return body;
+
+    if (onTap == null) {
+      return Container(padding: padding, decoration: decoration, child: child);
+    }
+
     return Material(
       color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(radius),
-        onTap: onTap,
-        child: body,
+      borderRadius: BorderRadius.circular(radius),
+      clipBehavior: Clip.antiAlias,
+      child: Ink(
+        decoration: decoration,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(padding: padding, child: child),
+        ),
       ),
     );
   }
@@ -83,20 +87,40 @@ class ZActionTile extends StatelessWidget {
       child: Material(
         color: ZamerColors.surfaceHigh,
         borderRadius: BorderRadius.circular(ZamerRadius.md),
-        child: ListTile(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(ZamerRadius.md),
-          ),
-          leading: Icon(icon, color: ZamerColors.accent),
-          title: Text(
-            title,
-            style: const TextStyle(fontWeight: FontWeight.w800),
-          ),
-          subtitle: subtitle == null
-              ? null
-              : Text(subtitle!, style: ZamerTypography.caption),
-          trailing: trailing ?? const Icon(Icons.chevron_right_rounded),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
           onTap: onTap,
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 52),
+            decoration: BoxDecoration(
+              border: Border.all(color: ZamerColors.outline),
+              borderRadius: BorderRadius.circular(ZamerRadius.md),
+            ),
+            child: ListTile(
+              minLeadingWidth: 26,
+              horizontalTitleGap: 10,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+              leading: Icon(icon, color: ZamerColors.accent, size: 20),
+              title: Text(
+                title,
+                style: const TextStyle(
+                  color: ZamerColors.textPrimary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              subtitle: subtitle == null
+                  ? null
+                  : Text(subtitle!, style: ZamerTypography.caption),
+              trailing:
+                  trailing ??
+                  const Icon(
+                    Icons.chevron_right_rounded,
+                    size: 19,
+                    color: ZamerColors.textMuted,
+                  ),
+            ),
+          ),
         ),
       ),
     );
@@ -161,25 +185,33 @@ class ZStatusChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final foreground = selected
+        ? ZamerColors.accentInk
+        : ZamerColors.textSecondary;
     return ActionChip(
       onPressed: onTap,
-      avatar: icon == null ? null : Icon(icon, size: ZamerSize.iconSm),
+      avatar: icon == null
+          ? null
+          : Icon(icon, size: ZamerSize.iconSm, color: foreground),
       label: Text(label),
-      backgroundColor: selected
-          ? ZamerColors.accent.withValues(alpha: .12)
-          : ZamerColors.surface,
+      backgroundColor: selected ? ZamerColors.accent : ZamerColors.surface,
       side: BorderSide(
         color: selected ? ZamerColors.accent : ZamerColors.outline,
       ),
       labelStyle: TextStyle(
-        color: selected ? ZamerColors.accent : ZamerColors.textSecondary,
-        fontWeight: FontWeight.w700,
+        color: foreground,
+        fontSize: 11.5,
+        fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(ZamerRadius.md),
       ),
     );
   }
 }
 
-/// Compact icon + label action used by toolbars on the working master pages.
+/// Compact icon + label action used by toolbars on the five master pages.
 class ZToolAction extends StatelessWidget {
   const ZToolAction({
     super.key,
@@ -202,20 +234,28 @@ class ZToolAction extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 2),
       child: Material(
-        color: selected ? ZamerColors.accent : Colors.transparent,
+        color: selected ? ZamerColors.accent : ZamerColors.surfaceHigh,
         borderRadius: BorderRadius.circular(ZamerRadius.md),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
           child: Opacity(
-            opacity: onTap == null ? .45 : 1,
-            child: Padding(
+            opacity: onTap == null ? .4 : 1,
+            child: Container(
+              constraints: const BoxConstraints(minHeight: 48),
               padding: const EdgeInsets.symmetric(
-                horizontal: 2,
+                horizontal: 5,
                 vertical: ZamerSpace.xs,
+              ),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(ZamerRadius.md),
+                border: Border.all(
+                  color: selected ? ZamerColors.accent : ZamerColors.outlineSoft,
+                ),
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(icon, size: 19, color: foreground),
                   const SizedBox(height: 3),
@@ -237,4 +277,52 @@ class ZToolAction extends StatelessWidget {
       ),
     );
   }
+}
+
+class ZPanel extends StatelessWidget {
+  const ZPanel({
+    super.key,
+    required this.child,
+    this.padding = const EdgeInsets.all(ZamerSpace.md),
+    this.color = ZamerColors.surfaceLow,
+  });
+
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: padding,
+    decoration: BoxDecoration(
+      color: color,
+      borderRadius: BorderRadius.circular(ZamerRadius.lg),
+      border: Border.all(color: ZamerColors.outline),
+    ),
+    child: child,
+  );
+}
+
+class ZMeasureBadge extends StatelessWidget {
+  const ZMeasureBadge(this.value, {super.key, this.calculated = false});
+
+  final String value;
+  final bool calculated;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+    decoration: BoxDecoration(
+      color: calculated
+          ? ZamerColors.info.withValues(alpha: .16)
+          : ZamerColors.surfaceHighest.withValues(alpha: .96),
+      borderRadius: BorderRadius.circular(ZamerRadius.sm),
+      border: Border.all(
+        color: calculated
+            ? ZamerColors.info.withValues(alpha: .65)
+            : ZamerColors.outline,
+      ),
+    ),
+    child: Text(value, style: ZamerTypography.measurement),
+  );
 }
