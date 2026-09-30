@@ -119,6 +119,13 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
     });
   }
 
+  void _toggleMeasureRooms() {
+    setState(() {
+      _index = _index == 1 ? 0 : 1;
+      _lastByMode[0] = _index;
+    });
+  }
+
   Future<void> _selectMeasureView(ZMeasureViewMode view) async {
     switch (view) {
       case ZMeasureViewMode.twoD:
@@ -443,9 +450,10 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
             _MeasureProductionStrip(
               floorName: widget.floor.name,
               floorCount: widget.project.floors.length,
-              wallCount: widget.floor.walls.length,
+              roomsSelected: _index == 1,
               roomCount: roomCount,
               onFloorTap: _showFloorPicker,
+              onRoomsToggle: _toggleMeasureRooms,
               onViewChanged: _selectMeasureView,
             )
           else
@@ -456,16 +464,18 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
               metrics: contextMetrics,
             ),
           Expanded(child: IndexedStack(index: _index, children: screens)),
-          ZWorkspaceSubnav(
-            items: subItems,
-            selectedIndex: modeTabs.indexOf(_index),
-            onSelected: (localIndex) => _selectSubpage(modeTabs, localIndex),
-          ),
-          ZWorkspacePrimaryNav(
-            selectedIndex: _mode,
-            onSelected: _selectPrimaryMode,
-            onHome: _goHome,
-          ),
+          if (_mode != 0)
+            ZWorkspaceSubnav(
+              items: subItems,
+              selectedIndex: modeTabs.indexOf(_index),
+              onSelected: (localIndex) => _selectSubpage(modeTabs, localIndex),
+            ),
+          if (_mode != 0)
+            ZWorkspacePrimaryNav(
+              selectedIndex: _mode,
+              onSelected: _selectPrimaryMode,
+              onHome: _goHome,
+            ),
         ],
       ),
     );
@@ -476,17 +486,19 @@ class _MeasureProductionStrip extends StatelessWidget {
   const _MeasureProductionStrip({
     required this.floorName,
     required this.floorCount,
-    required this.wallCount,
+    required this.roomsSelected,
     required this.roomCount,
     required this.onFloorTap,
+    required this.onRoomsToggle,
     required this.onViewChanged,
   });
 
   final String floorName;
   final int floorCount;
-  final int wallCount;
+  final bool roomsSelected;
   final int roomCount;
   final VoidCallback onFloorTap;
+  final VoidCallback onRoomsToggle;
   final ValueChanged<ZMeasureViewMode> onViewChanged;
 
   @override
@@ -511,8 +523,8 @@ class _MeasureProductionStrip extends StatelessWidget {
                 onTap: onFloorTap,
                 child: Container(
                   height: 40,
-                  constraints: const BoxConstraints(minWidth: 74, maxWidth: 104),
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  constraints: const BoxConstraints(minWidth: 70, maxWidth: 92),
+                  padding: const EdgeInsets.symmetric(horizontal: 7),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(ZamerRadius.sm),
                     border: Border.all(color: ZamerColors.outlineSoft),
@@ -537,33 +549,69 @@ class _MeasureProductionStrip extends StatelessWidget {
                           ),
                         ),
                       ),
-                      if (floorCount > 1) ...[
-                        const SizedBox(width: 3),
+                      if (floorCount > 1)
                         const Icon(
                           Icons.keyboard_arrow_down_rounded,
-                          size: 14,
+                          size: 13,
                           color: ZamerColors.textMuted,
                         ),
-                      ],
                     ],
                   ),
                 ),
               ),
             ),
           ),
-          const SizedBox(width: 7),
-          Expanded(
-            child: Text(
-              '$wallCount ст. • $roomCount пом.',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: ZamerTypography.caption.copyWith(
-                color: ZamerColors.textSecondary,
-                fontWeight: FontWeight.w500,
+          const SizedBox(width: 6),
+          ZPressEffect(
+            scale: .92,
+            child: Material(
+              color: roomsSelected ? ZamerColors.accent : ZamerColors.surface,
+              borderRadius: BorderRadius.circular(ZamerRadius.sm),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: onRoomsToggle,
+                child: Container(
+                  width: 42,
+                  height: 40,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(ZamerRadius.sm),
+                    border: Border.all(
+                      color: roomsSelected
+                          ? ZamerColors.accent
+                          : ZamerColors.outlineSoft,
+                    ),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        roomsSelected
+                            ? Icons.architecture_outlined
+                            : Icons.grid_view_outlined,
+                        size: 15,
+                        color: roomsSelected
+                            ? ZamerColors.accentInk
+                            : ZamerColors.textSecondary,
+                      ),
+                      Text(
+                        roomsSelected ? 'План' : '$roomCount',
+                        style: ZamerTypography.caption.copyWith(
+                          fontSize: 9,
+                          height: 1,
+                          color: roomsSelected
+                              ? ZamerColors.accentInk
+                              : ZamerColors.textSecondary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
-          const SizedBox(width: 5),
+          const Spacer(),
           ZMeasureViewTabs(
             value: ZMeasureViewMode.twoD,
             onChanged: onViewChanged,
