@@ -369,6 +369,49 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     }
   }
 
+  Future<void> _showProjectActions(MeasureProject project) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (sheetContext) => ZSheetFrame(
+        title: project.name,
+        description: project.address.trim().isEmpty
+            ? _dateLabel(project.createdAt)
+            : project.address.trim(),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ZActionTile(
+              icon: Icons.arrow_forward_rounded,
+              title: 'Продолжить работу',
+              subtitle: 'Открыть этажи и рабочее пространство',
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _open(project);
+              },
+            ),
+            ZActionTile(
+              icon: Icons.archive_outlined,
+              title: 'Полная копия проекта',
+              subtitle: 'ZIP с проектом и фотографиями',
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _export(project);
+              },
+            ),
+            ZActionTile(
+              icon: Icons.delete_outline_rounded,
+              title: 'Удалить проект',
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _delete(project);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _showCreateProjectPanel() async {
     if (_unreadable) return;
     await showModalBottomSheet<void>(
@@ -667,15 +710,6 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     );
   }
 
-  void _scrollToProjects() {
-    if (!_scrollController.hasClients) return;
-    _scrollController.animateTo(
-      math.min(360.0, _scrollController.position.maxScrollExtent),
-      duration: const Duration(milliseconds: 280),
-      curve: Curves.easeOutCubic,
-    );
-  }
-
   List<MeasureProject> get _visibleProjects {
     final query = _searchController.text.trim().toLowerCase();
     final projects = _projects.where((project) {
@@ -716,12 +750,30 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     return projects.take(4).toList();
   }
 
+  MeasureProject? get _activeProject {
+    if (_projects.isEmpty) return null;
+    final userProjects = _projects
+        .where((project) => project.id != DemoProjectFactory.projectId)
+        .toList();
+    final candidates = userProjects.isEmpty ? [..._projects] : userProjects;
+    candidates.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return candidates.first;
+  }
+
   double _projectAreaM2(MeasureProject project) {
     var total = 0.0;
     for (final floor in project.floors) {
       for (final face in GeometryService.roomFaces(floor)) {
         total += face.areaM2;
       }
+    }
+    return total;
+  }
+
+  int _projectRoomCount(MeasureProject project) {
+    var total = 0;
+    for (final floor in project.floors) {
+      total += GeometryService.roomFaces(floor).length;
     }
     return total;
   }
@@ -764,6 +816,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
 
   Widget _projectCard(MeasureProject project) {
     final areaM2 = _projectAreaM2(project);
+    final rooms = _projectRoomCount(project);
     final photos = _projectPhotoCount(project);
     final photoPath = _projectFirstPhoto(project);
     return Material(
@@ -773,7 +826,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
       child: InkWell(
         onTap: () => _open(project),
         child: Container(
-          height: 76,
+          height: 82,
           decoration: BoxDecoration(
             border: Border.all(color: ZamerColors.outline),
             borderRadius: BorderRadius.circular(ZamerRadius.md),
@@ -781,7 +834,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
           child: Row(
             children: [
               SizedBox(
-                width: 86,
+                width: 92,
                 height: double.infinity,
                 child: ZProjectThumbnail(
                   photoPath: photoPath,
@@ -843,14 +896,19 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                         ),
                       ),
                       const Spacer(),
-                      Row(
+                      Wrap(
+                        spacing: ZamerSpace.sm,
+                        runSpacing: 2,
                         children: [
                           ZMetaChip(
                             icon: Icons.square_foot_outlined,
                             label:
                                 '${areaM2.toStringAsFixed(areaM2 >= 100 ? 0 : 1)} м²',
                           ),
-                          const SizedBox(width: ZamerSpace.xs),
+                          ZMetaChip(
+                            icon: Icons.meeting_room_outlined,
+                            label: '$rooms пом.',
+                          ),
                           ZMetaChip(
                             icon: Icons.photo_library_outlined,
                             label: '$photos фото',
@@ -872,47 +930,70 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   Widget build(BuildContext context) {
     final projects = _visibleProjects;
     final queryActive = _searchController.text.trim().isNotEmpty;
+    final activeProject = queryActive ? null : _activeProject;
+    final recentProjects = activeProject == null
+        ? projects
+        : projects.where((project) => project.id != activeProject.id).toList();
+
+    void openWorkspaceFromHome() {
+      final project = _activeProject;
+      if (project == null) {
+        _showCreateProjectPanel();
+      } else {
+        _open(project);
+      }
+    }
 
     return Scaffold(
       body: SafeArea(
         bottom: false,
         child: _loading
-            ? const Center(child: CircularProgressIndicator())
+            ? const ZLoadingState(
+                title: 'Загружаем проекты',
+                subtitle: 'Проверяем локальные данные и резервную запись',
+              )
             : ListView(
                 controller: _scrollController,
-                padding: const EdgeInsets.fromLTRB(12, 7, 12, 14),
+                padding: const EdgeInsets.fromLTRB(12, 9, 12, 18),
                 children: [
                   Row(
                     children: [
                       const Expanded(
-                        child: Text(
-                          'ЗАМЕР',
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 1.25,
-                          ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'ЗАМЕР',
+                              style: TextStyle(
+                                color: ZamerColors.textPrimary,
+                                fontSize: 25,
+                                height: 1,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 1.35,
+                              ),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              'Обмер • проект • рабочая документация',
+                              style: ZamerTypography.caption,
+                            ),
+                          ],
                         ),
                       ),
-                      IconButton(
-                        tooltip: 'Настройки',
-                        visualDensity: VisualDensity.compact,
-                        constraints: const BoxConstraints.tightFor(
-                          width: 36,
-                          height: 36,
-                        ),
+                      IconButton.filledTonal(
+                        tooltip: 'Настройки и данные',
                         onPressed: _showMore,
-                        icon: const Icon(Icons.settings_outlined, size: 20),
+                        icon: const Icon(Icons.tune_rounded, size: 20),
                       ),
                     ],
                   ),
-                  const SizedBox(height: ZamerSpace.xs),
+                  const SizedBox(height: ZamerSpace.md),
                   TextField(
                     controller: _searchController,
                     textInputAction: TextInputAction.search,
                     decoration: InputDecoration(
-                      hintText: 'Поиск проектов…',
-                      prefixIcon: const Icon(Icons.search_rounded, size: 18),
+                      hintText: 'Проект, адрес или заказчик…',
+                      prefixIcon: const Icon(Icons.search_rounded, size: 19),
                       suffixIcon: queryActive
                           ? IconButton(
                               tooltip: 'Очистить',
@@ -929,8 +1010,8 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                   if (_dataWarning != null) ...[
                     const SizedBox(height: ZamerSpace.sm),
                     ZCard(
-                      backgroundColor: const Color(0xFF33271F),
-                      borderColor: const Color(0xFF5B4332),
+                      backgroundColor: ZamerColors.warning.withValues(alpha: .08),
+                      borderColor: ZamerColors.warning.withValues(alpha: .35),
                       padding: const EdgeInsets.all(11),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -960,31 +1041,80 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                       ),
                     ),
                   ],
-                  const SizedBox(height: ZamerSpace.sm),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ZHomeQuickActionCard(
-                          filled: true,
-                          icon: Icons.add_circle_outline,
-                          title: 'Новый проект',
-                          onTap: _unreadable ? null : _showCreateProjectPanel,
-                        ),
+                  if (!queryActive && activeProject != null) ...[
+                    const SizedBox(height: ZamerSpace.lg),
+                    _sectionTitle('Продолжить работу'),
+                    const SizedBox(height: ZamerSpace.sm),
+                    ZActiveProjectCard(
+                      preview: ZProjectThumbnail(
+                        photoPath: _projectFirstPhoto(activeProject),
+                        fallbackKind: activeProject.name.length % 3,
                       ),
-                      const SizedBox(width: ZamerSpace.sm),
-                      Expanded(
-                        child: ZHomeQuickActionCard(
-                          icon: Icons.upload_file_outlined,
-                          title: 'Импорт плана',
-                          onTap: _unreadable ? null : _showImportPlanPanel,
+                      title: activeProject.name,
+                      subtitle: activeProject.address.trim().isEmpty
+                          ? _dateLabel(activeProject.createdAt)
+                          : activeProject.address.trim(),
+                      areaLabel:
+                          '${_projectAreaM2(activeProject).toStringAsFixed(_projectAreaM2(activeProject) >= 100 ? 0 : 1)} м²',
+                      roomsLabel: '${_projectRoomCount(activeProject)} помещений',
+                      floorsLabel: '${activeProject.floors.length} этаж.',
+                      onOpen: () => _open(activeProject),
+                      onMore: () => _showProjectActions(activeProject),
+                    ),
+                  ],
+                  if (!queryActive) ...[
+                    const SizedBox(height: ZamerSpace.lg),
+                    _sectionTitle('Быстрые действия'),
+                    const SizedBox(height: ZamerSpace.sm),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ZHomeQuickActionCard(
+                            filled: true,
+                            icon: Icons.add_rounded,
+                            title: 'Новый проект',
+                            subtitle: 'Пустой или шаблон',
+                            onTap: _unreadable ? null : _showCreateProjectPanel,
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
+                        const SizedBox(width: ZamerSpace.sm),
+                        Expanded(
+                          child: ZHomeQuickActionCard(
+                            icon: Icons.document_scanner_outlined,
+                            title: 'Сканировать',
+                            subtitle: 'Фото или план БТИ',
+                            onTap: _unreadable ? null : _importPlan,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: ZamerSpace.sm),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ZHomeQuickActionCard(
+                            icon: Icons.upload_file_outlined,
+                            title: 'Импорт плана',
+                            subtitle: 'PDF, DWG или фото',
+                            onTap: _unreadable ? null : _showImportPlanPanel,
+                          ),
+                        ),
+                        const SizedBox(width: ZamerSpace.sm),
+                        Expanded(
+                          child: ZHomeQuickActionCard(
+                            icon: Icons.settings_backup_restore_rounded,
+                            title: 'Восстановить',
+                            subtitle: 'ZIP или JSON копия',
+                            onTap: _import,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                  const SizedBox(height: ZamerSpace.lg),
                   _sectionTitle(
                     queryActive ? 'Результаты поиска' : 'Недавние проекты',
-                    trailing: queryActive || _projects.length <= 3
+                    trailing: queryActive || _projects.length <= 4
                         ? null
                         : TextButton(
                             onPressed: () => setState(
@@ -997,49 +1127,38 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                             child: Text(_showAllProjects ? 'Свернуть' : 'Все ›'),
                           ),
                   ),
-                  const SizedBox(height: 9),
-                  if (projects.isEmpty)
-                    ZCard(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: ZamerSpace.xl,
-                        vertical: ZamerSpace.xxl,
-                      ),
-                      child: Column(
-                        children: [
-                          Icon(
-                            queryActive
-                                ? Icons.search_off_rounded
-                                : Icons.home_work_outlined,
-                            size: 34,
-                            color: ZamerColors.textFaint,
-                          ),
-                          const SizedBox(height: ZamerSpace.sm),
-                          Text(
-                            queryActive
-                                ? 'Ничего не найдено'
-                                : 'У вас пока нет проектов',
-                            style: const TextStyle(fontWeight: FontWeight.w800),
-                          ),
-                          const SizedBox(height: ZamerSpace.xxs),
-                          Text(
-                            queryActive
-                                ? 'Попробуйте другое название или адрес.'
-                                : 'Создайте новый проект или импортируйте план.',
-                            textAlign: TextAlign.center,
-                            style: ZamerTypography.caption,
-                          ),
-                        ],
-                      ),
+                  const SizedBox(height: ZamerSpace.sm),
+                  if (recentProjects.isEmpty)
+                    ZEmptyState(
+                      icon: queryActive
+                          ? Icons.search_off_rounded
+                          : Icons.history_rounded,
+                      title: queryActive
+                          ? 'Ничего не найдено'
+                          : activeProject == null
+                          ? 'У вас пока нет проектов'
+                          : 'Других проектов пока нет',
+                      subtitle: queryActive
+                          ? 'Попробуйте другое название, адрес или заказчика.'
+                          : activeProject == null
+                          ? 'Создайте новый проект или импортируйте существующий.'
+                          : 'Активный проект уже показан выше. Новые проекты появятся здесь.',
+                      actionLabel: queryActive || _unreadable
+                          ? null
+                          : 'Создать проект',
+                      onAction: queryActive || _unreadable
+                          ? null
+                          : _showCreateProjectPanel,
                     )
                   else
-                    ...projects.map(
+                    ...recentProjects.map(
                       (project) => Padding(
                         padding: const EdgeInsets.only(bottom: ZamerSpace.sm),
                         child: _projectCard(project),
                       ),
                     ),
                   if (!queryActive) ...[
-                    const SizedBox(height: 11),
+                    const SizedBox(height: ZamerSpace.md),
                     _sectionTitle(
                       'Шаблоны',
                       trailing: TextButton(
@@ -1051,9 +1170,9 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                         child: const Text('Все ›'),
                       ),
                     ),
-                    const SizedBox(height: 9),
+                    const SizedBox(height: ZamerSpace.sm),
                     SizedBox(
-                      height: 98,
+                      height: 102,
                       child: ListView(
                         scrollDirection: Axis.horizontal,
                         children: [
@@ -1086,19 +1205,9 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
               ),
       ),
       bottomNavigationBar: ZHomeNavBar(
-        onProjects: _scrollToProjects,
-        onCatalog: () => ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Каталог открывается внутри проекта в разделе «Оснащение».',
-            ),
-          ),
-        ),
-        onLearn: () => ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Раздел обучения будет подключён отдельным экраном.'),
-          ),
-        ),
+        onProjects: openWorkspaceFromHome,
+        onCatalog: openWorkspaceFromHome,
+        onLearn: openWorkspaceFromHome,
         onMore: _showMore,
       ),
     );
