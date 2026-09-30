@@ -5,6 +5,7 @@ import '../design_system/zamer_tokens.dart';
 import '../models/models.dart';
 import '../widgets/workspace_master_header.dart';
 import '../widgets/workspace_navigation.dart';
+import 'elevations_screen.dart';
 import 'plan_editor_production_screen.dart';
 
 /// Production shell for the master «Замер» page.
@@ -29,8 +30,12 @@ class MeasureConceptWorkspaceScreen extends StatefulWidget {
     required this.onOpenObjects,
     required this.onOpenReview,
     required this.onOpenGeometry,
+    required this.onOpenFloors,
+    required this.onOpenSettings,
     required this.onHome,
-    required this.onSelectPrimaryMode,
+    required this.onProjects,
+    required this.onCatalog,
+    this.onSelectPrimaryMode,
   });
 
   final MeasureProject project;
@@ -46,8 +51,16 @@ class MeasureConceptWorkspaceScreen extends StatefulWidget {
   final VoidCallback onOpenObjects;
   final VoidCallback onOpenReview;
   final VoidCallback onOpenGeometry;
+
+  /// Kept while older callers migrate to the five-section master shell.
+  final VoidCallback onOpenFloors;
+  final VoidCallback onOpenSettings;
   final VoidCallback onHome;
-  final ValueChanged<int> onSelectPrimaryMode;
+  final VoidCallback onProjects;
+  final VoidCallback onCatalog;
+
+  /// Project-mode index: 0 = Measure, 1 = 3D, 2 = Equipment, 3 = Elevations.
+  final ValueChanged<int>? onSelectPrimaryMode;
 
   @override
   State<MeasureConceptWorkspaceScreen> createState() =>
@@ -66,6 +79,35 @@ class _MeasureConceptWorkspaceScreenState
         widget.onOpen3D();
       case ZMeasureViewMode.photo:
         widget.onOpenPhoto();
+    }
+  }
+
+  void _selectPrimaryMode(int mode) {
+    final parentHandler = widget.onSelectPrimaryMode;
+    if (parentHandler != null) {
+      parentHandler(mode);
+      return;
+    }
+
+    // Compatibility path for the pre-master caller. Every item still performs
+    // real work; no decorative dead buttons are allowed in the production UI.
+    switch (mode) {
+      case 0:
+        return;
+      case 1:
+        widget.onOpen3D();
+      case 2:
+        widget.onOpenObjects();
+      case 3:
+        Navigator.push(
+          context,
+          MaterialPageRoute<void>(
+            builder: (_) => ElevationsScreen(
+              floor: widget.floor,
+              onChanged: widget.onChanged,
+            ),
+          ),
+        );
     }
   }
 
@@ -102,7 +144,7 @@ class _MeasureConceptWorkspaceScreenState
           ),
           ZWorkspacePrimaryNav(
             selectedIndex: 0,
-            onSelected: widget.onSelectPrimaryMode,
+            onSelected: _selectPrimaryMode,
             onHome: widget.onHome,
           ),
         ],
