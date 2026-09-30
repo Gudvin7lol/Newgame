@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../design_system/zamer_components.dart';
+import '../design_system/zamer_press_effect.dart';
 import '../design_system/zamer_tokens.dart';
 import '../models/models.dart';
 import '../services/measurement_review_service.dart';
@@ -20,10 +21,15 @@ class MeasurementReviewScreen extends StatefulWidget {
 
 class _MeasurementReviewScreenState extends State<MeasurementReviewScreen> {
   int? _selected;
+  MeasurementIssueKind? _filter;
 
   @override
   Widget build(BuildContext context) {
     final issues = MeasurementReviewService.review(widget.floor);
+    final visible = _filter == null
+        ? issues
+        : issues.where((issue) => issue.kind == _filter).toList();
+
     return Scaffold(
       appBar: AppBar(
         title: Column(
@@ -43,7 +49,7 @@ class _MeasurementReviewScreenState extends State<MeasurementReviewScreen> {
               ZamerSpace.md,
               0,
             ),
-            height: 292,
+            height: 256,
             clipBehavior: Clip.antiAlias,
             decoration: BoxDecoration(
               color: ZamerColors.surfaceLow,
@@ -75,7 +81,7 @@ class _MeasurementReviewScreenState extends State<MeasurementReviewScreen> {
                 return CustomPaint(
                   painter: _IssuePainter(
                     widget.floor,
-                    issues,
+                    visible,
                     _selected,
                     scale,
                     origin,
@@ -86,7 +92,12 @@ class _MeasurementReviewScreenState extends State<MeasurementReviewScreen> {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.all(ZamerSpace.md),
+            padding: const EdgeInsets.fromLTRB(
+              ZamerSpace.md,
+              ZamerSpace.md,
+              ZamerSpace.md,
+              ZamerSpace.sm,
+            ),
             child: Container(
               padding: const EdgeInsets.all(ZamerSpace.md),
               decoration: BoxDecoration(
@@ -123,12 +134,14 @@ class _MeasurementReviewScreenState extends State<MeasurementReviewScreen> {
                           style: const TextStyle(
                             color: ZamerColors.textPrimary,
                             fontSize: 12.5,
-                            fontWeight: FontWeight.w900,
+                            fontWeight: FontWeight.w800,
                           ),
                         ),
                         const SizedBox(height: 2),
-                        const Text(
-                          'Приложение ничего не исправляет автоматически. Замечания нужно сверить на объекте.',
+                        Text(
+                          _filter == null
+                              ? 'Выбери категорию ниже, чтобы локализовать проблему на плане.'
+                              : 'Показано: ${_kindLabel(_filter!)} • ${visible.length}',
                           style: ZamerTypography.caption,
                         ),
                       ],
@@ -138,6 +151,39 @@ class _MeasurementReviewScreenState extends State<MeasurementReviewScreen> {
               ),
             ),
           ),
+          if (issues.isNotEmpty)
+            SizedBox(
+              height: 46,
+              child: ListView(
+                padding: const EdgeInsets.symmetric(horizontal: ZamerSpace.md),
+                scrollDirection: Axis.horizontal,
+                children: [
+                  _FilterChip(
+                    label: 'Все ${issues.length}',
+                    icon: Icons.list_alt_rounded,
+                    selected: _filter == null,
+                    onTap: () => setState(() {
+                      _filter = null;
+                      _selected = null;
+                    }),
+                  ),
+                  for (final kind in MeasurementIssueKind.values)
+                    if (_countKind(issues, kind) > 0) ...[
+                      const SizedBox(width: 6),
+                      _FilterChip(
+                        label: '${_kindShortLabel(kind)} ${_countKind(issues, kind)}',
+                        icon: _kindIcon(kind),
+                        selected: _filter == kind,
+                        onTap: () => setState(() {
+                          _filter = kind;
+                          _selected = null;
+                        }),
+                      ),
+                    ],
+                ],
+              ),
+            ),
+          const SizedBox(height: ZamerSpace.xs),
           Expanded(
             child: issues.isEmpty
                 ? const ZEmptyState(
@@ -146,115 +192,130 @@ class _MeasurementReviewScreenState extends State<MeasurementReviewScreen> {
                     subtitle:
                         'По доступным данным контур и контрольные размеры выглядят согласованно.',
                   )
-                : ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(
-                      ZamerSpace.md,
-                      0,
-                      ZamerSpace.md,
-                      ZamerSpace.md,
-                    ),
-                    itemCount: issues.length,
-                    separatorBuilder: (_, _) =>
-                        const SizedBox(height: ZamerSpace.sm),
-                    itemBuilder: (context, i) {
-                      final issue = issues[i];
-                      final selected = _selected == i;
-                      return ZCard(
-                        padding: EdgeInsets.zero,
-                        backgroundColor: selected
-                            ? ZamerColors.warning.withValues(alpha: .08)
-                            : ZamerColors.surface,
-                        borderColor: selected
-                            ? ZamerColors.warning.withValues(alpha: .55)
-                            : ZamerColors.outline,
-                        onTap: () => setState(() => _selected = i),
-                        child: Padding(
-                          padding: const EdgeInsets.all(ZamerSpace.md),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Container(
-                                width: 34,
-                                height: 34,
-                                alignment: Alignment.center,
-                                decoration: BoxDecoration(
-                                  color: selected
-                                      ? ZamerColors.warning
-                                      : ZamerColors.surfaceHigh,
-                                  borderRadius: BorderRadius.circular(
-                                    ZamerRadius.sm,
-                                  ),
-                                  border: Border.all(
-                                    color: selected
-                                        ? ZamerColors.warning
-                                        : ZamerColors.outlineSoft,
-                                  ),
-                                ),
-                                child: Text(
-                                  '${i + 1}',
-                                  style: TextStyle(
-                                    color: selected
-                                        ? ZamerColors.accentInk
-                                        : ZamerColors.textSecondary,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: ZamerSpace.sm),
-                              Expanded(
-                                child: Column(
+                : visible.isEmpty
+                    ? const ZEmptyState(
+                        icon: Icons.filter_alt_off_outlined,
+                        title: 'В этой категории замечаний нет',
+                        subtitle: 'Выбери другой тип проверки.',
+                      )
+                    : ListView.separated(
+                        padding: const EdgeInsets.fromLTRB(
+                          ZamerSpace.md,
+                          0,
+                          ZamerSpace.md,
+                          ZamerSpace.md,
+                        ),
+                        itemCount: visible.length,
+                        separatorBuilder: (_, _) =>
+                            const SizedBox(height: ZamerSpace.sm),
+                        itemBuilder: (context, i) {
+                          final issue = visible[i];
+                          final selected = _selected == i;
+                          return ZPressEffect(
+                            scale: .985,
+                            child: ZCard(
+                              padding: EdgeInsets.zero,
+                              backgroundColor: selected
+                                  ? ZamerColors.warning.withValues(alpha: .08)
+                                  : ZamerColors.surface,
+                              borderColor: selected
+                                  ? ZamerColors.warning.withValues(alpha: .55)
+                                  : ZamerColors.outline,
+                              onTap: () => setState(() => _selected = i),
+                              child: Padding(
+                                padding: const EdgeInsets.all(ZamerSpace.md),
+                                child: Row(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(
-                                      issue.description,
-                                      style: const TextStyle(
-                                        color: ZamerColors.textPrimary,
-                                        fontSize: 12.5,
-                                        fontWeight: FontWeight.w800,
-                                        height: 1.3,
+                                    Container(
+                                      width: 36,
+                                      height: 36,
+                                      alignment: Alignment.center,
+                                      decoration: BoxDecoration(
+                                        color: selected
+                                            ? ZamerColors.warning
+                                            : ZamerColors.surfaceHigh,
+                                        borderRadius: BorderRadius.circular(
+                                          ZamerRadius.sm,
+                                        ),
+                                        border: Border.all(
+                                          color: selected
+                                              ? ZamerColors.warning
+                                              : ZamerColors.outlineSoft,
+                                        ),
+                                      ),
+                                      child: Icon(
+                                        _kindIcon(issue.kind),
+                                        size: 18,
+                                        color: selected
+                                            ? ZamerColors.accentInk
+                                            : ZamerColors.textSecondary,
                                       ),
                                     ),
-                                    if (issue.deltaMm != null) ...[
-                                      const SizedBox(height: 6),
-                                      Row(
+                                    const SizedBox(width: ZamerSpace.sm),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
-                                          const Icon(
-                                            Icons.straighten_rounded,
-                                            size: 14,
-                                            color: ZamerColors.warning,
-                                          ),
-                                          const SizedBox(width: 4),
                                           Text(
-                                            'Отклонение ${issue.deltaMm!.abs().round()} мм',
-                                            style: const TextStyle(
+                                            _kindLabel(issue.kind),
+                                            style: ZamerTypography.caption.copyWith(
                                               color: ZamerColors.warning,
-                                              fontSize: 10.5,
-                                              fontWeight: FontWeight.w800,
+                                              fontWeight: FontWeight.w700,
                                             ),
                                           ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            issue.description,
+                                            style: const TextStyle(
+                                              color: ZamerColors.textPrimary,
+                                              fontSize: 12.5,
+                                              fontWeight: FontWeight.w700,
+                                              height: 1.3,
+                                            ),
+                                          ),
+                                          if (issue.deltaMm != null) ...[
+                                            const SizedBox(height: 6),
+                                            Row(
+                                              children: [
+                                                const Icon(
+                                                  Icons.straighten_rounded,
+                                                  size: 14,
+                                                  color: ZamerColors.warning,
+                                                ),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  'Отклонение ${issue.deltaMm!.abs().round()} мм',
+                                                  style: const TextStyle(
+                                                    color: ZamerColors.warning,
+                                                    fontSize: 10.5,
+                                                    fontWeight: FontWeight.w800,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
                                         ],
                                       ),
-                                    ],
+                                    ),
+                                    const SizedBox(width: ZamerSpace.xs),
+                                    Icon(
+                                      selected
+                                          ? Icons.my_location_rounded
+                                          : Icons.chevron_right_rounded,
+                                      size: 18,
+                                      color: selected
+                                          ? ZamerColors.warning
+                                          : ZamerColors.textFaint,
+                                    ),
                                   ],
                                 ),
                               ),
-                              const SizedBox(width: ZamerSpace.xs),
-                              Icon(
-                                selected
-                                    ? Icons.my_location_rounded
-                                    : Icons.chevron_right_rounded,
-                                size: 18,
-                                color: selected
-                                    ? ZamerColors.warning
-                                    : ZamerColors.textFaint,
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
+                            ),
+                          );
+                        },
+                      ),
           ),
           Container(
             width: double.infinity,
@@ -293,6 +354,36 @@ class _MeasurementReviewScreenState extends State<MeasurementReviewScreen> {
     );
   }
 
+  static int _countKind(
+    List<MeasurementIssue> issues,
+    MeasurementIssueKind kind,
+  ) =>
+      issues.where((issue) => issue.kind == kind).length;
+
+  static String _kindLabel(MeasurementIssueKind kind) => switch (kind) {
+        MeasurementIssueKind.openContour => 'Незамкнутый контур',
+        MeasurementIssueKind.discrepancy => 'Несоответствие размеров',
+        MeasurementIssueKind.missingOffset => 'Отступ проёма не подтверждён',
+        MeasurementIssueKind.missingHeight => 'Высота не подтверждена',
+        MeasurementIssueKind.missingDiagonal => 'Нет контрольной диагонали',
+      };
+
+  static String _kindShortLabel(MeasurementIssueKind kind) => switch (kind) {
+        MeasurementIssueKind.openContour => 'Контур',
+        MeasurementIssueKind.discrepancy => 'Размеры',
+        MeasurementIssueKind.missingOffset => 'Отступы',
+        MeasurementIssueKind.missingHeight => 'Высоты',
+        MeasurementIssueKind.missingDiagonal => 'Диагонали',
+      };
+
+  static IconData _kindIcon(MeasurementIssueKind kind) => switch (kind) {
+        MeasurementIssueKind.openContour => Icons.polyline_outlined,
+        MeasurementIssueKind.discrepancy => Icons.straighten_rounded,
+        MeasurementIssueKind.missingOffset => Icons.space_bar_rounded,
+        MeasurementIssueKind.missingHeight => Icons.height_rounded,
+        MeasurementIssueKind.missingDiagonal => Icons.change_history_rounded,
+      };
+
   static String _issueWord(int count) {
     final mod10 = count % 10;
     final mod100 = count % 100;
@@ -302,6 +393,65 @@ class _MeasurementReviewScreenState extends State<MeasurementReviewScreen> {
     }
     return 'замечаний';
   }
+}
+
+class _FilterChip extends StatelessWidget {
+  const _FilterChip({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => ZPressEffect(
+        scale: .96,
+        child: Material(
+          color: selected ? ZamerColors.accent : ZamerColors.surface,
+          borderRadius: BorderRadius.circular(ZamerRadius.pill),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            child: Container(
+              height: 38,
+              padding: const EdgeInsets.symmetric(horizontal: 11),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(ZamerRadius.pill),
+                border: Border.all(
+                  color: selected ? ZamerColors.accent : ZamerColors.outlineSoft,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    icon,
+                    size: 15,
+                    color: selected
+                        ? ZamerColors.accentInk
+                        : ZamerColors.textSecondary,
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    label,
+                    style: ZamerTypography.caption.copyWith(
+                      color: selected
+                          ? ZamerColors.accentInk
+                          : ZamerColors.textSecondary,
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
 }
 
 class _IssuePainter extends CustomPainter {
