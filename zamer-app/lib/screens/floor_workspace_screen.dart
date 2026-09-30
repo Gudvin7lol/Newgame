@@ -1,20 +1,23 @@
 import 'dart:convert';
+
 import 'package:flutter/material.dart';
 
+import '../design_system/zamer_tokens.dart';
 import '../models/models.dart';
 import '../services/geometry_service.dart';
 import '../services/report_service.dart';
+import '../widgets/workspace_navigation.dart';
 import 'elevations_screen.dart';
 import 'electrical_screen.dart';
-import 'layouts_screen.dart';
-import 'floor_3d_screen.dart';
-import 'materials_screen.dart';
-import 'plan_editor_screen.dart';
-import 'rooms_screen.dart';
-import 'planning_objects_screen.dart';
-import 'scan_plan_screen.dart';
 import 'engineering_screen.dart';
+import 'floor_3d_screen.dart';
+import 'layouts_screen.dart';
+import 'materials_screen.dart';
 import 'measurement_review_screen.dart';
+import 'plan_editor_screen.dart';
+import 'planning_objects_screen.dart';
+import 'rooms_screen.dart';
+import 'scan_plan_screen.dart';
 
 class FloorWorkspaceScreen extends StatefulWidget {
   const FloorWorkspaceScreen({
@@ -34,14 +37,19 @@ class FloorWorkspaceScreen extends StatefulWidget {
 
 class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
   int _index = 0;
-  final _lastByMode = [0, 3, 4, 8];
+
+  // The project workspace follows the four master working pages. Home lives
+  // one level above this screen in ProjectsScreen.
+  final _lastByMode = [0, 8, 5, 2];
   static const _modeTabs = <List<int>>[
-    [0, 1, 2],
-    [3, 7],
-    [4, 5, 6],
-    [8],
+    [0, 1], // Замер: план + помещения.
+    [8], // 3D: realtime scene / walk / photo studio.
+    [4, 5, 6], // Оснащение: электрика + объекты + инженерия.
+    [2, 3, 7], // Развёртки: стены + полы + материалы.
   ];
+
   int get _mode => _modeTabs.indexWhere((group) => group.contains(_index));
+
   final _history = <String>[];
   int _historyIndex = 0;
 
@@ -80,6 +88,18 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
     if (mounted) setState(() {});
   }
 
+  void _selectPrimaryMode(int mode) {
+    setState(() => _index = _lastByMode[mode]);
+  }
+
+  void _selectSubpage(List<int> modeTabs, int localIndex) {
+    final page = modeTabs[localIndex];
+    setState(() {
+      _index = page;
+      _lastByMode[_mode] = page;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final screens = [
@@ -95,10 +115,9 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
         project: widget.project,
         onChanged: _changed,
       ),
-      // The GPU viewport is created only when 3D is actually visible.
-      // Keeping it alive inside an IndexedStack made Flutter Scene initialise
-      // while the tab had an offstage surface on some Android devices.
-      // That produced the "3D appears only after app restart" bug.
+      // The GPU viewport is created only while 3D is visible. Initialising
+      // Flutter Scene inside an offstage IndexedStack surface caused the old
+      // "3D appears only after app restart" failure on some Android devices.
       _index == 8
           ? Floor3DScreen(
               key: ValueKey(
@@ -113,7 +132,7 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
     const tabs = <(String, IconData)>[
       ('План', Icons.architecture_outlined),
       ('Комнаты', Icons.grid_view_outlined),
-      ('Развёртки', Icons.view_carousel_outlined),
+      ('Стены', Icons.view_carousel_outlined),
       ('Полы', Icons.grid_4x4_outlined),
       ('Электрика', Icons.electrical_services_outlined),
       ('Объекты', Icons.chair_alt_outlined),
@@ -121,6 +140,9 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
       ('Материалы', Icons.inventory_2_outlined),
       ('3D', Icons.view_in_ar_outlined),
     ];
+
+    final modeTabs = _modeTabs[_mode];
+    final subItems = [for (final i in modeTabs) tabs[i]];
 
     return Scaffold(
       appBar: AppBar(
@@ -133,9 +155,9 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
             ),
             Text(
               widget.project.name,
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: Colors.white54),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: ZamerColors.textMuted,
+              ),
             ),
           ],
         ),
@@ -168,8 +190,10 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
               await Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) =>
-                      ScanPlanScreen(floor: widget.floor, onChanged: _changed),
+                  builder: (_) => ScanPlanScreen(
+                    floor: widget.floor,
+                    onChanged: _changed,
+                  ),
                 ),
               );
               if (mounted) setState(() {});
@@ -182,107 +206,24 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
                 ReportService.shareFloorPdf(widget.project, widget.floor),
             icon: const Icon(Icons.picture_as_pdf_outlined),
           ),
-          const SizedBox(width: 6),
+          const SizedBox(width: ZamerSpace.xs),
         ],
       ),
       body: Column(
         children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-            color: const Color(0xFF121C1F),
-            child: const SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _LayerDot(color: Color(0xFFB9C1C4), text: 'Существующее'),
-                  SizedBox(width: 14),
-                  _LayerDot(color: Color(0xFFFF6B56), text: 'Демонтаж'),
-                  SizedBox(width: 14),
-                  _LayerDot(color: Color(0xFF56D6A3), text: 'Новая планировка'),
-                ],
-              ),
-            ),
+          const ZWorkspaceLayerLegend(),
+          Expanded(child: IndexedStack(index: _index, children: screens)),
+          ZWorkspaceSubnav(
+            items: subItems,
+            selectedIndex: modeTabs.indexOf(_index),
+            onSelected: (localIndex) => _selectSubpage(modeTabs, localIndex),
           ),
-          Expanded(
-            child: IndexedStack(index: _index, children: screens),
-          ),
-          if (_modeTabs[_mode].length > 1)
-            Container(
-              color: const Color(0xFF121C1F),
-              padding: const EdgeInsets.symmetric(vertical: 5),
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: Row(
-                  children: [
-                    for (final i in _modeTabs[_mode])
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 3),
-                        child: ChoiceChip(
-                          label: Text(tabs[i].$1),
-                          avatar: Icon(tabs[i].$2, size: 18),
-                          selected: _index == i,
-                          onSelected: (_) => setState(() {
-                            _index = i;
-                            _lastByMode[_mode] = i;
-                          }),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          SafeArea(
-            top: false,
-            child: NavigationBar(
-              selectedIndex: _mode,
-              height: 68,
-              onDestinationSelected: (mode) => setState(() {
-                _index = _lastByMode[mode];
-              }),
-              destinations: const [
-                NavigationDestination(
-                  icon: Icon(Icons.architecture_outlined),
-                  label: 'Обмер',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.grid_4x4_outlined),
-                  label: 'Отделка',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.chair_alt_outlined),
-                  label: 'Оснащение',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.view_in_ar_outlined),
-                  label: '3D',
-                ),
-              ],
-            ),
+          ZWorkspacePrimaryNav(
+            selectedIndex: _mode,
+            onSelected: _selectPrimaryMode,
           ),
         ],
       ),
     );
   }
-}
-
-class _LayerDot extends StatelessWidget {
-  const _LayerDot({required this.color, required this.text});
-  final Color color;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) => Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      Container(
-        width: 9,
-        height: 9,
-        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-      ),
-      const SizedBox(width: 5),
-      Text(text, style: const TextStyle(fontSize: 10, color: Colors.white60)),
-    ],
-  );
 }
