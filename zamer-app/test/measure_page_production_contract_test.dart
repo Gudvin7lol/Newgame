@@ -3,37 +3,35 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('Measure page keeps the compact production shell', () {
+  test('Measure page keeps the master-concept production shell', () {
     final workspace = File(
       'lib/screens/floor_workspace_screen.dart',
     ).readAsStringSync();
-    final chrome = File(
-      'lib/design_system/zamer_measure_chrome.dart',
-    ).readAsStringSync();
-    final header = File(
-      'lib/widgets/workspace_master_header.dart',
+    final concept = File(
+      'lib/screens/measure_concept_workspace_screen.dart',
     ).readAsStringSync();
 
-    expect(workspace.contains('_MeasureProductionStrip'), isTrue);
-    expect(workspace.contains('height: 54'), isTrue);
-    expect(workspace.contains('PhotoStudioScreen('), isTrue);
-    expect(workspace.contains('Floor3DScreen(floor: widget.floor)'), isTrue);
+    expect(workspace.contains('MeasureConceptWorkspaceScreen('), isTrue);
+    expect(workspace.contains('onOpen3D: () => _selectMeasureView'), isTrue);
+    expect(workspace.contains('onOpenPhoto: () => _selectMeasureView'), isTrue);
     expect(workspace.contains('_showFloorPicker'), isTrue);
     expect(workspace.contains('_switchFloor'), isTrue);
     expect(workspace.contains('Добавить этаж'), isTrue);
     expect(workspace.contains('Navigator.pushReplacement'), isTrue);
-    expect(workspace.contains('_toggleMeasureRooms'), isTrue);
-    expect(workspace.contains('if (_mode != 0)'), isTrue);
 
-    expect(chrome.contains("_tab('2D'"), isTrue);
-    expect(chrome.contains("_tab('3D'"), isTrue);
-    expect(chrome.contains("_tab('Фото'"), isTrue);
-    expect(chrome.contains('height: 40'), isTrue);
-    expect(chrome.contains('ZPressEffect('), isTrue);
-
-    expect(header.contains('projectName,'), isTrue);
-    expect(header.contains("tooltip: 'Назад'"), isTrue);
-    expect(header.contains('Navigator.maybePop(context)'), isTrue);
-    expect(header.contains('Size.fromHeight(56)'), isTrue);
+    expect(concept.contains("'ЗАМЕР'"), isTrue);
+    expect(concept.contains("'Сохранить'"), isTrue);
+    expect(concept.contains("(_MeasureConceptView.twoD, '2D')"), isTrue);
+    expect(concept.contains("(_MeasureConceptView.threeD, '3D')"), isTrue);
+    expect(concept.contains("(_MeasureConceptView.ar, 'AR')"), isTrue);
+    expect(concept.contains("(_MeasureConceptView.photo, 'Фото')"), isTrue);
+    expect(concept.contains('PlanEditorConceptScreen('), isTrue);
+    expect(concept.contains('_ConceptBottomNav('), isTrue);
+    expect(concept.contains("label: 'Главная'"), isTrue);
+    expect(concept.contains("label: 'Проекты'"), isTrue);
+    expect(concept.contains("label: 'Каталог'"), isTrue);
+    expect(concept.contains("label: 'Обучение'"), isTrue);
+    expect(concept.contains("label: 'Ещё'"), isTrue);
+    expect(concept.contains('ZPressEffect('), isTrue);
   });
 }
