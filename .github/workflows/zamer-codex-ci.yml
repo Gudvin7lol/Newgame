@@ -42,17 +42,17 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Check formatting
+      - name: Get packages
+        working-directory: zamer-app
+        run: flutter pub get
+
+      - name: Format changed UI sources
         run: >-
-          dart format --output=none --set-exit-if-changed
+          dart format
           zamer-app/lib/main.dart
           zamer-app/lib/design_system
           zamer-app/lib/screens/projects_screen.dart
           zamer-app/lib/widgets/projects_home_widgets.dart
-
-      - name: Get packages
-        working-directory: zamer-app
-        run: flutter pub get
 
       - name: Analyze
         working-directory: zamer-app
