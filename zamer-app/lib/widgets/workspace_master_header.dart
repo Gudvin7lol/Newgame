@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../design_system/zamer_press_effect.dart';
 import '../design_system/zamer_tokens.dart';
 
 /// Shared project header for the four working master pages.
-///
-/// Keeps project/floor identity and the most important project actions in one
-/// predictable place instead of rebuilding a slightly different AppBar on
-/// every screen.
 class ZWorkspaceHeader extends StatelessWidget implements PreferredSizeWidget {
   const ZWorkspaceHeader({
     super.key,
@@ -32,12 +29,12 @@ class ZWorkspaceHeader extends StatelessWidget implements PreferredSizeWidget {
   final bool canRedo;
 
   @override
-  Size get preferredSize => const Size.fromHeight(62);
+  Size get preferredSize => const Size.fromHeight(56);
 
   @override
   Widget build(BuildContext context) {
     return AppBar(
-      toolbarHeight: 62,
+      toolbarHeight: 56,
       titleSpacing: ZamerSpace.sm,
       title: Column(
         mainAxisSize: MainAxisSize.min,
@@ -47,14 +44,12 @@ class ZWorkspaceHeader extends StatelessWidget implements PreferredSizeWidget {
             floorName,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
+            style: ZamerTypography.h5.copyWith(
               color: ZamerColors.textPrimary,
-              fontSize: 16.5,
-              height: 1.05,
-              fontWeight: FontWeight.w900,
+              fontWeight: FontWeight.w700,
             ),
           ),
-          const SizedBox(height: 3),
+          const SizedBox(height: 2),
           Row(
             children: [
               Flexible(
@@ -65,25 +60,23 @@ class ZWorkspaceHeader extends StatelessWidget implements PreferredSizeWidget {
                   style: ZamerTypography.caption,
                 ),
               ),
-              const SizedBox(width: ZamerSpace.sm),
+              const SizedBox(width: ZamerSpace.xs),
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 6,
-                  vertical: 2,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
                   color: ZamerColors.accent.withValues(alpha: .10),
                   borderRadius: BorderRadius.circular(ZamerRadius.pill),
                   border: Border.all(
-                    color: ZamerColors.accent.withValues(alpha: .28),
+                    color: ZamerColors.accent.withValues(alpha: .32),
                   ),
                 ),
                 child: Text(
                   modeLabel,
-                  style: const TextStyle(
+                  style: ZamerTypography.caption.copyWith(
                     color: ZamerColors.accent,
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.w900,
+                    fontSize: 9,
+                    height: 1.1,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
@@ -97,7 +90,7 @@ class ZWorkspaceHeader extends StatelessWidget implements PreferredSizeWidget {
           icon: Icons.fact_check_outlined,
           onPressed: onCheck,
         ),
-        const SizedBox(width: 3),
+        const SizedBox(width: 2),
         Container(
           height: 36,
           decoration: BoxDecoration(
@@ -115,7 +108,7 @@ class ZWorkspaceHeader extends StatelessWidget implements PreferredSizeWidget {
                 compact: true,
               ),
               const SizedBox(
-                height: 20,
+                height: 18,
                 child: VerticalDivider(width: 1, thickness: 1),
               ),
               _HeaderAction(
@@ -127,13 +120,13 @@ class ZWorkspaceHeader extends StatelessWidget implements PreferredSizeWidget {
             ],
           ),
         ),
-        const SizedBox(width: 3),
+        const SizedBox(width: 2),
         _HeaderAction(
           tooltip: 'Действия проекта',
           icon: Icons.more_vert_rounded,
           onPressed: onMore,
         ),
-        const SizedBox(width: ZamerSpace.xs),
+        const SizedBox(width: 6),
       ],
       bottom: const PreferredSize(
         preferredSize: Size.fromHeight(1),
@@ -158,16 +151,20 @@ class _HeaderAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: compact ? 34 : 38,
-      height: 36,
-      child: IconButton(
-        tooltip: tooltip,
-        onPressed: onPressed,
-        padding: EdgeInsets.zero,
-        visualDensity: VisualDensity.compact,
-        iconSize: 19,
-        icon: Icon(icon),
+    return ZPressEffect(
+      enabled: onPressed != null,
+      scale: .90,
+      child: SizedBox(
+        width: compact ? 34 : 38,
+        height: 36,
+        child: IconButton(
+          tooltip: tooltip,
+          onPressed: onPressed,
+          padding: EdgeInsets.zero,
+          visualDensity: VisualDensity.compact,
+          iconSize: 19,
+          icon: Icon(icon),
+        ),
       ),
     );
   }
