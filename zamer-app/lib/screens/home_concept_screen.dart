@@ -3,9 +3,11 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../design_system/home_concept_assets.dart';
 import '../design_system/zamer_components.dart';
+import '../design_system/zamer_press_effect.dart';
 import '../design_system/zamer_tokens.dart';
 import '../models/models.dart';
 import '../services/demo_project_factory.dart';
@@ -21,6 +23,7 @@ const _homeSurface = Color(0xFF0D171D);
 const _homeSurfaceHigh = Color(0xFF111D23);
 const _homeOutline = Color(0xFF26343B);
 const _homeMuted = Color(0xFFB2BBC2);
+const _lastOpenedProjectKey = 'zamer.last_opened_project_id';
 
 TextStyle _display(TextStyle source) => source.copyWith(
       fontFamily: 'sans-serif-medium',
@@ -47,6 +50,7 @@ class _HomeConceptScreenState extends State<HomeConceptScreen> {
 
   bool _loading = true;
   bool _unreadable = false;
+  String? _lastOpenedProjectId;
 
   String _id(String prefix) =>
       '$prefix-${DateTime.now().microsecondsSinceEpoch}';
@@ -65,7 +69,9 @@ class _HomeConceptScreenState extends State<HomeConceptScreen> {
 
   Future<void> _load() async {
     final result = await _store.loadWithStatus();
+    final preferences = await SharedPreferences.getInstance();
     final loaded = <MeasureProject>[...result.projects];
+
     if (!result.unreadable) {
       loaded.removeWhere(
         (project) =>
@@ -77,13 +83,17 @@ class _HomeConceptScreenState extends State<HomeConceptScreen> {
       }
       try {
         await _store.save(loaded);
-      } catch (_) {}
+      } catch (_) {
+        // The demo refresh must never block access to real projects.
+      }
     }
+
     if (!mounted) return;
     setState(() {
       _projects
         ..clear()
         ..addAll(loaded);
+      _lastOpenedProjectId = preferences.getString(_lastOpenedProjectKey);
       _loading = false;
       _unreadable = result.unreadable;
     });
@@ -91,7 +101,21 @@ class _HomeConceptScreenState extends State<HomeConceptScreen> {
 
   Future<void> _save() => _store.save(_projects);
 
+  Future<void> _rememberOpened(MeasureProject project) async {
+    _lastOpenedProjectId = project.id;
+    if (mounted) setState(() {});
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setString(_lastOpenedProjectKey, project.id);
+  }
+
   MeasureProject? get _currentProject {
+    final rememberedId = _lastOpenedProjectId;
+    if (rememberedId != null) {
+      for (final project in _projects) {
+        if (project.id == rememberedId) return project;
+      }
+    }
+
     final real = _projects
         .where((project) => project.id != DemoProjectFactory.projectId)
         .toList()
@@ -126,20 +150,9 @@ class _HomeConceptScreenState extends State<HomeConceptScreen> {
     return total;
   }
 
-  String _timeLabel(DateTime value) =>
-      '${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
-
-  String _dateLabel(DateTime value) {
-    final now = DateTime.now();
-    final a = DateTime(now.year, now.month, now.day);
-    final b = DateTime(value.year, value.month, value.day);
-    final days = a.difference(b).inDays;
-    if (days == 0) return 'Сегодня, ${_timeLabel(value)}';
-    if (days == 1) return 'Вчера, ${_timeLabel(value)}';
-    return '${value.day.toString().padLeft(2, '0')}.${value.month.toString().padLeft(2, '0')}.${value.year}';
-  }
-
   Future<void> _openProject(MeasureProject project) async {
+    await _rememberOpened(project);
+    if (!mounted) return;
     await Navigator.push(
       context,
       MaterialPageRoute<void>(
@@ -156,6 +169,9 @@ class _HomeConceptScreenState extends State<HomeConceptScreen> {
       project = _currentProject;
     }
     if (!mounted || project == null || project.floors.isEmpty) return;
+
+    await _rememberOpened(project);
+    if (!mounted) return;
     await Navigator.push(
       context,
       MaterialPageRoute<void>(
@@ -202,12 +218,14 @@ class _HomeConceptScreenState extends State<HomeConceptScreen> {
     if (_unreadable) return;
     final name = await _nameDialog(initialName);
     if (name == null || name.isEmpty) return;
+
     final project = MeasureProject(
       id: _id('p'),
       name: name,
       floors: [FloorPlan(id: _id('f'), name: 'Этаж 1')],
     );
     setState(() => _projects.insert(0, project));
+
     try {
       await _save();
       if (mounted) await _openProject(project);
@@ -226,13 +244,16 @@ class _HomeConceptScreenState extends State<HomeConceptScreen> {
       floors: [floor],
     );
     setState(() => _projects.insert(0, project));
+
     try {
       await _save();
+      await _rememberOpened(project);
     } catch (error) {
       if (mounted) setState(() => _projects.remove(project));
       _showError(error);
       return;
     }
+
     if (!mounted) return;
     await Navigator.push(
       context,
@@ -282,67 +303,97 @@ class _HomeConceptScreenState extends State<HomeConceptScreen> {
     );
   }
 
-  Future<void> _showLearning() async {
+  Future<void> _showHomeSheet(List<Widget> children) async {
     await showModalBottomSheet<void>(
       context: context,
-      builder: (sheetContext) => _HomeSheet(
-        children: [
-          _SheetRow(
-            icon: Icons.architecture_outlined,
-            label: 'Первый замер',
-            onTap: () => Navigator.pop(sheetContext),
+      backgroundColor: _homeSurface,
+      barrierColor: Colors.black.withValues(alpha: .72),
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => Theme(
+        data: Theme.of(context).copyWith(
+          canvasColor: _homeSurface,
+          scaffoldBackgroundColor: _homeSurface,
+          textTheme: Theme.of(context).textTheme.apply(
+                bodyColor: ZamerColors.white,
+                displayColor: ZamerColors.white,
+              ),
+          iconTheme: const IconThemeData(color: ZamerColors.gray300),
+          listTileTheme: const ListTileThemeData(
+            textColor: ZamerColors.white,
+            iconColor: ZamerColors.gray300,
           ),
-          _SheetRow(
-            icon: Icons.view_in_ar_outlined,
-            label: 'Работа с 3D',
-            onTap: () => Navigator.pop(sheetContext),
-          ),
-          _SheetRow(
-            icon: Icons.picture_as_pdf_outlined,
-            label: 'Документация и экспорт',
-            onTap: () => Navigator.pop(sheetContext),
-          ),
-        ],
+        ),
+        child: _HomeSheet(children: children),
       ),
     );
+  }
+
+  Future<void> _showLearning() async {
+    await _showHomeSheet([
+      Builder(
+        builder: (sheetContext) => _SheetRow(
+          icon: Icons.architecture_outlined,
+          label: 'Первый замер',
+          onTap: () => Navigator.pop(sheetContext),
+        ),
+      ),
+      Builder(
+        builder: (sheetContext) => _SheetRow(
+          icon: Icons.view_in_ar_outlined,
+          label: 'Работа с 3D',
+          onTap: () => Navigator.pop(sheetContext),
+        ),
+      ),
+      Builder(
+        builder: (sheetContext) => _SheetRow(
+          icon: Icons.picture_as_pdf_outlined,
+          label: 'Документация и экспорт',
+          onTap: () => Navigator.pop(sheetContext),
+        ),
+      ),
+    ]);
   }
 
   Future<void> _showMore() async {
-    await showModalBottomSheet<void>(
-      context: context,
-      builder: (sheetContext) => _HomeSheet(
-        children: [
-          _SheetRow(
-            icon: Icons.upload_file_outlined,
-            label: 'Импорт плана',
-            onTap: () {
-              Navigator.pop(sheetContext);
-              _importPlan();
-            },
-          ),
-          _SheetRow(
-            icon: Icons.settings_backup_restore_rounded,
-            label: 'Восстановить проект',
-            onTap: () {
-              Navigator.pop(sheetContext);
-              _importBackup();
-            },
-          ),
-          _SheetRow(
-            icon: Icons.settings_outlined,
-            label: 'Настройки',
-            onTap: () => Navigator.pop(sheetContext),
-          ),
-        ],
+    await _showHomeSheet([
+      Builder(
+        builder: (sheetContext) => _SheetRow(
+          icon: Icons.upload_file_outlined,
+          label: 'Импорт плана',
+          onTap: () {
+            Navigator.pop(sheetContext);
+            _importPlan();
+          },
+        ),
       ),
-    );
+      Builder(
+        builder: (sheetContext) => _SheetRow(
+          icon: Icons.settings_backup_restore_rounded,
+          label: 'Восстановить проект',
+          onTap: () {
+            Navigator.pop(sheetContext);
+            _importBackup();
+          },
+        ),
+      ),
+      Builder(
+        builder: (sheetContext) => _SheetRow(
+          icon: Icons.settings_outlined,
+          label: 'Настройки',
+          onTap: () => Navigator.pop(sheetContext),
+        ),
+      ),
+    ]);
   }
 
   void _scrollToProjects() {
-    final context = _projectsKey.currentContext;
-    if (context != null) {
+    final targetContext = _projectsKey.currentContext;
+    if (targetContext != null) {
       Scrollable.ensureVisible(
-        context,
+        targetContext,
         duration: const Duration(milliseconds: 250),
         curve: Curves.easeOut,
       );
@@ -504,18 +555,20 @@ class _BrandHeader extends StatelessWidget {
               ],
             ),
           ),
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: _homeSurface,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: _homeOutline),
-            ),
-            child: IconButton(
-              tooltip: 'Настройки',
-              onPressed: onSettings,
-              icon: const Icon(Icons.settings_outlined),
+          ZPressEffect(
+            child: Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: _homeSurface,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _homeOutline),
+              ),
+              child: IconButton(
+                tooltip: 'Настройки',
+                onPressed: onSettings,
+                icon: const Icon(Icons.settings_outlined),
+              ),
             ),
           ),
         ],
@@ -536,129 +589,132 @@ class _CurrentProjectCard extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Material(
-        color: _homeSurface,
-        borderRadius: BorderRadius.circular(16),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: _homeOutline),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'ТЕКУЩИЙ ПРОЕКТ',
-                        style: _body(ZamerTypography.caption).copyWith(
-                          color: _homeMuted,
-                          letterSpacing: .35,
-                        ),
-                      ),
-                      const SizedBox(height: 7),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              project.name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: _display(ZamerTypography.h3).copyWith(
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                          const Icon(
-                            Icons.edit_outlined,
-                            size: 16,
-                            color: _homeMuted,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 9),
-                      Row(
-                        children: [
-                          const Icon(
-                            Icons.location_on_outlined,
-                            size: 16,
-                            color: _homeMuted,
-                          ),
-                          const SizedBox(width: 5),
-                          Expanded(
-                            child: Text(
-                              project.address.trim().isEmpty
-                                  ? 'Светлая, ${_safeTime(project.createdAt)}'
-                                  : project.address,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: _body(ZamerTypography.bodySmall).copyWith(
-                                color: _homeMuted,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 11),
-                      Wrap(
-                        spacing: 14,
-                        runSpacing: 8,
-                        children: [
-                          _Metric(
-                            icon: Icons.square_foot_outlined,
-                            text: '${area.toStringAsFixed(area >= 100 ? 0 : 1)} м²',
-                          ),
-                          _Metric(
-                            icon: Icons.photo_library_outlined,
-                            text: '$photos фото',
-                          ),
-                          const _Metric(
-                            icon: Icons.description_outlined,
-                            text: '3D',
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 12),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(11),
-                  child: SizedBox(
-                    width: 126,
-                    height: 92,
-                    child: Stack(
-                      fit: StackFit.expand,
+  Widget build(BuildContext context) => ZPressEffect(
+        child: Material(
+          color: _homeSurface,
+          borderRadius: BorderRadius.circular(16),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: _homeOutline),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Image.memory(
-                          HomeConceptAssets.currentProject,
-                          fit: BoxFit.cover,
-                          gaplessPlayback: true,
-                        ),
-                        Align(
-                          alignment: Alignment.bottomRight,
-                          child: Container(
-                            margin: const EdgeInsets.all(7),
-                            width: 34,
-                            height: 34,
-                            decoration: BoxDecoration(
-                              color: _homeBackground.withValues(alpha: .78),
-                              shape: BoxShape.circle,
-                              border: Border.all(color: _homeOutline),
-                            ),
-                            child: const Icon(Icons.chevron_right_rounded),
+                        Text(
+                          'ТЕКУЩИЙ ПРОЕКТ',
+                          style: _body(ZamerTypography.caption).copyWith(
+                            color: _homeMuted,
+                            letterSpacing: .35,
                           ),
+                        ),
+                        const SizedBox(height: 7),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                project.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: _display(ZamerTypography.h3).copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                            const Icon(
+                              Icons.edit_outlined,
+                              size: 16,
+                              color: _homeMuted,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 9),
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.location_on_outlined,
+                              size: 16,
+                              color: _homeMuted,
+                            ),
+                            const SizedBox(width: 5),
+                            Expanded(
+                              child: Text(
+                                project.address.trim().isEmpty
+                                    ? 'Светлая, ${_safeTime(project.createdAt)}'
+                                    : project.address,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: _body(ZamerTypography.bodySmall)
+                                    .copyWith(color: _homeMuted),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 11),
+                        Wrap(
+                          spacing: 14,
+                          runSpacing: 8,
+                          children: [
+                            _Metric(
+                              icon: Icons.square_foot_outlined,
+                              text:
+                                  '${area.toStringAsFixed(area >= 100 ? 0 : 1)} м²',
+                            ),
+                            _Metric(
+                              icon: Icons.photo_library_outlined,
+                              text: '$photos фото',
+                            ),
+                            const _Metric(
+                              icon: Icons.description_outlined,
+                              text: '3D',
+                            ),
+                          ],
                         ),
                       ],
                     ),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 12),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(11),
+                    child: SizedBox(
+                      width: 126,
+                      height: 92,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          Image.memory(
+                            HomeConceptAssets.currentProject,
+                            fit: BoxFit.cover,
+                            gaplessPlayback: true,
+                          ),
+                          Align(
+                            alignment: Alignment.bottomRight,
+                            child: Container(
+                              margin: const EdgeInsets.all(7),
+                              width: 34,
+                              height: 34,
+                              decoration: BoxDecoration(
+                                color: _homeBackground.withValues(alpha: .78),
+                                shape: BoxShape.circle,
+                                border: Border.all(color: _homeOutline),
+                              ),
+                              child:
+                                  const Icon(Icons.chevron_right_rounded),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -673,48 +729,52 @@ class _NewProjectButton extends StatelessWidget {
   final VoidCallback? onTap;
 
   @override
-  Widget build(BuildContext context) => Material(
-        color: ZamerColors.beige,
-        borderRadius: BorderRadius.circular(14),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: SizedBox(
-            height: 58,
-            child: Row(
-              children: [
-                const SizedBox(width: 16),
-                Container(
-                  width: 40,
-                  height: 40,
-                  alignment: Alignment.center,
-                  decoration: const BoxDecoration(
-                    color: _homeBackground,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.add_rounded,
-                    color: ZamerColors.beige,
-                    size: 27,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Text(
-                    'Новый проект',
-                    style: _display(ZamerTypography.h4).copyWith(
+  Widget build(BuildContext context) => ZPressEffect(
+        enabled: onTap != null,
+        scale: .985,
+        child: Material(
+          color: ZamerColors.beige,
+          borderRadius: BorderRadius.circular(14),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            child: SizedBox(
+              height: 58,
+              child: Row(
+                children: [
+                  const SizedBox(width: 16),
+                  Container(
+                    width: 40,
+                    height: 40,
+                    alignment: Alignment.center,
+                    decoration: const BoxDecoration(
                       color: _homeBackground,
-                      fontWeight: FontWeight.w700,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.add_rounded,
+                      color: ZamerColors.beige,
+                      size: 27,
                     ),
                   ),
-                ),
-                const Icon(
-                  Icons.chevron_right_rounded,
-                  color: _homeBackground,
-                  size: 26,
-                ),
-                const SizedBox(width: 14),
-              ],
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Text(
+                      'Новый проект',
+                      style: _display(ZamerTypography.h4).copyWith(
+                        color: _homeBackground,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  const Icon(
+                    Icons.chevron_right_rounded,
+                    color: _homeBackground,
+                    size: 26,
+                  ),
+                  const SizedBox(width: 14),
+                ],
+              ),
             ),
           ),
         ),
@@ -777,50 +837,56 @@ class _Shortcut extends StatelessWidget {
   final bool selected;
 
   @override
-  Widget build(BuildContext context) => Material(
-        color: _homeSurface,
-        borderRadius: BorderRadius.circular(13),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Container(
-            height: 70,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(13),
-              border: Border.all(
-                color: selected ? ZamerColors.beige : _homeOutline,
-                width: selected ? 1.5 : 1,
-              ),
-              boxShadow: selected
-                  ? [
-                      BoxShadow(
-                        color: ZamerColors.beige.withValues(alpha: .10),
-                        blurRadius: 12,
-                      ),
-                    ]
-                  : null,
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  icon,
-                  size: 22,
-                  color: selected ? ZamerColors.beige : ZamerColors.gray300,
+  Widget build(BuildContext context) => ZPressEffect(
+        child: Material(
+          color: _homeSurface,
+          borderRadius: BorderRadius.circular(13),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            child: Container(
+              height: 70,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(13),
+                border: Border.all(
+                  color: selected ? ZamerColors.beige : _homeOutline,
+                  width: selected ? 1.5 : 1,
                 ),
-                const SizedBox(height: 5),
-                FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    label,
-                    style: _body(ZamerTypography.caption).copyWith(
-                      color: selected ? ZamerColors.beige : ZamerColors.gray300,
-                      fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                boxShadow: selected
+                    ? [
+                        BoxShadow(
+                          color: ZamerColors.beige.withValues(alpha: .10),
+                          blurRadius: 12,
+                        ),
+                      ]
+                    : null,
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    icon,
+                    size: 22,
+                    color:
+                        selected ? ZamerColors.beige : ZamerColors.gray300,
+                  ),
+                  const SizedBox(height: 5),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      label,
+                      style: _body(ZamerTypography.caption).copyWith(
+                        color: selected
+                            ? ZamerColors.beige
+                            : ZamerColors.gray300,
+                        fontWeight:
+                            selected ? FontWeight.w600 : FontWeight.w400,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -883,83 +949,84 @@ class _ProjectRow extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Material(
-        color: _homeSurface,
-        borderRadius: BorderRadius.circular(14),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Container(
-            height: 86,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: _homeOutline),
-            ),
-            child: Row(
-              children: [
-                ClipRRect(
-                  borderRadius: const BorderRadius.horizontal(
-                    left: Radius.circular(13),
-                  ),
-                  child: Image.memory(
-                    HomeConceptAssets.currentProject,
-                    width: 114,
-                    height: 86,
-                    fit: BoxFit.cover,
-                    gaplessPlayback: true,
-                  ),
-                ),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                project.name,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: _display(ZamerTypography.h5).copyWith(
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                            const Icon(
-                              Icons.more_horiz_rounded,
-                              size: 20,
-                              color: _homeMuted,
-                            ),
-                          ],
-                        ),
-                        Text(
-                          _projectDate(project.createdAt),
-                          style: _body(ZamerTypography.caption).copyWith(
-                            color: _homeMuted,
-                          ),
-                        ),
-                        const Spacer(),
-                        Row(
-                          children: [
-                            _Metric(
-                              icon: Icons.square_foot_outlined,
-                              text:
-                                  '${area.toStringAsFixed(area >= 100 ? 0 : 1)} м²',
-                            ),
-                            const SizedBox(width: 16),
-                            _Metric(
-                              icon: Icons.photo_library_outlined,
-                              text: '$photos фото',
-                            ),
-                          ],
-                        ),
-                      ],
+  Widget build(BuildContext context) => ZPressEffect(
+        child: Material(
+          color: _homeSurface,
+          borderRadius: BorderRadius.circular(14),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            child: Container(
+              height: 86,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: _homeOutline),
+              ),
+              child: Row(
+                children: [
+                  ClipRRect(
+                    borderRadius: const BorderRadius.horizontal(
+                      left: Radius.circular(13),
+                    ),
+                    child: Image.memory(
+                      HomeConceptAssets.currentProject,
+                      width: 114,
+                      height: 86,
+                      fit: BoxFit.cover,
+                      gaplessPlayback: true,
                     ),
                   ),
-                ),
-              ],
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  project.name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: _display(ZamerTypography.h5).copyWith(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                              const Icon(
+                                Icons.more_horiz_rounded,
+                                size: 20,
+                                color: _homeMuted,
+                              ),
+                            ],
+                          ),
+                          Text(
+                            _projectDate(project.createdAt),
+                            style: _body(ZamerTypography.caption)
+                                .copyWith(color: _homeMuted),
+                          ),
+                          const Spacer(),
+                          Row(
+                            children: [
+                              _Metric(
+                                icon: Icons.square_foot_outlined,
+                                text:
+                                    '${area.toStringAsFixed(area >= 100 ? 0 : 1)} м²',
+                              ),
+                              const SizedBox(width: 16),
+                              _Metric(
+                                icon: Icons.photo_library_outlined,
+                                text: '$photos фото',
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -1003,41 +1070,43 @@ class _TemplateCard extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Material(
-        color: _homeSurface,
-        borderRadius: BorderRadius.circular(13),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Container(
-            height: 112,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(13),
-              border: Border.all(color: _homeOutline),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(
-                  child: Image.memory(
-                    HomeConceptAssets.currentProject,
-                    fit: BoxFit.cover,
-                    gaplessPlayback: true,
+  Widget build(BuildContext context) => ZPressEffect(
+        child: Material(
+          color: _homeSurface,
+          borderRadius: BorderRadius.circular(13),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            child: Container(
+              height: 112,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(13),
+                border: Border.all(color: _homeOutline),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: Image.memory(
+                      HomeConceptAssets.currentProject,
+                      fit: BoxFit.cover,
+                      gaplessPlayback: true,
+                    ),
                   ),
-                ),
-                SizedBox(
-                  height: 28,
-                  child: Center(
-                    child: Text(
-                      title,
-                      style: _body(ZamerTypography.caption).copyWith(
-                        color: ZamerColors.white,
-                        fontWeight: FontWeight.w600,
+                  SizedBox(
+                    height: 28,
+                    child: Center(
+                      child: Text(
+                        title,
+                        style: _body(ZamerTypography.caption).copyWith(
+                          color: ZamerColors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -1066,6 +1135,7 @@ class _HomeBottomNav extends StatelessWidget {
       (Icons.school_outlined, 'Обучение', onLearning),
       (Icons.apps_rounded, 'Ещё', onMore),
     ];
+
     return SafeArea(
       top: false,
       child: Container(
@@ -1078,45 +1148,49 @@ class _HomeBottomNav extends StatelessWidget {
           children: [
             for (var i = 0; i < items.length; i++)
               Expanded(
-                child: InkWell(
-                  onTap: items[i].$3,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        width: 44,
-                        height: 36,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: i == 0
-                              ? ZamerColors.beige.withValues(alpha: .10)
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(11),
-                          border: i == 0
-                              ? Border.all(color: ZamerColors.beige)
-                              : null,
+                child: ZPressEffect(
+                  enabled: items[i].$3 != null,
+                  scale: .94,
+                  child: InkWell(
+                    onTap: items[i].$3,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 36,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: i == 0
+                                ? ZamerColors.beige.withValues(alpha: .10)
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(11),
+                            border: i == 0
+                                ? Border.all(color: ZamerColors.beige)
+                                : null,
+                          ),
+                          child: Icon(
+                            items[i].$1,
+                            color: i == 0
+                                ? ZamerColors.beige
+                                : ZamerColors.gray300,
+                          ),
                         ),
-                        child: Icon(
-                          items[i].$1,
-                          color: i == 0
-                              ? ZamerColors.beige
-                              : ZamerColors.gray300,
+                        const SizedBox(height: 3),
+                        Text(
+                          items[i].$2,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: _body(ZamerTypography.caption).copyWith(
+                            color: i == 0
+                                ? ZamerColors.beige
+                                : ZamerColors.gray300,
+                            fontWeight:
+                                i == 0 ? FontWeight.w600 : FontWeight.w400,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        items[i].$2,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: _body(ZamerTypography.caption).copyWith(
-                          color: i == 0
-                              ? ZamerColors.beige
-                              : ZamerColors.gray300,
-                          fontWeight:
-                              i == 0 ? FontWeight.w600 : FontWeight.w400,
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -1134,9 +1208,12 @@ class _HomeSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) => SafeArea(
         top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-          child: Column(mainAxisSize: MainAxisSize.min, children: children),
+        child: ColoredBox(
+          color: _homeSurface,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 18),
+            child: Column(mainAxisSize: MainAxisSize.min, children: children),
+          ),
         ),
       );
 }
@@ -1153,9 +1230,39 @@ class _SheetRow extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => ListTile(
-        leading: Icon(icon),
-        title: Text(label),
-        onTap: onTap,
+  Widget build(BuildContext context) => ZPressEffect(
+        scale: .985,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(12),
+            child: SizedBox(
+              height: 64,
+              child: Row(
+                children: [
+                  const SizedBox(width: 8),
+                  Icon(icon, color: ZamerColors.gray300, size: 23),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Text(
+                      label,
+                      style: _body(ZamerTypography.body).copyWith(
+                        color: ZamerColors.white,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  const Icon(
+                    Icons.chevron_right_rounded,
+                    color: _homeMuted,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                ],
+              ),
+            ),
+          ),
+        ),
       );
 }
