@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_scene/scene.dart';
 import 'package:vector_math/vector_math.dart' as vm;
 
+import '../design_system/zamer_tokens.dart';
 import '../renderer3d/model_asset_catalog.dart';
 
 /// Cached still preview rendered from the same bundled GLB used by the room.
@@ -46,8 +47,8 @@ class ZamerModelThumbnail extends StatelessWidget {
       final scene = Scene();
       scene.environmentSettings = EnvironmentSettings(
         toneMapping: ToneMappingMode.pbrNeutral,
-        environmentIntensity: 0.90,
-        exposure: 0.98,
+        environmentIntensity: 0.94,
+        exposure: 1.02,
         ambientOcclusionEnabled: false,
         screenSpaceReflectionsEnabled: false,
         bloomEnabled: false,
@@ -55,11 +56,11 @@ class ZamerModelThumbnail extends StatelessWidget {
         autoExposureEnabled: false,
       );
       scene.antiAliasingMode = AntiAliasingMode.auto;
-      scene.environmentIntensity = 0.90;
+      scene.environmentIntensity = 0.94;
       scene.directionalLight = DirectionalLight(
         direction: vm.Vector3(-0.45, -1.0, -0.35)..normalize(),
         color: vm.Vector3(1.0, 0.97, 0.92),
-        intensity: 2.15,
+        intensity: 2.2,
         castsShadow: false,
         cacheStaticShadows: false,
         shadowMapResolution: 256,
@@ -124,9 +125,27 @@ class ZamerModelThumbnail extends StatelessWidget {
           ..shader = ui.Gradient.linear(
             const ui.Offset(0, 0),
             ui.Offset(pixels.toDouble(), pixels.toDouble()),
-            const <Color>[Color(0xFF343B3E), Color(0xFF171E21)],
+            const <Color>[ZamerColors.surfaceHigh, ZamerColors.surfaceLow],
           ),
       );
+
+      // A quiet contact shadow gives low furniture visual weight without
+      // paying for realtime shadows in every catalogue thumbnail.
+      final shadowRect = ui.Rect.fromCenter(
+        center: const ui.Offset(pixels * .51, pixels * .73),
+        width: pixels * .55,
+        height: pixels * .14,
+      );
+      canvas.drawOval(
+        shadowRect,
+        ui.Paint()
+          ..shader = ui.Gradient.radial(
+            shadowRect.center,
+            shadowRect.width * .48,
+            const <Color>[Color(0x55000000), Color(0x00000000)],
+          ),
+      );
+
       scene.render(camera, canvas, viewport: rect, pixelRatio: 1);
       final picture = recorder.endRecording();
       final image = await picture.toImage(pixels, pixels);
@@ -153,14 +172,45 @@ class ZamerModelThumbnail extends StatelessWidget {
         future: future,
         builder: (context, snapshot) {
           final bytes = snapshot.data;
-          if (bytes == null || bytes.isEmpty) return fallback;
-          return ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: Image.memory(
-              bytes,
-              fit: BoxFit.contain,
-              gaplessPlayback: true,
-              filterQuality: FilterQuality.high,
+          final loading = snapshot.connectionState != ConnectionState.done;
+          if (bytes == null || bytes.isEmpty) {
+            return Stack(
+              fit: StackFit.expand,
+              children: [
+                fallback,
+                if (loading)
+                  Positioned(
+                    top: 6,
+                    right: 6,
+                    child: Container(
+                      width: 22,
+                      height: 22,
+                      padding: const EdgeInsets.all(5),
+                      decoration: BoxDecoration(
+                        color: ZamerColors.surfaceHighest.withValues(alpha: .9),
+                        borderRadius: BorderRadius.circular(ZamerRadius.sm),
+                        border: Border.all(color: ZamerColors.outlineSoft),
+                      ),
+                      child: const CircularProgressIndicator(strokeWidth: 1.5),
+                    ),
+                  ),
+              ],
+            );
+          }
+          return AnimatedSwitcher(
+            duration: const Duration(milliseconds: 180),
+            child: ClipRRect(
+              key: ValueKey(catalogId),
+              borderRadius: BorderRadius.circular(ZamerRadius.md),
+              child: DecoratedBox(
+                decoration: const BoxDecoration(color: ZamerColors.surfaceHigh),
+                child: Image.memory(
+                  bytes,
+                  fit: BoxFit.contain,
+                  gaplessPlayback: true,
+                  filterQuality: FilterQuality.high,
+                ),
+              ),
             ),
           );
         },
