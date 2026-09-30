@@ -229,7 +229,7 @@ class _MeasureMasterHeader extends StatelessWidget
               overflow: TextOverflow.ellipsis,
               style: ZamerTypography.h5.copyWith(
                 color: ZamerColors.textPrimary,
-                fontWeight: FontWeight.w750,
+                fontWeight: FontWeight.w700,
               ),
             ),
           ],
