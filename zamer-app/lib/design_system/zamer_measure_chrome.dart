@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'zamer_press_effect.dart';
 import 'zamer_tokens.dart';
 
 enum ZMeasureViewMode { twoD, threeD, photo }
@@ -15,22 +16,22 @@ enum ZMeasureTool {
 
 extension ZMeasureToolMeta on ZMeasureTool {
   String get label => switch (this) {
-    ZMeasureTool.walls => 'Стены',
-    ZMeasureTool.openings => 'Проёмы',
-    ZMeasureTool.objects => 'Объекты',
-    ZMeasureTool.dimensions => 'Размеры',
-    ZMeasureTool.text => 'Текст',
-    ZMeasureTool.layers => 'Слои',
-  };
+        ZMeasureTool.walls => 'Стены',
+        ZMeasureTool.openings => 'Проёмы',
+        ZMeasureTool.objects => 'Объекты',
+        ZMeasureTool.dimensions => 'Размеры',
+        ZMeasureTool.text => 'Текст',
+        ZMeasureTool.layers => 'Слои',
+      };
 
   IconData get icon => switch (this) {
-    ZMeasureTool.walls => Icons.view_week_outlined,
-    ZMeasureTool.openings => Icons.door_front_door_outlined,
-    ZMeasureTool.objects => Icons.chair_alt_outlined,
-    ZMeasureTool.dimensions => Icons.straighten_outlined,
-    ZMeasureTool.text => Icons.title_rounded,
-    ZMeasureTool.layers => Icons.layers_outlined,
-  };
+        ZMeasureTool.walls => Icons.view_week_outlined,
+        ZMeasureTool.openings => Icons.door_front_door_outlined,
+        ZMeasureTool.objects => Icons.chair_alt_outlined,
+        ZMeasureTool.dimensions => Icons.straighten_outlined,
+        ZMeasureTool.text => Icons.title_rounded,
+        ZMeasureTool.layers => Icons.layers_outlined,
+      };
 }
 
 class ZMeasureViewTabs extends StatelessWidget {
@@ -46,7 +47,7 @@ class ZMeasureViewTabs extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 34,
+      height: 48,
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
         color: ZamerColors.surfaceLow,
@@ -66,24 +67,26 @@ class ZMeasureViewTabs extends StatelessWidget {
 
   Widget _tab(String label, ZMeasureViewMode mode) {
     final selected = mode == value;
-    return Material(
-      color: selected ? ZamerColors.accent : Colors.transparent,
-      borderRadius: BorderRadius.circular(ZamerRadius.xs),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () => onChanged(mode),
-        child: Container(
-          constraints: const BoxConstraints(minWidth: 52, minHeight: 28),
-          alignment: Alignment.center,
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          child: Text(
-            label,
-            style: TextStyle(
-              color: selected
-                  ? ZamerColors.accentInk
-                  : ZamerColors.textSecondary,
-              fontSize: 10.5,
-              fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
+    return ZPressEffect(
+      scale: .96,
+      child: Material(
+        color: selected ? ZamerColors.accent : Colors.transparent,
+        borderRadius: BorderRadius.circular(ZamerRadius.xs),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => onChanged(mode),
+          child: Container(
+            constraints: const BoxConstraints(minWidth: 62, minHeight: 42),
+            alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Text(
+              label,
+              style: ZamerTypography.button.copyWith(
+                color: selected
+                    ? ZamerColors.accentInk
+                    : ZamerColors.textSecondary,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+              ),
             ),
           ),
         ),
@@ -107,12 +110,19 @@ class ZMeasureToolRail extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 54,
+      width: 58,
       padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 4),
       decoration: BoxDecoration(
         color: ZamerColors.surfaceLow.withValues(alpha: .97),
         borderRadius: BorderRadius.circular(ZamerRadius.md),
         border: Border.all(color: ZamerColors.outlineSoft),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: .18),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -134,32 +144,36 @@ class ZMeasureToolRail extends StatelessWidget {
 
     return Tooltip(
       message: tool.label,
-      child: Material(
-        color: selected ? ZamerColors.accent : Colors.transparent,
-        borderRadius: BorderRadius.circular(ZamerRadius.sm),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: () => onChanged(tool),
-          child: SizedBox(
-            width: 44,
-            height: 45,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(tool.icon, size: 18, color: foreground),
-                const SizedBox(height: 2),
-                Text(
-                  tool.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.fade,
-                  softWrap: false,
-                  style: TextStyle(
-                    color: foreground,
-                    fontSize: 7.6,
-                    fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
+      child: ZPressEffect(
+        scale: .93,
+        child: Material(
+          color: selected ? ZamerColors.accent : Colors.transparent,
+          borderRadius: BorderRadius.circular(ZamerRadius.sm),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: () => onChanged(tool),
+            child: SizedBox(
+              width: 48,
+              height: 48,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(tool.icon, size: 19, color: foreground),
+                  const SizedBox(height: 2),
+                  Text(
+                    tool.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.fade,
+                    softWrap: false,
+                    style: TextStyle(
+                      color: foreground,
+                      fontSize: 7.8,
+                      fontWeight:
+                          selected ? FontWeight.w800 : FontWeight.w600,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -189,25 +203,31 @@ class ZMeasureCanvasAction extends StatelessWidget {
         : ZamerColors.textSecondary;
     return Tooltip(
       message: tooltip,
-      child: Material(
-        color: active ? ZamerColors.accent : ZamerColors.surfaceLow,
-        borderRadius: BorderRadius.circular(ZamerRadius.sm),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onPressed,
-          child: Opacity(
-            opacity: onPressed == null ? .4 : 1,
-            child: Container(
-              width: 40,
-              height: 40,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(ZamerRadius.sm),
-                border: Border.all(
-                  color: active ? ZamerColors.accent : ZamerColors.outlineSoft,
+      child: ZPressEffect(
+        enabled: onPressed != null,
+        scale: .92,
+        child: Material(
+          color: active ? ZamerColors.accent : ZamerColors.surfaceLow,
+          borderRadius: BorderRadius.circular(ZamerRadius.sm),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onPressed,
+            child: Opacity(
+              opacity: onPressed == null ? .4 : 1,
+              child: Container(
+                width: 48,
+                height: 48,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(ZamerRadius.sm),
+                  border: Border.all(
+                    color: active
+                        ? ZamerColors.accent
+                        : ZamerColors.outlineSoft,
+                  ),
                 ),
+                child: Icon(icon, size: 19, color: foreground),
               ),
-              child: Icon(icon, size: 18, color: foreground),
             ),
           ),
         ),
