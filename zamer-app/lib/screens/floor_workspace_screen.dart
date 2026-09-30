@@ -18,6 +18,7 @@ import 'floor_3d_screen.dart';
 import 'layouts_screen.dart';
 import 'materials_screen.dart';
 import 'measurement_review_screen.dart';
+import 'photo_studio_screen.dart';
 import 'plan_editor_screen.dart';
 import 'planning_objects_screen.dart';
 import 'rooms_screen.dart';
@@ -117,20 +118,37 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
     });
   }
 
-  void _selectMeasureView(ZMeasureViewMode view) {
+  Future<void> _selectMeasureView(ZMeasureViewMode view) async {
     switch (view) {
       case ZMeasureViewMode.twoD:
-        setState(() {
-          _index = _lastByMode[0];
-          if (!_modeTabs[0].contains(_index)) _index = 0;
-        });
+        if (!_modeTabs[0].contains(_index)) {
+          setState(() => _index = _lastByMode[0]);
+        }
       case ZMeasureViewMode.threeD:
+        await Navigator.push(
+          context,
+          MaterialPageRoute<void>(
+            builder: (_) => Scaffold(
+              appBar: AppBar(
+                title: Text('${widget.project.name} • ${widget.floor.name}'),
+              ),
+              body: Floor3DScreen(floor: widget.floor),
+            ),
+          ),
+        );
       case ZMeasureViewMode.photo:
-        setState(() {
-          _lastByMode[0] = _index == 1 ? 1 : 0;
-          _index = 8;
-          _lastByMode[1] = 8;
-        });
+        await Navigator.push(
+          context,
+          MaterialPageRoute<void>(
+            builder: (_) => PhotoStudioScreen(
+              floor: widget.floor,
+              rotation: -.65,
+              tilt: .82,
+              zoom: .92,
+              pan: Offset.zero,
+            ),
+          ),
+        );
     }
   }
 
@@ -178,41 +196,51 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
     await showModalBottomSheet<void>(
       context: context,
       backgroundColor: ZamerColors.surface,
+      barrierColor: Colors.black.withValues(alpha: .70),
       showDragHandle: true,
-      builder: (sheetContext) => ZSheetFrame(
-        title: 'Действия проекта',
-        description: '${widget.project.name} • ${widget.floor.name}',
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ZActionTile(
-              icon: Icons.document_scanner_outlined,
-              title: 'Скан / импорт плана',
-              subtitle: 'Фото, план и калибровка масштаба',
-              onTap: () {
-                Navigator.pop(sheetContext);
-                _scanOrImport();
-              },
-            ),
-            ZActionTile(
-              icon: Icons.picture_as_pdf_outlined,
-              title: 'PDF-отчёт',
-              subtitle: 'Рабочая документация текущего этажа',
-              onTap: () {
-                Navigator.pop(sheetContext);
-                ReportService.shareFloorPdf(widget.project, widget.floor);
-              },
-            ),
-            ZActionTile(
-              icon: Icons.fact_check_outlined,
-              title: 'Проверка обмера',
-              subtitle: 'Контур, размеры, диагонали и источники',
-              onTap: () {
-                Navigator.pop(sheetContext);
-                _openMeasurementReview();
-              },
-            ),
-          ],
+      builder: (sheetContext) => Theme(
+        data: Theme.of(context).copyWith(
+          textTheme: Theme.of(context).textTheme.apply(
+                bodyColor: ZamerColors.white,
+                displayColor: ZamerColors.white,
+              ),
+          iconTheme: const IconThemeData(color: ZamerColors.gray300),
+        ),
+        child: ZSheetFrame(
+          title: 'Действия проекта',
+          description: '${widget.project.name} • ${widget.floor.name}',
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ZActionTile(
+                icon: Icons.document_scanner_outlined,
+                title: 'Скан / импорт плана',
+                subtitle: 'Фото, план и калибровка масштаба',
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _scanOrImport();
+                },
+              ),
+              ZActionTile(
+                icon: Icons.picture_as_pdf_outlined,
+                title: 'PDF-отчёт',
+                subtitle: 'Рабочая документация текущего этажа',
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  ReportService.shareFloorPdf(widget.project, widget.floor);
+                },
+              ),
+              ZActionTile(
+                icon: Icons.fact_check_outlined,
+                title: 'Проверка обмера',
+                subtitle: 'Контур, размеры, диагонали и источники',
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _openMeasurementReview();
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -332,7 +360,6 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
             _MeasureProductionStrip(
               wallCount: widget.floor.walls.length,
               roomCount: roomCount,
-              viewMode: ZMeasureViewMode.twoD,
               onViewChanged: _selectMeasureView,
             )
           else
@@ -363,78 +390,60 @@ class _MeasureProductionStrip extends StatelessWidget {
   const _MeasureProductionStrip({
     required this.wallCount,
     required this.roomCount,
-    required this.viewMode,
     required this.onViewChanged,
   });
 
   final int wallCount;
   final int roomCount;
-  final ZMeasureViewMode viewMode;
   final ValueChanged<ZMeasureViewMode> onViewChanged;
 
   @override
   Widget build(BuildContext context) {
     return Container(
+      height: 54,
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: const BoxDecoration(
         color: ZamerColors.surfaceLow,
         border: Border(bottom: BorderSide(color: ZamerColors.outlineSoft)),
       ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final info = Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(
-                Icons.architecture_outlined,
-                size: 19,
-                color: ZamerColors.accent,
-              ),
-              const SizedBox(width: 8),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'План помещения',
-                    style: ZamerTypography.bodySmall.copyWith(
-                      color: ZamerColors.textPrimary,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  Text(
-                    '$wallCount стен • $roomCount помещений',
-                    style: ZamerTypography.caption,
-                  ),
-                ],
-              ),
-            ],
-          );
-
-          final tabs = ZMeasureViewTabs(
-            value: viewMode,
-            onChanged: onViewChanged,
-          );
-
-          if (constraints.maxWidth < 430) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+      child: Row(
+        children: [
+          const Icon(
+            Icons.architecture_outlined,
+            size: 19,
+            color: ZamerColors.accent,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                info,
-                const SizedBox(height: 8),
-                Align(alignment: Alignment.centerLeft, child: tabs),
+                Text(
+                  'План помещения',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: ZamerTypography.bodySmall.copyWith(
+                    color: ZamerColors.textPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                Text(
+                  '$wallCount стен • $roomCount пом.',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: ZamerTypography.caption,
+                ),
               ],
-            );
-          }
-
-          return Row(
-            children: [
-              info,
-              const Spacer(),
-              tabs,
-            ],
-          );
-        },
+            ),
+          ),
+          const SizedBox(width: 8),
+          ZMeasureViewTabs(
+            value: ZMeasureViewMode.twoD,
+            onChanged: onViewChanged,
+          ),
+        ],
       ),
     );
   }
