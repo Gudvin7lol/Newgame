@@ -387,7 +387,7 @@ class _MeasurementReviewScreenState extends State<MeasurementReviewScreen> {
         MeasurementIssueKind.intersection => Icons.close_fullscreen_rounded,
         MeasurementIssueKind.missingOffset => Icons.space_bar_rounded,
         MeasurementIssueKind.missingHeight => Icons.height_rounded,
-        MeasurementIssueKind.missingDiagonal => Icons.diagonal_line_rounded,
+        MeasurementIssueKind.missingDiagonal => Icons.open_in_full_rounded,
       };
 
   static String _issueWord(int count) {
