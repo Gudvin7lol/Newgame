@@ -171,6 +171,9 @@ class ZMetaChip extends StatelessWidget {
   );
 }
 
+/// Home-side version of the same five-section navigation used in the project
+/// workspace. Until a project is chosen, all working destinations bring the
+/// user to the project list instead of pretending a project context exists.
 class ZHomeNavBar extends StatelessWidget {
   const ZHomeNavBar({
     super.key,
@@ -181,56 +184,41 @@ class ZHomeNavBar extends StatelessWidget {
   });
 
   final VoidCallback onProjects;
+
+  // Kept for source compatibility while ProjectsScreen is migrated away from
+  // the old home-only navigation actions.
   final VoidCallback onCatalog;
   final VoidCallback onLearn;
   final VoidCallback onMore;
+
+  static const _items = <(IconData icon, String label)>[
+    (Icons.home_rounded, 'Главная'),
+    (Icons.architecture_outlined, 'Замер'),
+    (Icons.view_in_ar_outlined, '3D'),
+    (Icons.chair_alt_outlined, 'Оснащение'),
+    (Icons.view_carousel_outlined, 'Развёртки'),
+  ];
 
   @override
   Widget build(BuildContext context) => SafeArea(
     top: false,
     child: Container(
-      height: 58,
+      height: 60,
       decoration: const BoxDecoration(
         color: ZamerColors.surfaceLow,
         border: Border(top: BorderSide(color: ZamerColors.outlineSoft)),
       ),
       child: Row(
         children: [
-          const Expanded(
-            child: _HomeNavItem(
-              icon: Icons.home_rounded,
-              label: 'Главная',
-              selected: true,
+          for (var i = 0; i < _items.length; i++)
+            Expanded(
+              child: _HomeNavItem(
+                icon: _items[i].$1,
+                label: _items[i].$2,
+                selected: i == 0,
+                onTap: i == 0 ? null : onProjects,
+              ),
             ),
-          ),
-          Expanded(
-            child: _HomeNavItem(
-              icon: Icons.folder_outlined,
-              label: 'Проекты',
-              onTap: onProjects,
-            ),
-          ),
-          Expanded(
-            child: _HomeNavItem(
-              icon: Icons.chair_outlined,
-              label: 'Каталог',
-              onTap: onCatalog,
-            ),
-          ),
-          Expanded(
-            child: _HomeNavItem(
-              icon: Icons.school_outlined,
-              label: 'Обучение',
-              onTap: onLearn,
-            ),
-          ),
-          Expanded(
-            child: _HomeNavItem(
-              icon: Icons.grid_view_rounded,
-              label: 'Ещё',
-              onTap: onMore,
-            ),
-          ),
         ],
       ),
     ),
@@ -251,39 +239,46 @@ class _HomeNavItem extends StatelessWidget {
   final bool selected;
 
   @override
-  Widget build(BuildContext context) => InkWell(
-    onTap: onTap,
-    child: Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Container(
-          width: 29,
-          height: 25,
-          alignment: Alignment.center,
-          decoration: selected
-              ? BoxDecoration(
-                  borderRadius: BorderRadius.circular(ZamerRadius.sm),
-                  border: Border.all(color: ZamerColors.accent),
-                )
-              : null,
-          child: Icon(
-            icon,
-            size: 17,
-            color: selected ? ZamerColors.accent : ZamerColors.textSecondary,
+  Widget build(BuildContext context) {
+    final foreground = selected
+        ? ZamerColors.accent
+        : ZamerColors.textSecondary;
+    return InkWell(
+      onTap: onTap,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            width: 34,
+            height: 28,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: selected
+                  ? ZamerColors.accent.withValues(alpha: .13)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(ZamerRadius.sm),
+              border: selected
+                  ? Border.all(color: ZamerColors.accent.withValues(alpha: .6))
+                  : null,
+            ),
+            child: Icon(icon, size: 19, color: foreground),
           ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 8,
-            fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
-            color: selected ? ZamerColors.accent : ZamerColors.textSecondary,
+          const SizedBox(height: 2),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 8.7,
+              fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
+              color: foreground,
+            ),
           ),
-        ),
-      ],
-    ),
-  );
+        ],
+      ),
+    );
+  }
 }
 
 class _TemplateScenePainter extends CustomPainter {
