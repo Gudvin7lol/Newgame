@@ -326,3 +326,365 @@ class ZMeasureBadge extends StatelessWidget {
     child: Text(value, style: ZamerTypography.measurement),
   );
 }
+
+class ZPropertyRow extends StatelessWidget {
+  const ZPropertyRow({
+    super.key,
+    required this.label,
+    required this.value,
+    this.icon,
+    this.onTap,
+  });
+
+  final String label;
+  final String value;
+  final IconData? icon;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: Colors.transparent,
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(ZamerRadius.sm),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+        child: Row(
+          children: [
+            if (icon != null) ...[
+              Icon(icon, size: 17, color: ZamerColors.textMuted),
+              const SizedBox(width: ZamerSpace.sm),
+            ],
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(
+                  color: ZamerColors.textSecondary,
+                  fontSize: 11.5,
+                ),
+              ),
+            ),
+            const SizedBox(width: ZamerSpace.md),
+            Text(
+              value,
+              style: const TextStyle(
+                color: ZamerColors.textPrimary,
+                fontSize: 11.5,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            if (onTap != null) ...[
+              const SizedBox(width: 4),
+              const Icon(
+                Icons.chevron_right_rounded,
+                size: 17,
+                color: ZamerColors.textFaint,
+              ),
+            ],
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class ZLayerToggle extends StatelessWidget {
+  const ZLayerToggle({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.onChanged,
+    this.icon,
+    this.locked = false,
+  });
+
+  final String label;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  final IconData? icon;
+  final bool locked;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    minHeight: 46,
+    padding: const EdgeInsets.symmetric(horizontal: 10),
+    decoration: const BoxDecoration(
+      border: Border(bottom: BorderSide(color: ZamerColors.outlineSoft)),
+    ),
+    child: Row(
+      children: [
+        if (icon != null) ...[
+          Icon(icon, size: 18, color: ZamerColors.textMuted),
+          const SizedBox(width: ZamerSpace.sm),
+        ],
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: ZamerColors.textPrimary,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        if (locked)
+          const Padding(
+            padding: EdgeInsets.only(right: 8),
+            child: Icon(
+              Icons.lock_outline_rounded,
+              size: 16,
+              color: ZamerColors.textFaint,
+            ),
+          ),
+        Switch.adaptive(value: value, onChanged: locked ? null : onChanged),
+      ],
+    ),
+  );
+}
+
+class ZObjectCardFrame extends StatelessWidget {
+  const ZObjectCardFrame({
+    super.key,
+    required this.preview,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.favorite = false,
+    this.onFavorite,
+  });
+
+  final Widget preview;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  final bool favorite;
+  final VoidCallback? onFavorite;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: ZamerColors.surface,
+    borderRadius: BorderRadius.circular(ZamerRadius.md),
+    clipBehavior: Clip.antiAlias,
+    child: InkWell(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border.all(color: ZamerColors.outline),
+          borderRadius: BorderRadius.circular(ZamerRadius.md),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  ColoredBox(color: ZamerColors.surfaceHigh, child: preview),
+                  if (onFavorite != null)
+                    Positioned(
+                      top: 2,
+                      right: 2,
+                      child: IconButton(
+                        visualDensity: VisualDensity.compact,
+                        onPressed: onFavorite,
+                        icon: Icon(
+                          favorite
+                              ? Icons.favorite_rounded
+                              : Icons.favorite_border_rounded,
+                          size: 18,
+                          color: favorite
+                              ? ZamerColors.danger
+                              : ZamerColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 7, 8, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: ZamerTypography.caption,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class ZLoadingState extends StatelessWidget {
+  const ZLoadingState({
+    super.key,
+    required this.title,
+    this.subtitle,
+    this.progress,
+  });
+
+  final String title;
+  final String? subtitle;
+  final double? progress;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(ZamerSpace.xxl),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 320),
+        child: ZCard(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox.square(
+                dimension: 38,
+                child: CircularProgressIndicator(value: progress),
+              ),
+              const SizedBox(height: ZamerSpace.lg),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: ZamerTypography.sectionTitle,
+              ),
+              if (subtitle != null) ...[
+                const SizedBox(height: ZamerSpace.xs),
+                Text(
+                  subtitle!,
+                  textAlign: TextAlign.center,
+                  style: ZamerTypography.caption,
+                ),
+              ],
+              if (progress != null) ...[
+                const SizedBox(height: ZamerSpace.md),
+                LinearProgressIndicator(value: progress),
+              ],
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+class ZEmptyState extends StatelessWidget {
+  const ZEmptyState({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    this.actionLabel,
+    this.onAction,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(ZamerSpace.xxl),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 340),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 40, color: ZamerColors.textFaint),
+            const SizedBox(height: ZamerSpace.md),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: ZamerTypography.sectionTitle,
+            ),
+            const SizedBox(height: ZamerSpace.xs),
+            Text(
+              subtitle,
+              textAlign: TextAlign.center,
+              style: ZamerTypography.caption,
+            ),
+            if (actionLabel != null && onAction != null) ...[
+              const SizedBox(height: ZamerSpace.lg),
+              FilledButton(onPressed: onAction, child: Text(actionLabel!)),
+            ],
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class ZErrorState extends StatelessWidget {
+  const ZErrorState({
+    super.key,
+    required this.title,
+    required this.subtitle,
+    this.onRetry,
+  });
+
+  final String title;
+  final String subtitle;
+  final VoidCallback? onRetry;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(ZamerSpace.xxl),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 340),
+        child: ZCard(
+          borderColor: ZamerColors.danger.withValues(alpha: .55),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.error_outline_rounded,
+                size: 40,
+                color: ZamerColors.danger,
+              ),
+              const SizedBox(height: ZamerSpace.md),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: ZamerTypography.sectionTitle,
+              ),
+              const SizedBox(height: ZamerSpace.xs),
+              Text(
+                subtitle,
+                textAlign: TextAlign.center,
+                style: ZamerTypography.caption,
+              ),
+              if (onRetry != null) ...[
+                const SizedBox(height: ZamerSpace.lg),
+                OutlinedButton.icon(
+                  onPressed: onRetry,
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Повторить'),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
