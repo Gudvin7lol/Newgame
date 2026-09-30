@@ -10,11 +10,13 @@ class ZHomeQuickActionCard extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.onTap,
+    this.subtitle,
     this.filled = false,
   });
 
   final IconData icon;
   final String title;
+  final String? subtitle;
   final VoidCallback? onTap;
   final bool filled;
 
@@ -23,45 +25,271 @@ class ZHomeQuickActionCard extends StatelessWidget {
     final foreground = filled
         ? ZamerColors.accentInk
         : ZamerColors.textPrimary;
+    final secondaryForeground = filled
+        ? ZamerColors.accentInk.withValues(alpha: .72)
+        : ZamerColors.textMuted;
     return Material(
       color: filled ? ZamerColors.accent : ZamerColors.surface,
       borderRadius: BorderRadius.circular(ZamerRadius.md),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
-        child: Container(
-          height: 58,
-          padding: const EdgeInsets.symmetric(
-            horizontal: ZamerSpace.md,
-            vertical: ZamerSpace.sm,
-          ),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(ZamerRadius.md),
-            border: Border.all(
-              color: filled ? ZamerColors.accent : ZamerColors.outline,
+        child: Opacity(
+          opacity: onTap == null ? .42 : 1,
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 66),
+            padding: const EdgeInsets.symmetric(
+              horizontal: ZamerSpace.md,
+              vertical: ZamerSpace.sm,
             ),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, color: foreground, size: 19),
-              const SizedBox(height: ZamerSpace.xxs),
-              Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: foreground,
-                  fontSize: 11.3,
-                  fontWeight: FontWeight.w900,
-                ),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(ZamerRadius.md),
+              border: Border.all(
+                color: filled ? ZamerColors.accent : ZamerColors.outline,
               ),
-            ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: filled
+                        ? ZamerColors.accentInk.withValues(alpha: .08)
+                        : ZamerColors.surfaceHigh,
+                    borderRadius: BorderRadius.circular(ZamerRadius.sm),
+                    border: Border.all(
+                      color: filled
+                          ? ZamerColors.accentInk.withValues(alpha: .12)
+                          : ZamerColors.outlineSoft,
+                    ),
+                  ),
+                  child: Icon(icon, color: foreground, size: 19),
+                ),
+                const SizedBox(width: ZamerSpace.sm),
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: foreground,
+                          fontSize: 11.6,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      if (subtitle != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          subtitle!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: secondaryForeground,
+                            fontSize: 8.8,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
+}
+
+class ZActiveProjectCard extends StatelessWidget {
+  const ZActiveProjectCard({
+    super.key,
+    required this.preview,
+    required this.title,
+    required this.subtitle,
+    required this.areaLabel,
+    required this.roomsLabel,
+    required this.floorsLabel,
+    required this.onOpen,
+    this.onMore,
+  });
+
+  final Widget preview;
+  final String title;
+  final String subtitle;
+  final String areaLabel;
+  final String roomsLabel;
+  final String floorsLabel;
+  final VoidCallback onOpen;
+  final VoidCallback? onMore;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: ZamerColors.surface,
+    borderRadius: BorderRadius.circular(ZamerRadius.lg),
+    clipBehavior: Clip.antiAlias,
+    child: InkWell(
+      onTap: onOpen,
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(ZamerRadius.lg),
+          border: Border.all(color: ZamerColors.outline),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(
+              height: 122,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  preview,
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.transparent,
+                          ZamerColors.background.withValues(alpha: .12),
+                          ZamerColors.background.withValues(alpha: .88),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const Positioned(
+                    left: ZamerSpace.md,
+                    top: ZamerSpace.md,
+                    child: _ActiveBadge(),
+                  ),
+                  if (onMore != null)
+                    Positioned(
+                      right: ZamerSpace.xs,
+                      top: ZamerSpace.xs,
+                      child: IconButton.filledTonal(
+                        tooltip: 'Действия проекта',
+                        onPressed: onMore,
+                        icon: const Icon(Icons.more_horiz_rounded, size: 19),
+                      ),
+                    ),
+                  Positioned(
+                    left: ZamerSpace.md,
+                    right: ZamerSpace.md,
+                    bottom: ZamerSpace.sm,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: ZamerColors.textPrimary,
+                            fontSize: 17,
+                            height: 1.08,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: ZamerColors.textSecondary,
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                ZamerSpace.md,
+                ZamerSpace.sm,
+                ZamerSpace.md,
+                ZamerSpace.md,
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Wrap(
+                      spacing: ZamerSpace.md,
+                      runSpacing: ZamerSpace.xs,
+                      children: [
+                        ZMetaChip(
+                          icon: Icons.square_foot_outlined,
+                          label: areaLabel,
+                        ),
+                        ZMetaChip(
+                          icon: Icons.meeting_room_outlined,
+                          label: roomsLabel,
+                        ),
+                        ZMetaChip(
+                          icon: Icons.layers_outlined,
+                          label: floorsLabel,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: ZamerSpace.sm),
+                  FilledButton.icon(
+                    onPressed: onOpen,
+                    icon: const Icon(Icons.arrow_forward_rounded, size: 17),
+                    label: const Text('Продолжить'),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size(0, 40),
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _ActiveBadge extends StatelessWidget {
+  const _ActiveBadge();
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+    decoration: BoxDecoration(
+      color: ZamerColors.accent,
+      borderRadius: BorderRadius.circular(ZamerRadius.pill),
+    ),
+    child: const Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.bolt_rounded, size: 13, color: ZamerColors.accentInk),
+        SizedBox(width: 3),
+        Text(
+          'АКТИВНЫЙ ПРОЕКТ',
+          style: TextStyle(
+            color: ZamerColors.accentInk,
+            fontSize: 8.4,
+            fontWeight: FontWeight.w900,
+            letterSpacing: .35,
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 class ZProjectThumbnail extends StatelessWidget {
@@ -115,27 +343,40 @@ class ZProjectTemplateCard extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(
-                child: CustomPaint(painter: _TemplateScenePainter(kind: kind)),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: ZamerSpace.sm,
-                  vertical: ZamerSpace.sm,
-                ),
-                child: Text(
-                  title,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.w800,
+          child: Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: ZamerColors.outline),
+              borderRadius: BorderRadius.circular(ZamerRadius.md),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(ZamerRadius.md - 1),
+                    ),
+                    child: CustomPaint(
+                      painter: _TemplateScenePainter(kind: kind),
+                    ),
                   ),
                 ),
-              ),
-            ],
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: ZamerSpace.sm,
+                    vertical: ZamerSpace.sm,
+                  ),
+                  child: Text(
+                    title,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -157,12 +398,12 @@ class ZMetaChip extends StatelessWidget {
   Widget build(BuildContext context) => Row(
     mainAxisSize: MainAxisSize.min,
     children: [
-      Icon(icon, size: 11, color: ZamerColors.textSecondary),
+      Icon(icon, size: 12, color: ZamerColors.textSecondary),
       const SizedBox(width: 3),
       Text(
         label,
         style: const TextStyle(
-          fontSize: 8.8,
+          fontSize: 9.1,
           color: ZamerColors.textSecondary,
           fontWeight: FontWeight.w700,
         ),
