@@ -3,23 +3,28 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('Home screen keeps the approved UI-kit composition', () {
+  test('Production Home keeps the approved UI KIT 01 composition', () {
     final source = File(
-      'lib/screens/home_ui_kit_screen.dart',
+      'lib/screens/home_production_screen.dart',
     ).readAsStringSync();
 
     for (final requiredLabel in const [
       'ЗАМЕР',
-      'Поиск проектов…',
+      'Поиск проектов',
       'Новый проект',
       'Импорт плана',
       'Недавние проекты',
       'Шаблоны',
+      'Главная',
+      'Проекты',
+      'Каталог',
+      'Обучение',
+      'Ещё',
     ]) {
       expect(
         source.contains(requiredLabel),
         isTrue,
-        reason: 'Missing approved Home UI-kit element: $requiredLabel',
+        reason: 'Missing approved production Home element: $requiredLabel',
       );
     }
 
@@ -31,14 +36,17 @@ void main() {
       expect(
         source.contains(forbiddenElement),
         isFalse,
-        reason: 'Home drifted away from the approved UI-kit: $forbiddenElement',
+        reason: 'Production Home drifted away from UI KIT 01: $forbiddenElement',
       );
     }
   });
 
-  test('Application starts from the UI-kit Home screen', () {
+  test('Application starts from the production Home screen', () {
     final source = File('lib/main.dart').readAsStringSync();
-    expect(source.contains("import 'screens/home_ui_kit_screen.dart';"), isTrue);
-    expect(source.contains('home: const HomeUiKitScreen()'), isTrue);
+    expect(
+      source.contains("import 'screens/home_production_screen.dart';"),
+      isTrue,
+    );
+    expect(source.contains('home: const HomeProductionScreen()'), isTrue);
   });
 }
