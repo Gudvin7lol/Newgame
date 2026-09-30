@@ -6,6 +6,8 @@ import 'geometry_service.dart';
 enum MeasurementIssueKind {
   openContour,
   discrepancy,
+  acuteAngle,
+  intersection,
   missingOffset,
   missingHeight,
   missingDiagonal,
@@ -56,6 +58,120 @@ class MeasurementReviewService {
     return null;
   }
 
+  static math.Point<double>? _strictIntersection(
+    PlanNode a,
+    PlanNode b,
+    PlanNode c,
+    PlanNode d,
+  ) {
+    final rx = b.xMm - a.xMm;
+    final ry = b.yMm - a.yMm;
+    final sx = d.xMm - c.xMm;
+    final sy = d.yMm - c.yMm;
+    final denominator = rx * sy - ry * sx;
+    if (denominator.abs() < 1e-9) return null;
+
+    final qpx = c.xMm - a.xMm;
+    final qpy = c.yMm - a.yMm;
+    final t = (qpx * sy - qpy * sx) / denominator;
+    final u = (qpx * ry - qpy * rx) / denominator;
+
+    // Endpoints are valid shared corners. Only an interior crossing is an issue.
+    if (t <= .001 || t >= .999 || u <= .001 || u >= .999) return null;
+    return math.Point<double>(a.xMm + rx * t, a.yMm + ry * t);
+  }
+
+  static void _addAcuteAngleIssues(
+    FloorPlan floor,
+    List<MeasurementIssue> issues,
+  ) {
+    const thresholdDegrees = 65.0;
+    final active = floor.walls.where((wall) => !wall.demolition).toList();
+
+    for (final node in floor.nodes) {
+      final connected = active
+          .where(
+            (wall) =>
+                wall.startNodeId == node.id || wall.endNodeId == node.id,
+          )
+          .toList();
+      if (connected.length < 2) continue;
+
+      for (var i = 0; i < connected.length - 1; i++) {
+        for (var j = i + 1; j < connected.length; j++) {
+          final wallA = connected[i];
+          final wallB = connected[j];
+          final otherA = floor.nodeById(
+            wallA.startNodeId == node.id ? wallA.endNodeId : wallA.startNodeId,
+          );
+          final otherB = floor.nodeById(
+            wallB.startNodeId == node.id ? wallB.endNodeId : wallB.startNodeId,
+          );
+          if (otherA == null || otherB == null) continue;
+
+          final ax = otherA.xMm - node.xMm;
+          final ay = otherA.yMm - node.yMm;
+          final bx = otherB.xMm - node.xMm;
+          final by = otherB.yMm - node.yMm;
+          final lenA = math.sqrt(ax * ax + ay * ay);
+          final lenB = math.sqrt(bx * bx + by * by);
+          if (lenA < 1 || lenB < 1) continue;
+
+          final cosine = ((ax * bx + ay * by) / (lenA * lenB))
+              .clamp(-1.0, 1.0)
+              .toDouble();
+          final degrees = math.acos(cosine) * 180 / math.pi;
+          if (degrees >= thresholdDegrees || degrees < .5) continue;
+
+          issues.add(
+            MeasurementIssue(
+              MeasurementIssueKind.acuteAngle,
+              'Острый угол ${degrees.toStringAsFixed(1)}° у узла ${node.id}; '
+              'проверь геометрию и фактический угол на объекте',
+              math.Point(node.xMm, node.yMm),
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  static void _addIntersectionIssues(
+    FloorPlan floor,
+    List<MeasurementIssue> issues,
+  ) {
+    final active = floor.walls.where((wall) => !wall.demolition).toList();
+    for (var i = 0; i < active.length - 1; i++) {
+      final first = active[i];
+      final a = floor.nodeById(first.startNodeId);
+      final b = floor.nodeById(first.endNodeId);
+      if (a == null || b == null) continue;
+
+      for (var j = i + 1; j < active.length; j++) {
+        final second = active[j];
+        final sharesNode = first.startNodeId == second.startNodeId ||
+            first.startNodeId == second.endNodeId ||
+            first.endNodeId == second.startNodeId ||
+            first.endNodeId == second.endNodeId;
+        if (sharesNode) continue;
+
+        final c = floor.nodeById(second.startNodeId);
+        final d = floor.nodeById(second.endNodeId);
+        if (c == null || d == null) continue;
+        final point = _strictIntersection(a, b, c, d);
+        if (point == null) continue;
+
+        issues.add(
+          MeasurementIssue(
+            MeasurementIssueKind.intersection,
+            'Пересечение стен ${first.id} и ${second.id} без общего узла',
+            point,
+          ),
+        );
+      }
+    }
+  }
+
   static List<MeasurementIssue> review(FloorPlan floor) {
     final issues = <MeasurementIssue>[];
     final faces = GeometryService.roomFaces(floor);
@@ -82,9 +198,10 @@ class MeasurementReviewService {
           connected.isNotEmpty &&
           connected.every(
             (w) => w.type == WallType.partition && !roomWallIds.contains(w.id),
-          ))
+          )) {
         continue;
-      if (n != null)
+      }
+      if (n != null) {
         issues.add(
           MeasurementIssue(
             MeasurementIssueKind.openContour,
@@ -92,7 +209,12 @@ class MeasurementReviewService {
             math.Point(n.xMm, n.yMm),
           ),
         );
+      }
     }
+
+    _addAcuteAngleIssues(floor, issues);
+    _addIntersectionIssues(floor, issues);
+
     for (final wall in floor.walls) {
       final a = floor.nodeById(wall.startNodeId);
       final b = floor.nodeById(wall.endNodeId);
@@ -105,7 +227,7 @@ class MeasurementReviewService {
       final difference = recorded == null
           ? 0.0
           : floor.wallLengthMm(wall) - recorded.valueMm;
-      if (difference.abs() >= 5)
+      if (difference.abs() >= 5) {
         issues.add(
           MeasurementIssue(
             MeasurementIssueKind.discrepancy,
@@ -115,11 +237,12 @@ class MeasurementReviewService {
             deltaMm: difference,
           ),
         );
+      }
       for (final opening in wall.openings) {
         final t = floor.wallLengthMm(wall) <= 0
             ? 0.0
             : (opening.offsetFromStartMm + opening.widthMm / 2) /
-                  floor.wallLengthMm(wall);
+                floor.wallLengthMm(wall);
         final place = math.Point<double>(
           a.xMm + (b.xMm - a.xMm) * t,
           a.yMm + (b.yMm - a.yMm) * t,
@@ -157,7 +280,7 @@ class MeasurementReviewService {
       final sections = _collinearSections(floor, a, b);
       final derived = sections ?? GeometryService.distance(a, b);
       final delta = derived - measure.measuredMm;
-      if (delta.abs() >= 5)
+      if (delta.abs() >= 5) {
         issues.add(
           MeasurementIssue(
             MeasurementIssueKind.discrepancy,
@@ -169,10 +292,11 @@ class MeasurementReviewService {
             deltaMm: delta,
           ),
         );
+      }
     }
     for (final face in faces) {
       final meta = floor.roomMetaByKey(face.key);
-      if (meta?.ceilingHeightMm == null)
+      if (meta?.ceilingHeightMm == null) {
         issues.add(
           MeasurementIssue(
             MeasurementIssueKind.missingHeight,
@@ -180,6 +304,7 @@ class MeasurementReviewService {
             face.centroid,
           ),
         );
+      }
       if (face.nodeIds.toSet().length >= 4 &&
           !floor.measures.any((m) {
             final a = floor.nodeById(m.startNodeId);
