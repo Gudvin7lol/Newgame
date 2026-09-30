@@ -20,19 +20,20 @@ void main() {
     expect(source.contains('barrierColor: Colors.black'), isTrue);
   });
 
-  test('Measure page uses the master-concept 2D 3D AR Photo selector', () {
+  test('Measure page uses production 2D 3D Photo master shell', () {
     final workspace = File(
       'lib/screens/floor_workspace_screen.dart',
     ).readAsStringSync();
-    final concept = File(
+    final measure = File(
       'lib/screens/measure_concept_workspace_screen.dart',
     ).readAsStringSync();
 
     expect(workspace.contains('MeasureConceptWorkspaceScreen('), isTrue);
-    expect(concept.contains("(_MeasureConceptView.twoD, '2D')"), isTrue);
-    expect(concept.contains("(_MeasureConceptView.threeD, '3D')"), isTrue);
-    expect(concept.contains("(_MeasureConceptView.ar, 'AR')"), isTrue);
-    expect(concept.contains("(_MeasureConceptView.photo, 'Фото')"), isTrue);
-    expect(concept.contains('PlanEditorConceptScreen('), isTrue);
+    expect(measure.contains('ZMeasureViewTabs('), isTrue);
+    expect(measure.contains('ZWorkspaceHeader('), isTrue);
+    expect(measure.contains('ZWorkspacePrimaryNav('), isTrue);
+    expect(measure.contains('PlanEditorProductionScreen('), isTrue);
+    expect(measure.contains('PlanEditorConceptScreen('), isFalse);
+    expect(measure.contains("'AR'"), isFalse);
   });
 }
