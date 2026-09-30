@@ -47,25 +47,25 @@ class ZMeasureViewTabs extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 48,
+      height: 40,
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
-        color: ZamerColors.surfaceLow,
+        color: ZamerColors.surface,
         borderRadius: BorderRadius.circular(ZamerRadius.sm),
         border: Border.all(color: ZamerColors.outlineSoft),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _tab('2D', ZMeasureViewMode.twoD),
-          _tab('3D', ZMeasureViewMode.threeD),
-          _tab('Фото', ZMeasureViewMode.photo),
+          _tab('2D', Icons.architecture_outlined, ZMeasureViewMode.twoD),
+          _tab('3D', Icons.view_in_ar_outlined, ZMeasureViewMode.threeD),
+          _tab('Фото', Icons.camera_alt_outlined, ZMeasureViewMode.photo),
         ],
       ),
     );
   }
 
-  Widget _tab(String label, ZMeasureViewMode mode) {
+  Widget _tab(String label, IconData icon, ZMeasureViewMode mode) {
     final selected = mode == value;
     return ZPressEffect(
       scale: .96,
@@ -76,17 +76,30 @@ class ZMeasureViewTabs extends StatelessWidget {
         child: InkWell(
           onTap: () => onChanged(mode),
           child: Container(
-            constraints: const BoxConstraints(minWidth: 62, minHeight: 42),
+            constraints: const BoxConstraints(minWidth: 52, minHeight: 34),
             alignment: Alignment.center,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Text(
-              label,
-              style: ZamerTypography.button.copyWith(
-                color: selected
-                    ? ZamerColors.accentInk
-                    : ZamerColors.textSecondary,
-                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-              ),
+            padding: const EdgeInsets.symmetric(horizontal: 7),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  icon,
+                  size: 14,
+                  color: selected
+                      ? ZamerColors.accentInk
+                      : ZamerColors.textSecondary,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  label,
+                  style: ZamerTypography.caption.copyWith(
+                    color: selected
+                        ? ZamerColors.accentInk
+                        : ZamerColors.textSecondary,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  ),
+                ),
+              ],
             ),
           ),
         ),
