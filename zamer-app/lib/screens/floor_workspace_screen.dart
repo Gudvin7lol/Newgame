@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../design_system/zamer_components.dart';
 import '../design_system/zamer_measure_chrome.dart';
+import '../design_system/zamer_press_effect.dart';
 import '../design_system/zamer_tokens.dart';
 import '../models/models.dart';
 import '../services/geometry_service.dart';
@@ -152,6 +153,79 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
     }
   }
 
+  Future<void> _switchFloor(FloorPlan floor) async {
+    if (floor.id == widget.floor.id || !mounted) return;
+    final mode = _mode < 0 ? 0 : _mode;
+    await Navigator.pushReplacement(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => FloorWorkspaceScreen(
+          project: widget.project,
+          floor: floor,
+          onChanged: widget.onChanged,
+          initialMode: mode,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _addFloor() async {
+    final nextNumber = widget.project.floors.length + 1;
+    final floor = FloorPlan(
+      id: 'f-${DateTime.now().microsecondsSinceEpoch}',
+      name: 'Этаж $nextNumber',
+    );
+    widget.project.floors.add(floor);
+    await widget.onChanged();
+    if (mounted) await _switchFloor(floor);
+  }
+
+  Future<void> _showFloorPicker() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: ZamerColors.surface,
+      barrierColor: Colors.black.withValues(alpha: .70),
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('Этажи', style: ZamerTypography.h3),
+              const SizedBox(height: 8),
+              for (final floor in widget.project.floors)
+                ZActionTile(
+                  icon: floor.id == widget.floor.id
+                      ? Icons.radio_button_checked_rounded
+                      : Icons.radio_button_unchecked_rounded,
+                  title: floor.name,
+                  subtitle: floor.id == widget.floor.id
+                      ? 'Текущий этаж'
+                      : '${floor.walls.length} стен',
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    _switchFloor(floor);
+                  },
+                ),
+              const SizedBox(height: 4),
+              FilledButton.icon(
+                onPressed: () {
+                  Navigator.pop(sheetContext);
+                  _addFloor();
+                },
+                icon: const Icon(Icons.add_rounded),
+                label: const Text('Добавить этаж'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   void _goHome() {
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
@@ -212,6 +286,15 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              ZActionTile(
+                icon: Icons.layers_outlined,
+                title: 'Этажи',
+                subtitle: 'Переключить или добавить этаж',
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _showFloorPicker();
+                },
+              ),
               ZActionTile(
                 icon: Icons.document_scanner_outlined,
                 title: 'Скан / импорт плана',
@@ -358,8 +441,11 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
         children: [
           if (_mode == 0)
             _MeasureProductionStrip(
+              floorName: widget.floor.name,
+              floorCount: widget.project.floors.length,
               wallCount: widget.floor.walls.length,
               roomCount: roomCount,
+              onFloorTap: _showFloorPicker,
               onViewChanged: _selectMeasureView,
             )
           else
@@ -388,13 +474,19 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
 
 class _MeasureProductionStrip extends StatelessWidget {
   const _MeasureProductionStrip({
+    required this.floorName,
+    required this.floorCount,
     required this.wallCount,
     required this.roomCount,
+    required this.onFloorTap,
     required this.onViewChanged,
   });
 
+  final String floorName;
+  final int floorCount;
   final int wallCount;
   final int roomCount;
+  final VoidCallback onFloorTap;
   final ValueChanged<ZMeasureViewMode> onViewChanged;
 
   @override
@@ -402,43 +494,76 @@ class _MeasureProductionStrip extends StatelessWidget {
     return Container(
       height: 54,
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: const BoxDecoration(
         color: ZamerColors.surfaceLow,
         border: Border(bottom: BorderSide(color: ZamerColors.outlineSoft)),
       ),
       child: Row(
         children: [
-          const Icon(
-            Icons.architecture_outlined,
-            size: 19,
-            color: ZamerColors.accent,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'План помещения',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: ZamerTypography.bodySmall.copyWith(
-                    color: ZamerColors.textPrimary,
-                    fontWeight: FontWeight.w700,
+          ZPressEffect(
+            scale: .95,
+            child: Material(
+              color: ZamerColors.surface,
+              borderRadius: BorderRadius.circular(ZamerRadius.sm),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: onFloorTap,
+                child: Container(
+                  height: 40,
+                  constraints: const BoxConstraints(minWidth: 74, maxWidth: 104),
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(ZamerRadius.sm),
+                    border: Border.all(color: ZamerColors.outlineSoft),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.layers_outlined,
+                        size: 15,
+                        color: ZamerColors.accent,
+                      ),
+                      const SizedBox(width: 5),
+                      Flexible(
+                        child: Text(
+                          floorName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: ZamerTypography.caption.copyWith(
+                            color: ZamerColors.textPrimary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      if (floorCount > 1) ...[
+                        const SizedBox(width: 3),
+                        const Icon(
+                          Icons.keyboard_arrow_down_rounded,
+                          size: 14,
+                          color: ZamerColors.textMuted,
+                        ),
+                      ],
+                    ],
                   ),
                 ),
-                Text(
-                  '$wallCount стен • $roomCount пом.',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: ZamerTypography.caption,
-                ),
-              ],
+              ),
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 7),
+          Expanded(
+            child: Text(
+              '$wallCount ст. • $roomCount пом.',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: ZamerTypography.caption.copyWith(
+                color: ZamerColors.textSecondary,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          const SizedBox(width: 5),
           ZMeasureViewTabs(
             value: ZMeasureViewMode.twoD,
             onChanged: onViewChanged,
