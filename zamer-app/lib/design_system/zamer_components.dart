@@ -178,3 +178,63 @@ class ZStatusChip extends StatelessWidget {
     );
   }
 }
+
+/// Compact icon + label action used by toolbars on the working master pages.
+class ZToolAction extends StatelessWidget {
+  const ZToolAction({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.selected = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final foreground = selected
+        ? ZamerColors.accentInk
+        : ZamerColors.textSecondary;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 2),
+      child: Material(
+        color: selected ? ZamerColors.accent : Colors.transparent,
+        borderRadius: BorderRadius.circular(ZamerRadius.md),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Opacity(
+            opacity: onTap == null ? .45 : 1,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 2,
+                vertical: ZamerSpace.xs,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, size: 19, color: foreground),
+                  const SizedBox(height: 3),
+                  Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: foreground,
+                      fontSize: 9.5,
+                      fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
