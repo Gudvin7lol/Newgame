@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../design_system/zamer_components.dart';
+import '../design_system/zamer_tokens.dart';
 import '../models/models.dart';
 import '../renderer3d/zamer_gpu_viewport.dart';
 
@@ -50,10 +52,6 @@ class _PhotoStudioScreenState extends State<PhotoStudioScreen> {
   bool _stabilization = true;
   bool _horizon = true;
   bool _rendering = false;
-
-  static const _sand = Color(0xFFF1C79E);
-  static const _surface = Color(0xFF10181D);
-  static const _border = Color(0xFF26343B);
 
   @override
   void initState() {
@@ -129,6 +127,11 @@ class _PhotoStudioScreenState extends State<PhotoStudioScreen> {
     return portrait ? size : (size.$2, size.$1);
   }
 
+  String get _resolutionLabel {
+    final size = _renderSize();
+    return '${size.$1}×${size.$2}';
+  }
+
   Future<void> _capture() async {
     if (_rendering) return;
     final renderer = _gpuKey.currentState;
@@ -155,29 +158,47 @@ class _PhotoStudioScreenState extends State<PhotoStudioScreen> {
       await showDialog<void>(
         context: context,
         builder: (dialogContext) => Dialog.fullscreen(
-          backgroundColor: const Color(0xFF090E11),
+          backgroundColor: ZamerColors.background,
           child: SafeArea(
             child: Column(
               children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+                Container(
+                  height: 58,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: ZamerSpace.sm,
+                  ),
+                  decoration: const BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(color: ZamerColors.outlineSoft),
+                    ),
+                  ),
                   child: Row(
                     children: [
                       IconButton(
+                        tooltip: 'Закрыть',
                         onPressed: () => Navigator.pop(dialogContext),
-                        icon: const Icon(Icons.close),
+                        icon: const Icon(Icons.close_rounded),
                       ),
-                      const Expanded(
-                        child: Text(
-                          'Готовый кадр',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w900,
-                          ),
+                      Expanded(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Text(
+                              'Готовый кадр',
+                              style: TextStyle(
+                                color: ZamerColors.textPrimary,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            Text(
+                              '${size.$1}×${size.$2} PNG',
+                              style: ZamerTypography.caption,
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(width: 48),
+                      const SizedBox(width: 44),
                     ],
                   ),
                 ),
@@ -190,23 +211,31 @@ class _PhotoStudioScreenState extends State<PhotoStudioScreen> {
                     ),
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.all(12),
+                Container(
+                  padding: const EdgeInsets.all(ZamerSpace.md),
+                  decoration: const BoxDecoration(
+                    color: ZamerColors.surfaceLow,
+                    border: Border(
+                      top: BorderSide(color: ZamerColors.outlineSoft),
+                    ),
+                  ),
                   child: Row(
                     children: [
                       Expanded(
                         child: OutlinedButton.icon(
                           onPressed: () => Navigator.pop(dialogContext),
-                          icon: const Icon(Icons.arrow_back),
+                          icon: const Icon(Icons.arrow_back_rounded),
                           label: const Text('Назад'),
                         ),
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: ZamerSpace.sm),
                       Expanded(
+                        flex: 2,
                         child: FilledButton.icon(
-                          onPressed: () => Share.shareXFiles([
-                            XFile(file.path),
-                          ], text: 'Фото из проекта «Замер»'),
+                          onPressed: () => Share.shareXFiles(
+                            [XFile(file.path)],
+                            text: 'Фото из проекта «Замер»',
+                          ),
                           icon: const Icon(Icons.ios_share_outlined),
                           label: const Text('Сохранить / поделиться'),
                         ),
@@ -234,40 +263,25 @@ class _PhotoStudioScreenState extends State<PhotoStudioScreen> {
     final value = await showModalBottomSheet<String>(
       context: context,
       showDragHandle: true,
-      builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text(
-                'Время суток',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+      builder: (sheetContext) => ZSheetFrame(
+        title: 'Время суток',
+        description:
+            'Пока это пресет интерфейса. Управление освещением сцены подключается отдельным проходом рендера.',
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final item in const ['День', 'Закат', 'Вечер', 'Ночь'])
+              _SelectionTile(
+                icon: item == 'День'
+                    ? Icons.wb_sunny_outlined
+                    : item == 'Ночь'
+                    ? Icons.nightlight_outlined
+                    : Icons.wb_twilight_outlined,
+                title: item,
+                selected: item == _time,
+                onTap: () => Navigator.pop(sheetContext, item),
               ),
-              const SizedBox(height: 10),
-              for (final item in const ['День', 'Закат', 'Вечер', 'Ночь'])
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(
-                    item == 'День'
-                        ? Icons.wb_sunny_outlined
-                        : item == 'Ночь'
-                        ? Icons.nightlight_outlined
-                        : Icons.wb_twilight_outlined,
-                  ),
-                  title: Text(item),
-                  trailing: item == _time
-                      ? const Icon(Icons.check, color: _sand)
-                      : null,
-                  onTap: () => Navigator.pop(context, item),
-                ),
-              const Text(
-                'Сейчас это состояние интерфейса. Управление светом сцены подключается отдельным проходом рендера.',
-                style: TextStyle(fontSize: 10.5, color: Color(0xFF7F8B91)),
-              ),
-            ],
-          ),
+          ],
         ),
       ),
     );
@@ -278,43 +292,38 @@ class _PhotoStudioScreenState extends State<PhotoStudioScreen> {
     final value = await showModalBottomSheet<String>(
       context: context,
       showDragHandle: true,
-      builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text(
-                'Качество рендера',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+      builder: (sheetContext) => ZSheetFrame(
+        title: 'Качество рендера',
+        description: 'Финальные режимы создают настоящий PNG нужного размера.',
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final item in const [
+              'Черновой',
+              'Стандарт',
+              'Высокий',
+              'Ультра',
+            ])
+              _SelectionTile(
+                icon: item == 'Черновой'
+                    ? Icons.speed_rounded
+                    : item == 'Стандарт'
+                    ? Icons.balance_rounded
+                    : item == 'Высокий'
+                    ? Icons.auto_awesome_outlined
+                    : Icons.high_quality_outlined,
+                title: item,
+                subtitle: item == 'Черновой'
+                    ? '1080p • быстро'
+                    : item == 'Стандарт'
+                    ? '1440p • баланс'
+                    : item == 'Высокий'
+                    ? '4K • финальный кадр'
+                    : '4K • максимальные настройки',
+                selected: item == _quality,
+                onTap: () => Navigator.pop(sheetContext, item),
               ),
-              const SizedBox(height: 10),
-              for (final item in const [
-                'Черновой',
-                'Стандарт',
-                'Высокий',
-                'Ультра',
-              ])
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(item),
-                  subtitle: Text(
-                    item == 'Черновой'
-                        ? '1080p • быстро'
-                        : item == 'Стандарт'
-                        ? '1440p • баланс'
-                        : item == 'Высокий'
-                        ? '4K • финальный кадр'
-                        : '4K • максимальные настройки',
-                  ),
-                  trailing: item == _quality
-                      ? const Icon(Icons.check, color: _sand)
-                      : null,
-                  onTap: () => Navigator.pop(context, item),
-                ),
-            ],
-          ),
+          ],
         ),
       ),
     );
@@ -326,50 +335,44 @@ class _PhotoStudioScreenState extends State<PhotoStudioScreen> {
       context: context,
       showDragHandle: true,
       builder: (sheetContext) => StatefulBuilder(
-        builder: (context, setSheet) => SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
+        builder: (context, setSheet) => ZSheetFrame(
+          title: 'Параметры камеры',
+          description: 'Настройки кадрирования и вспомогательных элементов.',
+          child: ZPanel(
+            padding: EdgeInsets.zero,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Параметры камеры',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('HDR'),
+                ZLayerToggle(
+                  label: 'HDR',
+                  icon: Icons.hdr_on_outlined,
                   value: _hdr,
                   onChanged: (v) {
                     setState(() => _hdr = v);
                     setSheet(() {});
                   },
                 ),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Стабилизация'),
+                ZLayerToggle(
+                  label: 'Стабилизация',
+                  icon: Icons.motion_photos_auto_outlined,
                   value: _stabilization,
                   onChanged: (v) {
                     setState(() => _stabilization = v);
                     setSheet(() {});
                   },
                 ),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Сетка'),
+                ZLayerToggle(
+                  label: 'Сетка третей',
+                  icon: Icons.grid_3x3,
                   value: _grid,
                   onChanged: (v) {
                     setState(() => _grid = v);
                     setSheet(() {});
                   },
                 ),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Уровень горизонта'),
+                ZLayerToggle(
+                  label: 'Уровень горизонта',
+                  icon: Icons.horizontal_rule_rounded,
                   value: _horizon,
                   onChanged: (v) {
                     setState(() => _horizon = v);
@@ -387,45 +390,68 @@ class _PhotoStudioScreenState extends State<PhotoStudioScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF080D10),
+      backgroundColor: ZamerColors.background,
       body: SafeArea(
         child: Column(
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
+            Container(
+              height: 58,
+              padding: const EdgeInsets.symmetric(horizontal: ZamerSpace.sm),
+              decoration: const BoxDecoration(
+                color: ZamerColors.background,
+                border: Border(
+                  bottom: BorderSide(color: ZamerColors.outlineSoft),
+                ),
+              ),
               child: Row(
                 children: [
                   IconButton(
                     tooltip: 'Закрыть',
                     onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close),
+                    icon: const Icon(Icons.close_rounded),
                   ),
-                  const Expanded(
-                    child: Text(
-                      'Фото',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w900,
-                      ),
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text(
+                          'Photo Render',
+                          style: TextStyle(
+                            color: ZamerColors.textPrimary,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        Text(_resolutionLabel, style: ZamerTypography.caption),
+                      ],
                     ),
                   ),
                   IconButton(
                     tooltip: 'Параметры',
                     onPressed: _showParametersSheet,
-                    icon: const Icon(Icons.settings_outlined),
+                    icon: const Icon(Icons.tune_rounded),
                   ),
                 ],
               ),
             ),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Row(
-                children: [
-                  for (final item in const ['Фото', '4K', 'Панорама', 'AR'])
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 2),
+              padding: const EdgeInsets.fromLTRB(
+                ZamerSpace.md,
+                ZamerSpace.sm,
+                ZamerSpace.md,
+                0,
+              ),
+              child: Container(
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  color: ZamerColors.surfaceLow,
+                  borderRadius: BorderRadius.circular(ZamerRadius.md),
+                  border: Border.all(color: ZamerColors.outlineSoft),
+                ),
+                child: Row(
+                  children: [
+                    for (final item in const ['Фото', '4K', 'Панорама', 'AR'])
+                      Expanded(
                         child: _ModeButton(
                           label: item,
                           icon: item == 'Фото'
@@ -440,16 +466,21 @@ class _PhotoStudioScreenState extends State<PhotoStudioScreen> {
                           onTap: () => _selectMode(item),
                         ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: ZamerSpace.sm),
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(18),
+                padding: const EdgeInsets.symmetric(horizontal: ZamerSpace.sm),
+                child: Container(
+                  clipBehavior: Clip.antiAlias,
+                  decoration: BoxDecoration(
+                    color: ZamerColors.surfaceLow,
+                    borderRadius: BorderRadius.circular(ZamerRadius.lg),
+                    border: Border.all(color: ZamerColors.outline),
+                  ),
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
@@ -475,30 +506,24 @@ class _PhotoStudioScreenState extends State<PhotoStudioScreen> {
                           child: CustomPaint(painter: _PhotoGridPainter()),
                         ),
                       if (_horizon)
-                        const IgnorePointer(
+                        IgnorePointer(
                           child: Center(
                             child: SizedBox(
-                              width: 74,
+                              width: 76,
                               child: Divider(
-                                color: Color(0x99F1C79E),
+                                color: ZamerColors.accent.withValues(alpha: .7),
                                 thickness: 1,
                               ),
                             ),
                           ),
                         ),
                       Positioned(
-                        left: 10,
-                        top: 12,
-                        bottom: 12,
+                        left: ZamerSpace.sm,
+                        top: ZamerSpace.md,
+                        bottom: ZamerSpace.md,
                         child: Align(
                           alignment: Alignment.centerLeft,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 4),
-                            decoration: BoxDecoration(
-                              color: const Color(0xB90C1216),
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(color: _border),
-                            ),
+                          child: _FloatingPanel(
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
@@ -516,61 +541,64 @@ class _PhotoStudioScreenState extends State<PhotoStudioScreen> {
                         ),
                       ),
                       Positioned(
-                        right: 10,
-                        top: 12,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: const Color(0xB90C1216),
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: _border),
-                          ),
+                        right: ZamerSpace.sm,
+                        top: ZamerSpace.md,
+                        child: _FloatingPanel(
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              IconButton(
+                              _OverlayAction(
                                 tooltip: 'Сетка',
-                                onPressed: () => setState(() => _grid = !_grid),
-                                icon: Icon(
-                                  Icons.grid_3x3,
-                                  color: _grid ? _sand : null,
-                                ),
+                                icon: Icons.grid_3x3,
+                                selected: _grid,
+                                onTap: () => setState(() => _grid = !_grid),
                               ),
-                              IconButton(
+                              _OverlayAction(
                                 tooltip: 'HDR',
-                                onPressed: () => setState(() => _hdr = !_hdr),
-                                icon: Icon(
-                                  Icons.hdr_on_outlined,
-                                  color: _hdr ? _sand : null,
-                                ),
+                                icon: Icons.hdr_on_outlined,
+                                selected: _hdr,
+                                onTap: () => setState(() => _hdr = !_hdr),
                               ),
-                              IconButton(
+                              _OverlayAction(
                                 tooltip: 'Параметры',
-                                onPressed: _showParametersSheet,
-                                icon: const Icon(Icons.tune_rounded),
+                                icon: Icons.tune_rounded,
+                                onTap: _showParametersSheet,
                               ),
                             ],
                           ),
                         ),
                       ),
                       Positioned(
-                        left: 12,
-                        bottom: 12,
+                        left: ZamerSpace.md,
+                        bottom: ZamerSpace.md,
                         child: Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 9,
-                            vertical: 6,
+                            horizontal: ZamerSpace.sm,
+                            vertical: ZamerSpace.xs,
                           ),
                           decoration: BoxDecoration(
-                            color: const Color(0xC80C1216),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: _border),
+                            color: ZamerColors.surfaceLow.withValues(alpha: .92),
+                            borderRadius: BorderRadius.circular(ZamerRadius.sm),
+                            border: Border.all(color: ZamerColors.outlineSoft),
                           ),
-                          child: Text(
-                            '$_time • ${_mode == '4K' ? '4K' : _quality}',
-                            style: const TextStyle(
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.w800,
-                            ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.wb_sunny_outlined,
+                                size: 14,
+                                color: ZamerColors.textMuted,
+                              ),
+                              const SizedBox(width: 5),
+                              Text(
+                                '$_time • ${_mode == '4K' ? '4K' : _quality}',
+                                style: const TextStyle(
+                                  color: ZamerColors.textPrimary,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
@@ -580,44 +608,25 @@ class _PhotoStudioScreenState extends State<PhotoStudioScreen> {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+              padding: const EdgeInsets.fromLTRB(
+                ZamerSpace.md,
+                ZamerSpace.sm,
+                ZamerSpace.md,
+                ZamerSpace.sm,
+              ),
               child: Row(
                 children: [
-                  const SizedBox(width: 54),
+                  const SizedBox(width: 48),
                   Expanded(
                     child: Center(
-                      child: GestureDetector(
-                        onTap: _rendering ? null : _capture,
-                        child: Container(
-                          width: 72,
-                          height: 72,
-                          padding: const EdgeInsets.all(5),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 3),
-                          ),
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: _rendering
-                                  ? const Color(0xFF5C6569)
-                                  : Colors.white,
-                            ),
-                            child: _rendering
-                                ? const Padding(
-                                    padding: EdgeInsets.all(16),
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : null,
-                          ),
-                        ),
+                      child: _CaptureButton(
+                        rendering: _rendering,
+                        onTap: _capture,
                       ),
                     ),
                   ),
                   SizedBox(
-                    width: 54,
+                    width: 48,
                     child: IconButton(
                       tooltip: 'Повернуть камеру',
                       onPressed: () => setState(() => _rotation += math.pi),
@@ -628,34 +637,39 @@ class _PhotoStudioScreenState extends State<PhotoStudioScreen> {
               ),
             ),
             Container(
-              margin: const EdgeInsets.fromLTRB(10, 0, 10, 10),
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 5),
+              margin: const EdgeInsets.fromLTRB(
+                ZamerSpace.sm,
+                0,
+                ZamerSpace.sm,
+                ZamerSpace.sm,
+              ),
+              padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
-                color: _surface,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: _border),
+                color: ZamerColors.surfaceLow,
+                borderRadius: BorderRadius.circular(ZamerRadius.lg),
+                border: Border.all(color: ZamerColors.outline),
               ),
               child: Row(
                 children: [
                   Expanded(
                     child: _BottomAction(
                       icon: Icons.wb_sunny_outlined,
-                      label: 'Время суток',
+                      label: 'Время',
                       value: _time,
                       onTap: _showTimeSheet,
                     ),
                   ),
                   Expanded(
                     child: _BottomAction(
-                      icon: Icons.tune_rounded,
-                      label: 'Параметры',
+                      icon: Icons.camera_outlined,
+                      label: 'Объектив',
                       value: _lens == 1 ? '1×' : '${_lens}×',
                       onTap: _showParametersSheet,
                     ),
                   ),
                   Expanded(
                     child: _BottomAction(
-                      icon: Icons.view_in_ar_outlined,
+                      icon: Icons.auto_awesome_outlined,
                       label: 'Качество',
                       value: _mode == '4K' ? '4K' : _quality,
                       onTap: _showQualitySheet,
@@ -685,6 +699,56 @@ class _PhotoStudioScreenState extends State<PhotoStudioScreen> {
   }
 }
 
+class _SelectionTile extends StatelessWidget {
+  const _SelectionTile({
+    required this.icon,
+    required this.title,
+    required this.selected,
+    required this.onTap,
+    this.subtitle,
+  });
+
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: ZamerSpace.xs),
+    child: Material(
+      color: selected
+          ? ZamerColors.accent.withValues(alpha: .10)
+          : ZamerColors.surface,
+      borderRadius: BorderRadius.circular(ZamerRadius.md),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(ZamerRadius.md),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(ZamerRadius.md),
+            border: Border.all(
+              color: selected ? ZamerColors.accent : ZamerColors.outlineSoft,
+            ),
+          ),
+          child: ListTile(
+            leading: Icon(
+              icon,
+              color: selected ? ZamerColors.accent : ZamerColors.textSecondary,
+            ),
+            title: Text(title),
+            subtitle: subtitle == null ? null : Text(subtitle!),
+            trailing: selected
+                ? const Icon(Icons.check_rounded, color: ZamerColors.accent)
+                : null,
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
 class _ModeButton extends StatelessWidget {
   const _ModeButton({
     required this.label,
@@ -701,43 +765,47 @@ class _ModeButton extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Material(
-    color: selected ? _PhotoStudioScreenState._sand : const Color(0xFF121A1F),
-    borderRadius: BorderRadius.circular(11),
-    child: InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(11),
-      child: Opacity(
-        opacity: available ? 1 : .5,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 2),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                icon,
-                size: 19,
-                color: selected
-                    ? const Color(0xFF21170F)
-                    : const Color(0xFFD4DBDE),
+  Widget build(BuildContext context) {
+    final foreground = selected
+        ? ZamerColors.accentInk
+        : ZamerColors.textSecondary;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 2),
+      child: Material(
+        color: selected ? ZamerColors.accent : Colors.transparent,
+        borderRadius: BorderRadius.circular(ZamerRadius.sm),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(ZamerRadius.sm),
+          child: Opacity(
+            opacity: available ? 1 : .42,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(icon, size: 16, color: foreground),
+                  const SizedBox(width: 4),
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: foreground,
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 3),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 9.5,
-                  fontWeight: FontWeight.w800,
-                  color: selected
-                      ? const Color(0xFF21170F)
-                      : const Color(0xFFD4DBDE),
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _LensButton extends StatelessWidget {
@@ -746,6 +814,7 @@ class _LensButton extends StatelessWidget {
     required this.selected,
     required this.onTap,
   });
+
   final String label;
   final bool selected;
   final VoidCallback onTap;
@@ -753,23 +822,113 @@ class _LensButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) => InkWell(
     onTap: onTap,
-    borderRadius: BorderRadius.circular(9),
+    borderRadius: BorderRadius.circular(ZamerRadius.sm),
     child: Container(
       width: 42,
       margin: const EdgeInsets.all(3),
       padding: const EdgeInsets.symmetric(vertical: 7),
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: selected ? _PhotoStudioScreenState._sand : Colors.transparent,
-        borderRadius: BorderRadius.circular(9),
+        color: selected ? ZamerColors.accent : Colors.transparent,
+        borderRadius: BorderRadius.circular(ZamerRadius.sm),
       ),
       child: Text(
         label,
         style: TextStyle(
           fontSize: 10.5,
           fontWeight: FontWeight.w900,
-          color: selected ? const Color(0xFF21170F) : Colors.white,
+          color: selected ? ZamerColors.accentInk : ZamerColors.textPrimary,
         ),
+      ),
+    ),
+  );
+}
+
+class _FloatingPanel extends StatelessWidget {
+  const _FloatingPanel({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(vertical: 3),
+    decoration: BoxDecoration(
+      color: ZamerColors.surfaceLow.withValues(alpha: .92),
+      borderRadius: BorderRadius.circular(ZamerRadius.md),
+      border: Border.all(color: ZamerColors.outline),
+    ),
+    child: child,
+  );
+}
+
+class _OverlayAction extends StatelessWidget {
+  const _OverlayAction({
+    required this.tooltip,
+    required this.icon,
+    required this.onTap,
+    this.selected = false,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback onTap;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) => IconButton(
+    tooltip: tooltip,
+    onPressed: onTap,
+    icon: Icon(
+      icon,
+      color: selected ? ZamerColors.accent : ZamerColors.textSecondary,
+    ),
+  );
+}
+
+class _CaptureButton extends StatelessWidget {
+  const _CaptureButton({required this.rendering, required this.onTap});
+
+  final bool rendering;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: rendering ? null : onTap,
+    child: AnimatedContainer(
+      duration: const Duration(milliseconds: 160),
+      width: 70,
+      height: 70,
+      padding: const EdgeInsets.all(5),
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: rendering ? ZamerColors.textFaint : ZamerColors.accent,
+          width: 3,
+        ),
+        boxShadow: rendering
+            ? null
+            : [
+                BoxShadow(
+                  color: ZamerColors.accent.withValues(alpha: .16),
+                  blurRadius: 18,
+                ),
+              ],
+      ),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: rendering ? ZamerColors.surfaceHighest : ZamerColors.accent,
+        ),
+        child: rendering
+            ? const Padding(
+                padding: EdgeInsets.all(16),
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Icon(
+                Icons.photo_camera_rounded,
+                color: ZamerColors.accentInk,
+                size: 24,
+              ),
       ),
     ),
   );
@@ -782,6 +941,7 @@ class _BottomAction extends StatelessWidget {
     required this.value,
     required this.onTap,
   });
+
   final IconData icon;
   final String label;
   final String value;
@@ -790,27 +950,34 @@ class _BottomAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) => InkWell(
     onTap: onTap,
-    borderRadius: BorderRadius.circular(12),
+    borderRadius: BorderRadius.circular(ZamerRadius.md),
     child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 2,
+        vertical: ZamerSpace.xs,
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 19),
+          Icon(icon, size: 18, color: ZamerColors.textSecondary),
           const SizedBox(height: 3),
           Text(
             label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 8.5, fontWeight: FontWeight.w700),
+            style: const TextStyle(
+              color: ZamerColors.textPrimary,
+              fontSize: 8.5,
+              fontWeight: FontWeight.w800,
+            ),
           ),
           Text(
             value,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
+              color: ZamerColors.textMuted,
               fontSize: 8,
-              color: Color(0xFF8F9A9F),
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -826,7 +993,7 @@ class _PhotoGridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = const Color(0x44FFFFFF)
+      ..color = ZamerColors.textPrimary.withValues(alpha: .24)
       ..strokeWidth = .7;
     canvas.drawLine(
       Offset(size.width / 3, 0),
