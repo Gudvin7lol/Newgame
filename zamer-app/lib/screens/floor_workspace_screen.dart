@@ -22,6 +22,7 @@ import 'measurement_review_screen.dart';
 import 'photo_studio_screen.dart';
 import 'plan_editor_production_screen.dart';
 import 'plan_editor_screen.dart';
+import 'plan_geometry_tools_screen.dart';
 import 'planning_objects_screen.dart';
 import 'rooms_screen.dart';
 import 'scan_plan_screen.dart';
@@ -132,6 +133,22 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
       _index = 5;
       _lastByMode[2] = 5;
     });
+  }
+
+  Future<void> _openGeometryTools({
+    PlanGeometryTool initialTool = PlanGeometryTool.radius,
+  }) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => PlanGeometryToolsScreen(
+          floor: widget.floor,
+          onChanged: _changed,
+          initialTool: initialTool,
+        ),
+      ),
+    );
+    if (mounted) setState(() {});
   }
 
   Future<void> _openAdvancedEditor() async {
@@ -324,9 +341,18 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
                 },
               ),
               ZActionTile(
+                icon: Icons.architecture_outlined,
+                title: 'Радиусы и узлы',
+                subtitle: 'Production-инструменты точной геометрии',
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _openGeometryTools();
+                },
+              ),
+              ZActionTile(
                 icon: Icons.tune_rounded,
                 title: 'Расширенный редактор',
-                subtitle: 'Радиусы, узлы и дополнительные режимы старого редактора',
+                subtitle: 'Старые дополнительные режимы до полного переноса',
                 onTap: () {
                   Navigator.pop(sheetContext);
                   _openAdvancedEditor();
@@ -376,7 +402,7 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
         onChanged: _changed,
         onOpenObjects: _openObjectsFromMeasure,
         onOpenReview: _openMeasurementReview,
-        onOpenAdvanced: _openAdvancedEditor,
+        onOpenAdvanced: _openGeometryTools,
       ),
       RoomsScreen(floor: widget.floor, onChanged: _changed),
       hasRooms
