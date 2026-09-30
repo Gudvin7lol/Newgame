@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../design_system/zamer_press_effect.dart';
 import '../design_system/zamer_tokens.dart';
 
 class ZWorkspaceLayerLegend extends StatelessWidget {
@@ -53,16 +54,16 @@ class ZWorkspaceSubnav extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(
         ZamerSpace.sm,
-        ZamerSpace.xs,
+        6,
         ZamerSpace.sm,
-        ZamerSpace.xs,
+        6,
       ),
       decoration: const BoxDecoration(
         color: ZamerColors.surfaceLow,
         border: Border(top: BorderSide(color: ZamerColors.outlineSoft)),
       ),
       child: Container(
-        height: 42,
+        height: 40,
         padding: const EdgeInsets.all(3),
         decoration: BoxDecoration(
           color: ZamerColors.surface,
@@ -107,30 +108,33 @@ class _SubnavItem extends StatelessWidget {
         : ZamerColors.textSecondary;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 2),
-      child: Material(
-        color: selected ? ZamerColors.accent : Colors.transparent,
-        borderRadius: BorderRadius.circular(ZamerRadius.sm),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 16, color: foreground),
-              const SizedBox(width: 5),
-              Flexible(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: foreground,
-                    fontSize: 10.5,
-                    fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
+      child: ZPressEffect(
+        scale: .96,
+        child: Material(
+          color: selected ? ZamerColors.accent : Colors.transparent,
+          borderRadius: BorderRadius.circular(ZamerRadius.sm),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, size: 16, color: foreground),
+                const SizedBox(width: 5),
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: foreground,
+                      fontSize: 10.5,
+                      fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -139,9 +143,6 @@ class _SubnavItem extends StatelessWidget {
 }
 
 /// Shared five-section navigation from the master concept.
-///
-/// Home is always the first destination; the four project modes follow it in
-/// exactly the same order across the application.
 class ZWorkspacePrimaryNav extends StatelessWidget {
   const ZWorkspacePrimaryNav({
     super.key,
@@ -169,7 +170,7 @@ class ZWorkspacePrimaryNav extends StatelessWidget {
     return SafeArea(
       top: false,
       child: Container(
-        height: 64,
+        height: 62,
         decoration: const BoxDecoration(
           color: ZamerColors.surfaceLow,
           border: Border(top: BorderSide(color: ZamerColors.outlineSoft)),
@@ -212,28 +213,28 @@ class ZMasterBottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => SafeArea(
-    top: false,
-    child: Container(
-      height: 64,
-      decoration: const BoxDecoration(
-        color: ZamerColors.surfaceLow,
-        border: Border(top: BorderSide(color: ZamerColors.outlineSoft)),
-      ),
-      child: Row(
-        children: [
-          for (var i = 0; i < _items.length; i++)
-            Expanded(
-              child: _PrimaryNavItem(
-                icon: _items[i].$1,
-                label: _items[i].$2,
-                selected: selectedIndex == i,
-                onTap: () => onSelected(i),
-              ),
-            ),
-        ],
-      ),
-    ),
-  );
+        top: false,
+        child: Container(
+          height: 62,
+          decoration: const BoxDecoration(
+            color: ZamerColors.surfaceLow,
+            border: Border(top: BorderSide(color: ZamerColors.outlineSoft)),
+          ),
+          child: Row(
+            children: [
+              for (var i = 0; i < _items.length; i++)
+                Expanded(
+                  child: _PrimaryNavItem(
+                    icon: _items[i].$1,
+                    label: _items[i].$2,
+                    selected: selectedIndex == i,
+                    onTap: () => onSelected(i),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      );
 }
 
 class _PrimaryNavItem extends StatelessWidget {
@@ -254,58 +255,61 @@ class _PrimaryNavItem extends StatelessWidget {
     final foreground = selected
         ? ZamerColors.accent
         : ZamerColors.textSecondary;
-    return InkWell(
-      onTap: onTap,
-      child: Stack(
-        alignment: Alignment.topCenter,
-        children: [
-          if (selected)
-            Positioned(
-              top: 0,
-              child: Container(
-                width: 28,
-                height: 2,
-                decoration: BoxDecoration(
-                  color: ZamerColors.accent,
-                  borderRadius: BorderRadius.circular(2),
+    return ZPressEffect(
+      scale: .94,
+      child: InkWell(
+        onTap: onTap,
+        child: Stack(
+          alignment: Alignment.topCenter,
+          children: [
+            if (selected)
+              Positioned(
+                top: 0,
+                child: Container(
+                  width: 30,
+                  height: 2,
+                  decoration: BoxDecoration(
+                    color: ZamerColors.accent,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
               ),
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  width: 40,
+                  height: 30,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? ZamerColors.accent.withValues(alpha: .13)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(ZamerRadius.sm),
+                    border: selected
+                        ? Border.all(
+                            color: ZamerColors.accent.withValues(alpha: .55),
+                          )
+                        : null,
+                  ),
+                  child: Icon(icon, size: 19, color: foreground),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: foreground,
+                    fontSize: 8.8,
+                    fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                  ),
+                ),
+              ],
             ),
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                width: 38,
-                height: 29,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: selected
-                      ? ZamerColors.accent.withValues(alpha: .13)
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(ZamerRadius.sm),
-                  border: selected
-                      ? Border.all(
-                          color: ZamerColors.accent.withValues(alpha: .55),
-                        )
-                      : null,
-                ),
-                child: Icon(icon, size: 19, color: foreground),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: foreground,
-                  fontSize: 8.8,
-                  fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -319,15 +323,15 @@ class _LayerDot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      Container(
-        width: 9,
-        height: 9,
-        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-      ),
-      const SizedBox(width: ZamerSpace.xxs),
-      Text(text, style: ZamerTypography.caption),
-    ],
-  );
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 9,
+            height: 9,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: ZamerSpace.xxs),
+          Text(text, style: ZamerTypography.caption),
+        ],
+      );
 }
