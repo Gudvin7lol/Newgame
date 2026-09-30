@@ -20,6 +20,7 @@ import 'layouts_screen.dart';
 import 'materials_screen.dart';
 import 'measurement_review_screen.dart';
 import 'photo_studio_screen.dart';
+import 'plan_editor_production_screen.dart';
 import 'plan_editor_screen.dart';
 import 'planning_objects_screen.dart';
 import 'rooms_screen.dart';
@@ -124,6 +125,26 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
       _index = _index == 1 ? 0 : 1;
       _lastByMode[0] = _index;
     });
+  }
+
+  void _openObjectsFromMeasure() {
+    setState(() {
+      _index = 5;
+      _lastByMode[2] = 5;
+    });
+  }
+
+  Future<void> _openAdvancedEditor() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => Scaffold(
+          appBar: AppBar(title: const Text('Расширенный редактор')),
+          body: PlanEditorScreen(floor: widget.floor, onChanged: _changed),
+        ),
+      ),
+    );
+    if (mounted) setState(() {});
   }
 
   Future<void> _selectMeasureView(ZMeasureViewMode view) async {
@@ -303,6 +324,15 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
                 },
               ),
               ZActionTile(
+                icon: Icons.tune_rounded,
+                title: 'Расширенный редактор',
+                subtitle: 'Радиусы, узлы и дополнительные режимы старого редактора',
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _openAdvancedEditor();
+                },
+              ),
+              ZActionTile(
                 icon: Icons.document_scanner_outlined,
                 title: 'Скан / импорт плана',
                 subtitle: 'Фото, план и калибровка масштаба',
@@ -341,7 +371,13 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
     final roomCount = GeometryService.roomFaces(widget.floor).length;
     final hasRooms = roomCount > 0;
     final screens = [
-      PlanEditorScreen(floor: widget.floor, onChanged: _changed),
+      PlanEditorProductionScreen(
+        floor: widget.floor,
+        onChanged: _changed,
+        onOpenObjects: _openObjectsFromMeasure,
+        onOpenReview: _openMeasurementReview,
+        onOpenAdvanced: _openAdvancedEditor,
+      ),
       RoomsScreen(floor: widget.floor, onChanged: _changed),
       hasRooms
           ? ElevationsScreen(floor: widget.floor, onChanged: _changed)
