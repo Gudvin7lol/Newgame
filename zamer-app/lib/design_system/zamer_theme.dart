@@ -12,18 +12,21 @@ abstract final class ZamerTheme {
     final scheme = base.copyWith(
       primary: ZamerColors.accent,
       onPrimary: ZamerColors.accentInk,
-      secondary: ZamerColors.secondary,
-      onSecondary: ZamerColors.secondaryInk,
+      secondary: ZamerColors.cream,
+      onSecondary: ZamerColors.navy,
       surface: ZamerColors.surface,
       surfaceContainer: ZamerColors.surfaceHigh,
       surfaceContainerHigh: ZamerColors.surfaceHighest,
       outline: ZamerColors.outline,
       outlineVariant: ZamerColors.outlineSoft,
       error: ZamerColors.danger,
-      onError: Colors.white,
+      onError: ZamerColors.white,
     );
 
-    final roundedMd = RoundedRectangleBorder(
+    final radius8 = RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(ZamerRadius.sm),
+    );
+    final radius12 = RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(ZamerRadius.md),
     );
 
@@ -36,14 +39,18 @@ abstract final class ZamerTheme {
       dividerColor: ZamerColors.divider,
       splashColor: ZamerColors.accent.withValues(alpha: .08),
       highlightColor: ZamerColors.accent.withValues(alpha: .04),
-      focusColor: ZamerColors.accent.withValues(alpha: .12),
+      focusColor: ZamerColors.info.withValues(alpha: .14),
       hoverColor: ZamerColors.accent.withValues(alpha: .06),
+      fontFamilyFallback: const ['Roboto', 'Arial', 'sans-serif'],
       iconTheme: const IconThemeData(
         color: ZamerColors.textSecondary,
         size: ZamerSize.iconMd,
       ),
       iconButtonTheme: IconButtonThemeData(
         style: ButtonStyle(
+          minimumSize: const WidgetStatePropertyAll(
+            Size.square(ZamerSize.minTouch),
+          ),
           foregroundColor: WidgetStateProperty.resolveWith(
             (states) => states.contains(WidgetState.disabled)
                 ? ZamerColors.textFaint
@@ -52,22 +59,18 @@ abstract final class ZamerTheme {
           overlayColor: WidgetStatePropertyAll(
             ZamerColors.accent.withValues(alpha: .08),
           ),
-          shape: WidgetStatePropertyAll(roundedMd),
+          shape: WidgetStatePropertyAll(radius8),
         ),
       ),
       appBarTheme: const AppBarTheme(
         backgroundColor: ZamerColors.background,
         foregroundColor: ZamerColors.textPrimary,
         surfaceTintColor: Colors.transparent,
+        toolbarHeight: ZamerSize.topBar,
         centerTitle: false,
         elevation: 0,
         scrolledUnderElevation: 0,
-        titleTextStyle: TextStyle(
-          color: ZamerColors.textPrimary,
-          fontSize: 18,
-          fontWeight: FontWeight.w800,
-          letterSpacing: .1,
-        ),
+        titleTextStyle: ZamerTypography.h4,
       ),
       cardTheme: CardThemeData(
         margin: EdgeInsets.zero,
@@ -75,18 +78,16 @@ abstract final class ZamerTheme {
         color: ZamerColors.surface,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(ZamerRadius.lg),
-          side: const BorderSide(color: ZamerColors.outline),
+          borderRadius: BorderRadius.circular(ZamerRadius.md),
+          side: const BorderSide(color: ZamerColors.outline, width: 1),
         ),
       ),
       listTileTheme: const ListTileThemeData(
+        minTileHeight: ZamerSize.input,
         iconColor: ZamerColors.textSecondary,
         textColor: ZamerColors.textPrimary,
-        subtitleTextStyle: TextStyle(
-          color: ZamerColors.textMuted,
-          fontSize: 11.5,
-          height: 1.25,
-        ),
+        titleTextStyle: ZamerTypography.bodySmall,
+        subtitleTextStyle: ZamerTypography.caption,
         contentPadding: EdgeInsets.symmetric(horizontal: ZamerSpace.md),
       ),
       dividerTheme: const DividerThemeData(
@@ -97,21 +98,29 @@ abstract final class ZamerTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: ZamerColors.surfaceInput,
+        constraints: const BoxConstraints(minHeight: ZamerSize.input),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: ZamerSpace.md,
-          vertical: ZamerSpace.md,
+          vertical: 14,
         ),
-        hintStyle: const TextStyle(
-          color: ZamerColors.textFaint,
-          fontSize: 12.5,
+        hintStyle: ZamerTypography.bodySmall.copyWith(
+          color: ZamerColors.textMuted,
         ),
-        labelStyle: const TextStyle(color: ZamerColors.textSecondary),
-        floatingLabelStyle: const TextStyle(
+        labelStyle: ZamerTypography.bodySmall,
+        floatingLabelStyle: ZamerTypography.bodySmall.copyWith(
           color: ZamerColors.accent,
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.w600,
         ),
         prefixIconColor: ZamerColors.textSecondary,
         suffixIconColor: ZamerColors.textSecondary,
+        prefixIconConstraints: const BoxConstraints(
+          minWidth: ZamerSize.minTouch,
+          minHeight: ZamerSize.minTouch,
+        ),
+        suffixIconConstraints: const BoxConstraints(
+          minWidth: ZamerSize.minTouch,
+          minHeight: ZamerSize.minTouch,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(ZamerRadius.md),
           borderSide: const BorderSide(color: ZamerColors.outline),
@@ -122,10 +131,7 @@ abstract final class ZamerTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(ZamerRadius.md),
-          borderSide: const BorderSide(
-            color: ZamerColors.accent,
-            width: 1.4,
-          ),
+          borderSide: const BorderSide(color: ZamerColors.focus, width: 2),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(ZamerRadius.md),
@@ -133,7 +139,7 @@ abstract final class ZamerTheme {
         ),
         focusedErrorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(ZamerRadius.md),
-          borderSide: const BorderSide(color: ZamerColors.danger, width: 1.4),
+          borderSide: const BorderSide(color: ZamerColors.danger, width: 2),
         ),
         isDense: true,
       ),
@@ -142,55 +148,57 @@ abstract final class ZamerTheme {
           foregroundColor: ZamerColors.accentInk,
           backgroundColor: ZamerColors.accent,
           disabledForegroundColor: ZamerColors.textFaint,
-          disabledBackgroundColor: ZamerColors.surfaceHighest,
+          disabledBackgroundColor: ZamerColors.surfaceHigh,
           minimumSize: const Size(ZamerSize.minTouch, ZamerSize.button),
-          textStyle: const TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w800,
+          padding: const EdgeInsets.symmetric(
+            horizontal: ZamerSpace.md,
+            vertical: 14,
           ),
-          shape: roundedMd,
+          textStyle: ZamerTypography.button,
+          shape: radius8,
           elevation: 0,
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: ZamerColors.textPrimary,
-          side: const BorderSide(color: ZamerColors.outline),
-          minimumSize: const Size(ZamerSize.minTouch, ZamerSize.minTouch),
-          shape: roundedMd,
-          textStyle: const TextStyle(fontWeight: FontWeight.w700),
+          side: const BorderSide(color: ZamerColors.outlineLight),
+          minimumSize: const Size(ZamerSize.minTouch, ZamerSize.button),
+          padding: const EdgeInsets.symmetric(
+            horizontal: ZamerSpace.md,
+            vertical: 14,
+          ),
+          shape: radius8,
+          textStyle: ZamerTypography.button,
         ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: ZamerColors.accent,
+          foregroundColor: ZamerColors.cream,
           minimumSize: const Size(ZamerSize.minTouch, ZamerSize.minTouch),
-          shape: roundedMd,
-          textStyle: const TextStyle(fontWeight: FontWeight.w700),
+          shape: radius8,
+          textStyle: ZamerTypography.button,
         ),
       ),
       chipTheme: ChipThemeData(
         backgroundColor: ZamerColors.surface,
         selectedColor: ZamerColors.accent,
         disabledColor: ZamerColors.surfaceLow,
-        labelStyle: const TextStyle(
+        labelStyle: ZamerTypography.bodySmall.copyWith(
           color: ZamerColors.textSecondary,
-          fontSize: 11.5,
-          fontWeight: FontWeight.w700,
         ),
-        secondaryLabelStyle: const TextStyle(
+        secondaryLabelStyle: ZamerTypography.bodySmall.copyWith(
           color: ZamerColors.accentInk,
-          fontSize: 11.5,
-          fontWeight: FontWeight.w800,
+          fontWeight: FontWeight.w600,
         ),
         side: const BorderSide(color: ZamerColors.outline),
-        shape: roundedMd,
+        shape: radius12,
         showCheckmark: false,
       ),
       segmentedButtonTheme: SegmentedButtonThemeData(
         style: ButtonStyle(
           minimumSize: const WidgetStatePropertyAll(
-            Size(ZamerSize.minTouch, 42),
+            Size(ZamerSize.minTouch, ZamerSize.minTouch),
           ),
           foregroundColor: WidgetStateProperty.resolveWith(
             (states) => states.contains(WidgetState.selected)
@@ -212,17 +220,15 @@ abstract final class ZamerTheme {
                   : ZamerColors.outline,
             ),
           ),
-          shape: WidgetStatePropertyAll(roundedMd),
-          textStyle: const WidgetStatePropertyAll(
-            TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800),
-          ),
+          shape: WidgetStatePropertyAll(radius8),
+          textStyle: const WidgetStatePropertyAll(ZamerTypography.button),
         ),
       ),
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.resolveWith(
           (states) => states.contains(WidgetState.selected)
-              ? ZamerColors.accentInk
-              : ZamerColors.textMuted,
+              ? ZamerColors.cream
+              : ZamerColors.gray300,
         ),
         trackColor: WidgetStateProperty.resolveWith(
           (states) => states.contains(WidgetState.selected)
@@ -238,7 +244,7 @@ abstract final class ZamerTheme {
               : Colors.transparent,
         ),
         checkColor: const WidgetStatePropertyAll(ZamerColors.accentInk),
-        side: const BorderSide(color: ZamerColors.outline, width: 1.3),
+        side: const BorderSide(color: ZamerColors.outlineLight, width: 1.2),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(ZamerRadius.xs),
         ),
@@ -247,7 +253,7 @@ abstract final class ZamerTheme {
         fillColor: WidgetStateProperty.resolveWith(
           (states) => states.contains(WidgetState.selected)
               ? ZamerColors.accent
-              : ZamerColors.textMuted,
+              : ZamerColors.gray300,
         ),
       ),
       sliderTheme: SliderThemeData(
@@ -256,49 +262,48 @@ abstract final class ZamerTheme {
         thumbColor: ZamerColors.accent,
         overlayColor: ZamerColors.accent.withValues(alpha: .12),
         valueIndicatorColor: ZamerColors.surfaceHighest,
-        valueIndicatorTextStyle: const TextStyle(
+        valueIndicatorTextStyle: ZamerTypography.caption.copyWith(
           color: ZamerColors.textPrimary,
-          fontSize: 11,
-          fontWeight: FontWeight.w800,
         ),
       ),
       navigationBarTheme: const NavigationBarThemeData(
-        backgroundColor: ZamerColors.surfaceLow,
-        indicatorColor: Color(0xFF3B3028),
+        backgroundColor: ZamerColors.graphite,
+        indicatorColor: ZamerColors.darkGray,
         height: ZamerSize.bottomNavigation,
+        iconTheme: WidgetStatePropertyAll(
+          IconThemeData(size: ZamerSize.iconMd),
+        ),
         labelTextStyle: WidgetStatePropertyAll(
-          TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700),
+          TextStyle(fontSize: 12, height: 16 / 12, fontWeight: FontWeight.w500),
         ),
       ),
       dialogTheme: DialogThemeData(
-        backgroundColor: ZamerColors.surfaceLow,
+        backgroundColor: ZamerColors.graphite,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(ZamerRadius.lg),
+          borderRadius: BorderRadius.circular(ZamerRadius.xl),
           side: const BorderSide(color: ZamerColors.outline),
         ),
-        titleTextStyle: const TextStyle(
-          color: ZamerColors.textPrimary,
-          fontSize: 18,
-          fontWeight: FontWeight.w900,
-        ),
+        titleTextStyle: ZamerTypography.h4,
         contentTextStyle: ZamerTypography.bodySmall,
       ),
       bottomSheetTheme: BottomSheetThemeData(
-        backgroundColor: ZamerColors.surfaceLow,
+        backgroundColor: ZamerColors.cream,
         surfaceTintColor: Colors.transparent,
         showDragHandle: true,
-        dragHandleColor: ZamerColors.textFaint,
-        modalBackgroundColor: ZamerColors.surfaceLow,
+        dragHandleColor: ZamerColors.gray500,
+        modalBackgroundColor: ZamerColors.cream,
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(
-            top: Radius.circular(ZamerRadius.xl),
+            top: Radius.circular(ZamerRadius.xxl),
           ),
         ),
       ),
       snackBarTheme: SnackBarThemeData(
-        backgroundColor: ZamerColors.surfaceHighest,
-        contentTextStyle: const TextStyle(color: ZamerColors.textPrimary),
+        backgroundColor: ZamerColors.darkGray,
+        contentTextStyle: ZamerTypography.bodySmall.copyWith(
+          color: ZamerColors.white,
+        ),
         behavior: SnackBarBehavior.floating,
         elevation: 0,
         shape: RoundedRectangleBorder(
@@ -307,7 +312,7 @@ abstract final class ZamerTheme {
         ),
       ),
       popupMenuTheme: PopupMenuThemeData(
-        color: ZamerColors.surfaceHighest,
+        color: ZamerColors.graphite,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(ZamerRadius.md),
@@ -316,14 +321,13 @@ abstract final class ZamerTheme {
       ),
       tooltipTheme: TooltipThemeData(
         decoration: BoxDecoration(
-          color: ZamerColors.surfaceHighest,
+          color: ZamerColors.darkGray,
           borderRadius: BorderRadius.circular(ZamerRadius.sm),
           border: Border.all(color: ZamerColors.outline),
         ),
-        textStyle: const TextStyle(
-          color: ZamerColors.textPrimary,
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
+        textStyle: ZamerTypography.caption.copyWith(
+          color: ZamerColors.white,
+          fontWeight: FontWeight.w500,
         ),
         waitDuration: const Duration(milliseconds: 450),
       ),
