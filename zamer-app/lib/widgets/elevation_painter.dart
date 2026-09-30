@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../design_system/zamer_tokens.dart';
 import '../models/models.dart';
 import '../services/geometry_service.dart';
 import '../services/material_catalog.dart';
@@ -24,10 +25,7 @@ class ElevationPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    canvas.drawRect(
-      Offset.zero & size,
-      Paint()..color = const Color(0xFF0B1115),
-    );
+    canvas.drawRect(Offset.zero & size, Paint()..color = ZamerColors.background);
     final runLen = run.lengthMm;
     if (runLen <= 0) return;
 
@@ -45,15 +43,16 @@ class ElevationPainter extends CustomPainter {
     final top = (size.height - drawH) / 2;
     final rect = Rect.fromLTWH(left, top, drawW, drawH);
 
-    canvas.drawRect(rect, Paint()..color = const Color(0xFF172125));
-    if (settings.wallTileEnabledFor(run.id))
+    canvas.drawRect(rect, Paint()..color = ZamerColors.surfaceHigh);
+    if (settings.wallTileEnabledFor(run.id)) {
       _drawWallTiles(canvas, rect, scale);
+    }
     canvas.drawRect(
       rect,
       Paint()
-        ..color = const Color(0xFFD4DCDF)
+        ..color = ZamerColors.textSecondary
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2,
+        ..strokeWidth = 1.6,
     );
 
     final openingSpans = <_ElevationOpeningSpan>[];
@@ -86,15 +85,17 @@ class ElevationPainter extends CustomPainter {
           oRect,
           Paint()
             ..color = opening.type == OpeningType.window
-                ? const Color(0xFF20384A)
-                : const Color(0xFF4A3426),
+                ? ZamerColors.info.withValues(alpha: .20)
+                : ZamerColors.accent.withValues(alpha: .18),
         );
         canvas.drawRect(
           oRect,
           Paint()
-            ..color = const Color(0xFFB9C3C7)
+            ..color = opening.type == OpeningType.window
+                ? ZamerColors.info.withValues(alpha: .85)
+                : ZamerColors.accent.withValues(alpha: .82)
             ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.5,
+            ..strokeWidth = 1.4,
         );
         _label(
           canvas,
@@ -155,7 +156,7 @@ class ElevationPainter extends CustomPainter {
     final tileRect = Rect.fromLTRB(rect.left, topY, rect.right, bottomY);
     canvas.save();
     canvas.clipRect(tileRect);
-    canvas.drawRect(tileRect, Paint()..color = const Color(0xFF1B2529));
+    canvas.drawRect(tileRect, Paint()..color = ZamerColors.surfaceHighest);
     if (settings.wallTileMirroredFor(run.id)) {
       canvas.translate(tileRect.left + tileRect.right, 0);
       canvas.scale(-1, 1);
@@ -167,7 +168,7 @@ class ElevationPainter extends CustomPainter {
     final offX = (settings.wallTileXFor(run.id) % tileWidthMm) * scale;
     final offY = (settings.wallTileYFor(run.id) % tileHeightMm) * scale;
     final stroke = Paint()
-      ..color = const Color(0xFF718087)
+      ..color = ZamerColors.textFaint.withValues(alpha: .85)
       ..style = PaintingStyle.stroke
       ..strokeWidth = math.max(0.8, settings.wallTileGroutMm * scale);
     var row = 0;
@@ -192,7 +193,7 @@ class ElevationPainter extends CustomPainter {
     canvas.drawRect(
       tileRect,
       Paint()
-        ..color = const Color(0xFF8E9A9F)
+        ..color = ZamerColors.textMuted
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1,
     );
@@ -254,7 +255,7 @@ class ElevationPainter extends CustomPainter {
     bool opening,
   ) {
     final p = Paint()
-      ..color = opening ? const Color(0xFF55B98C) : const Color(0xFFAAB5BA)
+      ..color = opening ? ZamerColors.success : ZamerColors.textMuted
       ..strokeWidth = 1;
     canvas.drawLine(Offset(x1, y), Offset(x2, y), p);
     canvas.drawLine(Offset(x1, y - 4), Offset(x1, y + 4), p);
@@ -267,7 +268,7 @@ class ElevationPainter extends CustomPainter {
       text: TextSpan(
         text: text,
         style: const TextStyle(
-          color: Color(0xFFDDE4E7),
+          color: ZamerColors.textPrimary,
           fontSize: 9,
           fontWeight: FontWeight.w700,
         ),
@@ -282,7 +283,14 @@ class ElevationPainter extends CustomPainter {
     );
     canvas.drawRRect(
       RRect.fromRectAndRadius(rect, const Radius.circular(7)),
-      Paint()..color = const Color(0xEE111A1F),
+      Paint()..color = ZamerColors.surfaceLow.withValues(alpha: .94),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect, const Radius.circular(7)),
+      Paint()
+        ..color = ZamerColors.outline
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = .8,
     );
     canvas.drawRRect(
       RRect.fromRectAndRadius(
@@ -310,8 +318,9 @@ class ElevationPainter extends CustomPainter {
     if (wallLength < 1) return;
 
     for (final object in floor.planObjects) {
-      if (object.catalogId.isEmpty || object.layer == ProjectLayer.demolition)
+      if (object.catalogId.isEmpty || object.layer == ProjectLayer.demolition) {
         continue;
+      }
       final item = ObjectCatalog.byId(object.catalogId);
       if (item.mount != CatalogMount.wall) continue;
       final hit = GeometryService.nearestWallProjection(
@@ -335,12 +344,14 @@ class ElevationPainter extends CustomPainter {
       canvas.drawRRect(
         RRect.fromRectAndRadius(objectRect, const Radius.circular(3)),
         Paint()
-          ..color = isLight ? const Color(0xFFFFE7A8) : const Color(0xFFE5E8EB),
+          ..color = isLight
+              ? ZamerColors.warning.withValues(alpha: .45)
+              : ZamerColors.textPrimary.withValues(alpha: .88),
       );
       canvas.drawRRect(
         RRect.fromRectAndRadius(objectRect, const Radius.circular(3)),
         Paint()
-          ..color = isLight ? const Color(0xFFB67A16) : const Color(0xFF68717D)
+          ..color = isLight ? ZamerColors.warning : ZamerColors.textMuted
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1.1,
       );
@@ -386,10 +397,10 @@ class ElevationPainter extends CustomPainter {
 
   void _electricalSymbol(Canvas canvas, Offset c, ElectricalPoint p) {
     final stroke = Paint()
-      ..color = const Color(0xFFB24D2B)
+      ..color = ZamerColors.warning
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5;
-    final fill = Paint()..color = const Color(0xFF172125);
+    final fill = Paint()..color = ZamerColors.surfaceHigh;
     if (p.type == ElectricalPointType.wallLight) {
       canvas.drawCircle(c, 7, fill);
       canvas.drawArc(
@@ -442,7 +453,7 @@ class ElevationPainter extends CustomPainter {
     bool vertical = false,
   }) {
     final p = Paint()
-      ..color = const Color(0xFFAAB5BA)
+      ..color = ZamerColors.textMuted
       ..strokeWidth = 1;
     canvas.drawLine(a, b, p);
     if (vertical) {
@@ -471,10 +482,9 @@ class ElevationPainter extends CustomPainter {
       text: TextSpan(
         text: text,
         style: const TextStyle(
-          color: Color(0xFFD5DDE0),
+          color: ZamerColors.textPrimary,
           fontSize: 10,
-          fontWeight: FontWeight.w700,
-          backgroundColor: Color(0xE60B1115),
+          fontWeight: FontWeight.w800,
         ),
       ),
       textDirection: TextDirection.ltr,
@@ -482,6 +492,22 @@ class ElevationPainter extends CustomPainter {
     canvas.save();
     canvas.translate(center.dx, center.dy);
     if (rotate) canvas.rotate(-math.pi / 2);
+    final badge = Rect.fromCenter(
+      center: Offset.zero,
+      width: tp.width + 8,
+      height: tp.height + 5,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(badge, const Radius.circular(4)),
+      Paint()..color = ZamerColors.surfaceLow.withValues(alpha: .94),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(badge, const Radius.circular(4)),
+      Paint()
+        ..color = ZamerColors.outlineSoft
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = .7,
+    );
     tp.paint(canvas, Offset(-tp.width / 2, -tp.height / 2));
     canvas.restore();
   }
@@ -491,7 +517,7 @@ class ElevationPainter extends CustomPainter {
       text: TextSpan(
         text: text,
         style: TextStyle(
-          color: const Color(0xFFDDE4E7),
+          color: ZamerColors.textPrimary,
           fontSize: fontSize,
           fontWeight: FontWeight.w700,
           height: 1.25,
