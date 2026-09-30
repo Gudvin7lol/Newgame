@@ -51,10 +51,13 @@ jobs:
           dart format
           zamer-app/lib/main.dart
           zamer-app/lib/design_system
+          zamer-app/lib/screens/home_concept_screen.dart
           zamer-app/lib/screens/projects_screen.dart
           zamer-app/lib/screens/floor_workspace_screen.dart
+          zamer-app/lib/screens/plan_editor_production_screen.dart
           zamer-app/lib/screens/floor_3d_screen.dart
           zamer-app/lib/widgets/projects_home_widgets.dart
+          zamer-app/lib/widgets/workspace_master_header.dart
           zamer-app/lib/widgets/workspace_navigation.dart
 
       - name: Analyze
