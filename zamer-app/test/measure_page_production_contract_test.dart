@@ -15,9 +15,13 @@ void main() {
     ).readAsStringSync();
 
     expect(workspace.contains('_MeasureProductionStrip'), isTrue);
-    expect(workspace.contains("height: 54"), isTrue);
+    expect(workspace.contains('height: 54'), isTrue);
     expect(workspace.contains('PhotoStudioScreen('), isTrue);
     expect(workspace.contains('Floor3DScreen(floor: widget.floor)'), isTrue);
+    expect(workspace.contains('_showFloorPicker'), isTrue);
+    expect(workspace.contains('_switchFloor'), isTrue);
+    expect(workspace.contains('Добавить этаж'), isTrue);
+    expect(workspace.contains('Navigator.pushReplacement'), isTrue);
 
     expect(chrome.contains("_tab('2D'"), isTrue);
     expect(chrome.contains("_tab('3D'"), isTrue);
