@@ -22,6 +22,8 @@ void main() {
     expect(workspace.contains('_switchFloor'), isTrue);
     expect(workspace.contains('Добавить этаж'), isTrue);
     expect(workspace.contains('Navigator.pushReplacement'), isTrue);
+    expect(workspace.contains('_toggleMeasureRooms'), isTrue);
+    expect(workspace.contains('if (_mode != 0)'), isTrue);
 
     expect(chrome.contains("_tab('2D'"), isTrue);
     expect(chrome.contains("_tab('3D'"), isTrue);
