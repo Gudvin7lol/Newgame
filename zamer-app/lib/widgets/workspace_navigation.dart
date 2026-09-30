@@ -126,7 +126,6 @@ class _LayerDot extends StatelessWidget {
         decoration: BoxDecoration(color: color, shape: BoxShape.circle),
       ),
       const SizedBox(width: ZamerSpace.xxs),
-      const SizedBox.shrink(),
       Text(text, style: ZamerTypography.caption),
     ],
   );
