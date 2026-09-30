@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 
 import '../design_system/zamer_components.dart';
+import '../design_system/zamer_measure_chrome.dart';
+import '../design_system/zamer_tokens.dart';
 import '../models/models.dart';
 import '../services/geometry_service.dart';
 import '../services/report_service.dart';
@@ -44,24 +46,22 @@ class FloorWorkspaceScreen extends StatefulWidget {
 class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
   int _index = 0;
 
-  // Home lives one level above this screen. The remaining four master pages
-  // are mapped to the working subpages below.
   final _lastByMode = [0, 8, 5, 2];
   static const _modeTabs = <List<int>>[
-    [0, 1], // Замер: план + помещения.
-    [8], // 3D: realtime scene / walk / photo studio.
-    [4, 5, 6], // Оснащение: электрика + объекты + инженерия.
-    [2, 3, 7], // Развёртки: стены + полы + материалы.
+    [0, 1],
+    [8],
+    [4, 5, 6],
+    [2, 3, 7],
   ];
 
   int get _mode => _modeTabs.indexWhere((group) => group.contains(_index));
 
   String get _modeLabel => switch (_mode) {
-    0 => 'ЗАМЕР 2D',
-    1 => '3D',
-    2 => 'ОСНАЩЕНИЕ',
-    _ => 'РАЗВЁРТКИ',
-  };
+        0 => 'ЗАМЕР 2D',
+        1 => '3D',
+        2 => 'ОСНАЩЕНИЕ',
+        _ => 'РАЗВЁРТКИ',
+      };
 
   final _history = <String>[];
   int _historyIndex = 0;
@@ -117,6 +117,23 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
     });
   }
 
+  void _selectMeasureView(ZMeasureViewMode view) {
+    switch (view) {
+      case ZMeasureViewMode.twoD:
+        setState(() {
+          _index = _lastByMode[0];
+          if (!_modeTabs[0].contains(_index)) _index = 0;
+        });
+      case ZMeasureViewMode.threeD:
+      case ZMeasureViewMode.photo:
+        setState(() {
+          _lastByMode[0] = _index == 1 ? 1 : 0;
+          _index = 8;
+          _lastByMode[1] = 8;
+        });
+    }
+  }
+
   void _goHome() {
     Navigator.of(context).popUntil((route) => route.isFirst);
   }
@@ -160,6 +177,8 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
   Future<void> _showProjectActions() async {
     await showModalBottomSheet<void>(
       context: context,
+      backgroundColor: ZamerColors.surface,
+      showDragHandle: true,
       builder: (sheetContext) => ZSheetFrame(
         title: 'Действия проекта',
         description: '${widget.project.name} • ${widget.floor.name}',
@@ -222,9 +241,6 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
               onChanged: _changed,
             )
           : _roomRequiredState('Материалы и отделка'),
-      // The GPU viewport is created only while 3D is visible. Initialising
-      // Flutter Scene inside an offstage IndexedStack surface caused the old
-      // "3D appears only after app restart" failure on some Android devices.
       _index == 8
           ? Floor3DScreen(
               key: ValueKey(
@@ -251,36 +267,34 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
     final modeTabs = _modeTabs[_mode];
     final subItems = [for (final i in modeTabs) tabs[i]];
     final contextTitle = switch (_mode) {
-      0 => 'Обмер и геометрия',
       1 => 'Пространственная модель',
       2 => 'Комплектация объекта',
       _ => 'Рабочая документация',
     };
     final contextSubtitle = switch (_mode) {
-      0 => 'Стены, помещения, проёмы и контроль размеров',
       1 => 'Realtime-сцена, прогулка и фоторендер',
       2 => 'Мебель, электрика, сантехника и инженерия',
       _ => 'Развёртки стен, раскладки пола и материалы',
     };
     final contextIcon = switch (_mode) {
-      0 => Icons.architecture_outlined,
       1 => Icons.view_in_ar_outlined,
       2 => Icons.chair_alt_outlined,
       _ => Icons.view_carousel_outlined,
     };
+
     final contextMetrics = <ZWorkspaceMetric>[
       ZWorkspaceMetric(
         icon: tabs[_index].$2,
         value: tabs[_index].$1,
         emphasized: true,
       ),
-      if (_mode == 0 || _mode == 1 || _mode == 3)
+      if (_mode == 1 || _mode == 3)
         ZWorkspaceMetric(
           icon: Icons.square_foot_outlined,
           value: '${widget.floor.walls.length}',
           label: 'стен',
         ),
-      if (_mode == 0 || _mode == 3)
+      if (_mode == 3)
         ZWorkspaceMetric(
           icon: Icons.grid_view_outlined,
           value: '$roomCount',
@@ -314,15 +328,20 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
       ),
       body: Column(
         children: [
-          ZWorkspaceContextStrip(
-            icon: contextIcon,
-            title: contextTitle,
-            subtitle: contextSubtitle,
-            metrics: contextMetrics,
-          ),
-          // Layer legend belongs to the measurement workflow only. Keeping it
-          // above 3D/equipment/elevations wastes precious mobile workspace.
-          if (_mode == 0) const ZWorkspaceLayerLegend(),
+          if (_mode == 0)
+            _MeasureProductionStrip(
+              wallCount: widget.floor.walls.length,
+              roomCount: roomCount,
+              viewMode: ZMeasureViewMode.twoD,
+              onViewChanged: _selectMeasureView,
+            )
+          else
+            ZWorkspaceContextStrip(
+              icon: contextIcon,
+              title: contextTitle,
+              subtitle: contextSubtitle,
+              metrics: contextMetrics,
+            ),
           Expanded(child: IndexedStack(index: _index, children: screens)),
           ZWorkspaceSubnav(
             items: subItems,
@@ -335,6 +354,87 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
             onHome: _goHome,
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _MeasureProductionStrip extends StatelessWidget {
+  const _MeasureProductionStrip({
+    required this.wallCount,
+    required this.roomCount,
+    required this.viewMode,
+    required this.onViewChanged,
+  });
+
+  final int wallCount;
+  final int roomCount;
+  final ZMeasureViewMode viewMode;
+  final ValueChanged<ZMeasureViewMode> onViewChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+      decoration: const BoxDecoration(
+        color: ZamerColors.surfaceLow,
+        border: Border(bottom: BorderSide(color: ZamerColors.outlineSoft)),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final info = Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.architecture_outlined,
+                size: 19,
+                color: ZamerColors.accent,
+              ),
+              const SizedBox(width: 8),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'План помещения',
+                    style: ZamerTypography.bodySmall.copyWith(
+                      color: ZamerColors.textPrimary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Text(
+                    '$wallCount стен • $roomCount помещений',
+                    style: ZamerTypography.caption,
+                  ),
+                ],
+              ),
+            ],
+          );
+
+          final tabs = ZMeasureViewTabs(
+            value: viewMode,
+            onChanged: onViewChanged,
+          );
+
+          if (constraints.maxWidth < 430) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                info,
+                const SizedBox(height: 8),
+                Align(alignment: Alignment.centerLeft, child: tabs),
+              ],
+            );
+          }
+
+          return Row(
+            children: [
+              info,
+              const Spacer(),
+              tabs,
+            ],
+          );
+        },
       ),
     );
   }
