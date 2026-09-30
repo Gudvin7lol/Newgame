@@ -3,25 +3,28 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('Measure production screen routes through UI KIT 02 master editor', () {
+  test('Measure production screen routes through UI KIT 02 master editor v2', () {
     final source = File('lib/screens/plan_editor_production_screen.dart')
         .readAsStringSync();
-    expect(source.contains("import 'plan_editor_master_screen.dart';"), isTrue);
-    expect(source.contains('PlanEditorMasterScreen('), isTrue);
+    expect(
+      source.contains("import 'plan_editor_master_v2_screen.dart';"),
+      isTrue,
+    );
+    expect(source.contains('PlanEditorMasterV2Screen('), isTrue);
+    expect(source.contains('PlanEditorMasterScreen('), isFalse);
   });
 
-  test('UI KIT 02 CAD essentials are present and functional', () {
-    final source = File('lib/screens/plan_editor_master_screen.dart')
+  test('UI KIT 02 CAD essentials are present and functional in v2', () {
+    final source = File('lib/screens/plan_editor_master_v2_screen.dart')
         .readAsStringSync();
 
     for (final required in const [
-      '_CadToolRail',
-      '_RightRail',
-      '_SelectedWallPanel',
-      '_QuickTools',
-      '_MaterialStrip',
-      '_MiniMap',
-      '_ScaleBadge',
+      '_MasterToolRail',
+      '_MasterActionRail',
+      '_WallInspectorV2',
+      '_ToolbeltV2',
+      '_CanvasNavigation',
+      '_ScalePill',
       'DimensionSource _dimensionSource',
       "floor.dimensionRecords['control:",
       'source: _dimensionSource',
@@ -29,8 +32,8 @@ void main() {
       'Проём',
       'Размер',
       'Проверка',
-      'Материал стены',
-      'Радиус/узлы',
+      'WallMaterial.values',
+      'Радиус / узлы',
     ]) {
       expect(
         source.contains(required),
@@ -40,11 +43,12 @@ void main() {
     }
   });
 
-  test('Master editor reserves canvas space for CAD inspector', () {
-    final source = File('lib/screens/plan_editor_master_screen.dart')
+  test('Master editor v2 reserves canvas space for contextual inspector', () {
+    final source = File('lib/screens/plan_editor_master_v2_screen.dart')
         .readAsStringSync();
-    expect(source.contains('double _bottomReserve()'), isTrue);
+    expect(source.contains('double get _bottomReserve'), isTrue);
     expect(source.contains('usableH'), isTrue);
     expect(source.contains('screenCenter'), isTrue);
+    expect(source.contains('height: 160'), isTrue);
   });
 }
