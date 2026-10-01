@@ -1186,6 +1186,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
         ),
       );
       final glass = _pbr(vm.Vector4(0.72, 0.88, 0.96, 0.28), roughness: 0.10)
+        ..alphaMode = AlphaMode.blend
         ..doubleSided = true;
       root.add(
         bar(
