@@ -21,10 +21,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Checkout
+      - name: Sparse checkout
         uses: actions/checkout@v4
         with:
           ref: codex/zamer-1.5.6-3d-stability
+          fetch-depth: 1
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            zamer-app/lib/screens/floor_3d_screen.dart
+            zamer-app/tool/migrations/apply_walk_mode_smoothing.py
 
       - name: Apply smooth Walk Mode
         run: python zamer-app/tool/migrations/apply_walk_mode_smoothing.py
