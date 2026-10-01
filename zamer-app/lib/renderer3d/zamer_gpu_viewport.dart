@@ -12,6 +12,7 @@ import '../services/generated_pbr_finish_catalog.dart';
 import '../services/material_catalog.dart';
 import '../widgets/floor_3d_painter.dart';
 import 'floor_grout_geometry.dart';
+import 'cutaway_geometry.dart';
 import 'model_asset_catalog.dart';
 import 'model_lod_policy.dart';
 import 'scene_fingerprint.dart';
@@ -483,11 +484,19 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     for (final wall in geometry.walls) {
       final node = _buildWallNode(wall, geometry.bounds);
       nextNodes.add(node);
+      final centerX = _mx(wall.centerXMm, geometry.bounds);
+      final centerZ = _mz(wall.centerYMm, geometry.bounds);
+      final halfLengthM = wall.lengthMm / 2000;
+      final segmentDx = math.cos(wall.angleRad) * halfLengthM;
+      final segmentDz = math.sin(wall.angleRad) * halfLengthM;
       nextWallVisuals.add(
         _WallVisual(
           node: node,
-          x: _mx(wall.centerXMm, geometry.bounds),
-          z: _mz(wall.centerYMm, geometry.bounds),
+          startX: centerX - segmentDx,
+          startZ: centerZ - segmentDz,
+          endX: centerX + segmentDx,
+          endZ: centerZ + segmentDz,
+          halfThickness: wall.thicknessMm / 2000,
         ),
       );
     }
@@ -1561,7 +1570,6 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     final cameraFromTarget = camera2 - target2;
     if (cameraFromTarget.length2 < 0.0001) return;
 
-    final cameraDir = cameraFromTarget.normalized();
     final cameraDistance = cameraFromTarget.length;
     final halfFov =
         widget.cameraFovDegrees.clamp(18.0, 90.0).toDouble() * math.pi / 360;
@@ -1570,27 +1578,18 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       math.tan(halfFov) * cameraDistance * 1.15,
     );
 
+    final targetPoint = math.Point<double>(target2.x, target2.y);
+    final cameraPoint = math.Point<double>(camera2.x, camera2.y);
     for (final wall in _wallVisuals) {
-      final wallPos = vm.Vector2(wall.x, wall.z);
-      final relative = wallPos - target2;
-      final radial = relative.length;
-      if (radial < 0.08) {
-        wall.node.visible = true;
-        continue;
-      }
-
-      final axial = relative.dot(cameraDir);
-      final lateral = (relative.x * cameraDir.y - relative.y * cameraDir.x)
-          .abs();
-      final towardCamera = relative.normalized().dot(cameraDir);
-      final inOcclusionBand = axial > 0.08 && axial < cameraDistance * 0.92;
-      final inViewCorridor = lateral < corridorHalfWidth + 0.25;
-
-      // Hide only the camera-side walls that can actually obstruct the current
-      // target. Side/rear walls stay visible, and a panned camera no longer
-      // cuts walls around the stale world origin.
-      wall.node.visible =
-          !(towardCamera >= 0.30 && inOcclusionBand && inViewCorridor);
+      final occludesTarget = zamerWallSegmentOccludesCutaway(
+        start: math.Point<double>(wall.startX, wall.startZ),
+        end: math.Point<double>(wall.endX, wall.endZ),
+        target: targetPoint,
+        camera: cameraPoint,
+        corridorHalfWidth: corridorHalfWidth,
+        wallHalfThickness: wall.halfThickness,
+      );
+      wall.node.visible = !occludesTarget;
     }
   }
 
@@ -1797,10 +1796,21 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
 }
 
 class _WallVisual {
-  const _WallVisual({required this.node, required this.x, required this.z});
+  const _WallVisual({
+    required this.node,
+    required this.startX,
+    required this.startZ,
+    required this.endX,
+    required this.endZ,
+    required this.halfThickness,
+  });
+
   final Node node;
-  final double x;
-  final double z;
+  final double startX;
+  final double startZ;
+  final double endX;
+  final double endZ;
+  final double halfThickness;
 }
 
 /// Ear-clipping triangulation for simple room polygons, including concave ones.

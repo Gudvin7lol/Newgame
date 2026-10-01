@@ -7,16 +7,19 @@ void main() {
   const target = math.Point<double>(0, 0);
   const camera = math.Point<double>(0, 5);
 
-  test('long wall is cut even when its centre is outside the view corridor', () {
-    final hidden = zamerWallSegmentOccludesCutaway(
-      start: const math.Point<double>(-5, 2),
-      end: const math.Point<double>(1, 2),
-      target: target,
-      camera: camera,
-      corridorHalfWidth: 0.75,
-    );
-    expect(hidden, isTrue);
-  });
+  test(
+    'long wall is cut even when its centre is outside the view corridor',
+    () {
+      final hidden = zamerWallSegmentOccludesCutaway(
+        start: const math.Point<double>(-5, 2),
+        end: const math.Point<double>(1, 2),
+        target: target,
+        camera: camera,
+        corridorHalfWidth: 0.75,
+      );
+      expect(hidden, isTrue);
+    },
+  );
 
   test('side wall outside corridor remains visible', () {
     final hidden = zamerWallSegmentOccludesCutaway(
