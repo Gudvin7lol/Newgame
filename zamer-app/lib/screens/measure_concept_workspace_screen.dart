@@ -3,11 +3,9 @@ import 'package:flutter/material.dart';
 import '../design_system/zamer_measure_chrome.dart';
 import '../design_system/zamer_tokens.dart';
 import '../models/models.dart';
-import '../widgets/workspace_navigation.dart';
-import 'elevations_screen.dart';
 import 'plan_editor_production_screen.dart';
 
-/// Production shell for the master «Замер» page.
+/// Production shell for the approved UI KIT 02 «Замер» concept.
 class MeasureConceptWorkspaceScreen extends StatefulWidget {
   const MeasureConceptWorkspaceScreen({
     super.key,
@@ -20,16 +18,17 @@ class MeasureConceptWorkspaceScreen extends StatefulWidget {
     required this.canRedo,
     required this.onMore,
     required this.onOpen3D,
+    required this.onOpenAR,
     required this.onOpenPhoto,
     required this.onOpenObjects,
     required this.onOpenReview,
     required this.onOpenGeometry,
     required this.onOpenFloors,
     required this.onOpenSettings,
+    required this.onOpenMaterials,
     required this.onHome,
     required this.onProjects,
     required this.onCatalog,
-    this.onSelectPrimaryMode,
   });
 
   final MeasureProject project;
@@ -41,20 +40,17 @@ class MeasureConceptWorkspaceScreen extends StatefulWidget {
   final bool canRedo;
   final VoidCallback onMore;
   final VoidCallback onOpen3D;
+  final VoidCallback onOpenAR;
   final VoidCallback onOpenPhoto;
   final VoidCallback onOpenObjects;
   final VoidCallback onOpenReview;
   final VoidCallback onOpenGeometry;
-
-  /// Kept while older callers migrate to the five-section master shell.
   final VoidCallback onOpenFloors;
   final VoidCallback onOpenSettings;
+  final VoidCallback onOpenMaterials;
   final VoidCallback onHome;
   final VoidCallback onProjects;
   final VoidCallback onCatalog;
-
-  /// Project-mode index: 0 = Measure, 1 = 3D, 2 = Equipment, 3 = Elevations.
-  final ValueChanged<int>? onSelectPrimaryMode;
 
   @override
   State<MeasureConceptWorkspaceScreen> createState() =>
@@ -66,302 +62,406 @@ class _MeasureConceptWorkspaceScreenState
   ZMeasureViewMode _view = ZMeasureViewMode.twoD;
 
   void _selectView(ZMeasureViewMode value) {
+    setState(() => _view = value);
     switch (value) {
       case ZMeasureViewMode.twoD:
-        if (_view != value) setState(() => _view = value);
+        return;
       case ZMeasureViewMode.threeD:
         widget.onOpen3D();
+      case ZMeasureViewMode.ar:
+        widget.onOpenAR();
       case ZMeasureViewMode.photo:
         widget.onOpenPhoto();
     }
   }
 
-  void _selectPrimaryMode(int mode) {
-    final parentHandler = widget.onSelectPrimaryMode;
-    if (parentHandler != null) {
-      parentHandler(mode);
-      return;
-    }
-
-    switch (mode) {
-      case 0:
-        return;
-      case 1:
-        widget.onOpen3D();
-      case 2:
-        widget.onOpenObjects();
-      case 3:
-        Navigator.push(
-          context,
-          MaterialPageRoute<void>(
-            builder: (_) => ElevationsScreen(
-              floor: widget.floor,
-              onChanged: widget.onChanged,
-            ),
+  Future<void> _showTutorial() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: ZamerColors.surface,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Обучение', style: ZamerTypography.h3),
+              const SizedBox(height: 12),
+              _TutorialRow(
+                number: '1',
+                title: 'Стены',
+                text: 'Выбери «Стены», поставь первую точку и задай длину.',
+              ),
+              _TutorialRow(
+                number: '2',
+                title: 'Проёмы',
+                text: 'Выбери стену и добавь дверь или окно с точным отступом.',
+              ),
+              _TutorialRow(
+                number: '3',
+                title: 'Проверка',
+                text: 'Проверь контур, размеры и диагонали перед экспортом.',
+              ),
+            ],
           ),
-        );
-    }
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: ZamerColors.background,
-      appBar: _MeasureMasterHeader(
-        projectName: widget.project.name,
-        floorName: widget.floor.name,
-        onCheck: widget.onOpenReview,
-        onUndo: widget.onUndo,
-        onRedo: widget.onRedo,
-        canUndo: widget.canUndo,
-        canRedo: widget.canRedo,
-        onSave: () {
-          widget.onChanged();
-        },
-        onMore: widget.onMore,
-      ),
-      body: Column(
-        children: [
-          _MeasureViewStrip(
-            wallCount: widget.floor.walls.length,
-            value: _view,
-            onChanged: _selectView,
-          ),
-          Expanded(
-            child: PlanEditorProductionScreen(
-              floor: widget.floor,
-              onChanged: widget.onChanged,
-              onOpenObjects: widget.onOpenObjects,
-              onOpenReview: widget.onOpenReview,
-              onOpenAdvanced: widget.onOpenGeometry,
+      body: SafeArea(
+        child: Column(
+          children: [
+            _ConceptHeader(
+              projectName: widget.project.name,
+              onBack: () => Navigator.maybePop(context),
+              onUndo: widget.canUndo ? widget.onUndo : null,
+              onRedo: widget.canRedo ? widget.onRedo : null,
+              onMore: widget.onMore,
+              onSave: widget.onChanged,
             ),
-          ),
-          ZWorkspacePrimaryNav(
-            selectedIndex: 0,
-            onSelected: _selectPrimaryMode,
-            onHome: widget.onHome,
-          ),
-        ],
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+              child: ZMeasureViewTabs(value: _view, onChanged: _selectView),
+            ),
+            const Divider(height: 1, color: ZamerColors.outlineSoft),
+            Expanded(
+              child: PlanEditorProductionScreen(
+                floor: widget.floor,
+                onChanged: widget.onChanged,
+                onOpenObjects: widget.onOpenObjects,
+                onOpenReview: widget.onOpenReview,
+                onOpenAdvanced: widget.onOpenGeometry,
+                onOpen3D: widget.onOpen3D,
+                onOpenFloors: widget.onOpenFloors,
+                onOpenSettings: widget.onOpenSettings,
+                onOpenMaterials: widget.onOpenMaterials,
+                onUndo: widget.onUndo,
+                onRedo: widget.onRedo,
+                canUndo: widget.canUndo,
+                canRedo: widget.canRedo,
+              ),
+            ),
+            _ConceptBottomNav(
+              onHome: widget.onHome,
+              onProjects: widget.onProjects,
+              onAdd: widget.onOpenObjects,
+              onCatalog: widget.onCatalog,
+              onTutorial: _showTutorial,
+              onMore: widget.onMore,
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-class _MeasureMasterHeader extends StatelessWidget
-    implements PreferredSizeWidget {
-  const _MeasureMasterHeader({
+class _ConceptHeader extends StatelessWidget {
+  const _ConceptHeader({
     required this.projectName,
-    required this.floorName,
-    required this.onCheck,
+    required this.onBack,
     required this.onUndo,
     required this.onRedo,
-    required this.canUndo,
-    required this.canRedo,
-    required this.onSave,
     required this.onMore,
+    required this.onSave,
   });
 
   final String projectName;
-  final String floorName;
-  final VoidCallback onCheck;
+  final VoidCallback onBack;
   final VoidCallback? onUndo;
   final VoidCallback? onRedo;
-  final bool canUndo;
-  final bool canRedo;
-  final VoidCallback onSave;
   final VoidCallback onMore;
+  final Future<void> Function() onSave;
 
   @override
-  Size get preferredSize => const Size.fromHeight(60);
-
-  @override
-  Widget build(BuildContext context) => AppBar(
-        toolbarHeight: 60,
-        automaticallyImplyLeading: false,
-        leadingWidth: 42,
-        leading: IconButton(
-          tooltip: 'Назад',
-          onPressed: () => Navigator.maybePop(context),
-          padding: EdgeInsets.zero,
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
-        ),
-        titleSpacing: 0,
-        title: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 72,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+        child: Row(
           children: [
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'ЗАМЕР',
-                  style: ZamerTypography.caption.copyWith(
-                    color: ZamerColors.accent,
-                    fontSize: 9,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: .7,
-                  ),
-                ),
-                const SizedBox(width: 5),
-                Container(
-                  width: 3,
-                  height: 3,
-                  decoration: const BoxDecoration(
-                    color: ZamerColors.textSecondary,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 5),
-                Flexible(
-                  child: Text(
-                    floorName,
+            _HeaderSquare(icon: Icons.arrow_back_ios_new_rounded, onTap: onBack),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'ЗАМЕР',
                     maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: ZamerTypography.caption.copyWith(fontSize: 9),
+                    style: ZamerTypography.h1.copyWith(
+                      fontSize: 27,
+                      height: 1,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -.5,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          projectName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: ZamerTypography.caption.copyWith(
+                            color: ZamerColors.textSecondary,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      const Icon(
+                        Icons.edit_outlined,
+                        size: 12,
+                        color: ZamerColors.textSecondary,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            _HeaderSquare(icon: Icons.undo_rounded, onTap: onUndo),
+            const SizedBox(width: 4),
+            _HeaderSquare(icon: Icons.redo_rounded, onTap: onRedo),
+            const SizedBox(width: 4),
+            _HeaderSquare(icon: Icons.more_horiz_rounded, onTap: onMore),
+            const SizedBox(width: 6),
+            SizedBox(
+              height: 44,
+              width: 82,
+              child: FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: ZamerColors.accent,
+                  foregroundColor: ZamerColors.accentInk,
+                  padding: EdgeInsets.zero,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(9),
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 2),
-            Text(
-              projectName,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: ZamerTypography.h5.copyWith(
-                color: ZamerColors.textPrimary,
-                fontWeight: FontWeight.w700,
+                onPressed: () => onSave(),
+                child: const Text(
+                  'Сохранить',
+                  style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800),
+                ),
               ),
             ),
           ],
         ),
-        actions: [
-          _HeaderButton(
-            tooltip: 'Проверка обмера',
-            icon: Icons.fact_check_outlined,
-            onTap: onCheck,
-          ),
-          _HeaderButton(
-            tooltip: 'Отменить',
-            icon: Icons.undo_rounded,
-            onTap: canUndo ? onUndo : null,
-          ),
-          _HeaderButton(
-            tooltip: 'Повторить',
-            icon: Icons.redo_rounded,
-            onTap: canRedo ? onRedo : null,
-          ),
-          _HeaderButton(
-            tooltip: 'Сохранить',
-            icon: Icons.save_outlined,
-            onTap: onSave,
-            accent: true,
-          ),
-          _HeaderButton(
-            tooltip: 'Ещё',
-            icon: Icons.more_vert_rounded,
-            onTap: onMore,
-          ),
-          const SizedBox(width: 3),
-        ],
-        bottom: const PreferredSize(
-          preferredSize: Size.fromHeight(1),
-          child: Divider(
-            height: 1,
-            thickness: 1,
-            color: ZamerColors.outlineSoft,
-          ),
-        ),
-      );
+      ),
+    );
+  }
 }
 
-class _HeaderButton extends StatelessWidget {
-  const _HeaderButton({
-    required this.tooltip,
-    required this.icon,
-    required this.onTap,
-    this.accent = false,
-  });
+class _HeaderSquare extends StatelessWidget {
+  const _HeaderSquare({required this.icon, required this.onTap});
 
-  final String tooltip;
   final IconData icon;
   final VoidCallback? onTap;
-  final bool accent;
 
   @override
-  Widget build(BuildContext context) => SizedBox(
-        width: 34,
-        height: 36,
-        child: IconButton(
-          tooltip: tooltip,
-          onPressed: onTap,
-          visualDensity: VisualDensity.compact,
-          padding: EdgeInsets.zero,
-          icon: Icon(
-            icon,
-            size: 18,
-            color: onTap == null
-                ? ZamerColors.textSecondary.withValues(alpha: .35)
-                : accent
-                    ? ZamerColors.accent
-                    : ZamerColors.textSecondary,
+  Widget build(BuildContext context) => Opacity(
+        opacity: onTap == null ? .32 : 1,
+        child: Material(
+          color: ZamerColors.surfaceLow,
+          borderRadius: BorderRadius.circular(9),
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(9),
+            child: Container(
+              width: 36,
+              height: 44,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(9),
+                border: Border.all(color: ZamerColors.outlineSoft),
+              ),
+              child: Icon(icon, size: 17, color: ZamerColors.textPrimary),
+            ),
           ),
         ),
       );
 }
 
-class _MeasureViewStrip extends StatelessWidget {
-  const _MeasureViewStrip({
-    required this.wallCount,
-    required this.value,
-    required this.onChanged,
+class _ConceptBottomNav extends StatelessWidget {
+  const _ConceptBottomNav({
+    required this.onHome,
+    required this.onProjects,
+    required this.onAdd,
+    required this.onCatalog,
+    required this.onTutorial,
+    required this.onMore,
   });
 
-  final int wallCount;
-  final ZMeasureViewMode value;
-  final ValueChanged<ZMeasureViewMode> onChanged;
+  final VoidCallback onHome;
+  final VoidCallback onProjects;
+  final VoidCallback onAdd;
+  final VoidCallback onCatalog;
+  final VoidCallback onTutorial;
+  final VoidCallback onMore;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 50,
-      padding: const EdgeInsets.symmetric(
-        horizontal: ZamerSpace.sm,
-        vertical: 5,
-      ),
+      height: 74,
       decoration: const BoxDecoration(
-        color: ZamerColors.surfaceLow,
-        border: Border(
-          bottom: BorderSide(color: ZamerColors.outlineSoft),
-        ),
+        color: Color(0xFF081B2D),
+        border: Border(top: BorderSide(color: ZamerColors.outlineSoft)),
       ),
       child: Row(
         children: [
+          _BottomItem(
+            icon: Icons.home_rounded,
+            label: 'Главная',
+            active: true,
+            onTap: onHome,
+          ),
+          _BottomItem(
+            icon: Icons.folder_outlined,
+            label: 'Проекты',
+            onTap: onProjects,
+          ),
           Expanded(
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.architecture_outlined,
-                  size: 16,
-                  color: ZamerColors.textSecondary,
-                ),
-                const SizedBox(width: 6),
-                Flexible(
-                  child: Text(
-                    '$wallCount стен',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: ZamerTypography.caption.copyWith(
-                      color: ZamerColors.textSecondary,
-                      fontWeight: FontWeight.w600,
+            child: InkWell(
+              onTap: onAdd,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: const BoxDecoration(
+                      color: ZamerColors.accent,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.add_rounded,
+                      size: 30,
+                      color: ZamerColors.accentInk,
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-          ZMeasureViewTabs(value: value, onChanged: onChanged),
+          _BottomItem(
+            icon: Icons.shopping_bag_outlined,
+            label: 'Каталог',
+            onTap: onCatalog,
+          ),
+          _BottomItem(
+            icon: Icons.school_outlined,
+            label: 'Обучение',
+            onTap: onTutorial,
+          ),
+          _BottomItem(
+            icon: Icons.grid_view_rounded,
+            label: 'Ещё',
+            onTap: onMore,
+          ),
         ],
       ),
     );
   }
+}
+
+class _BottomItem extends StatelessWidget {
+  const _BottomItem({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.active = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) => Expanded(
+        child: InkWell(
+          onTap: onTap,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: 22,
+                color: active ? ZamerColors.accent : ZamerColors.textSecondary,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                maxLines: 1,
+                style: TextStyle(
+                  color:
+                      active ? ZamerColors.accent : ZamerColors.textSecondary,
+                  fontSize: 8.2,
+                  fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+}
+
+class _TutorialRow extends StatelessWidget {
+  const _TutorialRow({
+    required this.number,
+    required this.title,
+    required this.text,
+  });
+
+  final String number;
+  final String title;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 28,
+              height: 28,
+              alignment: Alignment.center,
+              decoration: const BoxDecoration(
+                color: ZamerColors.accent,
+                shape: BoxShape.circle,
+              ),
+              child: Text(
+                number,
+                style: const TextStyle(
+                  color: ZamerColors.accentInk,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: ZamerTypography.bodySmall),
+                  const SizedBox(height: 2),
+                  Text(text, style: ZamerTypography.caption),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
 }
