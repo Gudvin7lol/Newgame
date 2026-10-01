@@ -413,7 +413,8 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
 
   Future<void> _rebuildScene({bool photoQuality = false}) async {
     final generation = ++_buildGeneration;
-    if (mounted) {
+    final keepCurrentScene = _ready && _loadError == null;
+    if (mounted && !keepCurrentScene) {
       setState(() {
         _ready = false;
         _loadError = null;
@@ -432,31 +433,30 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     }
 
     final geometry = ZamerSceneGeometry.fromFloor(widget.floor);
-    _geometry = geometry;
-    scene.removeAll();
-    _wallVisuals.clear();
-    _ceilingNodes.clear();
-
+    final nextNodes = <Node>[];
+    final nextWallVisuals = <_WallVisual>[];
+    final nextCeilingNodes = <Node>[];
     final floorMaterialCache = <String, PhysicallyBasedMaterial>{};
     final activeModelPaths = <String>{};
+
     for (final surface in geometry.floors) {
       final node = _buildFloorNode(
         surface,
         geometry.bounds,
         floorMaterialCache,
       );
-      if (node != null) scene.add(node);
+      if (node != null) nextNodes.add(node);
       final ceiling = _buildCeilingNode(surface, geometry.bounds);
       if (ceiling != null) {
-        _ceilingNodes.add(ceiling);
-        scene.add(ceiling);
+        nextCeilingNodes.add(ceiling);
+        nextNodes.add(ceiling);
       }
     }
 
     for (final wall in geometry.walls) {
       final node = _buildWallNode(wall, geometry.bounds);
-      scene.add(node);
-      _wallVisuals.add(
+      nextNodes.add(node);
+      nextWallVisuals.add(
         _WallVisual(
           node: node,
           x: _mx(wall.centerXMm, geometry.bounds),
@@ -466,10 +466,10 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     }
 
     for (final opening in geometry.openings) {
-      scene.add(_buildOpeningNode(opening, geometry.bounds));
+      nextNodes.add(_buildOpeningNode(opening, geometry.bounds));
     }
     for (final point in geometry.electrical) {
-      scene.add(_buildElectricalNode(point, geometry.bounds));
+      nextNodes.add(_buildElectricalNode(point, geometry.bounds));
     }
 
     for (final object in geometry.objects) {
@@ -482,16 +482,31 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
         activeModelPaths: activeModelPaths,
       );
       if (generation != _buildGeneration) return;
-      scene.add(node);
+      nextNodes.add(node);
     }
 
     if (!mounted || generation != _buildGeneration) return;
-    // Templates are only construction caches. Scene clones already own the
-    // nodes they need, so retaining inactive LODs after a rebuild wastes GPU
-    // and Dart memory. This is especially important after a true 4K export,
-    // which temporarily forces every production asset to full LOD0.
+
+    // Keep the last valid frame visible while GLBs and materials are prepared.
+    // Only touch the active Scene after the replacement graph is complete, so
+    // editing a plan never produces an empty or half-populated 3D viewport.
+    scene.removeAll();
+    for (final node in nextNodes) {
+      scene.add(node);
+    }
+    _geometry = geometry;
+    _wallVisuals
+      ..clear()
+      ..addAll(nextWallVisuals);
+    _ceilingNodes
+      ..clear()
+      ..addAll(nextCeilingNodes);
+
     _modelTemplates.removeWhere((path, _) => !activeModelPaths.contains(path));
-    setState(() => _ready = true);
+    setState(() {
+      _loadError = null;
+      _ready = true;
+    });
   }
 
   Node? _buildFloorNode(
