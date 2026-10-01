@@ -11,6 +11,7 @@ import '../models/models.dart';
 import '../services/generated_pbr_finish_catalog.dart';
 import '../services/material_catalog.dart';
 import '../widgets/floor_3d_painter.dart';
+import 'camera_clip_policy.dart';
 import 'floor_grout_geometry.dart';
 import 'cutaway_geometry.dart';
 import 'model_asset_catalog.dart';
@@ -1501,8 +1502,8 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
         position: eye,
         target: eye + forward * 4,
         up: vm.Vector3(0, 1, 0),
-        fovNear: 0.035,
-        fovFar: 160,
+        fovNear: ZamerCameraClipPolicy.near(walkMode: true),
+        fovFar: ZamerCameraClipPolicy.walkFarM,
       );
     }
 
@@ -1534,7 +1535,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       position: eye,
       target: target,
       up: vm.Vector3(0, 1, 0),
-      fovNear: 0.045,
+      fovNear: ZamerCameraClipPolicy.near(walkMode: false),
       fovFar: math.max(120, distance * 16),
     );
   }

@@ -12,7 +12,8 @@ void main() {
   });
 
   test('walk clipping still preserves sane depth precision', () {
-    final ratio = ZamerCameraClipPolicy.walkFarM / ZamerCameraClipPolicy.walkNearM;
+    final ratio =
+        ZamerCameraClipPolicy.walkFarM / ZamerCameraClipPolicy.walkNearM;
     expect(ratio, lessThan(10000));
   });
 }
