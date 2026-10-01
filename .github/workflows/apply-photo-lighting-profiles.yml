@@ -7,6 +7,7 @@ on:
     paths:
       - 'zamer-app/tool/migrations/apply_photo_lighting_profiles.py'
       - 'zamer-app/tool/migrations/apply_photo_lens_fov.py'
+      - 'zamer-app/tool/migrations/fix_photo_fov_double.py'
       - '.github/workflows/apply-photo-lighting-profiles.yml'
   workflow_dispatch:
 
@@ -35,15 +36,23 @@ jobs:
             python zamer-app/tool/migrations/apply_photo_lighting_profiles.py
           fi
 
-      - name: Apply real lens FOV migration
-        run: python zamer-app/tool/migrations/apply_photo_lens_fov.py
+      - name: Ensure real lens FOV migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! grep -q 'final double cameraFovDegrees' zamer-app/lib/renderer3d/zamer_gpu_viewport.dart; then
+            python zamer-app/tool/migrations/apply_photo_lens_fov.py
+          fi
+
+      - name: Keep lens FOV strongly typed
+        run: python zamer-app/tool/migrations/fix_photo_fov_double.py
 
       - name: Setup Dart
         uses: dart-lang/setup-dart@v1
 
       - name: Format renderer and Photo Studio
         working-directory: zamer-app
-        run: dart format lib/renderer3d/zamer_gpu_viewport.dart lib/screens/photo_studio_screen.dart
+        run: dart format lib/renderer3d/zamer_gpu_viewport.dart lib/screens/photo_studio_screen.dart test/photo_studio_camera_profile_test.dart
 
       - name: Verify Photo Studio camera controls are real
         working-directory: zamer-app
@@ -56,6 +65,7 @@ jobs:
           grep -q 'photoHdr: _hdr' lib/screens/photo_studio_screen.dart
           grep -q 'cameraFovDegrees: _lensFov(_lens)' lib/screens/photo_studio_screen.dart
           grep -q 'final double cameraFovDegrees' lib/renderer3d/zamer_gpu_viewport.dart
+          grep -q 'cameraFovDegrees.clamp(18.0, 90.0).toDouble()' lib/renderer3d/zamer_gpu_viewport.dart
           grep -q 'fovRadiansY: fovDegrees \* math.pi / 180' lib/renderer3d/zamer_gpu_viewport.dart
           grep -q 'screenSpaceReflectionsEnabled: exportQuality && hdr' lib/renderer3d/zamer_gpu_viewport.dart
           grep -q 'shadowMapResolution: exportQuality ? 2048 : 1024' lib/renderer3d/zamer_gpu_viewport.dart
@@ -72,9 +82,10 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add zamer-app/lib/renderer3d/zamer_gpu_viewport.dart
           git add zamer-app/lib/screens/photo_studio_screen.dart
+          git add zamer-app/test/photo_studio_camera_profile_test.dart
           if git diff --cached --quiet; then
             echo 'Photo Studio camera profiles are already wired.'
             exit 0
           fi
-          git commit -m 'feat(zamer): use real Photo Studio lens FOV'
+          git commit -m 'fix(zamer): keep Photo Studio lens FOV typed'
           git push origin HEAD:codex/zamer-1.5.6-3d-stability
