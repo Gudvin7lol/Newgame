@@ -51,19 +51,29 @@ jobs:
         run: |
           set -euo pipefail
           python3 -m pip install --disable-pip-version-check --quiet numpy pillow scipy
-          python3 zamer-app/tool/featured_models/build_models.py sofa .55
-          python3 zamer-app/tool/featured_models/build_models.py armchair .55
-          python3 zamer-app/tool/featured_models/build_models.py table .55
-          python3 zamer-app/tool/featured_models/build_models.py bed .55
-          cp zamer-app/tool/featured_models/sofa/mobile/Zamer_Sofa_v3_Mobile.glb zamer-app/assets/models/zamer_catalog/sofa-3.glb
-          cp zamer-app/tool/featured_models/armchair/mobile/Zamer_Armchair_Sand_Mobile.glb zamer-app/assets/models/zamer_catalog/armchair.glb
-          cp zamer-app/tool/featured_models/table/mobile/Zamer_Table_Walnut_Mobile.glb zamer-app/assets/models/zamer_catalog/coffee-table.glb
-          cp zamer-app/tool/featured_models/bed/mobile/Zamer_Bed_Sand_Mobile.glb zamer-app/assets/models/zamer_catalog/bed-180.glb
+
+          build_chain() {
+            kind="$1"
+            file="$2"
+            target="$3"
+            python3 zamer-app/tool/featured_models/build_models.py "$kind" .55
+            cp "zamer-app/tool/featured_models/$kind/mobile/$file" "zamer-app/assets/models/zamer_catalog/$target.glb"
+            python3 zamer-app/tool/featured_models/build_models.py "$kind" .35
+            cp "zamer-app/tool/featured_models/$kind/mobile/$file" "zamer-app/assets/models/zamer_catalog/${target}_lod1.glb"
+            python3 zamer-app/tool/featured_models/build_models.py "$kind" .18
+            cp "zamer-app/tool/featured_models/$kind/mobile/$file" "zamer-app/assets/models/zamer_catalog/${target}_lod2.glb"
+          }
+
+          build_chain sofa Zamer_Sofa_v3_Mobile.glb sofa-3
+          build_chain armchair Zamer_Armchair_Sand_Mobile.glb armchair
+          build_chain table Zamer_Table_Walnut_Mobile.glb coffee-table
+          build_chain bed Zamer_Bed_Sand_Mobile.glb bed-180
+
           ls -lh \
-            zamer-app/assets/models/zamer_catalog/sofa-3.glb \
-            zamer-app/assets/models/zamer_catalog/armchair.glb \
-            zamer-app/assets/models/zamer_catalog/coffee-table.glb \
-            zamer-app/assets/models/zamer_catalog/bed-180.glb
+            zamer-app/assets/models/zamer_catalog/sofa-3*.glb \
+            zamer-app/assets/models/zamer_catalog/armchair*.glb \
+            zamer-app/assets/models/zamer_catalog/coffee-table*.glb \
+            zamer-app/assets/models/zamer_catalog/bed-180*.glb
 
       - name: Format changed UI sources
         run: >-
