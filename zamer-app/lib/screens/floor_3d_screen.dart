@@ -293,7 +293,7 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
         if (!_walkMode)
           Positioned(
             left: ZamerSpace.md,
-            top: ZamerSpace.md,
+            top: 64,
             child: SafeArea(
               bottom: false,
               child: ZGraphicsModeSelector(
@@ -302,8 +302,18 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
               ),
             ),
           ),
+        if (!_walkMode)
+          const Positioned(
+            left: ZamerSpace.md,
+            right: ZamerSpace.md,
+            top: ZamerSpace.sm,
+            child: SafeArea(
+              bottom: false,
+              child: _ThreeDMasterHeader(),
+            ),
+          ),
         Positioned(
-          top: ZamerSpace.md,
+          top: 64,
           right: ZamerSpace.md,
           child: SafeArea(
             bottom: false,
@@ -435,6 +445,69 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
                       ],
               ),
             ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+
+class _ThreeDMasterHeader extends StatelessWidget {
+  const _ThreeDMasterHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Container(
+        height: 48,
+        padding: const EdgeInsets.symmetric(horizontal: ZamerSpace.md),
+        decoration: BoxDecoration(
+          color: ZamerColors.surface.withValues(alpha: .94),
+          borderRadius: BorderRadius.circular(ZamerRadius.lg),
+          border: Border.all(color: ZamerColors.outline),
+        ),
+        child: const Row(
+          children: [
+            Icon(Icons.view_in_ar_outlined, size: 20, color: ZamerColors.accent),
+            SizedBox(width: ZamerSpace.sm),
+            Text(
+              '3D',
+              style: TextStyle(
+                color: ZamerColors.textPrimary,
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            Spacer(),
+            _ThreeDStatus(icon: Icons.layers_outlined, label: 'Сцена'),
+            SizedBox(width: ZamerSpace.md),
+            _ThreeDStatus(icon: Icons.auto_awesome_outlined, label: 'Quality'),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ThreeDStatus extends StatelessWidget {
+  const _ThreeDStatus({required this.icon, required this.label});
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 16, color: ZamerColors.textSecondary),
+        const SizedBox(width: ZamerSpace.xs),
+        Text(
+          label,
+          style: const TextStyle(
+            color: ZamerColors.textSecondary,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
           ),
         ),
       ],
