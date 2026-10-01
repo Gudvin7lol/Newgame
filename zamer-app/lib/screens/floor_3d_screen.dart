@@ -302,7 +302,7 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
             ),
           ),
         if (!_walkMode)
-          const Positioned(
+          Positioned(
             left: ZamerSpace.md,
             right: ZamerSpace.md,
             top: ZamerSpace.sm,
