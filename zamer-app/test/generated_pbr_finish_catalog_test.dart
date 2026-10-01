@@ -1,0 +1,60 @@
+import 'dart:io';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:zamer_app/services/generated_material_ids.dart';
+import 'package:zamer_app/services/generated_pbr_finish_catalog.dart';
+
+void main() {
+  test('all generated ZAMER finishes have complete PBR texture sets', () {
+    expect(GeneratedPbrFinishCatalog.byMaterialId.length, 12);
+    expect(
+      GeneratedPbrFinishCatalog.byMaterialId.keys.toSet(),
+      GeneratedMaterialIds.all,
+    );
+
+    for (final entry in GeneratedPbrFinishCatalog.byMaterialId.entries) {
+      final finish = entry.value;
+      expect(
+        File(finish.baseColorAsset).existsSync(),
+        isTrue,
+        reason: 'Missing base color for ${entry.key}: ${finish.baseColorAsset}',
+      );
+      expect(
+        File(finish.normalAsset).existsSync(),
+        isTrue,
+        reason: 'Missing normal map for ${entry.key}: ${finish.normalAsset}',
+      );
+      expect(
+        File(finish.heightAsset).existsSync(),
+        isTrue,
+        reason: 'Missing height map for ${entry.key}: ${finish.heightAsset}',
+      );
+      expect(
+        File(finish.metallicRoughnessAsset).existsSync(),
+        isTrue,
+        reason:
+            'Missing metallic/roughness for ${entry.key}: ${finish.metallicRoughnessAsset}',
+      );
+      expect(finish.realWorldTileMm, greaterThan(0));
+      expect(finish.normalScale, greaterThan(0));
+    }
+  });
+
+  test('live GPU viewport consumes generated normal and roughness maps', () {
+    final source =
+        File('lib/renderer3d/zamer_gpu_viewport.dart').readAsStringSync();
+
+    expect(source.contains('GeneratedPbrFinishCatalog.byId'), isTrue);
+    expect(source.contains('normalTexture = normal'), isTrue);
+    expect(
+      source.contains('metallicRoughnessTexture = metallicRoughness'),
+      isTrue,
+    );
+    expect(source.contains('realWorldTileMm'), isTrue);
+    expect(source.contains('normalTextureTransform = transform'), isTrue);
+    expect(
+      source.contains('metallicRoughnessTextureTransform = transform'),
+      isTrue,
+    );
+  });
+}
