@@ -1,0 +1,74 @@
+name: Apply hosted lighting cutaway
+
+on:
+  push:
+    branches:
+      - 'codex/zamer-1.5.6-hosted-lighting'
+    paths:
+      - 'zamer-app/tool/migrations/apply_hosted_lighting_cutaway.py'
+      - '.github/workflows/apply-hosted-lighting-cutaway.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: zamer-hosted-lighting-cutaway-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Sparse checkout continuation branch
+        uses: actions/checkout@v4
+        with:
+          ref: codex/zamer-1.5.6-hosted-lighting
+          fetch-depth: 2
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            zamer-app/lib/renderer3d/zamer_scene_geometry.dart
+            zamer-app/lib/renderer3d/zamer_gpu_viewport.dart
+            zamer-app/test/zamer_scene_geometry_test.dart
+            zamer-app/tool/migrations/apply_hosted_lighting_cutaway.py
+
+      - name: Apply hosted catalog light fix
+        run: python3 zamer-app/tool/migrations/apply_hosted_lighting_cutaway.py
+
+      - name: Setup Dart
+        uses: dart-lang/setup-dart@v1
+
+      - name: Format changed Dart sources
+        run: dart format zamer-app/lib/renderer3d/zamer_scene_geometry.dart zamer-app/lib/renderer3d/zamer_gpu_viewport.dart zamer-app/test/zamer_scene_geometry_test.dart zamer-app/test/hosted_lighting_renderer_contract_test.dart
+
+      - name: Verify hosted lighting integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          GEOMETRY=zamer-app/lib/renderer3d/zamer_scene_geometry.dart
+          VIEWPORT=zamer-app/lib/renderer3d/zamer_gpu_viewport.dart
+          grep -q 'hostWallIdForLightingObject' "$GEOMETRY"
+          grep -q 'final String? hostWallId;' "$GEOMETRY"
+          grep -q 'if (object.hostWallId != null)' "$VIEWPORT"
+          grep -q 'wallId: object.hostWallId' "$VIEWPORT"
+          test -f zamer-app/test/hosted_lighting_renderer_contract_test.dart
+
+      - name: Commit hosted lighting linkage
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            zamer-app/lib/renderer3d/zamer_scene_geometry.dart \
+            zamer-app/lib/renderer3d/zamer_gpu_viewport.dart \
+            zamer-app/test/zamer_scene_geometry_test.dart \
+            zamer-app/test/hosted_lighting_renderer_contract_test.dart
+          if git diff --cached --quiet; then
+            echo 'Hosted catalog lighting linkage already integrated.'
+            exit 0
+          fi
+          git commit -m 'fix(zamer): bind catalog sconces to cutaway walls'
+          git pull --rebase origin codex/zamer-1.5.6-hosted-lighting
+          git push origin HEAD:codex/zamer-1.5.6-hosted-lighting
