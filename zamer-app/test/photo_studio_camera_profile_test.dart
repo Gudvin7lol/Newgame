@@ -27,24 +27,18 @@ void main() {
       expect(sunset.temperature, greaterThan(day.temperature));
       expect(night.temperature, lessThan(0));
       expect(day.lightIntensity, greaterThan(night.lightIntensity));
-      expect(
-        {
-          day.backgroundTop,
-          sunset.backgroundTop,
-          evening.backgroundTop,
-          night.backgroundTop,
-        },
-        hasLength(4),
-      );
-      expect(
-        {
-          day.backgroundBottom,
-          sunset.backgroundBottom,
-          evening.backgroundBottom,
-          night.backgroundBottom,
-        },
-        hasLength(4),
-      );
+      expect({
+        day.backgroundTop,
+        sunset.backgroundTop,
+        evening.backgroundTop,
+        night.backgroundTop,
+      }, hasLength(4));
+      expect({
+        day.backgroundBottom,
+        sunset.backgroundBottom,
+        evening.backgroundBottom,
+        night.backgroundBottom,
+      }, hasLength(4));
     },
   );
 

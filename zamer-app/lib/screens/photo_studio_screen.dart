@@ -52,6 +52,7 @@ class _PhotoStudioScreenState extends State<PhotoStudioScreen> {
   bool _stabilization = true;
   bool _horizon = true;
   bool _rendering = false;
+  int _renderCount = 0;
 
   @override
   void initState() {
@@ -60,6 +61,269 @@ class _PhotoStudioScreenState extends State<PhotoStudioScreen> {
     _tilt = widget.tilt;
     _zoom = widget.zoom;
     _pan = widget.pan;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _refreshRenderCount());
+  }
+
+  String get _safeFloorId =>
+      widget.floor.id.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_');
+
+  Future<Directory> _renderDirectory() async {
+    final root = await getApplicationDocumentsDirectory();
+    final directory = Directory('${root.path}/photo_renders/$_safeFloorId');
+    await directory.create(recursive: true);
+    return directory;
+  }
+
+  Future<List<File>> _renderFiles() async {
+    final directory = await _renderDirectory();
+    final files = <File>[];
+    await for (final entity in directory.list(followLinks: false)) {
+      if (entity is File && entity.path.toLowerCase().endsWith('.png')) {
+        files.add(entity);
+      }
+    }
+    files.sort(
+      (a, b) => b.statSync().modified.compareTo(a.statSync().modified),
+    );
+    return files;
+  }
+
+  Future<void> _refreshRenderCount() async {
+    try {
+      final files = await _renderFiles();
+      if (mounted) setState(() => _renderCount = files.length);
+    } catch (_) {
+      if (mounted) setState(() => _renderCount = 0);
+    }
+  }
+
+  Future<void> _showRenderGallery() async {
+    var files = await _renderFiles();
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => Dialog.fullscreen(
+        backgroundColor: ZamerColors.background,
+        child: SafeArea(
+          child: StatefulBuilder(
+            builder: (context, setGallery) => Column(
+              children: [
+                Container(
+                  height: 58,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: ZamerSpace.sm,
+                  ),
+                  decoration: const BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(color: ZamerColors.outlineSoft),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        tooltip: 'Закрыть',
+                        onPressed: () => Navigator.pop(dialogContext),
+                        icon: const Icon(Icons.close_rounded),
+                      ),
+                      Expanded(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Text(
+                              'Галерея рендеров',
+                              style: TextStyle(
+                                color: ZamerColors.textPrimary,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            Text(
+                              '${files.length} ${files.length == 1 ? 'кадр' : 'кадров'}',
+                              style: ZamerTypography.caption,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 44),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: files.isEmpty
+                      ? const ZEmptyState(
+                          icon: Icons.photo_library_outlined,
+                          title: 'Рендеров пока нет',
+                          subtitle: 'Созданные кадры появятся здесь и сохранятся после перезапуска приложения.',
+                        )
+                      : GridView.builder(
+                          padding: const EdgeInsets.all(ZamerSpace.sm),
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 2,
+                                crossAxisSpacing: ZamerSpace.sm,
+                                mainAxisSpacing: ZamerSpace.sm,
+                                childAspectRatio: .78,
+                              ),
+                          itemCount: files.length,
+                          itemBuilder: (context, index) {
+                            final file = files[index];
+                            return Material(
+                              color: ZamerColors.surfaceLow,
+                              borderRadius: BorderRadius.circular(
+                                ZamerRadius.md,
+                              ),
+                              clipBehavior: Clip.antiAlias,
+                              child: InkWell(
+                                onTap: () => _openGalleryRender(file),
+                                child: Stack(
+                                  fit: StackFit.expand,
+                                  children: [
+                                    Image.file(
+                                      file,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) =>
+                                          const Center(
+                                            child: Icon(
+                                              Icons.broken_image_outlined,
+                                            ),
+                                          ),
+                                    ),
+                                    Positioned(
+                                      left: 6,
+                                      right: 6,
+                                      bottom: 6,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 7,
+                                          vertical: 5,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: ZamerColors.background
+                                              .withValues(alpha: .88),
+                                          borderRadius: BorderRadius.circular(
+                                            ZamerRadius.sm,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Expanded(
+                                              child: Text(
+                                                _renderFileLabel(file),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: const TextStyle(
+                                                  color:
+                                                      ZamerColors.textPrimary,
+                                                  fontSize: 9.5,
+                                                  fontWeight: FontWeight.w800,
+                                                ),
+                                              ),
+                                            ),
+                                            InkWell(
+                                              onTap: () async {
+                                                await file.delete();
+                                                files = await _renderFiles();
+                                                if (mounted) {
+                                                  setState(
+                                                    () => _renderCount =
+                                                        files.length,
+                                                  );
+                                                }
+                                                setGallery(() {});
+                                              },
+                                              child: const Padding(
+                                                padding: EdgeInsets.all(3),
+                                                child: Icon(
+                                                  Icons.delete_outline_rounded,
+                                                  size: 17,
+                                                  color: ZamerColors.textMuted,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    await _refreshRenderCount();
+  }
+
+  String _renderFileLabel(File file) {
+    final name = file.uri.pathSegments.last;
+    final parts = name.replaceFirst('.png', '').split('-');
+    if (parts.length >= 6) {
+      return '${parts[3]}×${parts[4]}';
+    }
+    return name;
+  }
+
+  Future<void> _openGalleryRender(File file) async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (previewContext) => Dialog.fullscreen(
+        backgroundColor: ZamerColors.background,
+        child: SafeArea(
+          child: Column(
+            children: [
+              Container(
+                height: 58,
+                padding: const EdgeInsets.symmetric(horizontal: ZamerSpace.sm),
+                decoration: const BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(color: ZamerColors.outlineSoft),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    IconButton(
+                      tooltip: 'Назад',
+                      onPressed: () => Navigator.pop(previewContext),
+                      icon: const Icon(Icons.arrow_back_rounded),
+                    ),
+                    Expanded(
+                      child: Text(
+                        _renderFileLabel(file),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: ZamerColors.textPrimary,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Поделиться',
+                      onPressed: () => Share.shareXFiles([XFile(file.path)]),
+                      icon: const Icon(Icons.ios_share_outlined),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: InteractiveViewer(
+                  minScale: .5,
+                  maxScale: 6,
+                  child: Center(child: Image.file(file, fit: BoxFit.contain)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   void _onScaleStart(ScaleStartDetails d) {
@@ -153,11 +417,13 @@ class _PhotoStudioScreenState extends State<PhotoStudioScreen> {
         height: size.$2,
         photoQuality: true,
       );
-      final dir = await getTemporaryDirectory();
+      final dir = await _renderDirectory();
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
       final file = File(
-        '${dir.path}/zamer-photo-${DateTime.now().millisecondsSinceEpoch}-${size.$1}x${size.$2}.png',
+        '${dir.path}/zamer-photo-$timestamp-${size.$1}-${size.$2}-${_time.name}.png',
       );
       await file.writeAsBytes(png, flush: true);
+      if (mounted) setState(() => _renderCount++);
       if (!mounted) return;
       await showDialog<void>(
         context: context,
@@ -697,14 +963,8 @@ class _PhotoStudioScreenState extends State<PhotoStudioScreen> {
                     child: _BottomAction(
                       icon: Icons.photo_library_outlined,
                       label: 'Галерея',
-                      value: 'Кадры',
-                      onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Галерея проекта будет подключена отдельным проходом.',
-                          ),
-                        ),
-                      ),
+                      value: _renderCount == 0 ? 'Пусто' : '$_renderCount',
+                      onTap: _showRenderGallery,
                     ),
                   ),
                 ],
