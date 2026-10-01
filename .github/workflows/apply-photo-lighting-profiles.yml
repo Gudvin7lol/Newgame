@@ -1,0 +1,65 @@
+name: Apply Photo Studio lighting profiles
+
+on:
+  push:
+    branches:
+      - 'codex/zamer-1.5.6-3d-stability'
+    paths:
+      - 'zamer-app/tool/migrations/apply_photo_lighting_profiles.py'
+      - '.github/workflows/apply-photo-lighting-profiles.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: codex/zamer-1.5.6-3d-stability
+
+      - name: Apply Photo Studio lighting migration
+        run: python zamer-app/tool/migrations/apply_photo_lighting_profiles.py
+
+      - name: Setup Dart
+        uses: dart-lang/setup-dart@v1
+
+      - name: Format renderer and Photo Studio
+        working-directory: zamer-app
+        run: dart format lib/renderer3d/zamer_gpu_viewport.dart lib/screens/photo_studio_screen.dart
+
+      - name: Verify real lighting controls are wired
+        working-directory: zamer-app
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'enum ZamerPhotoTime' lib/renderer3d/zamer_gpu_viewport.dart
+          grep -q 'photoPreview: true' lib/screens/photo_studio_screen.dart
+          grep -q 'photoTime: _time' lib/screens/photo_studio_screen.dart
+          grep -q 'photoHdr: _hdr' lib/screens/photo_studio_screen.dart
+          grep -q 'ZamerPhotoTime.sunset' lib/renderer3d/zamer_gpu_viewport.dart
+          grep -q 'screenSpaceReflectionsEnabled: exportQuality && hdr' lib/renderer3d/zamer_gpu_viewport.dart
+          grep -q 'shadowMapResolution: exportQuality ? 2048 : 1024' lib/renderer3d/zamer_gpu_viewport.dart
+          if grep -q 'Пока это пресет интерфейса' lib/screens/photo_studio_screen.dart; then
+            echo 'Photo time control is still marked as fake UI.'
+            exit 1
+          fi
+
+      - name: Commit Photo Studio lighting integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add zamer-app/lib/renderer3d/zamer_gpu_viewport.dart
+          git add zamer-app/lib/screens/photo_studio_screen.dart
+          if git diff --cached --quiet; then
+            echo 'Photo Studio lighting profiles are already wired.'
+            exit 0
+          fi
+          git commit -m 'feat(zamer): drive Photo Studio with real lighting profiles'
+          git push origin HEAD:codex/zamer-1.5.6-3d-stability
