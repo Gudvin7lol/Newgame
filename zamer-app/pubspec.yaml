@@ -29,5 +29,6 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
+    - assets/models/zamer_catalog/
     - assets/textures/
     - assets/textures/generated_v1/
