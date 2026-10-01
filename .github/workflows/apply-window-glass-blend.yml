@@ -1,0 +1,71 @@
+name: Apply window glass blending
+
+on:
+  push:
+    paths:
+      - '.github/workflows/apply-window-glass-blend.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-window-glass-blend
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/zamer-1.5.6-3d-stability
+          fetch-depth: 1
+      - name: Apply translucent glass material
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('zamer-app/lib/renderer3d/zamer_gpu_viewport.dart')
+          text = path.read_text()
+          old = """      final glass = _pbr(vm.Vector4(0.72, 0.88, 0.96, 0.28), roughness: 0.10)\n        ..doubleSided = true;"""
+          new = """      final glass = _pbr(vm.Vector4(0.72, 0.88, 0.96, 0.28), roughness: 0.10)\n        ..alphaMode = AlphaMode.blend\n        ..doubleSided = true;"""
+          if old not in text:
+              raise SystemExit('window glass material anchor not found')
+          text = text.replace(old, new, 1)
+          path.write_text(text)
+
+          test = Path('zamer-app/test/window_glass_material_test.dart')
+          test.write_text("""import 'dart:io';
+
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  test('window glass uses the translucent GPU pass', () {
+    final viewport = File('lib/renderer3d/zamer_gpu_viewport.dart')
+        .readAsStringSync();
+
+    expect(viewport.contains(\"name: 'window-glass'\"), isTrue);
+    expect(
+      viewport.contains('..alphaMode = AlphaMode.blend'),
+      isTrue,
+      reason:
+          'Window glass must use flutter_scene alpha blending instead of relying on color alpha alone.',
+    );
+    expect(
+      viewport.contains('vm.Vector4(0.72, 0.88, 0.96, 0.28)'),
+      isTrue,
+      reason: 'Glass should keep a visibly transparent base alpha.',
+    );
+  });
+}
+""")
+          PY
+          dart format zamer-app/lib/renderer3d/zamer_gpu_viewport.dart zamer-app/test/window_glass_material_test.dart
+          grep -F '..alphaMode = AlphaMode.blend' zamer-app/lib/renderer3d/zamer_gpu_viewport.dart
+      - name: Commit runtime fix
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add zamer-app/lib/renderer3d/zamer_gpu_viewport.dart zamer-app/test/window_glass_material_test.dart
+          git commit -m 'fix(zamer): render window glass with alpha blending'
+          git push origin HEAD:codex/zamer-1.5.6-3d-stability
