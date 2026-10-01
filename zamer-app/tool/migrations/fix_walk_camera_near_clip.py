@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 ROOT = Path(__file__).resolve().parents[2]
 VIEWPORT = ROOT / "lib" / "renderer3d" / "zamer_gpu_viewport.dart"
@@ -12,19 +13,31 @@ if import_line not in text:
         raise SystemExit("camera clip migration: import anchor not found")
     text = text.replace(anchor, import_line + anchor, 1)
 
-old_walk = """        fovNear: 0.035,\n        fovFar: 160,\n"""
-new_walk = """        fovNear: ZamerCameraClipPolicy.near(walkMode: true),\n        fovFar: ZamerCameraClipPolicy.walkFarM,\n"""
-if old_walk in text:
-    text = text.replace(old_walk, new_walk, 1)
-elif new_walk not in text:
-    raise SystemExit("camera clip migration: walk camera anchor not found")
+walk_near = "fovNear: ZamerCameraClipPolicy.near(walkMode: true)"
+if walk_near not in text:
+    text, count = re.subn(
+        r"fovNear:\s*0\.035\s*,\s*\n\s*fovFar:\s*160(?:\.0)?\s*,",
+        "fovNear: ZamerCameraClipPolicy.near(walkMode: true),\n        fovFar: ZamerCameraClipPolicy.walkFarM,",
+        text,
+        count=1,
+    )
+    if count != 1:
+        raise SystemExit("camera clip migration: walk camera anchor not found")
 
-old_overview = "        fovNear: 0.045,\n"
-new_overview = "        fovNear: ZamerCameraClipPolicy.near(walkMode: false),\n"
-if old_overview in text:
-    text = text.replace(old_overview, new_overview, 1)
-elif new_overview not in text:
-    raise SystemExit("camera clip migration: overview camera anchor not found")
+walk_far = "fovFar: ZamerCameraClipPolicy.walkFarM"
+if walk_far not in text:
+    raise SystemExit("camera clip migration: walk far plane was not integrated")
+
+overview_near = "fovNear: ZamerCameraClipPolicy.near(walkMode: false)"
+if overview_near not in text:
+    text, count = re.subn(
+        r"fovNear:\s*0\.045\s*,",
+        "fovNear: ZamerCameraClipPolicy.near(walkMode: false),",
+        text,
+        count=1,
+    )
+    if count != 1:
+        raise SystemExit("camera clip migration: overview camera anchor not found")
 
 VIEWPORT.write_text(text, encoding="utf-8")
 print("walk camera near clip policy integrated")
