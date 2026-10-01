@@ -9,7 +9,8 @@ void main() {
     final chrome = File('lib/design_system/zamer_measure_chrome.dart').readAsStringSync();
     final production = File('lib/screens/plan_editor_production_screen.dart').readAsStringSync();
     final editor = File('lib/screens/plan_editor_master_v4_screen.dart').readAsStringSync();
-    final painter = File('lib/widgets/cad_plan_painter.dart').readAsStringSync();
+    final adapter = File('lib/widgets/cad_plan_painter.dart').readAsStringSync();
+    final painter = File('lib/widgets/cad_plan_painter_v2.dart').readAsStringSync();
 
     expect(workspace.contains('MeasureConceptWorkspaceScreen('), isTrue);
     expect(measure.contains('PlanEditorProductionScreen('), isTrue);
@@ -40,10 +41,12 @@ void main() {
       expect(editor.contains(required), isTrue, reason: 'Missing UI Kit element: $required');
     }
 
-    expect(painter.contains('class CadPlanPainter'), isTrue);
+    expect(adapter.contains('class CadPlanPainter'), isTrue);
+    expect(adapter.contains('extends CadPlanPainterV2'), isTrue);
     expect(painter.contains('_objects(canvas)'), isTrue);
-    expect(painter.contains('_finishPattern'), isTrue);
+    expect(painter.contains('_drawFinish('), isTrue);
     expect(painter.contains('DoorSwing'), isTrue);
+    expect(painter.contains('TopViewObjectRenderer.draw('), isTrue);
 
     expect(measure.contains('_ConceptBottomNav('), isTrue);
     expect(measure.contains("'Проекты'"), isTrue);
