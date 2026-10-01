@@ -114,6 +114,7 @@ class ZamerGpuViewport extends StatefulWidget {
     this.photoPreview = false,
     this.photoTime = ZamerPhotoTime.day,
     this.photoHdr = true,
+    this.cameraFovDegrees = 46,
   });
 
   final FloorPlan floor;
@@ -129,6 +130,7 @@ class ZamerGpuViewport extends StatefulWidget {
   final bool photoPreview;
   final ZamerPhotoTime photoTime;
   final bool photoHdr;
+  final double cameraFovDegrees;
 
   @override
   State<ZamerGpuViewport> createState() => ZamerGpuViewportState();
@@ -1562,8 +1564,9 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
           math.sin(widget.rotation) * horizontal,
         );
 
+    final fovDegrees = widget.cameraFovDegrees.clamp(18.0, 90.0);
     return PerspectiveCamera(
-      fovRadiansY: 46 * math.pi / 180,
+      fovRadiansY: fovDegrees * math.pi / 180,
       position: eye,
       target: target,
       up: vm.Vector3(0, 1, 0),

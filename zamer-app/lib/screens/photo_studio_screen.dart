@@ -91,11 +91,15 @@ class _PhotoStudioScreenState extends State<PhotoStudioScreen> {
     });
   }
 
+  double _lensFov(double lens) => switch (lens) {
+    <= 0.5 => 78,
+    <= 1.0 => 46,
+    <= 2.0 => 28,
+    _ => 20,
+  };
+
   void _selectLens(double value) {
-    setState(() {
-      _lens = value;
-      _zoom = (widget.zoom * value).clamp(.28, 4.5).toDouble();
-    });
+    setState(() => _lens = value);
   }
 
   Future<void> _selectMode(String mode) async {
@@ -510,6 +514,7 @@ class _PhotoStudioScreenState extends State<PhotoStudioScreen> {
                           photoPreview: true,
                           photoTime: _time,
                           photoHdr: _hdr,
+                          cameraFovDegrees: _lensFov(_lens),
                         ),
                       ),
                       if (_grid)
