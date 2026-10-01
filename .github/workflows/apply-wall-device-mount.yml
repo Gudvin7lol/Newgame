@@ -1,0 +1,72 @@
+name: Apply wall device surface mount
+
+on:
+  push:
+    branches:
+      - 'codex/zamer-1.5.6-3d-stability'
+    paths:
+      - 'zamer-app/lib/renderer3d/wall_device_mount.dart'
+      - 'zamer-app/test/wall_device_mount_test.dart'
+      - 'zamer-app/tool/migrations/fix_wall_device_surface_mount.py'
+      - '.github/workflows/apply-wall-device-mount.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: zamer-wall-device-mount-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Sparse checkout
+        uses: actions/checkout@v4
+        with:
+          ref: codex/zamer-1.5.6-3d-stability
+          fetch-depth: 1
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            zamer-app/lib/renderer3d/zamer_gpu_viewport.dart
+            zamer-app/lib/renderer3d/wall_device_mount.dart
+            zamer-app/test/wall_device_mount_test.dart
+            zamer-app/tool/migrations/fix_wall_device_surface_mount.py
+
+      - name: Apply wall device mount fix
+        run: python zamer-app/tool/migrations/fix_wall_device_surface_mount.py
+
+      - name: Setup Dart
+        uses: dart-lang/setup-dart@v1
+
+      - name: Format changed sources
+        run: dart format zamer-app/lib/renderer3d/zamer_gpu_viewport.dart zamer-app/lib/renderer3d/wall_device_mount.dart zamer-app/test/wall_device_mount_test.dart
+
+      - name: Verify surface mounting
+        shell: bash
+        run: |
+          set -euo pipefail
+          VIEWPORT=zamer-app/lib/renderer3d/zamer_gpu_viewport.dart
+          grep -q "import 'wall_device_mount.dart';" "$VIEWPORT"
+          grep -q 'final depthM = isPanel ? 0.055 : (isWallLight ? 0.075 : 0.018);' "$VIEWPORT"
+          grep -q 'final offsetMm = zamerWallDeviceCenterOffsetMm(' "$VIEWPORT"
+          if grep -q 'point.wallThicknessMm / 2 + 9' "$VIEWPORT"; then
+            echo 'Legacy wall penetration offset is still present.' >&2
+            exit 1
+          fi
+
+      - name: Commit renderer integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add zamer-app/lib/renderer3d/zamer_gpu_viewport.dart zamer-app/lib/renderer3d/wall_device_mount.dart zamer-app/test/wall_device_mount_test.dart
+          if git diff --cached --quiet; then
+            echo 'Wall device mount already integrated.'
+            exit 0
+          fi
+          git commit -m 'fix(zamer): mount wall devices outside structural wall'
+          git push origin HEAD:codex/zamer-1.5.6-3d-stability
