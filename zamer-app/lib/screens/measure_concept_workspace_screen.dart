@@ -18,14 +18,14 @@ class MeasureConceptWorkspaceScreen extends StatefulWidget {
     required this.canRedo,
     required this.onMore,
     required this.onOpen3D,
-    this.onOpenAR,
+    required this.onOpenAR,
     required this.onOpenPhoto,
     required this.onOpenObjects,
     required this.onOpenReview,
     required this.onOpenGeometry,
     required this.onOpenFloors,
     required this.onOpenSettings,
-    this.onOpenMaterials,
+    required this.onOpenMaterials,
     required this.onHome,
     required this.onProjects,
     required this.onCatalog,
@@ -40,14 +40,14 @@ class MeasureConceptWorkspaceScreen extends StatefulWidget {
   final bool canRedo;
   final VoidCallback onMore;
   final VoidCallback onOpen3D;
-  final VoidCallback? onOpenAR;
+  final VoidCallback onOpenAR;
   final VoidCallback onOpenPhoto;
   final VoidCallback onOpenObjects;
   final VoidCallback onOpenReview;
   final VoidCallback onOpenGeometry;
   final VoidCallback onOpenFloors;
   final VoidCallback onOpenSettings;
-  final VoidCallback? onOpenMaterials;
+  final VoidCallback onOpenMaterials;
   final VoidCallback onHome;
   final VoidCallback onProjects;
   final VoidCallback onCatalog;
@@ -69,7 +69,7 @@ class _MeasureConceptWorkspaceScreenState
       case ZMeasureViewMode.threeD:
         widget.onOpen3D();
       case ZMeasureViewMode.ar:
-        (widget.onOpenAR ?? widget.onOpen3D)();
+        widget.onOpenAR();
       case ZMeasureViewMode.photo:
         widget.onOpenPhoto();
     }
@@ -80,30 +80,30 @@ class _MeasureConceptWorkspaceScreenState
       context: context,
       backgroundColor: ZamerColors.surface,
       showDragHandle: true,
-      builder: (context) => SafeArea(
+      builder: (context) => const SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+          padding: EdgeInsets.fromLTRB(16, 0, 16, 20),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('Обучение', style: ZamerTypography.h3),
-              const SizedBox(height: 12),
-              const _TutorialRow(
+              SizedBox(height: 12),
+              _TutorialRow(
                 number: '1',
                 title: 'Стены',
-                text: 'Выбери «Стены», поставь первую точку и задай длину.',
+                text: 'Поставь первую точку и задай геометрию стены.',
               ),
-              const _TutorialRow(
+              _TutorialRow(
                 number: '2',
                 title: 'Проёмы',
-                text: 'Выбери стену и добавь дверь или окно с точным отступом.',
+                text: 'Выбери стену и добавь дверь или окно.',
               ),
-              const _TutorialRow(
+              _TutorialRow(
                 number: '3',
                 title: 'Проверка',
-                text: 'Проверь контур, размеры и диагонали перед экспортом.',
+                text: 'Проверь размеры и диагонали перед экспортом.',
               ),
             ],
           ),
@@ -128,7 +128,7 @@ class _MeasureConceptWorkspaceScreenState
               onSave: widget.onChanged,
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+              padding: const EdgeInsets.fromLTRB(10, 1, 10, 5),
               child: ZMeasureViewTabs(value: _view, onChanged: _selectView),
             ),
             const Divider(height: 1, color: ZamerColors.outlineSoft),
@@ -142,7 +142,7 @@ class _MeasureConceptWorkspaceScreenState
                 onOpen3D: widget.onOpen3D,
                 onOpenFloors: widget.onOpenFloors,
                 onOpenSettings: widget.onOpenSettings,
-                onOpenMaterials: widget.onOpenMaterials ?? widget.onCatalog,
+                onOpenMaterials: widget.onOpenMaterials,
                 onUndo: widget.onUndo,
                 onRedo: widget.onRedo,
                 canUndo: widget.canUndo,
@@ -184,13 +184,16 @@ class _ConceptHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 72,
+      height: 60,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+        padding: const EdgeInsets.fromLTRB(8, 5, 8, 4),
         child: Row(
           children: [
-            _HeaderSquare(icon: Icons.arrow_back_ios_new_rounded, onTap: onBack),
-            const SizedBox(width: 8),
+            _HeaderSquare(
+              icon: Icons.arrow_back_ios_new_rounded,
+              onTap: onBack,
+            ),
+            const SizedBox(width: 7),
             Expanded(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -200,13 +203,13 @@ class _ConceptHeader extends StatelessWidget {
                     'ЗАМЕР',
                     maxLines: 1,
                     style: ZamerTypography.h1.copyWith(
-                      fontSize: 27,
-                      height: 1,
+                      fontSize: 25,
+                      height: .98,
                       fontWeight: FontWeight.w800,
-                      letterSpacing: -.5,
+                      letterSpacing: -.7,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 3),
                   Row(
                     children: [
                       Flexible(
@@ -216,14 +219,15 @@ class _ConceptHeader extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style: ZamerTypography.caption.copyWith(
                             color: ZamerColors.textSecondary,
-                            fontSize: 11,
+                            fontSize: 9.8,
+                            height: 1,
                           ),
                         ),
                       ),
                       const SizedBox(width: 4),
                       const Icon(
                         Icons.edit_outlined,
-                        size: 12,
+                        size: 11,
                         color: ZamerColors.textSecondary,
                       ),
                     ],
@@ -238,21 +242,21 @@ class _ConceptHeader extends StatelessWidget {
             _HeaderSquare(icon: Icons.more_horiz_rounded, onTap: onMore),
             const SizedBox(width: 6),
             SizedBox(
-              height: 44,
-              width: 82,
+              height: 39,
+              width: 79,
               child: FilledButton(
                 style: FilledButton.styleFrom(
                   backgroundColor: ZamerColors.accent,
                   foregroundColor: ZamerColors.accentInk,
                   padding: EdgeInsets.zero,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(9),
+                    borderRadius: BorderRadius.circular(8),
                   ),
                 ),
                 onPressed: () => onSave(),
                 child: const Text(
                   'Сохранить',
-                  style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800),
+                  style: TextStyle(fontSize: 9.6, fontWeight: FontWeight.w800),
                 ),
               ),
             ),
@@ -265,28 +269,27 @@ class _ConceptHeader extends StatelessWidget {
 
 class _HeaderSquare extends StatelessWidget {
   const _HeaderSquare({required this.icon, required this.onTap});
-
   final IconData icon;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) => Opacity(
-        opacity: onTap == null ? .32 : 1,
+        opacity: onTap == null ? .28 : 1,
         child: Material(
           color: ZamerColors.surfaceLow,
-          borderRadius: BorderRadius.circular(9),
+          borderRadius: BorderRadius.circular(8),
           child: InkWell(
             onTap: onTap,
-            borderRadius: BorderRadius.circular(9),
+            borderRadius: BorderRadius.circular(8),
             child: Container(
-              width: 36,
-              height: 44,
+              width: 32,
+              height: 39,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(9),
+                borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: ZamerColors.outlineSoft),
               ),
-              child: Icon(icon, size: 17, color: ZamerColors.textPrimary),
+              child: Icon(icon, size: 16, color: ZamerColors.textPrimary),
             ),
           ),
         ),
@@ -302,7 +305,6 @@ class _ConceptBottomNav extends StatelessWidget {
     required this.onTutorial,
     required this.onMore,
   });
-
   final VoidCallback onHome;
   final VoidCallback onProjects;
   final VoidCallback onAdd;
@@ -313,9 +315,9 @@ class _ConceptBottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 74,
+      height: 68,
       decoration: const BoxDecoration(
-        color: Color(0xFF081B2D),
+        color: Color(0xFF031119),
         border: Border(top: BorderSide(color: ZamerColors.outlineSoft)),
       ),
       child: Row(
@@ -334,23 +336,20 @@ class _ConceptBottomNav extends StatelessWidget {
           Expanded(
             child: InkWell(
               onTap: onAdd,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: const BoxDecoration(
-                      color: ZamerColors.accent,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.add_rounded,
-                      size: 30,
-                      color: ZamerColors.accentInk,
-                    ),
+              child: Center(
+                child: Container(
+                  width: 46,
+                  height: 46,
+                  decoration: const BoxDecoration(
+                    color: ZamerColors.accent,
+                    shape: BoxShape.circle,
                   ),
-                ],
+                  child: const Icon(
+                    Icons.add_rounded,
+                    size: 29,
+                    color: ZamerColors.accentInk,
+                  ),
+                ),
               ),
             ),
           ),
@@ -382,7 +381,6 @@ class _BottomItem extends StatelessWidget {
     required this.onTap,
     this.active = false,
   });
-
   final IconData icon;
   final String label;
   final VoidCallback onTap;
@@ -397,17 +395,17 @@ class _BottomItem extends StatelessWidget {
             children: [
               Icon(
                 icon,
-                size: 22,
+                size: 21,
                 color: active ? ZamerColors.accent : ZamerColors.textSecondary,
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 3),
               Text(
                 label,
                 maxLines: 1,
                 style: TextStyle(
                   color:
                       active ? ZamerColors.accent : ZamerColors.textSecondary,
-                  fontSize: 8.2,
+                  fontSize: 7.7,
                   fontWeight: active ? FontWeight.w700 : FontWeight.w500,
                 ),
               ),
@@ -423,7 +421,6 @@ class _TutorialRow extends StatelessWidget {
     required this.title,
     required this.text,
   });
-
   final String number;
   final String title;
   final String text;
