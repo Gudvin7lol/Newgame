@@ -651,9 +651,10 @@ class _WalkJoystick extends StatefulWidget {
 class _WalkJoystickState extends State<_WalkJoystick> {
   Timer? _timer;
   Offset _vector = Offset.zero;
+  final Stopwatch _frameClock = Stopwatch();
+  int? _lastFrameMicros;
   static const double _radius = 58;
   static const Duration _frameInterval = Duration(milliseconds: 16);
-  static const double _frameSeconds = 0.016;
 
   void _update(Offset local) {
     final delta = local - const Offset(70, 70);
@@ -665,14 +666,27 @@ class _WalkJoystickState extends State<_WalkJoystick> {
   }
 
   void _emitStep() {
+    final nowMicros = _frameClock.elapsedMicroseconds;
+    final previousMicros = _lastFrameMicros;
+    _lastFrameMicros = nowMicros;
+    final elapsedMicros = previousMicros == null
+        ? _frameInterval.inMicroseconds
+        : nowMicros - previousMicros;
+    final deltaSeconds = (elapsedMicros / Duration.microsecondsPerSecond)
+        .clamp(1 / 240, 0.05)
+        .toDouble();
     final input = WalkInputService.fromStick(_vector.dx, _vector.dy);
     if (input.forward == 0 && input.sideways == 0) return;
-    widget.onStep(input.forward, input.sideways, _frameSeconds);
+    widget.onStep(input.forward, input.sideways, deltaSeconds);
   }
 
   void _start(Offset local) {
     _update(local);
     _timer?.cancel();
+    _frameClock
+      ..reset()
+      ..start();
+    _lastFrameMicros = null;
     _emitStep();
     _timer = Timer.periodic(_frameInterval, (_) => _emitStep());
   }
@@ -680,6 +694,8 @@ class _WalkJoystickState extends State<_WalkJoystick> {
   void _stop() {
     _timer?.cancel();
     _timer = null;
+    _frameClock.stop();
+    _lastFrameMicros = null;
     if (mounted) setState(() => _vector = Offset.zero);
   }
 
