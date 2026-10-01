@@ -41,6 +41,28 @@ void main() {
     },
   );
 
+  test('walk mode never changes the realtime model path', () {
+    final asset = ZamerModelAssetCatalog.byId('armchair');
+    expect(asset, isNotNull);
+    final model = asset!;
+
+    for (final count in <int>[1, 12, 40]) {
+      final overview = ZamerModelLodPolicy.pathFor(
+        asset: model,
+        visibleObjectCount: count,
+        photoQuality: false,
+        walkMode: false,
+      );
+      final walk = ZamerModelLodPolicy.pathFor(
+        asset: model,
+        visibleObjectCount: count,
+        photoQuality: false,
+        walkMode: true,
+      );
+      expect(walk, overview, reason: 'object count $count must keep one realtime LOD');
+    }
+  });
+
   test('performance mode always chooses LOD2 while photo still wins', () {
     final asset = ZamerModelAssetCatalog.byId('armchair');
     expect(asset, isNotNull);
@@ -51,7 +73,7 @@ void main() {
         asset: model,
         visibleObjectCount: 1,
         photoQuality: false,
-        walkMode: false,
+        walkMode: true,
         performanceMode: true,
       ),
       model.lod2AssetPath,
@@ -61,7 +83,7 @@ void main() {
         asset: model,
         visibleObjectCount: 1,
         photoQuality: true,
-        walkMode: false,
+        walkMode: true,
         performanceMode: true,
       ),
       model.assetPath,
