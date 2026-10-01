@@ -36,25 +36,24 @@ class ZamerModelAsset {
   bool get hasCompleteLodChain => hasLod1 && hasLod2;
 
   String pathForLod(ZamerModelLod lod) => switch (lod) {
-    ZamerModelLod.lod0 => assetPath,
-    ZamerModelLod.lod1 => lod1AssetPath ?? assetPath,
-    ZamerModelLod.lod2 => lod2AssetPath ?? lod1AssetPath ?? assetPath,
-  };
+        ZamerModelLod.lod0 => assetPath,
+        ZamerModelLod.lod1 => lod1AssetPath ?? assetPath,
+        ZamerModelLod.lod2 => lod2AssetPath ?? lod1AssetPath ?? assetPath,
+      };
 }
 
 class ZamerModelAssetCatalog {
+  /// Assets below keep the older generated LOD chain. The four featured models
+  /// are intentionally excluded: +80 replaces their base GLB with the approved
+  /// Sand/Walnut mobile meshes, so every graphics mode uses the same model.
   static const productionLodIds = <String>{
-    'armchair',
     'bed-160',
-    'bed-180',
-    'coffee-table',
     'dining-chair-upholstered',
     'dining-table-1800',
     'dresser-1200',
     'nightstand',
     'office-desk-1400',
     'sofa-2',
-    'sofa-3',
     'sofa-corner',
     'sofa-modular',
     'table-round',
@@ -63,29 +62,29 @@ class ZamerModelAssetCatalog {
   };
 
   static const _reverseFacingProductionIds = <String>{
-    'armchair',
     'bed-160',
-    'bed-180',
     'dining-chair-upholstered',
     'sofa-2',
-    'sofa-3',
     'sofa-corner',
     'sofa-modular',
   };
 
   static const _productionNativeDimensionsMm =
       <String, (double width, double depth, double height)>{
-        'armchair': (900, 900, 900),
+        // Featured +80 models.
+        'armchair': (920, 900, 860),
+        'bed-180': (1800, 2200, 1130),
+        'coffee-table': (900, 900, 420),
+        'sofa-3': (2200, 950, 850),
+
+        // Existing production library.
         'bed-160': (1800, 2150, 1050),
-        'bed-180': (2000, 2180, 1080),
-        'coffee-table': (1100, 620, 420),
         'dining-chair-upholstered': (500, 580, 860),
         'dining-table-1800': (1800, 900, 760),
         'dresser-1200': (1200, 500, 950),
         'nightstand': (550, 450, 620),
         'office-desk-1400': (1400, 700, 760),
         'sofa-2': (1750, 900, 860),
-        'sofa-3': (2200, 900, 850),
         'sofa-corner': (2800, 1900, 880),
         'sofa-modular': (2400, 1050, 780),
         'table-round': (1100, 1100, 760),
@@ -109,7 +108,8 @@ class ZamerModelAssetCatalog {
       nativeWidthMm: native?.$1 ?? item.widthMm,
       nativeDepthMm: native?.$2 ?? item.depthMm,
       nativeHeightMm: native?.$3 ?? item.heightMm,
-      yawCorrectionRad: _reverseFacingProductionIds.contains(id) ? math.pi : 0,
+      yawCorrectionRad:
+          _reverseFacingProductionIds.contains(id) ? math.pi : 0,
     );
     return asset.hasRenderableDimensions ? asset : null;
   }
