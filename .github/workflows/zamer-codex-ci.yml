@@ -46,6 +46,25 @@ jobs:
         working-directory: zamer-app
         run: flutter pub get
 
+      - name: Generate featured 3D models
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check --quiet numpy pillow scipy
+          python3 zamer-app/tool/featured_models/build_models.py sofa .55
+          python3 zamer-app/tool/featured_models/build_models.py armchair .55
+          python3 zamer-app/tool/featured_models/build_models.py table .55
+          python3 zamer-app/tool/featured_models/build_models.py bed .55
+          cp zamer-app/tool/featured_models/sofa/mobile/Zamer_Sofa_v3_Mobile.glb zamer-app/assets/models/zamer_catalog/sofa-3.glb
+          cp zamer-app/tool/featured_models/armchair/mobile/Zamer_Armchair_Sand_Mobile.glb zamer-app/assets/models/zamer_catalog/armchair.glb
+          cp zamer-app/tool/featured_models/table/mobile/Zamer_Table_Walnut_Mobile.glb zamer-app/assets/models/zamer_catalog/coffee-table.glb
+          cp zamer-app/tool/featured_models/bed/mobile/Zamer_Bed_Sand_Mobile.glb zamer-app/assets/models/zamer_catalog/bed-180.glb
+          ls -lh \
+            zamer-app/assets/models/zamer_catalog/sofa-3.glb \
+            zamer-app/assets/models/zamer_catalog/armchair.glb \
+            zamer-app/assets/models/zamer_catalog/coffee-table.glb \
+            zamer-app/assets/models/zamer_catalog/bed-180.glb
+
       - name: Format changed UI sources
         run: >-
           dart format
@@ -55,6 +74,7 @@ jobs:
           zamer-app/lib/screens/projects_screen.dart
           zamer-app/lib/screens/floor_workspace_screen.dart
           zamer-app/lib/screens/plan_editor_production_screen.dart
+          zamer-app/lib/screens/plan_editor_master_v4_screen.dart
           zamer-app/lib/screens/floor_3d_screen.dart
           zamer-app/lib/widgets/projects_home_widgets.dart
           zamer-app/lib/widgets/workspace_master_header.dart
