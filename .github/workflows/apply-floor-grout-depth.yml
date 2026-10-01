@@ -1,0 +1,77 @@
+name: Apply floor grout depth separation
+
+on:
+  push:
+    branches:
+      - 'codex/zamer-1.5.6-3d-stability'
+    paths:
+      - 'zamer-app/lib/renderer3d/floor_grout_geometry.dart'
+      - 'zamer-app/test/floor_grout_geometry_test.dart'
+      - 'zamer-app/tool/migrations/fix_floor_grout_depth.py'
+      - '.github/workflows/apply-floor-grout-depth.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: zamer-floor-grout-depth-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Sparse checkout current branch
+        uses: actions/checkout@v4
+        with:
+          ref: codex/zamer-1.5.6-3d-stability
+          fetch-depth: 2
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            zamer-app/lib/renderer3d/zamer_gpu_viewport.dart
+            zamer-app/lib/renderer3d/floor_grout_geometry.dart
+            zamer-app/test/floor_grout_geometry_test.dart
+            zamer-app/tool/migrations/fix_floor_grout_depth.py
+
+      - name: Apply floor grout depth fix
+        run: python3 zamer-app/tool/migrations/fix_floor_grout_depth.py
+
+      - name: Setup Dart
+        uses: dart-lang/setup-dart@v1
+
+      - name: Format changed sources
+        run: dart format zamer-app/lib/renderer3d/zamer_gpu_viewport.dart zamer-app/lib/renderer3d/floor_grout_geometry.dart zamer-app/test/floor_grout_geometry_test.dart
+
+      - name: Verify floor grout depth integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          SCENE=zamer-app/lib/renderer3d/zamer_gpu_viewport.dart
+          POLICY=zamer-app/lib/renderer3d/floor_grout_geometry.dart
+          grep -q 'zamerFloorSurfaceYM' "$SCENE"
+          grep -q 'zamerFloorGroutYM' "$SCENE"
+          grep -q 'const double zamerFloorGroutSeparationM' "$POLICY"
+          if grep -q '0.0068' "$SCENE"; then
+            echo 'Legacy sub-millimetre grout elevation is still present.' >&2
+            exit 1
+          fi
+
+      - name: Commit renderer integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            zamer-app/lib/renderer3d/zamer_gpu_viewport.dart \
+            zamer-app/lib/renderer3d/floor_grout_geometry.dart \
+            zamer-app/test/floor_grout_geometry_test.dart
+          if git diff --cached --quiet; then
+            echo 'Floor grout depth separation already integrated.'
+            exit 0
+          fi
+          git commit -m 'fix(zamer): prevent floor grout depth fighting'
+          git pull --rebase origin codex/zamer-1.5.6-3d-stability
+          git push origin HEAD:codex/zamer-1.5.6-3d-stability
