@@ -1,0 +1,1 @@
+Runtime assets in this folder are binary blobs committed via Git objects. Do not replace them with base64 text payloads.
