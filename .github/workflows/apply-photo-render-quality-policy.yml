@@ -1,0 +1,74 @@
+name: Apply photo render quality policy
+
+on:
+  push:
+    branches:
+      - 'codex/zamer-1.5.6-3d-stability'
+    paths:
+      - 'zamer-app/lib/renderer3d/photo_render_quality_policy.dart'
+      - 'zamer-app/test/photo_render_quality_policy_test.dart'
+      - 'zamer-app/tool/migrations/apply_photo_render_quality_policy.py'
+      - '.github/workflows/apply-photo-render-quality-policy.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: zamer-photo-render-quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Sparse checkout current branch
+        uses: actions/checkout@v4
+        with:
+          ref: codex/zamer-1.5.6-3d-stability
+          fetch-depth: 2
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            zamer-app/lib/renderer3d/zamer_gpu_viewport.dart
+            zamer-app/lib/renderer3d/photo_render_quality_policy.dart
+            zamer-app/test/photo_render_quality_policy_test.dart
+            zamer-app/tool/migrations/apply_photo_render_quality_policy.py
+
+      - name: Apply photo render quality fix
+        run: python3 zamer-app/tool/migrations/apply_photo_render_quality_policy.py
+
+      - name: Setup Dart
+        uses: dart-lang/setup-dart@v1
+
+      - name: Format changed sources
+        run: dart format zamer-app/lib/renderer3d/zamer_gpu_viewport.dart zamer-app/lib/renderer3d/photo_render_quality_policy.dart zamer-app/test/photo_render_quality_policy_test.dart
+
+      - name: Verify photo render quality integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          VIEWPORT=zamer-app/lib/renderer3d/zamer_gpu_viewport.dart
+          grep -q "import 'photo_render_quality_policy.dart';" "$VIEWPORT"
+          grep -q 'photoQuality: photoQuality' "$VIEWPORT"
+          grep -q 'ZamerPhotoRenderQualityPolicy.useLocalLights(' "$VIEWPORT"
+          grep -q 'ZamerPhotoRenderQualityPolicy.glowSegments(' "$VIEWPORT"
+          grep -q 'ZamerPhotoRenderQualityPolicy.glowRings(' "$VIEWPORT"
+
+      - name: Commit renderer integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            zamer-app/lib/renderer3d/zamer_gpu_viewport.dart \
+            zamer-app/lib/renderer3d/photo_render_quality_policy.dart \
+            zamer-app/test/photo_render_quality_policy_test.dart
+          if git diff --cached --quiet; then
+            echo 'Photo render quality policy already integrated.'
+            exit 0
+          fi
+          git commit -m 'fix(zamer): keep full fixture lighting in photo render'
+          git pull --rebase origin codex/zamer-1.5.6-3d-stability
+          git push origin HEAD:codex/zamer-1.5.6-3d-stability
