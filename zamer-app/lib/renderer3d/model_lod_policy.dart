@@ -15,10 +15,16 @@ class ZamerModelLodPolicy {
     required int visibleObjectCount,
     required bool photoQuality,
     required bool walkMode,
+    bool performanceMode = false,
   }) {
     if (!asset.hasCompleteLodChain || photoQuality) {
       return ZamerModelLod.lod0;
     }
+
+    // Performance is an explicit user request for stable frame pacing. If the
+    // authored model has a complete LOD chain, always use the lightest realtime
+    // representation rather than waiting for the scene to become crowded.
+    if (performanceMode) return ZamerModelLod.lod2;
 
     final count = visibleObjectCount < 0 ? 0 : visibleObjectCount;
 
@@ -39,6 +45,7 @@ class ZamerModelLodPolicy {
     required int visibleObjectCount,
     required bool photoQuality,
     required bool walkMode,
+    bool performanceMode = false,
   }) {
     return asset.pathForLod(
       select(
@@ -46,6 +53,7 @@ class ZamerModelLodPolicy {
         visibleObjectCount: visibleObjectCount,
         photoQuality: photoQuality,
         walkMode: walkMode,
+        performanceMode: performanceMode,
       ),
     );
   }
