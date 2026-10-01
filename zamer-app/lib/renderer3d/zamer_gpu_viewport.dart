@@ -1564,7 +1564,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
           math.sin(widget.rotation) * horizontal,
         );
 
-    final fovDegrees = widget.cameraFovDegrees.clamp(18.0, 90.0);
+    final fovDegrees = widget.cameraFovDegrees.clamp(18.0, 90.0).toDouble();
     return PerspectiveCamera(
       fovRadiansY: fovDegrees * math.pi / 180,
       position: eye,
