@@ -43,17 +43,21 @@ class ZamerModelAsset {
 }
 
 class ZamerModelAssetCatalog {
-  /// Assets below keep the older generated LOD chain. The four featured models
-  /// are intentionally excluded: +80 replaces their base GLB with the approved
-  /// Sand/Walnut mobile meshes, so every graphics mode uses the same model.
+  /// Production furniture has a complete LOD0/1/2 chain. The four +80
+  /// Sand/Walnut models are generated in CI at three mesh densities so Photo
+  /// keeps the best geometry while realtime and dense scenes can step down.
   static const productionLodIds = <String>{
+    'armchair',
     'bed-160',
+    'bed-180',
+    'coffee-table',
     'dining-chair-upholstered',
     'dining-table-1800',
     'dresser-1200',
     'nightstand',
     'office-desk-1400',
     'sofa-2',
+    'sofa-3',
     'sofa-corner',
     'sofa-modular',
     'table-round',
@@ -62,9 +66,12 @@ class ZamerModelAssetCatalog {
   };
 
   static const _reverseFacingProductionIds = <String>{
+    'armchair',
     'bed-160',
+    'bed-180',
     'dining-chair-upholstered',
     'sofa-2',
+    'sofa-3',
     'sofa-corner',
     'sofa-modular',
   };
