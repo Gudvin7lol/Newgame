@@ -16,6 +16,7 @@ import 'floor_grout_geometry.dart';
 import 'cutaway_geometry.dart';
 import 'model_asset_catalog.dart';
 import 'model_lod_policy.dart';
+import 'photo_render_quality_policy.dart';
 import 'scene_fingerprint.dart';
 import 'scene_mesh_winding.dart';
 import 'zamer_scene_geometry.dart';
@@ -1348,7 +1349,12 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
         -object.rotationRad + (asset?.yawCorrectionRad ?? 0),
       );
     if (object.type == PlanObjectType.lighting) {
-      _attachLightEmitter(root, object, importedModel: importedModel);
+      _attachLightEmitter(
+        root,
+        object,
+        importedModel: importedModel,
+        photoQuality: photoQuality,
+      );
     }
     _markStatic(root);
     return root;
@@ -1358,6 +1364,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     Node objectNode,
     ZamerObjectPlacement object, {
     required bool importedModel,
+    required bool photoQuality,
   }) {
     final id = object.catalogId.toLowerCase();
     final isWall = id.startsWith('wall-sconce');
@@ -1392,7 +1399,10 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
         : isFloor
         ? 4.5
         : 6.0;
-    if (!widget.performanceMode) {
+    if (ZamerPhotoRenderQualityPolicy.useLocalLights(
+      photoQuality: photoQuality,
+      performanceMode: widget.performanceMode,
+    )) {
       lightNode.addComponent(
         PointLightComponent(
           PointLight(
@@ -1417,8 +1427,14 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       mesh: Mesh(
         SphereGeometry(
           radius: glowRadius,
-          segments: widget.performanceMode ? 10 : 16,
-          rings: widget.performanceMode ? 6 : 10,
+          segments: ZamerPhotoRenderQualityPolicy.glowSegments(
+            photoQuality: photoQuality,
+            performanceMode: widget.performanceMode,
+          ),
+          rings: ZamerPhotoRenderQualityPolicy.glowRings(
+            photoQuality: photoQuality,
+            performanceMode: widget.performanceMode,
+          ),
         ),
         glowMaterial,
       ),
