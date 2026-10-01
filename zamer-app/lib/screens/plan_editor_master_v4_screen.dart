@@ -10,8 +10,7 @@ import '../services/material_catalog.dart';
 import '../widgets/cad_plan_painter.dart';
 
 /// UI KIT 02 production editor rebuilt around the approved portrait concept.
-/// The canvas gets priority; toolbars stay narrow and contextual information
-/// lives below it instead of stealing plan space.
+/// +80 adds direct room selection and one-tap material application.
 class PlanEditorMasterV4Screen extends StatefulWidget {
   const PlanEditorMasterV4Screen({
     super.key,
@@ -58,9 +57,11 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
 
   ZMeasureTool _tool = ZMeasureTool.walls;
   String? _selectedWallId;
+  String? _selectedRoomFaceKey;
   String? _wallStartNodeId;
   String? _dimensionStartNodeId;
   String _materialCategory = 'Пол';
+  bool _materialPickMode = true;
   bool _grid = true;
   bool _snapping = true;
   bool _centered = false;
@@ -70,9 +71,38 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   PlanWall? get _selectedWall =>
       _selectedWallId == null ? null : floor.wallById(_selectedWallId!);
 
+  List<RoomFace> get _faces => GeometryService.roomFaces(floor);
+
+  RoomFace? get _selectedRoomFace {
+    final key = _selectedRoomFaceKey;
+    if (key == null) return null;
+    for (final face in _faces) {
+      if (face.key == key) return face;
+    }
+    return null;
+  }
+
+  RoomMeta? get _selectedRoomMeta {
+    final key = _selectedRoomFaceKey;
+    if (key == null) return null;
+    for (final meta in floor.roomMetas) {
+      if (meta.faceKey == key) return meta;
+    }
+    return null;
+  }
+
+  String? get _selectedMaterialId {
+    final meta = _selectedRoomMeta;
+    if (meta == null) return null;
+    return _materialCategory == 'Стены'
+        ? meta.materials.wallMaterialId
+        : meta.materials.floorMaterialId;
+  }
+
   @override
   void initState() {
     super.initState();
+    GeometryService.syncRoomMetadata(floor);
     if (floor.walls.isNotEmpty) _selectedWallId = floor.walls.first.id;
   }
 
@@ -84,6 +114,9 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
 
   Future<void> _changed() async {
     GeometryService.syncRoomMetadata(floor);
+    if (_selectedRoomFaceKey != null && _selectedRoomFace == null) {
+      _selectedRoomFaceKey = null;
+    }
     await widget.onChanged();
     if (mounted) setState(() {});
   }
@@ -97,6 +130,99 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
         (p.dx - _origin.dx) / _mmToPx,
         (p.dy - _origin.dy) / _mmToPx,
       );
+
+  bool _pointInPolygon(
+    math.Point<double> point,
+    List<math.Point<double>> polygon,
+  ) {
+    if (polygon.length < 3) return false;
+    var inside = false;
+    var j = polygon.length - 1;
+    for (var i = 0; i < polygon.length; i++) {
+      final a = polygon[i];
+      final b = polygon[j];
+      final crosses = (a.y > point.y) != (b.y > point.y);
+      if (crosses) {
+        final x = (b.x - a.x) * (point.y - a.y) /
+                ((b.y - a.y).abs() < .000001 ? .000001 : b.y - a.y) +
+            a.x;
+        if (point.x < x) inside = !inside;
+      }
+      j = i;
+    }
+    return inside;
+  }
+
+  RoomFace? _roomAt(Offset canvasPoint) {
+    final mm = _toMm(canvasPoint);
+    for (final face in _faces) {
+      if (_pointInPolygon(mm, face.innerPolygon)) return face;
+    }
+    return null;
+  }
+
+  void _selectRoomMode() {
+    setState(() {
+      _materialPickMode = true;
+      _wallStartNodeId = null;
+      _dimensionStartNodeId = null;
+      _selectedWallId = null;
+    });
+  }
+
+  void _selectMaterialCategory(String category) {
+    if (category != 'Пол' && category != 'Стены') {
+      widget.onOpenMaterials();
+      return;
+    }
+    setState(() {
+      _materialCategory = category;
+      _materialPickMode = true;
+      _wallStartNodeId = null;
+      _dimensionStartNodeId = null;
+      _selectedWallId = null;
+    });
+  }
+
+  Future<void> _applyMaterial(VisualMaterialPreset material) async {
+    GeometryService.syncRoomMetadata(floor);
+    final meta = _selectedRoomMeta;
+    if (meta == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Сначала нажмите на помещение.')),
+        );
+      }
+      _selectRoomMode();
+      return;
+    }
+
+    final settings = meta.materials;
+    if (_materialCategory == 'Стены') {
+      settings.wallMaterialId = material.id;
+      if (material.pattern == 'tile') {
+        settings.wallTile = true;
+        settings.wallTileMaterialId = material.id;
+      } else {
+        settings.wallTile = false;
+      }
+    } else {
+      settings.floorMaterialId = material.id;
+      final tile = material.pattern == 'tile';
+      settings.floorMode = tile ? 'tile' : 'laminate';
+      settings.floorTile = tile;
+    }
+
+    await _changed();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        duration: const Duration(milliseconds: 1100),
+        content: Text('${material.name} • ${meta.name}'),
+      ),
+    );
+  }
 
   double _distanceToSegment(Offset p, Offset a, Offset b) {
     final ab = b - a;
@@ -151,8 +277,12 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     final maxY = floor.nodes.map((e) => e.yMm).reduce(math.max);
     final widthPx = math.max(1.0, (maxX - minX) * _mmToPx);
     final heightPx = math.max(1.0, (maxY - minY) * _mmToPx);
-    final scale = math.min(2.8, math.max(.35, math.min(usableW / widthPx, usableH / heightPx) * .96));
-    final center = _origin + Offset((minX + maxX) * .5 * _mmToPx, (minY + maxY) * .5 * _mmToPx);
+    final scale = math.min(
+      2.8,
+      math.max(.35, math.min(usableW / widthPx, usableH / heightPx) * .96),
+    );
+    final center = _origin +
+        Offset((minX + maxX) * .5 * _mmToPx, (minY + maxY) * .5 * _mmToPx);
     final target = Offset(left + usableW / 2, top + usableH / 2);
     _transform.value = Matrix4.identity()
       ..translate(target.dx - center.dx * scale, target.dy - center.dy * scale)
@@ -174,6 +304,23 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
 
   Future<void> _tapCanvas(TapUpDetails details) async {
     final p = details.localPosition;
+    if (_materialPickMode) {
+      final face = _roomAt(p);
+      setState(() {
+        _selectedRoomFaceKey = face?.key;
+        _selectedWallId = null;
+      });
+      if (face == null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            duration: Duration(milliseconds: 900),
+            content: Text('Нажмите внутри замкнутого помещения.'),
+          ),
+        );
+      }
+      return;
+    }
+
     switch (_tool) {
       case ZMeasureTool.walls:
         final wall = _wallNear(p);
@@ -217,7 +364,9 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
         point = math.Point(start.xMm, point.y);
       }
     }
-    if (math.Point(point.x - start.xMm, point.y - start.yMm).magnitude < 120) return;
+    if (math.Point(point.x - start.xMm, point.y - start.yMm).magnitude < 120) {
+      return;
+    }
     final before = floor.walls.map((e) => e.id).toSet();
     final end = GeometryService.addWallFromNode(
       floor,
@@ -241,15 +390,16 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     final length = floor.wallLengthMm(wall);
     final width = math.min(900.0, math.max(600.0, length * .32));
     if (length <= width + 160) return;
-    final opening = WallOpening(
-      id: 'o-${DateTime.now().microsecondsSinceEpoch}',
-      type: OpeningType.door,
-      widthMm: width,
-      heightMm: 2100,
-      offsetFromStartMm: (length - width) / 2,
-      doorSwing: DoorSwing.leftIn,
+    wall.openings.add(
+      WallOpening(
+        id: 'o-${DateTime.now().microsecondsSinceEpoch}',
+        type: OpeningType.door,
+        widthMm: width,
+        heightMm: 2100,
+        offsetFromStartMm: (length - width) / 2,
+        doorSwing: DoorSwing.leftIn,
+      ),
     );
-    wall.openings.add(opening);
     setState(() => _selectedWallId = wall.id);
     await _changed();
   }
@@ -289,8 +439,14 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
         title: const Text('Текст на плане'),
         content: TextField(controller: controller, minLines: 3, maxLines: 6),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Отмена')),
-          FilledButton(onPressed: () => Navigator.pop(context, controller.text), child: const Text('Сохранить')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Отмена'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: const Text('Сохранить'),
+          ),
         ],
       ),
     );
@@ -348,23 +504,51 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   Future<void> _editWall() async {
     final wall = _selectedWall;
     if (wall == null) return;
-    final thickness = TextEditingController(text: wall.thicknessMm.round().toString());
-    final height = TextEditingController(text: (wall.heightOverrideMm ?? floor.defaultHeightMm).round().toString());
+    final thickness =
+        TextEditingController(text: wall.thicknessMm.round().toString());
+    final height = TextEditingController(
+      text: (wall.heightOverrideMm ?? floor.defaultHeightMm).round().toString(),
+    );
     final save = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       backgroundColor: ZamerColors.surface,
       showDragHandle: true,
       builder: (context) => Padding(
-        padding: EdgeInsets.fromLTRB(16, 0, 16, 16 + MediaQuery.viewInsetsOf(context).bottom),
+        padding: EdgeInsets.fromLTRB(
+          16,
+          0,
+          16,
+          16 + MediaQuery.viewInsetsOf(context).bottom,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(controller: thickness, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Толщина', suffixText: 'мм')),
+            TextField(
+              controller: thickness,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Толщина',
+                suffixText: 'мм',
+              ),
+            ),
             const SizedBox(height: 8),
-            TextField(controller: height, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Высота', suffixText: 'мм')),
+            TextField(
+              controller: height,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Высота',
+                suffixText: 'мм',
+              ),
+            ),
             const SizedBox(height: 12),
-            SizedBox(width: double.infinity, child: FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Сохранить'))),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Сохранить'),
+              ),
+            ),
           ],
         ),
       ),
@@ -384,7 +568,9 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     final wall = _selectedWall;
     if (wall == null) return;
     GeometryService.removeWall(floor, wall.id);
-    setState(() => _selectedWallId = floor.walls.isEmpty ? null : floor.walls.first.id);
+    setState(
+      () => _selectedWallId = floor.walls.isEmpty ? null : floor.walls.first.id,
+    );
     await _changed();
   }
 
@@ -394,6 +580,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       return;
     }
     setState(() {
+      _materialPickMode = false;
       _tool = tool;
       _wallStartNodeId = null;
       _dimensionStartNodeId = null;
@@ -402,13 +589,18 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
 
   @override
   Widget build(BuildContext context) {
+    final room = _selectedRoomMeta;
     return ColoredBox(
       color: ZamerColors.background,
       child: Column(
         children: [
           Expanded(child: _canvas()),
           if (_selectedWall != null)
-            _WallInspector(wall: _selectedWall!, floor: floor, onEdit: _editWall),
+            _WallInspector(
+              wall: _selectedWall!,
+              floor: floor,
+              onEdit: _editWall,
+            ),
           _ActionBar(
             tool: _tool,
             hasSelection: _selectedWall != null,
@@ -422,7 +614,11 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
           ),
           _MaterialPanel(
             category: _materialCategory,
-            onCategory: (value) => setState(() => _materialCategory = value),
+            selectedRoomName: room?.name,
+            selectedMaterialId: _selectedMaterialId,
+            selectionMode: _materialPickMode,
+            onCategory: _selectMaterialCategory,
+            onApply: _applyMaterial,
             onOpenMaterials: widget.onOpenMaterials,
           ),
         ],
@@ -463,7 +659,17 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                   ),
                 ),
               ),
-              Positioned(left: 8, top: 8, child: _ToolRail(tool: _tool, onTool: _selectTool, onReview: widget.onOpenReview)),
+              Positioned(
+                left: 8,
+                top: 8,
+                child: _ToolRail(
+                  tool: _tool,
+                  materialMode: _materialPickMode,
+                  onRoomMode: _selectRoomMode,
+                  onTool: _selectTool,
+                  onReview: widget.onOpenReview,
+                ),
+              ),
               Positioned(
                 right: 8,
                 top: 8,
@@ -502,8 +708,16 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
 }
 
 class _ToolRail extends StatelessWidget {
-  const _ToolRail({required this.tool, required this.onTool, required this.onReview});
+  const _ToolRail({
+    required this.tool,
+    required this.materialMode,
+    required this.onRoomMode,
+    required this.onTool,
+    required this.onReview,
+  });
   final ZMeasureTool tool;
+  final bool materialMode;
+  final VoidCallback onRoomMode;
   final ValueChanged<ZMeasureTool> onTool;
   final VoidCallback onReview;
 
@@ -512,10 +726,27 @@ class _ToolRail extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            for (final item in ZMeasureTool.values)
-              _RailItem(icon: item.icon, label: item.label, selected: tool == item, onTap: () => onTool(item)),
+            _RailItem(
+              icon: Icons.meeting_room_outlined,
+              label: 'Помещение',
+              selected: materialMode,
+              onTap: onRoomMode,
+            ),
             const Divider(height: 7, color: ZamerColors.outlineSoft),
-            _RailItem(icon: Icons.check_circle_outline_rounded, label: 'Проверка', selected: false, onTap: onReview),
+            for (final item in ZMeasureTool.values)
+              _RailItem(
+                icon: item.icon,
+                label: item.label,
+                selected: !materialMode && tool == item,
+                onTap: () => onTool(item),
+              ),
+            const Divider(height: 7, color: ZamerColors.outlineSoft),
+            _RailItem(
+              icon: Icons.check_circle_outline_rounded,
+              label: 'Проверка',
+              selected: false,
+              onTap: onReview,
+            ),
           ],
         ),
       );
@@ -544,11 +775,38 @@ class _ViewRail extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _RailItem(icon: Icons.grid_4x4_rounded, label: 'Сетка', selected: false, activeDot: grid, onTap: onGrid),
-            _RailItem(icon: Icons.view_in_ar_outlined, label: '3D вид', selected: false, onTap: on3D),
-            _RailItem(icon: Icons.layers_outlined, label: 'Этажи', selected: false, onTap: onFloors),
-            _RailItem(icon: Icons.link_rounded, label: 'Привязка', selected: false, activeDot: snapping, onTap: onSnap),
-            _RailItem(icon: Icons.settings_outlined, label: 'Настройки', selected: false, onTap: onSettings),
+            _RailItem(
+              icon: Icons.grid_4x4_rounded,
+              label: 'Сетка',
+              selected: false,
+              activeDot: grid,
+              onTap: onGrid,
+            ),
+            _RailItem(
+              icon: Icons.view_in_ar_outlined,
+              label: '3D вид',
+              selected: false,
+              onTap: on3D,
+            ),
+            _RailItem(
+              icon: Icons.layers_outlined,
+              label: 'Этажи',
+              selected: false,
+              onTap: onFloors,
+            ),
+            _RailItem(
+              icon: Icons.link_rounded,
+              label: 'Привязка',
+              selected: false,
+              activeDot: snapping,
+              onTap: onSnap,
+            ),
+            _RailItem(
+              icon: Icons.settings_outlined,
+              label: 'Настройки',
+              selected: false,
+              onTap: onSettings,
+            ),
           ],
         ),
       );
@@ -611,13 +869,29 @@ class _RailItem extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.fade,
                         softWrap: false,
-                        style: TextStyle(color: fg, fontSize: 6.7, fontWeight: selected ? FontWeight.w800 : FontWeight.w500),
+                        style: TextStyle(
+                          color: fg,
+                          fontSize: 6.7,
+                          fontWeight:
+                              selected ? FontWeight.w800 : FontWeight.w500,
+                        ),
                       ),
                     ],
                   ),
                 ),
                 if (activeDot)
-                  Positioned(right: 3, top: 4, child: Container(width: 4, height: 4, decoration: const BoxDecoration(color: ZamerColors.accent, shape: BoxShape.circle))),
+                  Positioned(
+                    right: 3,
+                    top: 4,
+                    child: Container(
+                      width: 4,
+                      height: 4,
+                      decoration: const BoxDecoration(
+                        color: ZamerColors.accent,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -635,7 +909,11 @@ class _UndoRedo extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         height: 34,
         padding: const EdgeInsets.all(2),
-        decoration: BoxDecoration(color: const Color(0xFF07171D).withValues(alpha: .95), borderRadius: BorderRadius.circular(8), border: Border.all(color: ZamerColors.outlineSoft)),
+        decoration: BoxDecoration(
+          color: const Color(0xFF07171D).withValues(alpha: .95),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: ZamerColors.outlineSoft),
+        ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -648,12 +926,24 @@ class _UndoRedo extends StatelessWidget {
 
   Widget _square(IconData icon, VoidCallback? tap) => Opacity(
         opacity: tap == null ? .3 : 1,
-        child: InkWell(onTap: tap, child: SizedBox(width: 31, height: 28, child: Icon(icon, size: 16, color: ZamerColors.textSecondary))),
+        child: InkWell(
+          onTap: tap,
+          child: SizedBox(
+            width: 31,
+            height: 28,
+            child: Icon(icon, size: 16, color: ZamerColors.textSecondary),
+          ),
+        ),
       );
 }
 
 class _CanvasControls extends StatelessWidget {
-  const _CanvasControls({required this.floor, required this.onFit, required this.onZoomIn, required this.onZoomOut});
+  const _CanvasControls({
+    required this.floor,
+    required this.onFit,
+    required this.onZoomIn,
+    required this.onZoomOut,
+  });
   final FloorPlan floor;
   final VoidCallback onFit;
   final VoidCallback onZoomIn;
@@ -664,7 +954,14 @@ class _CanvasControls extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          Row(mainAxisSize: MainAxisSize.min, children: [_small(Icons.remove_rounded, onZoomOut), const SizedBox(width: 5), _small(Icons.add_rounded, onZoomIn)]),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _small(Icons.remove_rounded, onZoomOut),
+              const SizedBox(width: 5),
+              _small(Icons.add_rounded, onZoomIn),
+            ],
+          ),
           const SizedBox(height: 5),
           _small(Icons.fullscreen_rounded, onFit),
           const SizedBox(height: 5),
@@ -674,7 +971,11 @@ class _CanvasControls extends StatelessWidget {
               width: 54,
               height: 54,
               padding: const EdgeInsets.all(4),
-              decoration: BoxDecoration(color: const Color(0xFF07171D).withValues(alpha: .96), borderRadius: BorderRadius.circular(8), border: Border.all(color: ZamerColors.outlineSoft)),
+              decoration: BoxDecoration(
+                color: const Color(0xFF07171D).withValues(alpha: .96),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: ZamerColors.outlineSoft),
+              ),
               child: CustomPaint(painter: _MiniMapPainter(floor)),
             ),
           ),
@@ -686,7 +987,11 @@ class _CanvasControls extends StatelessWidget {
         child: Container(
           width: 34,
           height: 34,
-          decoration: BoxDecoration(color: const Color(0xFF07171D).withValues(alpha: .96), borderRadius: BorderRadius.circular(8), border: Border.all(color: ZamerColors.outlineSoft)),
+          decoration: BoxDecoration(
+            color: const Color(0xFF07171D).withValues(alpha: .96),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: ZamerColors.outlineSoft),
+          ),
           child: Icon(icon, size: 18, color: ZamerColors.textPrimary),
         ),
       );
@@ -705,20 +1010,28 @@ class _MiniMapPainter extends CustomPainter {
     final w = math.max(1.0, maxX - minX);
     final h = math.max(1.0, maxY - minY);
     final s = math.min((size.width - 4) / w, (size.height - 4) / h);
-    Offset p(PlanNode n) => Offset(2 + (n.xMm - minX) * s, 2 + (n.yMm - minY) * s);
-    final paint = Paint()..color = const Color(0xFFD8DFE0)..strokeWidth = 1.1;
+    Offset p(PlanNode n) =>
+        Offset(2 + (n.xMm - minX) * s, 2 + (n.yMm - minY) * s);
+    final paint = Paint()
+      ..color = const Color(0xFFD8DFE0)
+      ..strokeWidth = 1.1;
     for (final wall in floor.walls) {
       final a = floor.nodeById(wall.startNodeId);
       final b = floor.nodeById(wall.endNodeId);
       if (a != null && b != null) canvas.drawLine(p(a), p(b), paint);
     }
   }
+
   @override
   bool shouldRepaint(covariant _MiniMapPainter oldDelegate) => true;
 }
 
 class _WallInspector extends StatelessWidget {
-  const _WallInspector({required this.wall, required this.floor, required this.onEdit});
+  const _WallInspector({
+    required this.wall,
+    required this.floor,
+    required this.onEdit,
+  });
   final PlanWall wall;
   final FloorPlan floor;
   final VoidCallback onEdit;
@@ -742,13 +1055,21 @@ class _WallInspector extends StatelessWidget {
         height: 66,
         margin: const EdgeInsets.fromLTRB(8, 5, 8, 0),
         padding: const EdgeInsets.all(6),
-        decoration: BoxDecoration(color: const Color(0xFF07171D), borderRadius: BorderRadius.circular(9), border: Border.all(color: ZamerColors.outlineSoft)),
+        decoration: BoxDecoration(
+          color: const Color(0xFF07171D),
+          borderRadius: BorderRadius.circular(9),
+          border: Border.all(color: ZamerColors.outlineSoft),
+        ),
         child: Row(
           children: [
             Container(
               width: 45,
               height: 52,
-              decoration: BoxDecoration(color: const Color(0xFF102129), borderRadius: BorderRadius.circular(7), border: Border.all(color: ZamerColors.outlineSoft)),
+              decoration: BoxDecoration(
+                color: const Color(0xFF102129),
+                borderRadius: BorderRadius.circular(7),
+                border: Border.all(color: ZamerColors.outlineSoft),
+              ),
               child: const CustomPaint(painter: _WallPreviewPainter()),
             ),
             const SizedBox(width: 7),
@@ -757,15 +1078,48 @@ class _WallInspector extends StatelessWidget {
                 children: [
                   SizedBox(
                     height: 21,
-                    child: Row(children: [Text(_name, style: const TextStyle(color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.w700)), const SizedBox(width: 3), InkWell(onTap: onEdit, child: const Icon(Icons.edit_outlined, size: 13, color: ZamerColors.textSecondary)), const Spacer(), const Icon(Icons.more_vert_rounded, size: 16, color: ZamerColors.textSecondary)]),
+                    child: Row(
+                      children: [
+                        Text(
+                          _name,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(width: 3),
+                        InkWell(
+                          onTap: onEdit,
+                          child: const Icon(
+                            Icons.edit_outlined,
+                            size: 13,
+                            color: ZamerColors.textSecondary,
+                          ),
+                        ),
+                        const Spacer(),
+                        const Icon(
+                          Icons.more_vert_rounded,
+                          size: 16,
+                          color: ZamerColors.textSecondary,
+                        ),
+                      ],
+                    ),
                   ),
                   Expanded(
                     child: Row(
                       children: [
-                        _metric('Длина', '${floor.wallLengthMm(wall).round()} мм', locked: true),
+                        _metric(
+                          'Длина',
+                          '${floor.wallLengthMm(wall).round()} мм',
+                          locked: true,
+                        ),
                         _metric('Угол', '${_angle.round()}°'),
                         _metric('Толщина', '${wall.thicknessMm.round()} мм'),
-                        _metric('Высота', '${(wall.heightOverrideMm ?? floor.defaultHeightMm).round()} мм'),
+                        _metric(
+                          'Высота',
+                          '${(wall.heightOverrideMm ?? floor.defaultHeightMm).round()} мм',
+                        ),
                       ],
                     ),
                   ),
@@ -780,8 +1134,48 @@ class _WallInspector extends StatelessWidget {
         child: Container(
           margin: const EdgeInsets.only(right: 4),
           padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-          decoration: BoxDecoration(color: const Color(0xFF0D2028), borderRadius: BorderRadius.circular(6), border: Border.all(color: ZamerColors.outlineSoft)),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [Text(label, maxLines: 1, style: const TextStyle(color: ZamerColors.textMuted, fontSize: 6.7)), Row(children: [Expanded(child: Text(value, maxLines: 1, overflow: TextOverflow.fade, softWrap: false, style: const TextStyle(color: Colors.white, fontSize: 8.5, fontWeight: FontWeight.w500))), if (locked) const Icon(Icons.lock_outline_rounded, size: 9, color: ZamerColors.textMuted)])]),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0D2028),
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: ZamerColors.outlineSoft),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                label,
+                maxLines: 1,
+                style: const TextStyle(
+                  color: ZamerColors.textMuted,
+                  fontSize: 6.7,
+                ),
+              ),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      value,
+                      maxLines: 1,
+                      overflow: TextOverflow.fade,
+                      softWrap: false,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 8.5,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  if (locked)
+                    const Icon(
+                      Icons.lock_outline_rounded,
+                      size: 9,
+                      color: ZamerColors.textMuted,
+                    ),
+                ],
+              ),
+            ],
+          ),
         ),
       );
 }
@@ -793,17 +1187,49 @@ class _WallPreviewPainter extends CustomPainter {
     final side = Paint()..color = const Color(0xFF68727A);
     final front = Paint()..color = const Color(0xFFD6D7D3);
     final top = Paint()..color = const Color(0xFFF0F0EC);
-    final p = Path()..moveTo(12, 12)..lineTo(size.width - 10, 5)..lineTo(size.width - 10, size.height - 10)..lineTo(12, size.height - 4)..close();
+    final p = Path()
+      ..moveTo(12, 12)
+      ..lineTo(size.width - 10, 5)
+      ..lineTo(size.width - 10, size.height - 10)
+      ..lineTo(12, size.height - 4)
+      ..close();
     canvas.drawPath(p, front);
-    canvas.drawPath(Path()..moveTo(6, 17)..lineTo(12, 12)..lineTo(12, size.height - 4)..lineTo(6, size.height - 10)..close(), side);
-    canvas.drawPath(Path()..moveTo(6, 17)..lineTo(12, 12)..lineTo(size.width - 10, 5)..lineTo(size.width - 16, 10)..close(), top);
+    canvas.drawPath(
+      Path()
+        ..moveTo(6, 17)
+        ..lineTo(12, 12)
+        ..lineTo(12, size.height - 4)
+        ..lineTo(6, size.height - 10)
+        ..close(),
+      side,
+    );
+    canvas.drawPath(
+      Path()
+        ..moveTo(6, 17)
+        ..lineTo(12, 12)
+        ..lineTo(size.width - 10, 5)
+        ..lineTo(size.width - 16, 10)
+        ..close(),
+      top,
+    );
   }
+
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _ActionBar extends StatelessWidget {
-  const _ActionBar({required this.tool, required this.hasSelection, required this.onWall, required this.onOpening, required this.onDimension, required this.onText, required this.onGeometry, required this.onLayers, required this.onDelete});
+  const _ActionBar({
+    required this.tool,
+    required this.hasSelection,
+    required this.onWall,
+    required this.onOpening,
+    required this.onDimension,
+    required this.onText,
+    required this.onGeometry,
+    required this.onLayers,
+    required this.onDelete,
+  });
   final ZMeasureTool tool;
   final bool hasSelection;
   final VoidCallback onWall;
@@ -818,18 +1244,48 @@ class _ActionBar extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         height: 49,
         margin: const EdgeInsets.fromLTRB(8, 5, 8, 0),
-        child: Row(children: [
-          _item(Icons.view_week_outlined, 'Стена', tool == ZMeasureTool.walls, onWall),
-          _item(Icons.door_front_door_outlined, 'Проём', tool == ZMeasureTool.openings, onOpening),
-          _item(Icons.straighten_rounded, 'Размер', tool == ZMeasureTool.dimensions, onDimension),
-          _item(Icons.title_rounded, 'Текст', tool == ZMeasureTool.text, onText),
-          _item(Icons.hexagon_outlined, 'Фигура', false, onGeometry),
-          _item(Icons.layers_outlined, 'Слой', tool == ZMeasureTool.layers, onLayers),
-          _item(Icons.delete_outline_rounded, 'Удалить', false, onDelete, danger: true),
-        ]),
+        child: Row(
+          children: [
+            _item(Icons.view_week_outlined, 'Стена', tool == ZMeasureTool.walls, onWall),
+            _item(
+              Icons.door_front_door_outlined,
+              'Проём',
+              tool == ZMeasureTool.openings,
+              onOpening,
+            ),
+            _item(
+              Icons.straighten_rounded,
+              'Размер',
+              tool == ZMeasureTool.dimensions,
+              onDimension,
+            ),
+            _item(Icons.title_rounded, 'Текст', tool == ZMeasureTool.text, onText),
+            _item(Icons.hexagon_outlined, 'Фигура', false, onGeometry),
+            _item(
+              Icons.layers_outlined,
+              'Слой',
+              tool == ZMeasureTool.layers,
+              onLayers,
+            ),
+            _item(
+              Icons.delete_outline_rounded,
+              'Удалить',
+              false,
+              onDelete,
+              danger: true,
+            ),
+          ],
+        ),
       );
 
-  Widget _item(IconData icon, String label, bool selected, VoidCallback? tap, {bool danger = false}) => Expanded(
+  Widget _item(
+    IconData icon,
+    String label,
+    bool selected,
+    VoidCallback? tap, {
+    bool danger = false,
+  }) =>
+      Expanded(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 2),
           child: Opacity(
@@ -841,8 +1297,43 @@ class _ActionBar extends StatelessWidget {
                 onTap: tap,
                 borderRadius: BorderRadius.circular(7),
                 child: Container(
-                  decoration: BoxDecoration(borderRadius: BorderRadius.circular(7), border: Border.all(color: selected ? ZamerColors.accent : danger ? ZamerColors.danger.withValues(alpha: .65) : ZamerColors.outlineSoft)),
-                  child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(icon, size: 16, color: selected ? ZamerColors.accentInk : danger ? ZamerColors.danger : ZamerColors.textPrimary), const SizedBox(height: 1), Text(label, style: TextStyle(color: selected ? ZamerColors.accentInk : danger ? ZamerColors.danger : ZamerColors.textSecondary, fontSize: 6.7, fontWeight: FontWeight.w600))]),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(7),
+                    border: Border.all(
+                      color: selected
+                          ? ZamerColors.accent
+                          : danger
+                              ? ZamerColors.danger.withValues(alpha: .65)
+                              : ZamerColors.outlineSoft,
+                    ),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        icon,
+                        size: 16,
+                        color: selected
+                            ? ZamerColors.accentInk
+                            : danger
+                                ? ZamerColors.danger
+                                : ZamerColors.textPrimary,
+                      ),
+                      const SizedBox(height: 1),
+                      Text(
+                        label,
+                        style: TextStyle(
+                          color: selected
+                              ? ZamerColors.accentInk
+                              : danger
+                                  ? ZamerColors.danger
+                                  : ZamerColors.textSecondary,
+                          fontSize: 6.7,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -852,49 +1343,171 @@ class _ActionBar extends StatelessWidget {
 }
 
 class _MaterialPanel extends StatelessWidget {
-  const _MaterialPanel({required this.category, required this.onCategory, required this.onOpenMaterials});
+  const _MaterialPanel({
+    required this.category,
+    required this.selectedRoomName,
+    required this.selectedMaterialId,
+    required this.selectionMode,
+    required this.onCategory,
+    required this.onApply,
+    required this.onOpenMaterials,
+  });
+
   final String category;
+  final String? selectedRoomName;
+  final String? selectedMaterialId;
+  final bool selectionMode;
   final ValueChanged<String> onCategory;
+  final ValueChanged<VisualMaterialPreset> onApply;
   final VoidCallback onOpenMaterials;
-  static const _categories = ['Пол', 'Стены', 'Потолок', 'Двери', 'Окна', 'Освещение'];
+
+  static const _categories = [
+    'Пол',
+    'Стены',
+    'Потолок',
+    'Двери',
+    'Окна',
+    'Освещение',
+  ];
 
   List<VisualMaterialPreset> get _materials {
-    if (category == 'Пол') return MaterialCatalog.floorFinishes.take(6).toList();
-    if (category == 'Стены') return MaterialCatalog.forCategory('Стены').take(6).toList();
-    return MaterialCatalog.presets.take(6).toList();
+    if (category == 'Пол') return MaterialCatalog.floorFinishes.take(8).toList();
+    if (category == 'Стены') {
+      return MaterialCatalog.forCategory('Стены').take(8).toList();
+    }
+    return MaterialCatalog.presets.take(8).toList();
   }
 
   @override
   Widget build(BuildContext context) {
     final materials = _materials;
+    final roomLabel = selectedRoomName == null
+        ? 'Нажмите на помещение на плане'
+        : 'Помещение: $selectedRoomName';
     return Container(
-      height: 108,
+      height: 120,
       margin: const EdgeInsets.fromLTRB(8, 5, 8, 6),
-      decoration: BoxDecoration(color: const Color(0xFF07171D), borderRadius: BorderRadius.circular(9), border: Border.all(color: ZamerColors.outlineSoft)),
-      child: Column(children: [
-        SizedBox(
-          height: 31,
-          child: Row(children: [for (final item in _categories) Expanded(child: Padding(padding: const EdgeInsets.all(3), child: Material(color: item == category ? ZamerColors.accent : Colors.transparent, borderRadius: BorderRadius.circular(6), child: InkWell(onTap: () => onCategory(item), borderRadius: BorderRadius.circular(6), child: Center(child: Text(item, maxLines: 1, overflow: TextOverflow.fade, style: TextStyle(color: item == category ? ZamerColors.accentInk : ZamerColors.textSecondary, fontSize: 7.2, fontWeight: FontWeight.w700)))))))]),
-        ),
-        Expanded(
-          child: ListView.separated(
-            padding: const EdgeInsets.fromLTRB(5, 1, 5, 5),
-            scrollDirection: Axis.horizontal,
-            itemCount: materials.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 5),
-            itemBuilder: (context, index) => _MaterialCard(material: materials[index], onTap: onOpenMaterials, selected: index == 0),
+      decoration: BoxDecoration(
+        color: const Color(0xFF07171D),
+        borderRadius: BorderRadius.circular(9),
+        border: Border.all(color: ZamerColors.outlineSoft),
+      ),
+      child: Column(
+        children: [
+          SizedBox(
+            height: 29,
+            child: Row(
+              children: [
+                for (final item in _categories)
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.all(3),
+                      child: Material(
+                        color: item == category
+                            ? ZamerColors.accent
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(6),
+                        child: InkWell(
+                          onTap: () => onCategory(item),
+                          borderRadius: BorderRadius.circular(6),
+                          child: Center(
+                            child: Text(
+                              item,
+                              maxLines: 1,
+                              overflow: TextOverflow.fade,
+                              style: TextStyle(
+                                color: item == category
+                                    ? ZamerColors.accentInk
+                                    : ZamerColors.textSecondary,
+                                fontSize: 7.2,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
-        ),
-      ]),
+          SizedBox(
+            height: 19,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 7),
+              child: Row(
+                children: [
+                  Icon(
+                    selectedRoomName == null
+                        ? Icons.touch_app_outlined
+                        : Icons.check_circle_rounded,
+                    size: 11,
+                    color: selectedRoomName == null
+                        ? ZamerColors.textMuted
+                        : ZamerColors.accent,
+                  ),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      roomLabel,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: selectionMode
+                            ? ZamerColors.textPrimary
+                            : ZamerColors.textMuted,
+                        fontSize: 7.2,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  InkWell(
+                    onTap: onOpenMaterials,
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 3),
+                      child: Icon(
+                        Icons.open_in_new_rounded,
+                        size: 11,
+                        color: ZamerColors.textMuted,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Expanded(
+            child: ListView.separated(
+              padding: const EdgeInsets.fromLTRB(5, 1, 5, 5),
+              scrollDirection: Axis.horizontal,
+              itemCount: materials.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 5),
+              itemBuilder: (context, index) {
+                final material = materials[index];
+                return _MaterialCard(
+                  material: material,
+                  onTap: () => onApply(material),
+                  selected: material.id == selectedMaterialId,
+                );
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
 
 class _MaterialCard extends StatelessWidget {
-  const _MaterialCard({required this.material, required this.onTap, required this.selected});
+  const _MaterialCard({
+    required this.material,
+    required this.onTap,
+    required this.selected,
+  });
   final VisualMaterialPreset material;
   final VoidCallback onTap;
   final bool selected;
+
   @override
   Widget build(BuildContext context) => InkWell(
         onTap: onTap,
@@ -902,12 +1515,47 @@ class _MaterialCard extends StatelessWidget {
         child: Container(
           width: 68,
           padding: const EdgeInsets.all(3),
-          decoration: BoxDecoration(color: const Color(0xFF0B1D24), borderRadius: BorderRadius.circular(7), border: Border.all(color: selected ? ZamerColors.accent : ZamerColors.outlineSoft, width: selected ? 1.4 : 1)),
-          child: Column(children: [
-            Expanded(child: Container(decoration: BoxDecoration(color: material.color, borderRadius: BorderRadius.circular(5), image: material.textureAsset == null ? null : DecorationImage(image: AssetImage(material.textureAsset!), fit: BoxFit.cover)))),
-            const SizedBox(height: 2),
-            Text(material.name, maxLines: 2, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: const TextStyle(color: ZamerColors.textSecondary, fontSize: 6.5, height: 1.05)),
-          ]),
+          decoration: BoxDecoration(
+            color: const Color(0xFF0B1D24),
+            borderRadius: BorderRadius.circular(7),
+            border: Border.all(
+              color: selected ? ZamerColors.accent : ZamerColors.outlineSoft,
+              width: selected ? 1.6 : 1,
+            ),
+          ),
+          child: Column(
+            children: [
+              Expanded(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: material.color,
+                    borderRadius: BorderRadius.circular(5),
+                    image: material.textureAsset == null
+                        ? null
+                        : DecorationImage(
+                            image: AssetImage(material.textureAsset!),
+                            fit: BoxFit.cover,
+                          ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                material.name,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: selected
+                      ? ZamerColors.textPrimary
+                      : ZamerColors.textSecondary,
+                  fontSize: 6.5,
+                  height: 1.05,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
+                ),
+              ),
+            ],
+          ),
         ),
       );
 }
