@@ -1,4 +1,4 @@
-name: Apply window glass blending
+name: Apply window glass rendering policy
 
 on:
   push:
@@ -20,23 +20,52 @@ jobs:
         with:
           ref: codex/zamer-1.5.6-3d-stability
           fetch-depth: 1
-      - name: Apply translucent glass material
+      - name: Keep transparent glass out of static shadows
         run: |
           python3 - <<'PY'
           from pathlib import Path
           path = Path('zamer-app/lib/renderer3d/zamer_gpu_viewport.dart')
           text = path.read_text()
-          old = "      final glass = _pbr(vm.Vector4(0.72, 0.88, 0.96, 0.28), roughness: 0.10)\n        ..doubleSided = true;"
-          new = "      final glass = _pbr(vm.Vector4(0.72, 0.88, 0.96, 0.28), roughness: 0.10)\n        ..alphaMode = AlphaMode.blend\n        ..doubleSided = true;"
-          if old not in text:
-              raise SystemExit('window glass material anchor not found')
-          path.write_text(text.replace(old, new, 1))
+
+          old_sig = """      double depth = 0,
+      PhysicallyBasedMaterial? material,
+    }) {"""
+          new_sig = """      double depth = 0,
+      PhysicallyBasedMaterial? material,
+      bool castsShadows = true,
+    }) {"""
+          if old_sig not in text:
+              raise SystemExit('opening bar signature anchor not found')
+          text = text.replace(old_sig, new_sig, 1)
+
+          old_flags = """            ..position = vm.Vector3(x, y, 0)
+            ..shadowStatic = true;"""
+          new_flags = """            ..position = vm.Vector3(x, y, 0)
+            ..castsShadows = castsShadows
+            ..shadowStatic = castsShadows;"""
+          if old_flags not in text:
+              raise SystemExit('opening bar shadow anchor not found')
+          text = text.replace(old_flags, new_flags, 1)
+
+          old_glass = """          depth: 0.008,
+          material: glass,
+        ),"""
+          new_glass = """          depth: 0.008,
+          material: glass,
+          castsShadows: false,
+        ),"""
+          if old_glass not in text:
+              raise SystemExit('window glass call anchor not found')
+          text = text.replace(old_glass, new_glass, 1)
+
+          path.write_text(text)
           PY
-          grep -F '..alphaMode = AlphaMode.blend' zamer-app/lib/renderer3d/zamer_gpu_viewport.dart
+          grep -F 'castsShadows: false' zamer-app/lib/renderer3d/zamer_gpu_viewport.dart
+          grep -F '..castsShadows = castsShadows' zamer-app/lib/renderer3d/zamer_gpu_viewport.dart
       - name: Commit runtime fix
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add zamer-app/lib/renderer3d/zamer_gpu_viewport.dart
-          git commit -m 'fix(zamer): render window glass with alpha blending'
+          git commit -m 'fix(zamer): keep window glass out of static shadows'
           git push origin HEAD:codex/zamer-1.5.6-3d-stability
