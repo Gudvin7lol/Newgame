@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'glb_inspector.dart';
 
@@ -13,6 +14,7 @@ const allowedPivots = <String>{
   'floor_center', 'wall_center', 'ceiling_center', 'opening_center', 'custom',
 };
 const allowedCollisionTypes = <String>{'box', 'convex', 'mesh', 'compound', 'none'};
+const axisNames = <String>['X', 'Y', 'Z'];
 
 Never fail(String message) {
   stderr.writeln('ASSET VALIDATION FAILED: $message');
@@ -44,6 +46,46 @@ GlbInfo validateGlbReference(String path, int expectedTriangles, String label) {
     return info;
   } catch (e) {
     fail('$label GLB invalid: $e');
+  }
+}
+
+void validateLodBounds(GlbInfo reference, GlbInfo candidate, String label) {
+  final referenceExtent = reference.boundsExtent;
+  final candidateExtent = candidate.boundsExtent;
+  final referenceCenter = reference.boundsCenter;
+  final candidateCenter = candidate.boundsCenter;
+  if (referenceExtent == null ||
+      candidateExtent == null ||
+      referenceCenter == null ||
+      candidateCenter == null) {
+    fail('$label bounds unavailable; POSITION accessors must expose min/max');
+  }
+
+  for (var axis = 0; axis < 3; axis++) {
+    final baseSize = referenceExtent[axis].abs();
+    final sizeTolerance = math.max(0.015, baseSize * 0.03);
+    final sizeDelta = (candidateExtent[axis] - referenceExtent[axis]).abs();
+    if (sizeDelta > sizeTolerance) {
+      fail(
+        '$label bounds size mismatch on ${axisNames[axis]}: '
+        'LOD0=${referenceExtent[axis].toStringAsFixed(4)}m '
+        '$label=${candidateExtent[axis].toStringAsFixed(4)}m '
+        'delta=${sizeDelta.toStringAsFixed(4)}m '
+        'limit=${sizeTolerance.toStringAsFixed(4)}m',
+      );
+    }
+
+    final centerTolerance = math.max(0.010, baseSize * 0.01);
+    final centerDelta = (candidateCenter[axis] - referenceCenter[axis]).abs();
+    if (centerDelta > centerTolerance) {
+      fail(
+        '$label bounds center mismatch on ${axisNames[axis]}: '
+        'LOD0=${referenceCenter[axis].toStringAsFixed(4)}m '
+        '$label=${candidateCenter[axis].toStringAsFixed(4)}m '
+        'delta=${centerDelta.toStringAsFixed(4)}m '
+        'limit=${centerTolerance.toStringAsFixed(4)}m',
+      );
+    }
   }
 }
 
@@ -129,8 +171,14 @@ void main(List<String> args) {
   if (version != null && (version is! int || version < 1)) fail('version must be >= 1');
 
   final lod0Info = validateGlbReference(modelPath, lod0, 'LOD0');
-  if (lod1 is int) validateGlbReference(lod['lod1_file'] as String, lod1, 'LOD1');
-  if (lod2 is int) validateGlbReference(lod['lod2_file'] as String, lod2, 'LOD2');
+  if (lod1 is int) {
+    final lod1Info = validateGlbReference(lod['lod1_file'] as String, lod1, 'LOD1');
+    validateLodBounds(lod0Info, lod1Info, 'LOD1');
+  }
+  if (lod2 is int) {
+    final lod2Info = validateGlbReference(lod['lod2_file'] as String, lod2, 'LOD2');
+    validateLodBounds(lod0Info, lod2Info, 'LOD2');
+  }
 
   final expectedMaterials = materials['material_count'];
   if (expectedMaterials is int && expectedMaterials != lod0Info.materials) {
@@ -138,5 +186,12 @@ void main(List<String> args) {
   }
   if (materials['pbr'] != true) fail('production assets must use PBR materials');
 
-  stdout.writeln('ASSET VALID: $id | ${lod0Info.triangles} tris | ${lod0Info.materials} materials | ${lod0Info.meshes} meshes');
+  final extent = lod0Info.boundsExtent;
+  final boundsSummary = extent == null
+      ? 'bounds=n/a'
+      : 'bounds=${extent.map((v) => v.toStringAsFixed(3)).join('x')}m';
+  stdout.writeln(
+    'ASSET VALID: $id | ${lod0Info.triangles} tris | '
+    '${lod0Info.materials} materials | ${lod0Info.meshes} meshes | $boundsSummary',
+  );
 }
