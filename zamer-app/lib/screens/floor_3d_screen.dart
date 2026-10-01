@@ -161,10 +161,13 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
   }
 
   Future<void> _selectGraphicsMode(ZGraphicsMode value) async {
+    final previousRealtimeMode = _graphicsMode == ZGraphicsMode.photo
+        ? ZGraphicsMode.quality
+        : _graphicsMode;
     setState(() => _graphicsMode = value);
     if (value == ZGraphicsMode.photo) {
       await _showRenderSheet();
-      if (mounted) setState(() => _graphicsMode = ZGraphicsMode.quality);
+      if (mounted) setState(() => _graphicsMode = previousRealtimeMode);
     }
   }
 

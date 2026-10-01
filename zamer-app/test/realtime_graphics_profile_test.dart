@@ -5,8 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   test('3D graphics selector drives the live GPU viewport', () {
     final screen = File('lib/screens/floor_3d_screen.dart').readAsStringSync();
-    final viewport =
-        File('lib/renderer3d/zamer_gpu_viewport.dart').readAsStringSync();
+    final viewport = File('lib/renderer3d/zamer_gpu_viewport.dart')
+        .readAsStringSync();
 
     expect(
       screen.contains(
