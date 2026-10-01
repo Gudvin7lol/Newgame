@@ -18,14 +18,14 @@ class MeasureConceptWorkspaceScreen extends StatefulWidget {
     required this.canRedo,
     required this.onMore,
     required this.onOpen3D,
-    required this.onOpenAR,
+    this.onOpenAR,
     required this.onOpenPhoto,
     required this.onOpenObjects,
     required this.onOpenReview,
     required this.onOpenGeometry,
     required this.onOpenFloors,
     required this.onOpenSettings,
-    required this.onOpenMaterials,
+    this.onOpenMaterials,
     required this.onHome,
     required this.onProjects,
     required this.onCatalog,
@@ -40,14 +40,14 @@ class MeasureConceptWorkspaceScreen extends StatefulWidget {
   final bool canRedo;
   final VoidCallback onMore;
   final VoidCallback onOpen3D;
-  final VoidCallback onOpenAR;
+  final VoidCallback? onOpenAR;
   final VoidCallback onOpenPhoto;
   final VoidCallback onOpenObjects;
   final VoidCallback onOpenReview;
   final VoidCallback onOpenGeometry;
   final VoidCallback onOpenFloors;
   final VoidCallback onOpenSettings;
-  final VoidCallback onOpenMaterials;
+  final VoidCallback? onOpenMaterials;
   final VoidCallback onHome;
   final VoidCallback onProjects;
   final VoidCallback onCatalog;
@@ -69,7 +69,7 @@ class _MeasureConceptWorkspaceScreenState
       case ZMeasureViewMode.threeD:
         widget.onOpen3D();
       case ZMeasureViewMode.ar:
-        widget.onOpenAR();
+        (widget.onOpenAR ?? widget.onOpen3D)();
       case ZMeasureViewMode.photo:
         widget.onOpenPhoto();
     }
@@ -90,17 +90,17 @@ class _MeasureConceptWorkspaceScreenState
             children: [
               Text('Обучение', style: ZamerTypography.h3),
               const SizedBox(height: 12),
-              _TutorialRow(
+              const _TutorialRow(
                 number: '1',
                 title: 'Стены',
                 text: 'Выбери «Стены», поставь первую точку и задай длину.',
               ),
-              _TutorialRow(
+              const _TutorialRow(
                 number: '2',
                 title: 'Проёмы',
                 text: 'Выбери стену и добавь дверь или окно с точным отступом.',
               ),
-              _TutorialRow(
+              const _TutorialRow(
                 number: '3',
                 title: 'Проверка',
                 text: 'Проверь контур, размеры и диагонали перед экспортом.',
@@ -142,7 +142,7 @@ class _MeasureConceptWorkspaceScreenState
                 onOpen3D: widget.onOpen3D,
                 onOpenFloors: widget.onOpenFloors,
                 onOpenSettings: widget.onOpenSettings,
-                onOpenMaterials: widget.onOpenMaterials,
+                onOpenMaterials: widget.onOpenMaterials ?? widget.onCatalog,
                 onUndo: widget.onUndo,
                 onRedo: widget.onRedo,
                 canUndo: widget.canUndo,
