@@ -66,12 +66,34 @@ void main() {
     expect(objects.contains("id == 'shower'"), isTrue);
   });
 
-  test('Master editor v4 gives more vertical space to the plan', () {
+  test('room can be selected and a material is applied directly', () {
+    final source = File('lib/screens/plan_editor_master_v4_screen.dart')
+        .readAsStringSync();
+    for (final required in const [
+      '_selectedRoomFaceKey',
+      '_pointInPolygon(',
+      '_roomAt(',
+      '_applyMaterial(',
+      "settings.floorMaterialId = material.id",
+      "settings.wallMaterialId = material.id",
+      'Сначала нажмите на помещение.',
+      'Нажмите на помещение на плане',
+      "label: 'Помещение'",
+    ]) {
+      expect(
+        source.contains(required),
+        isTrue,
+        reason: 'Missing direct room-material behavior: $required',
+      );
+    }
+  });
+
+  test('Master editor v4 keeps the plan dominant with material context', () {
     final source = File('lib/screens/plan_editor_master_v4_screen.dart')
         .readAsStringSync();
     expect(source.contains('height: 66'), isTrue);
     expect(source.contains('height: 49'), isTrue);
-    expect(source.contains('height: 108'), isTrue);
+    expect(source.contains('height: 120'), isTrue);
     expect(source.contains('width: 54'), isTrue);
     expect(source.contains('onZoomIn'), isTrue);
     expect(source.contains('onZoomOut'), isTrue);
