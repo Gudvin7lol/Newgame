@@ -5,7 +5,6 @@ on:
     branches:
       - 'codex/zamer-1.5.6-3d-stability'
     paths:
-      - 'zamer-app/tool/migrations/apply_realtime_graphics_profiles.py'
       - 'zamer-app/tool/migrations/fix_dynamic_graphics_header.py'
       - '.github/workflows/apply-realtime-graphics-profiles.yml'
   workflow_dispatch:
@@ -22,9 +21,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: codex/zamer-1.5.6-3d-stability
-
-      - name: Apply realtime graphics migration
-        run: python zamer-app/tool/migrations/apply_realtime_graphics_profiles.py
 
       - name: Repair dynamic graphics header
         run: python zamer-app/tool/migrations/fix_dynamic_graphics_header.py
@@ -51,7 +47,7 @@ jobs:
             exit 1
           fi
 
-      - name: Commit realtime graphics integration
+      - name: Commit realtime graphics repair
         shell: bash
         run: |
           set -euo pipefail
@@ -62,7 +58,7 @@ jobs:
           git add zamer-app/lib/renderer3d/model_lod_policy.dart
           git add zamer-app/test/model_lod_policy_test.dart
           if git diff --cached --quiet; then
-            echo 'Realtime graphics profiles are already wired.'
+            echo 'Realtime graphics profiles are already repaired.'
             exit 0
           fi
           git commit -m 'fix(zamer): keep dynamic graphics header compilable'
