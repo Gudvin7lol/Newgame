@@ -17,6 +17,7 @@ import 'model_lod_policy.dart';
 import 'scene_fingerprint.dart';
 import 'scene_mesh_winding.dart';
 import 'zamer_scene_geometry.dart';
+import 'wall_device_mount.dart';
 
 enum ZamerPhotoTime { day, sunset, evening, night }
 
@@ -1247,10 +1248,13 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
 
     final nx = -math.sin(point.rotationRad);
     final ny = math.cos(point.rotationRad);
-    final offsetMm = point.wallThicknessMm / 2 + 9;
+    final depthM = isPanel ? 0.055 : (isWallLight ? 0.075 : 0.018);
+    final offsetMm = zamerWallDeviceCenterOffsetMm(
+      wallThicknessMm: point.wallThicknessMm,
+      deviceDepthM: depthM,
+    );
     final x = point.xMm + nx * offsetMm * point.wallSide;
     final y = point.yMm + ny * offsetMm * point.wallSide;
-    final depthM = isPanel ? 0.055 : (isWallLight ? 0.075 : 0.018);
     return Node(
         name: 'electrical:${point.id}:${point.type.name}',
         mesh: Mesh(
