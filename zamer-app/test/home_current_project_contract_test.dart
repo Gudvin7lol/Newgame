@@ -20,12 +20,15 @@ void main() {
     expect(source.contains('barrierColor: Colors.black'), isTrue);
   });
 
-  test('Measure page uses production 2D 3D Photo master shell', () {
+  test('Measure page uses production 2D 3D AR Photo concept shell', () {
     final workspace = File(
       'lib/screens/floor_workspace_screen.dart',
     ).readAsStringSync();
     final measure = File(
       'lib/screens/measure_concept_workspace_screen.dart',
+    ).readAsStringSync();
+    final chrome = File(
+      'lib/design_system/zamer_measure_chrome.dart',
     ).readAsStringSync();
     final production = File(
       'lib/screens/plan_editor_production_screen.dart',
@@ -33,11 +36,12 @@ void main() {
 
     expect(workspace.contains('MeasureConceptWorkspaceScreen('), isTrue);
     expect(measure.contains('ZMeasureViewTabs('), isTrue);
-    expect(measure.contains('_MeasureMasterHeader('), isTrue);
-    expect(measure.contains('ZWorkspacePrimaryNav('), isTrue);
+    expect(measure.contains('_ConceptHeader('), isTrue);
+    expect(measure.contains('_ConceptBottomNav('), isTrue);
     expect(measure.contains('PlanEditorProductionScreen('), isTrue);
-    expect(production.contains('PlanEditorMasterV2Screen('), isTrue);
+    expect(production.contains('PlanEditorMasterV3Screen('), isTrue);
     expect(measure.contains('PlanEditorConceptScreen('), isFalse);
-    expect(measure.contains("'AR'"), isFalse);
+    expect(chrome.contains('ZMeasureViewMode.ar'), isTrue);
+    expect(measure.contains("'Сохранить'"), isTrue);
   });
 }
