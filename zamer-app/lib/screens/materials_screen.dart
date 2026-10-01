@@ -299,6 +299,12 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
                         setModal(() {});
                       },
                     ),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6, left: 4, right: 4),
+                      child: MaterialPbrSummary(
+                        material: MaterialCatalog.byId(s.floorMaterialId),
+                      ),
+                    ),
                     const SizedBox(height: 8),
                     RadioListTile<String>(
                       value: 'laminate',
@@ -396,6 +402,12 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
                         await widget.onChanged();
                         setModal(() {});
                       },
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6, left: 4, right: 4),
+                      child: MaterialPbrSummary(
+                        material: MaterialCatalog.byId(s.wallMaterialId),
+                      ),
                     ),
                     if (s.wallMaterialId.startsWith('paint-'))
                       ListTile(
