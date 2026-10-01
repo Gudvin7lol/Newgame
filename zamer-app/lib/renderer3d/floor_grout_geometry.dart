@@ -1,5 +1,15 @@
 import 'dart:math' as math;
 
+/// Vertical placement for the rendered floor finish and its grout overlay.
+///
+/// The grout is intentionally kept 2 mm above the zero-thickness floor mesh.
+/// A sub-millimetre separation was prone to depth-buffer fighting on mobile
+/// GPUs at shallow viewing angles and across long rooms.
+const double zamerFloorSurfaceYM = 0.006;
+const double zamerFloorGroutYM = 0.008;
+const double zamerFloorGroutSeparationM =
+    zamerFloorGroutYM - zamerFloorSurfaceYM;
+
 class FloorGroutQuad {
   const FloorGroutQuad(this.pointsMm);
 
