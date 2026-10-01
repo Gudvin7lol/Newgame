@@ -25,6 +25,33 @@ jobs:
       - name: Apply realtime graphics migration
         run: python zamer-app/tool/migrations/apply_realtime_graphics_profiles.py
 
+      - name: Keep dynamic graphics header non-const
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('zamer-app/lib/screens/floor_3d_screen.dart')
+          text = path.read_text(encoding='utf-8')
+          old = """        if (!_walkMode)
+          const Positioned(
+            left: ZamerSpace.md,
+            right: ZamerSpace.md,
+            top: ZamerSpace.sm,
+"""
+          new = """        if (!_walkMode)
+          Positioned(
+            left: ZamerSpace.md,
+            right: ZamerSpace.md,
+            top: ZamerSpace.sm,
+"""
+          if old in text:
+              text = text.replace(old, new, 1)
+          elif new not in text:
+              raise SystemExit('dynamic 3D header anchor not found')
+          path.write_text(text, encoding='utf-8')
+          PY
+
       - name: Setup Dart
         uses: dart-lang/setup-dart@v1
 
@@ -42,6 +69,7 @@ jobs:
           grep -q 'performanceMode: widget.performanceMode' lib/renderer3d/zamer_gpu_viewport.dart
           grep -q '_graphicsMode == ZGraphicsMode.performance' lib/screens/floor_3d_screen.dart
           grep -q 'graphicsMode.label' lib/screens/floor_3d_screen.dart
+          grep -q 'Positioned(' lib/screens/floor_3d_screen.dart
 
       - name: Commit realtime graphics integration
         shell: bash
@@ -57,5 +85,5 @@ jobs:
             echo 'Realtime graphics profiles are already wired.'
             exit 0
           fi
-          git commit -m 'feat(zamer): make Performance and Quality affect live 3D'
+          git commit -m 'fix(zamer): keep dynamic graphics header compilable'
           git push origin HEAD:codex/zamer-1.5.6-3d-stability
