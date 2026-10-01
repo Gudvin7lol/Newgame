@@ -174,8 +174,7 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
       builder: (sheetContext) => StatefulBuilder(
         builder: (context, setSheet) => ZSheetFrame(
           title: 'Настройки прогулки',
-          description:
-              'Левый стик отвечает за движение. Осмотр выполняется одним пальцем прямо по сцене.',
+          description: 'Левый стик отвечает за движение. Осмотр выполняется одним пальцем прямо по сцене.',
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -257,6 +256,7 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
                   walkMode: _walkMode,
                   walkX: _walkX,
                   walkY: _walkY,
+                  performanceMode: _graphicsMode == ZGraphicsMode.performance,
                 ),
                 if (_walkMode)
                   const IgnorePointer(
@@ -267,10 +267,7 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             border: Border.fromBorderSide(
-                              BorderSide(
-                                color: ZamerColors.accent,
-                                width: 1.4,
-                              ),
+                              BorderSide(color: ZamerColors.accent, width: 1.4),
                             ),
                           ),
                           child: Center(
@@ -311,7 +308,7 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
             top: ZamerSpace.sm,
             child: SafeArea(
               bottom: false,
-              child: _ThreeDMasterHeader(),
+              child: _ThreeDMasterHeader(graphicsMode: _graphicsMode),
             ),
           ),
         Positioned(
@@ -332,9 +329,16 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
                   ),
                   if (!_walkMode)
                     IconButton(
-                      tooltip: _showSceneInfo ? 'Скрыть режим графики' : 'Показать режим графики',
-                      onPressed: () => setState(() => _showSceneInfo = !_showSceneInfo),
-                      icon: Icon(_showSceneInfo ? Icons.tune_rounded : Icons.tune_outlined),
+                      tooltip: _showSceneInfo
+                          ? 'Скрыть режим графики'
+                          : 'Показать режим графики',
+                      onPressed: () =>
+                          setState(() => _showSceneInfo = !_showSceneInfo),
+                      icon: Icon(
+                        _showSceneInfo
+                            ? Icons.tune_rounded
+                            : Icons.tune_outlined,
+                      ),
                     ),
                   if (!_walkMode)
                     IconButton(
@@ -342,7 +346,8 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
                           ? 'Скрыть управление камерой'
                           : 'Управление камерой',
                       onPressed: () => setState(
-                        () => _cameraControlsExpanded = !_cameraControlsExpanded,
+                        () =>
+                            _cameraControlsExpanded = !_cameraControlsExpanded,
                       ),
                       icon: Icon(
                         _cameraControlsExpanded
@@ -489,13 +494,8 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
   }
 }
 
-
-
 class _SceneStateChip extends StatelessWidget {
-  const _SceneStateChip({
-    required this.cutaway,
-    required this.graphicsMode,
-  });
+  const _SceneStateChip({required this.cutaway, required this.graphicsMode});
 
   final bool cutaway;
   final ZGraphicsMode graphicsMode;
@@ -527,11 +527,7 @@ class _SceneStateChip extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(
-              Icons.circle,
-              size: 7,
-              color: ZamerColors.accent,
-            ),
+            const Icon(Icons.circle, size: 7, color: ZamerColors.accent),
             const SizedBox(width: ZamerSpace.xs),
             Text(
               _qualityLabel,
@@ -558,7 +554,9 @@ class _SceneStateChip extends StatelessWidget {
 }
 
 class _ThreeDMasterHeader extends StatelessWidget {
-  const _ThreeDMasterHeader();
+  const _ThreeDMasterHeader({required this.graphicsMode});
+
+  final ZGraphicsMode graphicsMode;
 
   @override
   Widget build(BuildContext context) {
@@ -571,11 +569,15 @@ class _ThreeDMasterHeader extends StatelessWidget {
           borderRadius: BorderRadius.circular(ZamerRadius.lg),
           border: Border.all(color: ZamerColors.outline),
         ),
-        child: const Row(
+        child: Row(
           children: [
-            Icon(Icons.view_in_ar_outlined, size: 20, color: ZamerColors.accent),
-            SizedBox(width: ZamerSpace.sm),
-            Text(
+            const Icon(
+              Icons.view_in_ar_outlined,
+              size: 20,
+              color: ZamerColors.accent,
+            ),
+            const SizedBox(width: ZamerSpace.sm),
+            const Text(
               '3D',
               style: TextStyle(
                 color: ZamerColors.textPrimary,
@@ -583,10 +585,10 @@ class _ThreeDMasterHeader extends StatelessWidget {
                 fontWeight: FontWeight.w700,
               ),
             ),
-            Spacer(),
-            _ThreeDStatus(icon: Icons.layers_outlined, label: 'Сцена'),
-            SizedBox(width: ZamerSpace.md),
-            _ThreeDStatus(icon: Icons.auto_awesome_outlined, label: 'Quality'),
+            const Spacer(),
+            const _ThreeDStatus(icon: Icons.layers_outlined, label: 'Сцена'),
+            const SizedBox(width: ZamerSpace.md),
+            _ThreeDStatus(icon: graphicsMode.icon, label: graphicsMode.label),
           ],
         ),
       ),

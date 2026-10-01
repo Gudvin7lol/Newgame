@@ -35,6 +35,7 @@ class ZamerGpuViewport extends StatefulWidget {
     required this.walkMode,
     required this.walkX,
     required this.walkY,
+    this.performanceMode = false,
   });
 
   final FloorPlan floor;
@@ -46,6 +47,7 @@ class ZamerGpuViewport extends StatefulWidget {
   final bool walkMode;
   final double walkX;
   final double walkY;
+  final bool performanceMode;
 
   @override
   State<ZamerGpuViewport> createState() => ZamerGpuViewportState();
@@ -104,8 +106,12 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
   void didUpdateWidget(covariant ZamerGpuViewport oldWidget) {
     super.didUpdateWidget(oldWidget);
     final fingerprint = _floorFingerprint();
+    final performanceChanged =
+        oldWidget.performanceMode != widget.performanceMode;
+    if (performanceChanged) _configureScene();
     if (!identical(oldWidget.floor, widget.floor) ||
-        fingerprint != _lastFloorFingerprint) {
+        fingerprint != _lastFloorFingerprint ||
+        performanceChanged) {
       _lastFloorFingerprint = fingerprint;
       _rebuildSceneAfterUpdate();
     }
@@ -273,25 +279,26 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
   void _configureScene() {
     final scene = _scene;
     if (scene == null) return;
+    final performance = widget.performanceMode;
     scene.environmentSettings = EnvironmentSettings(
       toneMapping: ToneMappingMode.pbrNeutral,
-      environmentIntensity: 0.82,
+      environmentIntensity: performance ? 0.74 : 0.82,
       exposure: 0.94,
-      ambientOcclusionEnabled: false,
+      ambientOcclusionEnabled: !performance,
       screenSpaceReflectionsEnabled: false,
       bloomEnabled: false,
       vignetteEnabled: false,
       autoExposureEnabled: false,
     );
     scene.antiAliasingMode = AntiAliasingMode.auto;
-    scene.environmentIntensity = 0.82;
+    scene.environmentIntensity = performance ? 0.74 : 0.82;
     scene.directionalLight = DirectionalLight(
       direction: vm.Vector3(-0.45, -1.0, -0.32)..normalize(),
       color: vm.Vector3(1.0, 0.97, 0.92),
-      intensity: 1.95,
-      castsShadow: true,
+      intensity: performance ? 1.72 : 1.95,
+      castsShadow: !performance,
       cacheStaticShadows: false,
-      shadowMapResolution: 512,
+      shadowMapResolution: performance ? 256 : 512,
       shadowMaxDistance: 35,
       shadowSoftness: 0.12,
     );
@@ -299,11 +306,11 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     // lighter half-resolution profile is much more stable on mid-range Android
     // GPUs while keeping enough depth to read the room shape.
     scene.ambientOcclusion
-      ..enabled = false
+      ..enabled = !performance
       ..halfResolution = true
-      ..sampleCount = 2
-      ..radius = 0.20
-      ..intensity = 0.55
+      ..sampleCount = performance ? 2 : 4
+      ..radius = performance ? 0.18 : 0.22
+      ..intensity = performance ? 0.42 : 0.62
       ..bias = 0.04;
   }
 
@@ -1237,6 +1244,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
           visibleObjectCount: visibleObjectCount,
           photoQuality: photoQuality,
           walkMode: widget.walkMode,
+          performanceMode: widget.performanceMode,
         );
         activeModelPaths.add(modelPath);
         final template = _modelTemplates[modelPath] ??= await Node.fromGlbAsset(
@@ -1324,16 +1332,18 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
         : isFloor
         ? 4.5
         : 6.0;
-    lightNode.addComponent(
-      PointLightComponent(
-        PointLight(
-          color: vm.Vector3(1.0, 0.80, 0.58),
-          intensity: intensity,
-          range: range,
-          falloffExponent: 2.0,
+    if (!widget.performanceMode) {
+      lightNode.addComponent(
+        PointLightComponent(
+          PointLight(
+            color: vm.Vector3(1.0, 0.80, 0.58),
+            intensity: intensity,
+            range: range,
+            falloffExponent: 2.0,
+          ),
         ),
-      ),
-    );
+      );
+    }
 
     // Make the light source itself visibly luminous. A point light can brighten
     // nearby surfaces while the chandelier mesh still looks "off", which is
@@ -1345,7 +1355,11 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     final glow = Node(
       name: 'glow:${object.id}',
       mesh: Mesh(
-        SphereGeometry(radius: glowRadius, segments: 16, rings: 10),
+        SphereGeometry(
+          radius: glowRadius,
+          segments: widget.performanceMode ? 10 : 16,
+          rings: widget.performanceMode ? 6 : 10,
+        ),
         glowMaterial,
       ),
     );
