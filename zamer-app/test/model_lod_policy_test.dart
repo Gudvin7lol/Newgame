@@ -40,4 +40,31 @@ void main() {
       );
     },
   );
+
+  test('performance mode always chooses LOD2 while photo still wins', () {
+    final asset = ZamerModelAssetCatalog.byId('armchair');
+    expect(asset, isNotNull);
+    final model = asset!;
+
+    expect(
+      ZamerModelLodPolicy.pathFor(
+        asset: model,
+        visibleObjectCount: 1,
+        photoQuality: false,
+        walkMode: false,
+        performanceMode: true,
+      ),
+      model.lod2AssetPath,
+    );
+    expect(
+      ZamerModelLodPolicy.pathFor(
+        asset: model,
+        visibleObjectCount: 1,
+        photoQuality: true,
+        walkMode: false,
+        performanceMode: true,
+      ),
+      model.assetPath,
+    );
+  });
 }
