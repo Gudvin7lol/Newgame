@@ -14,6 +14,10 @@ on:
       - 'zamer-app/tool/asset_pipeline/**'
       - '.github/workflows/validate-3d-assets.yml'
 
+concurrency:
+  group: zamer-3d-assets-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   validate-metadata:
     runs-on: ubuntu-latest
