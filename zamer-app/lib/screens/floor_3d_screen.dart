@@ -39,6 +39,7 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
   Offset _gestureFocal = Offset.zero;
   int _gesturePointers = 0;
   ZGraphicsMode _graphicsMode = ZGraphicsMode.quality;
+  bool _showSceneInfo = true;
   final GlobalKey<ZamerGpuViewportState> _gpuKey =
       GlobalKey<ZamerGpuViewportState>();
 
@@ -290,7 +291,7 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
             ),
           ),
         ),
-        if (!_walkMode)
+        if (!_walkMode && _showSceneInfo)
           Positioned(
             left: ZamerSpace.md,
             top: 64,
@@ -328,6 +329,12 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
                     onPressed: _reset,
                     icon: const Icon(Icons.my_location_outlined),
                   ),
+                  if (!_walkMode)
+                    IconButton(
+                      tooltip: _showSceneInfo ? 'Скрыть режим графики' : 'Показать режим графики',
+                      onPressed: () => setState(() => _showSceneInfo = !_showSceneInfo),
+                      icon: Icon(_showSceneInfo ? Icons.tune_rounded : Icons.tune_outlined),
+                    ),
                   if (!_walkMode)
                     IconButton(
                       tooltip: 'Вид сверху',
@@ -398,8 +405,8 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
                         ),
                         Expanded(
                           child: ZToolAction(
-                            icon: Icons.photo_camera_outlined,
-                            label: 'Фото',
+                            icon: Icons.camera_alt_outlined,
+                            label: 'Рендер',
                             onTap: _showRenderSheet,
                           ),
                         ),
@@ -407,8 +414,8 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
                     : [
                         Expanded(
                           child: ZToolAction(
-                            icon: Icons.view_in_ar_outlined,
-                            label: 'Обзор',
+                            icon: Icons.threed_rotation_rounded,
+                            label: 'Орбита',
                             selected: true,
                             onTap: _reset,
                           ),
@@ -422,7 +429,7 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
                         ),
                         Expanded(
                           child: ZToolAction(
-                            icon: Icons.layers_clear_outlined,
+                            icon: Icons.content_cut_rounded,
                             label: 'Разрез',
                             selected: _cutaway,
                             onTap: () => setState(() => _cutaway = !_cutaway),
@@ -430,7 +437,7 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
                         ),
                         Expanded(
                           child: ZToolAction(
-                            icon: Icons.vertical_align_top,
+                            icon: Icons.grid_view_rounded,
                             label: 'Сверху',
                             onTap: _topView,
                           ),
