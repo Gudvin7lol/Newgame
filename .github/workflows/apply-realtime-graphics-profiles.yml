@@ -6,6 +6,7 @@ on:
       - 'codex/zamer-1.5.6-3d-stability'
     paths:
       - 'zamer-app/tool/migrations/apply_realtime_graphics_profiles.py'
+      - 'zamer-app/tool/migrations/fix_dynamic_graphics_header.py'
       - '.github/workflows/apply-realtime-graphics-profiles.yml'
   workflow_dispatch:
 
@@ -25,32 +26,8 @@ jobs:
       - name: Apply realtime graphics migration
         run: python zamer-app/tool/migrations/apply_realtime_graphics_profiles.py
 
-      - name: Keep dynamic graphics header non-const
-        shell: bash
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          path = Path('zamer-app/lib/screens/floor_3d_screen.dart')
-          text = path.read_text(encoding='utf-8')
-          old = """        if (!_walkMode)
-          const Positioned(
-            left: ZamerSpace.md,
-            right: ZamerSpace.md,
-            top: ZamerSpace.sm,
-"""
-          new = """        if (!_walkMode)
-          Positioned(
-            left: ZamerSpace.md,
-            right: ZamerSpace.md,
-            top: ZamerSpace.sm,
-"""
-          if old in text:
-              text = text.replace(old, new, 1)
-          elif new not in text:
-              raise SystemExit('dynamic 3D header anchor not found')
-          path.write_text(text, encoding='utf-8')
-          PY
+      - name: Repair dynamic graphics header
+        run: python zamer-app/tool/migrations/fix_dynamic_graphics_header.py
 
       - name: Setup Dart
         uses: dart-lang/setup-dart@v1
@@ -69,7 +46,10 @@ jobs:
           grep -q 'performanceMode: widget.performanceMode' lib/renderer3d/zamer_gpu_viewport.dart
           grep -q '_graphicsMode == ZGraphicsMode.performance' lib/screens/floor_3d_screen.dart
           grep -q 'graphicsMode.label' lib/screens/floor_3d_screen.dart
-          grep -q 'Positioned(' lib/screens/floor_3d_screen.dart
+          if grep -A8 "if (!_walkMode)" lib/screens/floor_3d_screen.dart | grep -q 'const Positioned'; then
+            echo 'Dynamic 3D header is incorrectly const.'
+            exit 1
+          fi
 
       - name: Commit realtime graphics integration
         shell: bash
