@@ -14,6 +14,7 @@ import '../widgets/floor_3d_painter.dart';
 import 'floor_grout_geometry.dart';
 import 'model_asset_catalog.dart';
 import 'model_lod_policy.dart';
+import 'scene_fingerprint.dart';
 import 'scene_mesh_winding.dart';
 import 'zamer_scene_geometry.dart';
 
@@ -236,98 +237,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     }
   }
 
-  int _floorFingerprint() {
-    final values = <Object?>[
-      widget.floor.defaultHeightMm,
-      widget.floor.walls.length,
-      widget.floor.planObjects.length,
-      widget.floor.electricalPoints.length,
-    ];
-    for (final node in widget.floor.nodes) {
-      values.addAll(<Object?>[node.id, node.xMm, node.yMm]);
-    }
-    for (final wall in widget.floor.walls) {
-      values.addAll(<Object?>[
-        wall.id,
-        wall.startNodeId,
-        wall.endNodeId,
-        wall.thicknessMm,
-        wall.heightOverrideMm,
-        wall.openings.length,
-      ]);
-      for (final opening in wall.openings) {
-        values.addAll(<Object?>[
-          opening.id,
-          opening.type,
-          opening.widthMm,
-          opening.heightMm,
-          opening.offsetFromStartMm,
-        ]);
-      }
-    }
-    for (final meta in widget.floor.roomMetas) {
-      final m = meta.materials;
-      values.addAll(<Object?>[
-        meta.faceKey,
-        m.floorMode,
-        m.floorMaterialId,
-        m.floorDirectionDeg,
-        m.tileWidthMm,
-        m.tileHeightMm,
-        m.tilePattern,
-        m.tileOffsetXMm,
-        m.tileOffsetYMm,
-        m.floorTileGroutMm,
-        m.laminatePlankLengthMm,
-        m.laminatePlankWidthMm,
-        m.laminatePattern,
-        m.laminateOffsetMode,
-        m.laminateOffsetXMm,
-        m.laminateOffsetYMm,
-        m.wallMaterialId,
-        m.wallPaintColorArgb,
-        m.wallTile,
-        m.wallTileMaterialId,
-        m.wallTileTintArgb,
-        m.wallTileWidthMm,
-        m.wallTileHeightMm,
-        m.wallTileOffsetXMm,
-        m.wallTileOffsetYMm,
-        m.wallTileGroutMm,
-      ]);
-      final runIds = <String>{
-        ...m.wallTileRunOffsetX.keys,
-        ...m.wallTileRunOffsetY.keys,
-        ...m.wallTileRunEnabled.keys,
-        ...m.wallTileRunMirrored.keys,
-        ...m.wallTileRunRotated.keys,
-      }.toList()..sort();
-      for (final runId in runIds) {
-        values.addAll(<Object?>[
-          runId,
-          m.wallTileRunOffsetX[runId],
-          m.wallTileRunOffsetY[runId],
-          m.wallTileRunEnabled[runId],
-          m.wallTileRunMirrored[runId],
-          m.wallTileRunRotated[runId],
-        ]);
-      }
-    }
-    for (final object in widget.floor.planObjects) {
-      values.addAll(<Object?>[
-        object.id,
-        object.catalogId,
-        object.xMm,
-        object.yMm,
-        object.widthMm,
-        object.depthMm,
-        object.heightMm,
-        object.elevationMm,
-        object.rotationDeg,
-      ]);
-    }
-    return Object.hashAll(values);
-  }
+  int _floorFingerprint() => ZamerSceneFingerprint.of(widget.floor);
 
   Future<void> _initialize() async {
     if (_initializing || !mounted) return;

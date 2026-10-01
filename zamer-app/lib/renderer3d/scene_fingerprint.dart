@@ -91,8 +91,7 @@ class ZamerSceneFingerprint {
         ...m.wallTileRunEnabled.keys,
         ...m.wallTileRunMirrored.keys,
         ...m.wallTileRunRotated.keys,
-      }.toList()
-        ..sort();
+      }.toList()..sort();
       for (final runId in runIds) {
         values.addAll(<Object?>[
           runId,

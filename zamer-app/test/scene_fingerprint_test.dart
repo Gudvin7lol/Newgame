@@ -33,7 +33,8 @@ void main() {
   test('room height and floor phase anchor invalidate the GPU scene', () {
     expectMutationChanges((floor) {
       final room = floor.roomMetas.first;
-      room.ceilingHeightMm = (room.ceilingHeightMm ?? floor.defaultHeightMm) + 50;
+      room.ceilingHeightMm =
+          (room.ceilingHeightMm ?? floor.defaultHeightMm) + 50;
     });
     expectMutationChanges((floor) {
       floor.carpetAnchorX += 125;
