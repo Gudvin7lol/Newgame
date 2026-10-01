@@ -6,6 +6,7 @@ on:
       - 'codex/zamer-1.5.6-3d-stability'
     paths:
       - 'zamer-app/tool/migrations/fix_dynamic_graphics_header.py'
+      - 'zamer-app/tool/migrations/fix_photo_mode_restore.py'
       - '.github/workflows/apply-realtime-graphics-profiles.yml'
   workflow_dispatch:
 
@@ -25,12 +26,15 @@ jobs:
       - name: Repair dynamic graphics header
         run: python zamer-app/tool/migrations/fix_dynamic_graphics_header.py
 
+      - name: Preserve realtime mode after Photo
+        run: python zamer-app/tool/migrations/fix_photo_mode_restore.py
+
       - name: Setup Dart
         uses: dart-lang/setup-dart@v1
 
       - name: Format renderer and 3D screen
         working-directory: zamer-app
-        run: dart format lib/renderer3d/zamer_gpu_viewport.dart lib/screens/floor_3d_screen.dart lib/renderer3d/model_lod_policy.dart test/model_lod_policy_test.dart
+        run: dart format lib/renderer3d/zamer_gpu_viewport.dart lib/screens/floor_3d_screen.dart lib/renderer3d/model_lod_policy.dart test/model_lod_policy_test.dart test/realtime_graphics_profile_test.dart
 
       - name: Verify graphics profiles are wired
         working-directory: zamer-app
@@ -42,6 +46,8 @@ jobs:
           grep -q 'performanceMode: widget.performanceMode' lib/renderer3d/zamer_gpu_viewport.dart
           grep -q '_graphicsMode == ZGraphicsMode.performance' lib/screens/floor_3d_screen.dart
           grep -q 'graphicsMode.label' lib/screens/floor_3d_screen.dart
+          grep -q 'previousRealtimeMode' lib/screens/floor_3d_screen.dart
+          grep -q '_graphicsMode = previousRealtimeMode' lib/screens/floor_3d_screen.dart
           if grep -A8 "if (!_walkMode)" lib/screens/floor_3d_screen.dart | grep -q 'const Positioned'; then
             echo 'Dynamic 3D header is incorrectly const.'
             exit 1
@@ -57,9 +63,10 @@ jobs:
           git add zamer-app/lib/screens/floor_3d_screen.dart
           git add zamer-app/lib/renderer3d/model_lod_policy.dart
           git add zamer-app/test/model_lod_policy_test.dart
+          git add zamer-app/test/realtime_graphics_profile_test.dart
           if git diff --cached --quiet; then
             echo 'Realtime graphics profiles are already repaired.'
             exit 0
           fi
-          git commit -m 'fix(zamer): keep dynamic graphics header compilable'
+          git commit -m 'fix(zamer): restore realtime mode after Photo'
           git push origin HEAD:codex/zamer-1.5.6-3d-stability
