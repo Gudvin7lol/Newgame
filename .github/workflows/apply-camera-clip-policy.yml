@@ -1,0 +1,73 @@
+name: Apply camera clip policy
+
+on:
+  push:
+    branches:
+      - 'codex/zamer-1.5.6-3d-stability'
+    paths:
+      - 'zamer-app/lib/renderer3d/camera_clip_policy.dart'
+      - 'zamer-app/test/camera_clip_policy_test.dart'
+      - 'zamer-app/tool/migrations/fix_walk_camera_near_clip.py'
+      - '.github/workflows/apply-camera-clip-policy.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: zamer-camera-clip-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Sparse checkout
+        uses: actions/checkout@v4
+        with:
+          ref: codex/zamer-1.5.6-3d-stability
+          fetch-depth: 1
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            zamer-app/lib/renderer3d/zamer_gpu_viewport.dart
+            zamer-app/lib/renderer3d/camera_clip_policy.dart
+            zamer-app/test/camera_clip_policy_test.dart
+            zamer-app/tool/migrations/fix_walk_camera_near_clip.py
+
+      - name: Apply camera clip fix
+        run: python zamer-app/tool/migrations/fix_walk_camera_near_clip.py
+
+      - name: Setup Dart
+        uses: dart-lang/setup-dart@v1
+
+      - name: Format changed sources
+        run: dart format zamer-app/lib/renderer3d/zamer_gpu_viewport.dart zamer-app/lib/renderer3d/camera_clip_policy.dart zamer-app/test/camera_clip_policy_test.dart
+
+      - name: Verify camera clipping
+        shell: bash
+        run: |
+          set -euo pipefail
+          VIEWPORT=zamer-app/lib/renderer3d/zamer_gpu_viewport.dart
+          grep -q "import 'camera_clip_policy.dart';" "$VIEWPORT"
+          grep -q 'fovNear: ZamerCameraClipPolicy.near(walkMode: true)' "$VIEWPORT"
+          grep -q 'fovFar: ZamerCameraClipPolicy.walkFarM' "$VIEWPORT"
+          grep -q 'fovNear: ZamerCameraClipPolicy.near(walkMode: false)' "$VIEWPORT"
+          if grep -q 'fovNear: 0.035' "$VIEWPORT"; then
+            echo 'Legacy Walk Mode near plane is still present.' >&2
+            exit 1
+          fi
+
+      - name: Commit renderer integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add zamer-app/lib/renderer3d/zamer_gpu_viewport.dart
+          if git diff --cached --quiet; then
+            echo 'Camera clip policy already integrated.'
+            exit 0
+          fi
+          git commit -m 'fix(zamer): reduce Walk Mode near clipping'
+          git push origin HEAD:codex/zamer-1.5.6-3d-stability
