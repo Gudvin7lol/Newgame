@@ -341,6 +341,7 @@ class _PhotoStudioScreenState extends State<PhotoStudioScreen> {
       _gestureZoom = _zoom / math.max(.001, d.scale);
       _gesturePan = _pan;
       _gestureFocal = d.focalPoint;
+      _stabilizedLookDelta = Offset.zero;
       return;
     }
     setState(() {
