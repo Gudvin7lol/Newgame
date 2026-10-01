@@ -13,8 +13,8 @@ import '../renderer3d/model_asset_catalog.dart';
 /// Cached still preview rendered from the same bundled GLB used by the room.
 ///
 /// A live SceneView in every catalogue cell is needlessly expensive on a phone.
-/// Instead each LOD2 model is rendered once to a small PNG and reused while the
-/// app is alive. Failed/legacy assets fall back to the existing 2D preview.
+/// Production models render from LOD1 for a visibly richer catalogue preview;
+/// legacy objects and very large libraries still fall back safely.
 class ZamerModelThumbnail extends StatelessWidget {
   const ZamerModelThumbnail({
     super.key,
@@ -68,9 +68,14 @@ class ZamerModelThumbnail extends StatelessWidget {
         shadowSoftness: 0.16,
       );
 
-      final model = await Node.fromGlbAsset(
-        asset.pathForLod(ZamerModelLod.lod2),
-      );
+      // LOD2 was intentionally tiny for distant scene objects, but using it in
+      // the catalogue threw away the details we spent time modelling. LOD1 is
+      // still mobile-friendly and is rendered only once into the thumbnail
+      // cache, so it is the right trade-off here.
+      final previewLod = asset.hasLod1
+          ? ZamerModelLod.lod1
+          : ZamerModelLod.lod2;
+      final model = await Node.fromGlbAsset(asset.pathForLod(previewLod));
       final bounds = model.combinedLocalBounds;
       if (bounds == null) return null;
 
@@ -82,9 +87,6 @@ class ZamerModelThumbnail extends StatelessWidget {
           .fold<double>(0, math.max);
       if (maxDimension <= 0) return null;
 
-      // Every model gets its own framing from real GLB bounds. The previous
-      // fixed camera looked above low furniture (beds/tables) and reduced some
-      // previews to a thin strip at the top of the catalogue card.
       const normalizedSpan = 1.72;
       final scale = normalizedSpan / maxDimension;
       final scaledHeight = math.max(0.06, height * scale);
@@ -129,8 +131,6 @@ class ZamerModelThumbnail extends StatelessWidget {
           ),
       );
 
-      // A quiet contact shadow gives low furniture visual weight without
-      // paying for realtime shadows in every catalogue thumbnail.
       final shadowRect = ui.Rect.fromCenter(
         center: const ui.Offset(pixels * .51, pixels * .73),
         width: pixels * .55,
@@ -166,6 +166,9 @@ class ZamerModelThumbnail extends StatelessWidget {
       catalogId,
       () => _enqueueRender(catalogId),
     );
+    final production = ZamerModelAssetCatalog.productionLodIds.contains(
+      catalogId,
+    );
     return SizedBox.square(
       dimension: size,
       child: FutureBuilder<Uint8List?>(
@@ -197,21 +200,52 @@ class ZamerModelThumbnail extends StatelessWidget {
               ],
             );
           }
-          return AnimatedSwitcher(
-            duration: const Duration(milliseconds: 180),
-            child: ClipRRect(
-              key: ValueKey(catalogId),
-              borderRadius: BorderRadius.circular(ZamerRadius.md),
-              child: DecoratedBox(
-                decoration: const BoxDecoration(color: ZamerColors.surfaceHigh),
-                child: Image.memory(
-                  bytes,
-                  fit: BoxFit.contain,
-                  gaplessPlayback: true,
-                  filterQuality: FilterQuality.high,
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 180),
+                child: ClipRRect(
+                  key: ValueKey(catalogId),
+                  borderRadius: BorderRadius.circular(ZamerRadius.md),
+                  child: DecoratedBox(
+                    decoration: const BoxDecoration(
+                      color: ZamerColors.surfaceHigh,
+                    ),
+                    child: Image.memory(
+                      bytes,
+                      fit: BoxFit.contain,
+                      gaplessPlayback: true,
+                      filterQuality: FilterQuality.high,
+                    ),
+                  ),
                 ),
               ),
-            ),
+              if (production)
+                Positioned(
+                  top: 6,
+                  left: 6,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: ZamerColors.surfaceHighest.withValues(alpha: .90),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: ZamerColors.accent),
+                    ),
+                    child: Text(
+                      '3D',
+                      style: ZamerTypography.caption.copyWith(
+                        color: ZamerColors.accent,
+                        fontSize: 8,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           );
         },
       ),
