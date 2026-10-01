@@ -1,0 +1,61 @@
+name: Apply realtime graphics profiles
+
+on:
+  push:
+    branches:
+      - 'codex/zamer-1.5.6-3d-stability'
+    paths:
+      - 'zamer-app/tool/migrations/apply_realtime_graphics_profiles.py'
+      - '.github/workflows/apply-realtime-graphics-profiles.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: codex/zamer-1.5.6-3d-stability
+
+      - name: Apply realtime graphics migration
+        run: python zamer-app/tool/migrations/apply_realtime_graphics_profiles.py
+
+      - name: Setup Dart
+        uses: dart-lang/setup-dart@v1
+
+      - name: Format renderer and 3D screen
+        working-directory: zamer-app
+        run: dart format lib/renderer3d/zamer_gpu_viewport.dart lib/screens/floor_3d_screen.dart lib/renderer3d/model_lod_policy.dart test/model_lod_policy_test.dart
+
+      - name: Verify graphics profiles are wired
+        working-directory: zamer-app
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'final bool performanceMode' lib/renderer3d/zamer_gpu_viewport.dart
+          grep -q 'castsShadow: !performance' lib/renderer3d/zamer_gpu_viewport.dart
+          grep -q 'performanceMode: widget.performanceMode' lib/renderer3d/zamer_gpu_viewport.dart
+          grep -q '_graphicsMode == ZGraphicsMode.performance' lib/screens/floor_3d_screen.dart
+          grep -q 'graphicsMode.label' lib/screens/floor_3d_screen.dart
+
+      - name: Commit realtime graphics integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add zamer-app/lib/renderer3d/zamer_gpu_viewport.dart
+          git add zamer-app/lib/screens/floor_3d_screen.dart
+          git add zamer-app/lib/renderer3d/model_lod_policy.dart
+          git add zamer-app/test/model_lod_policy_test.dart
+          if git diff --cached --quiet; then
+            echo 'Realtime graphics profiles are already wired.'
+            exit 0
+          fi
+          git commit -m 'feat(zamer): make Performance and Quality affect live 3D'
+          git push origin HEAD:codex/zamer-1.5.6-3d-stability
