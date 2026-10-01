@@ -1,0 +1,77 @@
+name: Apply live GPU rebuild recovery
+
+on:
+  push:
+    branches:
+      - 'codex/zamer-1.5.6-3d-stability'
+    paths:
+      - 'zamer-app/tool/migrations/keep_last_good_scene_on_rebuild_error.py'
+      - '.github/workflows/apply-live-rebuild-recovery.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: zamer-live-rebuild-recovery-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Sparse checkout
+        uses: actions/checkout@v4
+        with:
+          ref: codex/zamer-1.5.6-3d-stability
+          fetch-depth: 1
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            zamer-app/lib/renderer3d/zamer_gpu_viewport.dart
+            zamer-app/test/live_rebuild_recovery_test.dart
+            zamer-app/tool/migrations/keep_last_good_scene_on_rebuild_error.py
+
+      - name: Apply live rebuild recovery
+        run: python zamer-app/tool/migrations/keep_last_good_scene_on_rebuild_error.py
+
+      - name: Setup Dart
+        uses: dart-lang/setup-dart@v1
+
+      - name: Format changed sources
+        run: dart format zamer-app/lib/renderer3d/zamer_gpu_viewport.dart zamer-app/test/live_rebuild_recovery_test.dart
+
+      - name: Verify recovery path
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          text = Path('zamer-app/lib/renderer3d/zamer_gpu_viewport.dart').read_text()
+          retry = text.index('  void _scheduleLiveRebuildRetry()')
+          rebuild = text.index('  Future<void> _rebuildSceneAfterUpdate() async {')
+          end = text.index('\n\n  int _floorFingerprint()', rebuild)
+          body = text[rebuild:end]
+          assert retry < rebuild
+          keep = body.index('if (_ready && _scene != null)')
+          fail = body.index('_loadError = error;')
+          assert keep < fail
+          assert '_scheduleLiveRebuildRetry();' in body[keep:fail]
+          assert 'break;' in body[keep:fail]
+          assert '_ready = false' not in body[keep:fail]
+          assert '_retryAttempt = 0;' in body
+          PY
+
+      - name: Commit recovery integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add zamer-app/lib/renderer3d/zamer_gpu_viewport.dart zamer-app/test/live_rebuild_recovery_test.dart
+          if git diff --cached --quiet; then
+            echo 'Live rebuild recovery already applied.'
+            exit 0
+          fi
+          git commit -m 'fix(zamer): keep last good scene on rebuild errors'
+          git push origin HEAD:codex/zamer-1.5.6-3d-stability
