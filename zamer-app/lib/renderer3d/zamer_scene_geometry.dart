@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import '../models/models.dart';
 import '../services/geometry_service.dart';
 import '../services/layout_service.dart';
+import 'rotated_footprint_bounds.dart';
 
 /// Engine-neutral 3D representation of one measured floor.
 /// All source dimensions stay in millimetres here. The GPU layer converts once
@@ -456,10 +457,16 @@ class ZamerSceneBounds {
       maxY = math.max(maxY, n.yMm);
     }
     for (final o in floor.planObjects) {
-      minX = math.min(minX, o.xMm - o.widthMm / 2);
-      maxX = math.max(maxX, o.xMm + o.widthMm / 2);
-      minY = math.min(minY, o.yMm - o.depthMm / 2);
-      maxY = math.max(maxY, o.yMm + o.depthMm / 2);
+      if (o.layer == ProjectLayer.demolition) continue;
+      final footprint = zamerRotatedFootprintHalfExtentsMm(
+        widthMm: o.widthMm,
+        depthMm: o.depthMm,
+        rotationDeg: o.rotationDeg,
+      );
+      minX = math.min(minX, o.xMm - footprint.halfX);
+      maxX = math.max(maxX, o.xMm + footprint.halfX);
+      minY = math.min(minY, o.yMm - footprint.halfY);
+      maxY = math.max(maxY, o.yMm + footprint.halfY);
     }
     return ZamerSceneBounds(minX, minY, maxX, maxY);
   }
