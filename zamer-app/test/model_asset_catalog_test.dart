@@ -53,9 +53,24 @@ void main() {
 
   test('production native dimensions describe authored GLB bounds', () {
     final armchair = ZamerModelAssetCatalog.byId('armchair')!;
-    expect(armchair.nativeWidthMm, 900);
+    expect(armchair.nativeWidthMm, 920);
     expect(armchair.nativeDepthMm, 900);
-    expect(armchair.nativeHeightMm, 900);
+    expect(armchair.nativeHeightMm, 860);
+
+    final sofa = ZamerModelAssetCatalog.byId('sofa-3')!;
+    expect(sofa.nativeWidthMm, 2200);
+    expect(sofa.nativeDepthMm, 950);
+    expect(sofa.nativeHeightMm, 850);
+
+    final featuredBed = ZamerModelAssetCatalog.byId('bed-180')!;
+    expect(featuredBed.nativeWidthMm, 1800);
+    expect(featuredBed.nativeDepthMm, 2200);
+    expect(featuredBed.nativeHeightMm, 1130);
+
+    final featuredTable = ZamerModelAssetCatalog.byId('coffee-table')!;
+    expect(featuredTable.nativeWidthMm, 900);
+    expect(featuredTable.nativeDepthMm, 900);
+    expect(featuredTable.nativeHeightMm, 420);
 
     final bed = ZamerModelAssetCatalog.byId('bed-160')!;
     expect(bed.nativeWidthMm, 1800);
