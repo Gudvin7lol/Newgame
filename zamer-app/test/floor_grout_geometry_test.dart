@@ -58,4 +58,11 @@ void main() {
     expect(centers.any((x) => (x - 300).abs() < 0.01), isTrue);
     expect(centers.any((x) => (x - 600).abs() < 0.01), isTrue);
   });
+
+  test('grout overlay keeps a mobile-safe depth separation from floor', () {
+    expect(zamerFloorSurfaceYM, greaterThan(0));
+    expect(zamerFloorGroutYM, greaterThan(zamerFloorSurfaceYM));
+    expect(zamerFloorGroutSeparationM, greaterThanOrEqualTo(0.002));
+    expect(zamerFloorGroutSeparationM, lessThanOrEqualTo(0.003));
+  });
 }
