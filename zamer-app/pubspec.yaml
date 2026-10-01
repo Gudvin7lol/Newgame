@@ -1,7 +1,7 @@
 name: zamer_app
 publish_to: 'none'
 description: Обмер, планировка, отделка и инженерная подготовка помещений
-version: 1.5.6+90
+version: 1.5.6+91
 
 environment:
   sdk: '>=3.10.0 <4.0.0'
