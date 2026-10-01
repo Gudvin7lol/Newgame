@@ -13,8 +13,15 @@ import math
 from pathlib import Path
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageFile
 from scipy.ndimage import gaussian_filter
+
+# Some generated_v1 JPEGs were produced by an older tiny-texture pipeline and
+# have a valid SOI/header but a truncated final entropy stream. Flutter and most
+# phone decoders already tolerate them; Pillow is stricter unless this is set.
+# We deliberately keep the existing base-color bytes unchanged and only make
+# the offline baker accept the same source assets that the app already renders.
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 ROOT = Path(__file__).resolve().parents[2]
 TEXTURES = ROOT / "assets" / "textures" / "generated_v1"
@@ -109,15 +116,15 @@ def bake_one(name: str, base_roughness: float, normal_strength: float) -> None:
     seed = sum((index + 1) * ord(char) for index, char in enumerate(name))
     height_field = _normalized_detail(rgb, seed)
 
-    Image.fromarray(np.rint(height_field * 255).astype(np.uint8), mode="L").save(
+    Image.fromarray(np.rint(height_field * 255).astype(np.uint8)).save(
         TEXTURES / f"{name}_height.png", optimize=True
     )
-    Image.fromarray(_normal_map(height_field, normal_strength), mode="RGB").save(
+    Image.fromarray(_normal_map(height_field, normal_strength)).save(
         TEXTURES / f"{name}_normal.png", optimize=True
     )
-    Image.fromarray(
-        _metallic_roughness(height_field, base_roughness), mode="RGB"
-    ).save(TEXTURES / f"{name}_metallic_roughness.png", optimize=True)
+    Image.fromarray(_metallic_roughness(height_field, base_roughness)).save(
+        TEXTURES / f"{name}_metallic_roughness.png", optimize=True
+    )
 
 
 def main() -> None:
