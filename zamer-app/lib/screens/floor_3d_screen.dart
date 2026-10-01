@@ -27,8 +27,9 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
   bool _cutaway = true;
   bool _walkMode = false;
   bool _noclip = false;
-  double _walkStepMm = 120;
+  double _walkSpeedMmPerSecond = 2500;
   double _lookSensitivity = 0.010;
+  Offset _walkLookDelta = Offset.zero;
   double _walkX = 0, _walkY = 0;
   double _overviewRotation = -0.65, _overviewTilt = 0.82;
   double _overviewZoom = 0.92;
@@ -116,6 +117,7 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
     _gesturePan = _pan;
     _gestureFocal = d.focalPoint;
     _gesturePointers = d.pointerCount;
+    _walkLookDelta = Offset.zero;
   }
 
   void _onScaleUpdate(ScaleUpdateDetails d) {
@@ -124,6 +126,7 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
       _gestureZoom = _zoom / math.max(.001, d.scale);
       _gesturePan = _pan;
       _gestureFocal = d.focalPoint;
+      _walkLookDelta = Offset.zero;
       return;
     }
     setState(() {
@@ -135,10 +138,18 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
           _pan = _gesturePan + (d.focalPoint - _gestureFocal);
         }
       } else {
+        final rawLook = d.focalPointDelta;
+        final lookDelta = _walkMode
+            ? (_walkLookDelta = Offset(
+                _walkLookDelta.dx * .55 + rawLook.dx * .45,
+                _walkLookDelta.dy * .55 + rawLook.dy * .45,
+              ))
+            : rawLook;
+        if (!_walkMode) _walkLookDelta = Offset.zero;
         final lookSensitivity = _walkMode ? _lookSensitivity : 0.010;
-        final angle = _rotation + d.focalPointDelta.dx * lookSensitivity;
+        final angle = _rotation + lookDelta.dx * lookSensitivity;
         _rotation = math.atan2(math.sin(angle), math.cos(angle));
-        _tilt = (_tilt - d.focalPointDelta.dy * lookSensitivity * 0.6)
+        _tilt = (_tilt - lookDelta.dy * lookSensitivity * 0.6)
             .clamp(_walkMode ? -0.7 : 0.22, _walkMode ? 0.7 : 1.48)
             .toDouble();
       }
@@ -188,13 +199,14 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
                   const SizedBox(width: 96, child: Text('Скорость')),
                   Expanded(
                     child: Slider(
-                      value: _walkStepMm,
-                      min: 55,
-                      max: 220,
-                      divisions: 11,
-                      label: '${_walkStepMm.round()} мм',
+                      value: _walkSpeedMmPerSecond,
+                      min: 800,
+                      max: 4500,
+                      divisions: 37,
+                      label:
+                          '${(_walkSpeedMmPerSecond / 1000).toStringAsFixed(1)} м/с',
                       onChanged: (value) {
-                        setState(() => _walkStepMm = value);
+                        setState(() => _walkSpeedMmPerSecond = value);
                         setSheet(() {});
                       },
                     ),
@@ -392,8 +404,10 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
               top: false,
               right: false,
               child: _WalkJoystick(
-                onStep: (forward, sideways) =>
-                    _walk(forward * _walkStepMm, sideways * _walkStepMm),
+                onStep: (forward, sideways, deltaSeconds) => _walk(
+                  forward * _walkSpeedMmPerSecond * deltaSeconds,
+                  sideways * _walkSpeedMmPerSecond * deltaSeconds,
+                ),
               ),
             ),
           ),
@@ -627,7 +641,8 @@ class _ThreeDStatus extends StatelessWidget {
 class _WalkJoystick extends StatefulWidget {
   const _WalkJoystick({required this.onStep});
 
-  final void Function(double forward, double sideways) onStep;
+  final void Function(double forward, double sideways, double deltaSeconds)
+  onStep;
 
   @override
   State<_WalkJoystick> createState() => _WalkJoystickState();
@@ -637,6 +652,8 @@ class _WalkJoystickState extends State<_WalkJoystick> {
   Timer? _timer;
   Offset _vector = Offset.zero;
   static const double _radius = 58;
+  static const Duration _frameInterval = Duration(milliseconds: 16);
+  static const double _frameSeconds = 0.016;
 
   void _update(Offset local) {
     final delta = local - const Offset(70, 70);
@@ -650,17 +667,14 @@ class _WalkJoystickState extends State<_WalkJoystick> {
   void _emitStep() {
     final input = WalkInputService.fromStick(_vector.dx, _vector.dy);
     if (input.forward == 0 && input.sideways == 0) return;
-    widget.onStep(input.forward, input.sideways);
+    widget.onStep(input.forward, input.sideways, _frameSeconds);
   }
 
   void _start(Offset local) {
     _update(local);
     _timer?.cancel();
     _emitStep();
-    _timer = Timer.periodic(
-      const Duration(milliseconds: 48),
-      (_) => _emitStep(),
-    );
+    _timer = Timer.periodic(_frameInterval, (_) => _emitStep());
   }
 
   void _stop() {
