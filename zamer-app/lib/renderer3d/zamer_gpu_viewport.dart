@@ -17,6 +17,7 @@ import 'cutaway_geometry.dart';
 import 'host_wall_visibility.dart';
 import 'model_asset_catalog.dart';
 import 'model_lod_policy.dart';
+import 'photo_export_policy.dart';
 import 'photo_render_quality_policy.dart';
 import 'scene_fingerprint.dart';
 import 'scene_mesh_winding.dart';
@@ -1678,24 +1679,43 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
   }) async {
     if (width <= 0 || height <= 0) throw ArgumentError('Некорректный размер');
 
-    final scene = _scene;
+    Scene? scene = _scene;
     if (scene == null || !_ready) {
+      if (ZamerPhotoExportPolicy.requiresGpu(photoQuality: photoQuality)) {
+        throw StateError(ZamerPhotoExportPolicy.gpuUnavailableMessage);
+      }
       return _renderFallbackPng(width: width, height: height);
     }
 
-    if (photoQuality) {
-      // Rebuild the scene with full production LOD0 for the exported frame.
-      // The on-screen scene may deliberately be using LOD1/LOD2.
-      await _rebuildScene(photoQuality: true);
-      if (!mounted || !_ready) {
+    var photoSceneAttempted = false;
+    try {
+      if (photoQuality) {
+        // Photo export is allowed to rebuild to production LOD0, but it must
+        // never silently fall back to a raster compatibility view. The whole
+        // preparation lives inside this try/finally so an interrupted GLB/GPU
+        // rebuild still restores the interactive scene.
+        photoSceneAttempted = true;
+        await _rebuildScene(photoQuality: true);
+        if (!mounted || !_ready || _scene == null) {
+          throw StateError(ZamerPhotoExportPolicy.gpuUnavailableMessage);
+        }
+      }
+
+      // Re-acquire the active scene after the Photo LOD rebuild. Today the
+      // renderer mutates one Scene instance, but keeping this reference fresh
+      // makes export safe if staged rebuild later swaps Scene objects.
+      scene = _scene;
+      if (scene == null || !_ready) {
+        if (ZamerPhotoExportPolicy.requiresGpu(photoQuality: photoQuality)) {
+          throw StateError(ZamerPhotoExportPolicy.gpuUnavailableMessage);
+        }
         return _renderFallbackPng(width: width, height: height);
       }
-    }
 
-    final camera = _camera();
-    _applyCutaway(camera);
-    if (photoQuality) _configurePhotoLighting(exportQuality: true);
-    try {
+      final camera = _camera();
+      _applyCutaway(camera);
+      if (photoQuality) _configurePhotoLighting(exportQuality: true);
+
       final recorder = ui.PictureRecorder();
       final canvas = ui.Canvas(recorder);
       final profile = zamerPhotoLightingProfile(widget.photoTime);
@@ -1719,21 +1739,23 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       final image = await picture.toImage(width, height);
       try {
         final data = await image.toByteData(format: ui.ImageByteFormat.png);
-        if (data == null)
+        if (data == null) {
           throw StateError('GPU-кадр не удалось преобразовать в PNG');
+        }
         return data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
       } finally {
         image.dispose();
       }
     } finally {
-      if (photoQuality) {
+      if (photoQuality && photoSceneAttempted && mounted) {
         _configureScene();
         try {
-          // Restore the adaptive interactive LOD immediately after export so
-          // a 4K render does not leave a heavy LOD0 scene on the phone.
+          // Restore adaptive realtime LOD immediately after export. Unlike the
+          // old generic initialization retry, live rebuild retry also works
+          // while the last valid GPU frame is still marked ready.
           await _rebuildScene();
         } catch (_) {
-          _scheduleRetry(immediate: true);
+          _scheduleLiveRebuildRetry();
         }
       }
     }

@@ -19,8 +19,7 @@ void main() {
     expect(
       viewport.contains('_scheduleLiveRebuildRetry();'),
       isTrue,
-      reason:
-          'Photo restore failure must retry even while the last GPU frame is still ready.',
+      reason: 'Photo restore failure must retry even while the last GPU frame is still ready.',
     );
   });
 }
