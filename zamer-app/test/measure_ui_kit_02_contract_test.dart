@@ -14,7 +14,11 @@ void main() {
   test('UI KIT 02 CAD essentials are present and functional in v4', () {
     final source = File('lib/screens/plan_editor_master_v4_screen.dart')
         .readAsStringSync();
-    final painter = File('lib/widgets/cad_plan_painter.dart').readAsStringSync();
+    final adapter = File('lib/widgets/cad_plan_painter.dart').readAsStringSync();
+    final painter =
+        File('lib/widgets/cad_plan_painter_v2.dart').readAsStringSync();
+    final objects =
+        File('lib/widgets/top_view_object_renderer.dart').readAsStringSync();
 
     for (final required in const [
       '_ToolRail',
@@ -42,14 +46,24 @@ void main() {
       'Окна',
       'Освещение',
     ]) {
-      expect(source.contains(required), isTrue, reason: 'Missing UI KIT 02 CAD contract element: $required');
+      expect(
+        source.contains(required),
+        isTrue,
+        reason: 'Missing UI KIT 02 CAD contract element: $required',
+      );
     }
 
-    expect(painter.contains('_finishPattern'), isTrue);
+    // +78 keeps the stable CadPlanPainter entry point, but delegates all
+    // visible plan rendering to the material-aware V2 renderer.
+    expect(adapter.contains('extends CadPlanPainterV2'), isTrue);
+    expect(painter.contains('_drawFinish('), isTrue);
     expect(painter.contains('_objects(canvas)'), isTrue);
-    expect(painter.contains("id.startsWith('bed-')"), isTrue);
-    expect(painter.contains("id.startsWith('sofa-')"), isTrue);
-    expect(painter.contains("id == 'shower'"), isTrue);
+    expect(painter.contains('TopViewObjectRenderer.draw('), isTrue);
+    expect(painter.contains('DoorSwing'), isTrue);
+    expect(painter.contains("settings.laminatePattern == 'herringbone'"), isTrue);
+    expect(objects.contains("id.startsWith('bed-')"), isTrue);
+    expect(objects.contains("id.startsWith('sofa-')"), isTrue);
+    expect(objects.contains("id == 'shower'"), isTrue);
   });
 
   test('Master editor v4 gives more vertical space to the plan', () {
