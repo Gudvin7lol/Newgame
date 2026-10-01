@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 
-/// ZAMER UI KIT 01 — production tokens.
+/// ZAMER UI KIT 01 / 02 production tokens.
 ///
-/// Source of truth: the approved UI KIT 01 production-spec boards supplied by
-/// the product owner. The mobile reference frame is 375 × 812 px. New UI must
-/// use these tokens instead of local magic values.
+/// The working CAD surfaces follow the approved master concept: near-black
+/// graphite/teal surfaces with a warm cream accent. Keep the named brand
+/// colors available, but use the semantic aliases below for production UI.
 abstract final class ZamerColors {
-  // Primary palette from UI KIT 01.
+  // Brand palette.
   static const navy = Color(0xFF0B1F3B);
   static const graphite = Color(0xFF1A2A3A);
   static const darkGray = Color(0xFF2C3B4A);
@@ -14,11 +14,14 @@ abstract final class ZamerColors {
   static const cream = Color(0xFFF3E9D7);
   static const white = Color(0xFFFFFFFF);
 
+  // UI KIT 02 concept accent sampled from the approved CAD board.
+  static const conceptAccent = Color(0xFFFED8AB);
+
   // Semantic palette.
   static const success = Color(0xFF2EA043);
   static const warning = Color(0xFFFFB020);
-  static const danger = Color(0xFFFF4444);
-  static const info = Color(0xFF3B82F6);
+  static const danger = Color(0xFFFF4D57);
+  static const info = Color(0xFF38A7FF);
 
   // Neutral palette.
   static const gray100 = Color(0xFFF5F7FA);
@@ -26,29 +29,30 @@ abstract final class ZamerColors {
   static const gray500 = Color(0xFF9AA4B2);
   static const gray700 = Color(0xFF6B7280);
 
-  // Semantic aliases used by the app.
-  static const accent = beige;
-  static const accentInk = navy;
+  // Semantic aliases used by the app. These values intentionally follow the
+  // approved concept rather than the older blue prototype shown in +76.
+  static const accent = conceptAccent;
+  static const accentInk = Color(0xFF10233A);
   static const secondary = cream;
   static const secondaryInk = navy;
 
-  static const background = navy;
-  static const surfaceLow = Color(0xFF102438);
-  static const surface = graphite;
-  static const surfaceInput = darkGray;
-  static const surfaceHigh = darkGray;
-  static const surfaceHighest = Color(0xFF35495B);
+  static const background = Color(0xFF040F13);
+  static const surfaceLow = Color(0xFF071820);
+  static const surface = Color(0xFF0B1E26);
+  static const surfaceInput = Color(0xFF13242C);
+  static const surfaceHigh = Color(0xFF152832);
+  static const surfaceHighest = Color(0xFF1B303A);
 
-  static const outline = darkGray;
-  static const outlineSoft = Color(0xFF3A4C5D);
+  static const outline = Color(0xFF253944);
+  static const outlineSoft = Color(0xFF2D434E);
   static const outlineLight = gray300;
-  static const divider = Color(0xFF314252);
+  static const divider = Color(0xFF20343E);
   static const focus = info;
 
   static const textPrimary = white;
-  static const textSecondary = gray300;
-  static const textMuted = gray500;
-  static const textFaint = gray700;
+  static const textSecondary = Color(0xFFD9E0E4);
+  static const textMuted = Color(0xFF9CAAB3);
+  static const textFaint = Color(0xFF687782);
 }
 
 /// Approved spacing scale: 4 / 8 / 12 / 16 / 20 / 24 / 32 / 40 / 48.
