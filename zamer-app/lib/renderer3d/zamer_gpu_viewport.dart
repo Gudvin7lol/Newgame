@@ -14,6 +14,7 @@ import '../widgets/floor_3d_painter.dart';
 import 'camera_clip_policy.dart';
 import 'floor_grout_geometry.dart';
 import 'cutaway_geometry.dart';
+import 'host_wall_visibility.dart';
 import 'model_asset_catalog.dart';
 import 'model_lod_policy.dart';
 import 'photo_render_quality_policy.dart';
@@ -146,6 +147,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
   Scene? _scene;
   final Map<String, Node> _modelTemplates = <String, Node>{};
   final List<_WallVisual> _wallVisuals = <_WallVisual>[];
+  final List<_HostedWallVisual> _hostedWallVisuals = <_HostedWallVisual>[];
   final List<Node> _ceilingNodes = <Node>[];
   final Map<String, Texture2D> _finishTextures = <String, Texture2D>{};
   Texture2D? _concreteTexture;
@@ -465,6 +467,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     final geometry = ZamerSceneGeometry.fromFloor(widget.floor);
     final nextNodes = <Node>[];
     final nextWallVisuals = <_WallVisual>[];
+    final nextHostedWallVisuals = <_HostedWallVisual>[];
     final nextCeilingNodes = <Node>[];
     final floorMaterialCache = <String, PhysicallyBasedMaterial>{};
     final activeModelPaths = <String>{};
@@ -494,6 +497,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       nextWallVisuals.add(
         _WallVisual(
           node: node,
+          wallId: wall.wallId,
           startX: centerX - segmentDx,
           startZ: centerZ - segmentDz,
           endX: centerX + segmentDx,
@@ -504,10 +508,28 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     }
 
     for (final opening in geometry.openings) {
-      nextNodes.add(_buildOpeningNode(opening, geometry.bounds));
+      final node = _buildOpeningNode(opening, geometry.bounds);
+      nextNodes.add(node);
+      nextHostedWallVisuals.add(
+        _HostedWallVisual(
+          node: node,
+          wallId: opening.wallId,
+          x: _mx(opening.xMm, geometry.bounds),
+          z: _mz(opening.yMm, geometry.bounds),
+        ),
+      );
     }
     for (final point in geometry.electrical) {
-      nextNodes.add(_buildElectricalNode(point, geometry.bounds));
+      final node = _buildElectricalNode(point, geometry.bounds);
+      nextNodes.add(node);
+      nextHostedWallVisuals.add(
+        _HostedWallVisual(
+          node: node,
+          wallId: point.wallId,
+          x: _mx(point.xMm, geometry.bounds),
+          z: _mz(point.yMm, geometry.bounds),
+        ),
+      );
     }
 
     for (final object in geometry.objects) {
@@ -536,6 +558,9 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     _wallVisuals
       ..clear()
       ..addAll(nextWallVisuals);
+    _hostedWallVisuals
+      ..clear()
+      ..addAll(nextHostedWallVisuals);
     _ceilingNodes
       ..clear()
       ..addAll(nextCeilingNodes);
@@ -1573,6 +1598,9 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       for (final wall in _wallVisuals) {
         wall.node.visible = true;
       }
+      for (final hosted in _hostedWallVisuals) {
+        hosted.node.visible = true;
+      }
       return;
     }
 
@@ -1615,6 +1643,27 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
         wallHalfThickness: wall.halfThickness,
       );
       wall.node.visible = !occludesTarget;
+    }
+
+    final hostSegments = _wallVisuals
+        .map(
+          (wall) => ZamerHostWallSegment(
+            wallId: wall.wallId,
+            startX: wall.startX,
+            startZ: wall.startZ,
+            endX: wall.endX,
+            endZ: wall.endZ,
+            visible: wall.node.visible,
+          ),
+        )
+        .toList(growable: false);
+    for (final hosted in _hostedWallVisuals) {
+      hosted.node.visible = zamerHostedWallVisualVisible(
+        wallId: hosted.wallId,
+        x: hosted.x,
+        z: hosted.z,
+        segments: hostSegments,
+      );
     }
   }
 
@@ -1779,6 +1828,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     _scene?.removeAll();
     _modelTemplates.clear();
     _wallVisuals.clear();
+    _hostedWallVisuals.clear();
     _ceilingNodes.clear();
     _finishTextures.clear();
     super.dispose();
@@ -1823,6 +1873,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
 class _WallVisual {
   const _WallVisual({
     required this.node,
+    required this.wallId,
     required this.startX,
     required this.startZ,
     required this.endX,
@@ -1831,11 +1882,26 @@ class _WallVisual {
   });
 
   final Node node;
+  final String wallId;
   final double startX;
   final double startZ;
   final double endX;
   final double endZ;
   final double halfThickness;
+}
+
+class _HostedWallVisual {
+  const _HostedWallVisual({
+    required this.node,
+    required this.wallId,
+    required this.x,
+    required this.z,
+  });
+
+  final Node node;
+  final String? wallId;
+  final double x;
+  final double z;
 }
 
 /// Ear-clipping triangulation for simple room polygons, including concave ones.

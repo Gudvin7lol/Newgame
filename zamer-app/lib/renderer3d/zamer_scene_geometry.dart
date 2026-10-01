@@ -312,6 +312,7 @@ class ZamerSceneGeometry {
           }
           return ZamerElectricalPlacement(
             id: point.id,
+            wallId: point.wallId,
             type: point.type,
             xMm: point.xMm,
             yMm: point.yMm,
@@ -594,6 +595,7 @@ class ZamerOpeningPlacement {
 class ZamerElectricalPlacement {
   const ZamerElectricalPlacement({
     required this.id,
+    required this.wallId,
     required this.type,
     required this.xMm,
     required this.yMm,
@@ -606,6 +608,7 @@ class ZamerElectricalPlacement {
   });
 
   final String id;
+  final String? wallId;
   final ElectricalPointType type;
   final double xMm, yMm, heightMm, rotationRad, wallThicknessMm;
   final int wallSide;

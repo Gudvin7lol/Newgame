@@ -72,6 +72,7 @@ void main() {
 
     final scene = ZamerSceneGeometry.fromFloor(floor);
     final point = scene.electrical.single;
+    expect(point.wallId, 'w');
     expect(point.heightMm, 300);
     expect(point.wallThicknessMm, 120);
     expect(point.rotationRad, closeTo(0, 0.0001));
