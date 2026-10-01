@@ -23,11 +23,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Sparse checkout
+      - name: Sparse checkout current branch
         uses: actions/checkout@v4
         with:
           ref: codex/zamer-1.5.6-3d-stability
-          fetch-depth: 1
+          fetch-depth: 2
           sparse-checkout-cone-mode: false
           sparse-checkout: |
             zamer-app/lib/renderer3d/zamer_gpu_viewport.dart
@@ -36,7 +36,7 @@ jobs:
             zamer-app/tool/migrations/fix_walk_camera_near_clip.py
 
       - name: Apply camera clip fix
-        run: python zamer-app/tool/migrations/fix_walk_camera_near_clip.py
+        run: python3 zamer-app/tool/migrations/fix_walk_camera_near_clip.py
 
       - name: Setup Dart
         uses: dart-lang/setup-dart@v1
@@ -70,4 +70,5 @@ jobs:
             exit 0
           fi
           git commit -m 'fix(zamer): reduce Walk Mode near clipping'
+          git pull --rebase origin codex/zamer-1.5.6-3d-stability
           git push origin HEAD:codex/zamer-1.5.6-3d-stability
