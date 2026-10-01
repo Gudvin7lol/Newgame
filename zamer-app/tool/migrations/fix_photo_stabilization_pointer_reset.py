@@ -30,6 +30,10 @@ def main() -> None:
         text = text.replace(old, new, 1)
     elif new not in text:
         raise RuntimeError('gesture pointer transition anchor not found')
+
+    if text.count('_stabilizedLookDelta = Offset.zero;') < 2:
+        raise RuntimeError('stabilization reset is incomplete')
+
     PHOTO.write_text(text, encoding='utf-8')
     print('Photo stabilization now resets when pointer count changes')
 
