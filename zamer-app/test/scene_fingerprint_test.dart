@@ -4,7 +4,25 @@ import 'package:zamer_app/renderer3d/scene_fingerprint.dart';
 import 'package:zamer_app/services/demo_project_factory.dart';
 
 void main() {
-  FloorPlan freshFloor() => DemoProjectFactory.create().floors.single;
+  FloorPlan freshFloor() {
+    final floor = DemoProjectFactory.create().floors.single;
+    // The demo layout is allowed to evolve independently of this unit test.
+    // Keep one explicit wall device here so fingerprint coverage never depends
+    // on whether a future demo project happens to contain electrical points.
+    floor.electricalPoints.add(
+      ElectricalPoint(
+        id: 'fingerprint-socket',
+        type: ElectricalPointType.frame,
+        xMm: 1200,
+        yMm: 80,
+        heightMm: 300,
+        wallId: floor.walls.first.id,
+        wallOffsetMm: 1200,
+        modules: <ElectricalModuleType>[ElectricalModuleType.socket220],
+      ),
+    );
+    return floor;
+  }
 
   void expectMutationChanges(void Function(FloorPlan floor) mutate) {
     final floor = freshFloor();
