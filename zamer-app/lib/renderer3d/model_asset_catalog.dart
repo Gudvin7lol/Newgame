@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import '../models/production_asset_catalog.dart';
 import '../services/object_catalog.dart';
 
 enum ZamerModelLod { lod0, lod1, lod2 }
@@ -104,14 +105,24 @@ class ZamerModelAssetCatalog {
     final matches = ObjectCatalog.items.where((e) => e.id == id);
     if (matches.isEmpty) return null;
     final item = matches.first;
-    final basePath = 'assets/models/zamer_catalog/$id';
+
+    // +82: the approved 2D catalog id is now the canonical key. When a
+    // production entry is linked to it, the live 3D renderer consumes that
+    // exact GLB. Items not migrated yet keep the safe legacy path.
+    final production = ZamerProductionCatalog.byPlanCatalogId(id);
+    final legacyBasePath = 'assets/models/zamer_catalog/$id';
+    final assetPath = production?.model3d ?? '$legacyBasePath.glb';
+    final assetStem = assetPath.endsWith('.glb')
+        ? assetPath.substring(0, assetPath.length - 4)
+        : legacyBasePath;
+
     final hasProductionLods = productionLodIds.contains(id);
     final native = _productionNativeDimensionsMm[id];
     final asset = ZamerModelAsset(
       catalogId: id,
-      assetPath: '$basePath.glb',
-      lod1AssetPath: hasProductionLods ? '${basePath}_lod1.glb' : null,
-      lod2AssetPath: hasProductionLods ? '${basePath}_lod2.glb' : null,
+      assetPath: assetPath,
+      lod1AssetPath: hasProductionLods ? '${assetStem}_lod1.glb' : null,
+      lod2AssetPath: hasProductionLods ? '${assetStem}_lod2.glb' : null,
       nativeWidthMm: native?.$1 ?? item.widthMm,
       nativeDepthMm: native?.$2 ?? item.depthMm,
       nativeHeightMm: native?.$3 ?? item.heightMm,
