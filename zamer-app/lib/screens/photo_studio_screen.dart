@@ -42,6 +42,7 @@ class _PhotoStudioScreenState extends State<PhotoStudioScreen> {
   Offset _gesturePan = Offset.zero;
   Offset _gestureFocal = Offset.zero;
   int _gesturePointers = 0;
+  Offset _stabilizedLookDelta = Offset.zero;
 
   String _mode = 'Фото';
   String _quality = 'Высокий';
@@ -331,6 +332,7 @@ class _PhotoStudioScreenState extends State<PhotoStudioScreen> {
     _gesturePan = _pan;
     _gestureFocal = d.focalPoint;
     _gesturePointers = d.pointerCount;
+    _stabilizedLookDelta = Offset.zero;
   }
 
   void _onScaleUpdate(ScaleUpdateDetails d) {
@@ -346,11 +348,17 @@ class _PhotoStudioScreenState extends State<PhotoStudioScreen> {
         _zoom = (_gestureZoom * d.scale).clamp(.25, 5).toDouble();
         _pan = _gesturePan + (d.focalPoint - _gestureFocal);
       } else {
-        final angle = _rotation + d.focalPointDelta.dx * .008;
+        final rawLook = d.focalPointDelta;
+        final lookDelta = _stabilization
+            ? (_stabilizedLookDelta = Offset(
+                _stabilizedLookDelta.dx * .68 + rawLook.dx * .32,
+                _stabilizedLookDelta.dy * .68 + rawLook.dy * .32,
+              ))
+            : rawLook;
+        if (!_stabilization) _stabilizedLookDelta = rawLook;
+        final angle = _rotation + lookDelta.dx * .008;
         _rotation = math.atan2(math.sin(angle), math.cos(angle));
-        _tilt = (_tilt - d.focalPointDelta.dy * .005)
-            .clamp(.15, 1.48)
-            .toDouble();
+        _tilt = (_tilt - lookDelta.dy * .005).clamp(.15, 1.48).toDouble();
       }
     });
   }
@@ -631,7 +639,7 @@ class _PhotoStudioScreenState extends State<PhotoStudioScreen> {
                   },
                 ),
                 ZLayerToggle(
-                  label: 'Стабилизация',
+                  label: 'Стабилизация движения',
                   icon: Icons.motion_photos_auto_outlined,
                   value: _stabilization,
                   onChanged: (v) {
