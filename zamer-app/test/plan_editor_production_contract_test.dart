@@ -24,8 +24,8 @@ void main() {
 
     expect(editor.contains('WallOpening('), isTrue);
     expect(editor.contains('DimensionRecord('), isTrue);
-    expect(editor.contains('ProjectLayer.demolition'), isTrue);
-    expect(editor.contains('ProjectLayer.proposed'), isTrue);
+    expect(editor.contains('ProjectLayer.values'), isTrue);
+    expect(editor.contains('_visibleLayers'), isTrue);
     expect(editor.contains('source: DimensionSource.calculated'), isTrue);
     expect(editor.contains('_WallInspector('), isTrue);
     expect(editor.contains('_MaterialPanel('), isTrue);
