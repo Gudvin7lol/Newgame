@@ -4,8 +4,8 @@ import '../models/models.dart';
 import '../services/geometry_service.dart';
 import '../services/material_service.dart';
 import '../services/material_catalog.dart';
+import '../widgets/material_finish_swatch.dart';
 import 'estimate_screen.dart';
-
 
 Future<int?> _pickFinishColor(
   BuildContext context, {
@@ -88,31 +88,37 @@ Future<int?> _pickFinishColor(
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
-                  children: palette.map((color) => InkWell(
-                    onTap: () => setDialog(() {
-                      selected = color;
-                      controller.text = color
-                          .toARGB32()
-                          .toRadixString(16)
-                          .substring(2)
-                          .toUpperCase();
-                    }),
-                    borderRadius: BorderRadius.circular(18),
-                    child: Container(
-                      width: 34,
-                      height: 34,
-                      decoration: BoxDecoration(
-                        color: color,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: color.toARGB32() == selected.toARGB32()
-                              ? Theme.of(context).colorScheme.primary
-                              : const Color(0x33000000),
-                          width: color.toARGB32() == selected.toARGB32() ? 3 : 1,
+                  children: palette
+                      .map(
+                        (color) => InkWell(
+                          onTap: () => setDialog(() {
+                            selected = color;
+                            controller.text = color
+                                .toARGB32()
+                                .toRadixString(16)
+                                .substring(2)
+                                .toUpperCase();
+                          }),
+                          borderRadius: BorderRadius.circular(18),
+                          child: Container(
+                            width: 34,
+                            height: 34,
+                            decoration: BoxDecoration(
+                              color: color,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: color.toARGB32() == selected.toARGB32()
+                                    ? Theme.of(context).colorScheme.primary
+                                    : const Color(0x33000000),
+                                width: color.toARGB32() == selected.toARGB32()
+                                    ? 3
+                                    : 1,
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-                  )).toList(),
+                      )
+                      .toList(),
                 ),
                 const SizedBox(height: 10),
                 TextField(
@@ -158,7 +164,8 @@ Future<int?> _pickFinishColor(
               child: const Text('Отмена'),
             ),
             FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, selected.toARGB32()),
+              onPressed: () =>
+                  Navigator.pop(dialogContext, selected.toARGB32()),
               child: const Text('Применить'),
             ),
           ],
@@ -253,9 +260,8 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
                     const SizedBox(height: 12),
                     Text(
                       'Пол',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
+                      style: Theme.of(context).textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w700),
                     ),
                     const SizedBox(height: 6),
                     DropdownButtonFormField<String>(
@@ -274,16 +280,10 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
                               value: m.id,
                               child: Row(
                                 children: [
-                                  Container(
-                                    width: 20,
-                                    height: 20,
-                                    decoration: BoxDecoration(
-                                      color: m.color,
-                                      borderRadius: BorderRadius.circular(5),
-                                      border: Border.all(
-                                        color: const Color(0x33000000),
-                                      ),
-                                    ),
+                                  MaterialFinishSwatch(
+                                    material: m,
+                                    size: 20,
+                                    borderRadius: 5,
                                   ),
                                   const SizedBox(width: 8),
                                   Flexible(child: Text(m.name)),
@@ -354,9 +354,8 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
                     const Divider(),
                     Text(
                       'Стены',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
+                      style: Theme.of(context).textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w700),
                     ),
                     const SizedBox(height: 6),
                     DropdownButtonFormField<String>(
@@ -375,16 +374,10 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
                               value: m.id,
                               child: Row(
                                 children: [
-                                  Container(
-                                    width: 20,
-                                    height: 20,
-                                    decoration: BoxDecoration(
-                                      color: m.color,
-                                      borderRadius: BorderRadius.circular(5),
-                                      border: Border.all(
-                                        color: const Color(0x33000000),
-                                      ),
-                                    ),
+                                  MaterialFinishSwatch(
+                                    material: m,
+                                    size: 20,
+                                    borderRadius: 5,
                                   ),
                                   const SizedBox(width: 8),
                                   Flexible(child: Text(m.name)),
@@ -410,9 +403,12 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
                           width: 34,
                           height: 34,
                           decoration: BoxDecoration(
-                            color: Color(s.wallPaintColorArgb == 0
-                                ? MaterialCatalog.byId(s.wallMaterialId).color.toARGB32()
-                                : s.wallPaintColorArgb),
+                            color: Color(
+                              s.wallPaintColorArgb == 0
+                                  ? MaterialCatalog.byId(s.wallMaterialId).color
+                                        .toARGB32()
+                                  : s.wallPaintColorArgb,
+                            ),
                             borderRadius: BorderRadius.circular(9),
                             border: Border.all(color: const Color(0x33000000)),
                           ),
@@ -426,7 +422,8 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
                           final color = await _pickFinishColor(
                             context,
                             initialArgb: s.wallPaintColorArgb == 0
-                                ? MaterialCatalog.byId(s.wallMaterialId).color.toARGB32()
+                                ? MaterialCatalog.byId(s.wallMaterialId).color
+                                      .toARGB32()
                                 : s.wallPaintColorArgb,
                             title: 'Цвет краски',
                           );
@@ -549,8 +546,10 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
                           itemCount: MaterialCatalog.tileFinishes.length,
                           separatorBuilder: (_, __) => const SizedBox(width: 8),
                           itemBuilder: (context, index) {
-                            final material = MaterialCatalog.tileFinishes[index];
-                            final selected = material.id == s.wallTileMaterialId;
+                            final material =
+                                MaterialCatalog.tileFinishes[index];
+                            final selected =
+                                material.id == s.wallTileMaterialId;
                             return InkWell(
                               onTap: () async {
                                 s.wallTileMaterialId = material.id;
@@ -564,8 +563,12 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
                                 padding: const EdgeInsets.all(5),
                                 decoration: BoxDecoration(
                                   color: selected
-                                      ? Theme.of(context).colorScheme.primaryContainer
-                                      : Theme.of(context).colorScheme.surfaceContainerHighest,
+                                      ? Theme.of(context)
+                                            .colorScheme
+                                            .primaryContainer
+                                      : Theme.of(context)
+                                            .colorScheme
+                                            .surfaceContainerHighest,
                                   borderRadius: BorderRadius.circular(12),
                                   border: Border.all(
                                     color: selected
@@ -575,7 +578,8 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
                                   ),
                                 ),
                                 child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
                                   children: [
                                     Expanded(
                                       child: ClipRRect(
@@ -590,7 +594,10 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
                                     ),
                                     const SizedBox(height: 3),
                                     Text(
-                                      material.name.replaceFirst('Керамогранит ', ''),
+                                      material.name.replaceFirst(
+                                        'Керамогранит ',
+                                        '',
+                                      ),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: const TextStyle(fontSize: 11),
@@ -613,7 +620,9 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
                           ),
                         ),
                         title: const Text('Оттенок плитки'),
-                        subtitle: const Text('Белый = исходный рисунок коллекции'),
+                        subtitle: const Text(
+                          'Белый = исходный рисунок коллекции',
+                        ),
                         trailing: const Icon(Icons.color_lens_outlined),
                         onTap: () async {
                           final color = await _pickFinishColor(
@@ -681,9 +690,8 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
             Expanded(
               child: Text(
                 'Отделочные материалы',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                style: Theme.of(context).textTheme.titleLarge
+                    ?.copyWith(fontWeight: FontWeight.w800),
               ),
             ),
             IconButton(
@@ -740,9 +748,8 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
         const SizedBox(height: 12),
         Text(
           'Перегородки ГКЛ',
-          style: Theme.of(
-            context,
-          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+          style: Theme.of(context).textTheme.titleLarge
+              ?.copyWith(fontWeight: FontWeight.w800),
         ),
         const SizedBox(height: 6),
         Card(
@@ -775,9 +782,8 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
         const SizedBox(height: 12),
         Text(
           'Объём стен по материалам',
-          style: Theme.of(
-            context,
-          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+          style: Theme.of(context).textTheme.titleLarge
+              ?.copyWith(fontWeight: FontWeight.w800),
         ),
         const SizedBox(height: 6),
         Card(
