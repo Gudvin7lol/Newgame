@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'zamer_press_effect.dart';
 import 'zamer_tokens.dart';
 
-enum ZMeasureViewMode { twoD, threeD, photo }
+enum ZMeasureViewMode { twoD, threeD, ar, photo }
 
 enum ZMeasureTool {
   walls,
@@ -34,6 +34,8 @@ extension ZMeasureToolMeta on ZMeasureTool {
       };
 }
 
+/// UI KIT 02 view selector. The four equal segments are intentional: the
+/// approved CAD concept always exposes 2D / 3D / AR / Photo in one row.
 class ZMeasureViewTabs extends StatelessWidget {
   const ZMeasureViewTabs({
     super.key,
@@ -47,59 +49,47 @@ class ZMeasureViewTabs extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 40,
-      padding: const EdgeInsets.all(3),
+      height: 44,
+      padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: ZamerColors.surface,
-        borderRadius: BorderRadius.circular(ZamerRadius.sm),
+        color: ZamerColors.surfaceLow,
+        borderRadius: BorderRadius.circular(ZamerRadius.md),
         border: Border.all(color: ZamerColors.outlineSoft),
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
         children: [
-          _tab('2D', Icons.architecture_outlined, ZMeasureViewMode.twoD),
-          _tab('3D', Icons.view_in_ar_outlined, ZMeasureViewMode.threeD),
-          _tab('Фото', Icons.camera_alt_outlined, ZMeasureViewMode.photo),
+          Expanded(child: _tab('2D', ZMeasureViewMode.twoD)),
+          const SizedBox(width: 4),
+          Expanded(child: _tab('3D', ZMeasureViewMode.threeD)),
+          const SizedBox(width: 4),
+          Expanded(child: _tab('AR', ZMeasureViewMode.ar)),
+          const SizedBox(width: 4),
+          Expanded(child: _tab('Фото', ZMeasureViewMode.photo)),
         ],
       ),
     );
   }
 
-  Widget _tab(String label, IconData icon, ZMeasureViewMode mode) {
+  Widget _tab(String label, ZMeasureViewMode mode) {
     final selected = mode == value;
     return ZPressEffect(
-      scale: .96,
+      scale: .97,
       child: Material(
         color: selected ? ZamerColors.accent : Colors.transparent,
-        borderRadius: BorderRadius.circular(ZamerRadius.xs),
+        borderRadius: BorderRadius.circular(ZamerRadius.sm),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: () => onChanged(mode),
-          child: Container(
-            constraints: const BoxConstraints(minWidth: 52, minHeight: 34),
-            alignment: Alignment.center,
-            padding: const EdgeInsets.symmetric(horizontal: 7),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  icon,
-                  size: 14,
-                  color: selected
-                      ? ZamerColors.accentInk
-                      : ZamerColors.textSecondary,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  label,
-                  style: ZamerTypography.caption.copyWith(
-                    color: selected
-                        ? ZamerColors.accentInk
-                        : ZamerColors.textSecondary,
-                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                  ),
-                ),
-              ],
+          child: Center(
+            child: Text(
+              label,
+              style: ZamerTypography.button.copyWith(
+                fontSize: 13,
+                color: selected
+                    ? ZamerColors.accentInk
+                    : ZamerColors.textPrimary,
+                fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
+              ),
             ),
           ),
         ),
@@ -151,9 +141,8 @@ class ZMeasureToolRail extends StatelessWidget {
 
   Widget _item(ZMeasureTool tool) {
     final selected = tool == value;
-    final foreground = selected
-        ? ZamerColors.accentInk
-        : ZamerColors.textSecondary;
+    final foreground =
+        selected ? ZamerColors.accentInk : ZamerColors.textSecondary;
 
     return Tooltip(
       message: tool.label,
@@ -211,9 +200,8 @@ class ZMeasureCanvasAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final foreground = active
-        ? ZamerColors.accentInk
-        : ZamerColors.textSecondary;
+    final foreground =
+        active ? ZamerColors.accentInk : ZamerColors.textSecondary;
     return Tooltip(
       message: tooltip,
       child: ZPressEffect(
