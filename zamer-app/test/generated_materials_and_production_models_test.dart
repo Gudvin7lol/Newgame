@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zamer_app/models/production_asset_catalog.dart';
 import 'package:zamer_app/renderer3d/model_asset_catalog.dart';
 import 'package:zamer_app/services/generated_material_ids.dart';
 import 'package:zamer_app/services/material_catalog.dart';
@@ -58,6 +59,40 @@ void main() {
       expect(File(asset.assetPath).existsSync(), isTrue);
       expect(File(asset.lod1AssetPath!).existsSync(), isTrue);
       expect(File(asset.lod2AssetPath!).existsSync(), isTrue);
+    }
+  });
+
+  test('+82 links approved 2D objects to the exact production GLB', () {
+    final linked = ZamerProductionCatalog.linked2d3d.toList(growable: false);
+    expect(linked, hasLength(11));
+
+    for (final production in linked) {
+      final planId = production.planCatalogId!;
+      final planItem = ObjectCatalog.items.singleWhere(
+        (item) => item.id == planId,
+        orElse: () => throw StateError('Missing 2D catalog item $planId'),
+      );
+      final model = ZamerModelAssetCatalog.byId(planId);
+
+      expect(model, isNotNull, reason: 'No 3D resolver entry for $planId');
+      expect(
+        model!.assetPath,
+        production.model3d,
+        reason: '$planId does not resolve through production catalog',
+      );
+      expect(
+        File(production.model3d!).existsSync(),
+        isTrue,
+        reason: 'Missing production GLB for ${production.id}',
+      );
+      expect(production.sizeMm.width, planItem.widthMm);
+      expect(production.sizeMm.depth, planItem.depthMm);
+      expect(production.sizeMm.height, planItem.heightMm);
+      expect(ZamerProductionCatalog.byId(production.id), same(production));
+      expect(
+        ZamerProductionCatalog.byPlanCatalogId(planId),
+        same(production),
+      );
     }
   });
 
