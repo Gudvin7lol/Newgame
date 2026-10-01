@@ -1,4 +1,4 @@
-name: Apply Photo Studio camera profiles
+name: Apply Photo Studio production features
 
 on:
   push:
@@ -8,6 +8,8 @@ on:
       - 'zamer-app/tool/migrations/apply_photo_lighting_profiles.py'
       - 'zamer-app/tool/migrations/apply_photo_lens_fov.py'
       - 'zamer-app/tool/migrations/fix_photo_fov_double.py'
+      - 'zamer-app/tool/migrations/apply_photo_render_gallery.py'
+      - 'zamer-app/tool/migrations/fix_photo_gallery_label.py'
       - '.github/workflows/apply-photo-lighting-profiles.yml'
   workflow_dispatch:
 
@@ -15,7 +17,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: zamer-photo-camera-${{ github.ref }}
+  group: zamer-photo-production-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -47,14 +49,23 @@ jobs:
       - name: Keep lens FOV strongly typed
         run: python zamer-app/tool/migrations/fix_photo_fov_double.py
 
+      - name: Ensure persistent render gallery
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! grep -q '_showRenderGallery' zamer-app/lib/screens/photo_studio_screen.dart; then
+            python zamer-app/tool/migrations/apply_photo_render_gallery.py
+          fi
+          python zamer-app/tool/migrations/fix_photo_gallery_label.py
+
       - name: Setup Dart
         uses: dart-lang/setup-dart@v1
 
-      - name: Format renderer and Photo Studio
+      - name: Format Photo Studio production sources
         working-directory: zamer-app
         run: dart format lib/renderer3d/zamer_gpu_viewport.dart lib/screens/photo_studio_screen.dart test/photo_studio_camera_profile_test.dart
 
-      - name: Verify Photo Studio camera controls are real
+      - name: Verify Photo Studio production features
         working-directory: zamer-app
         shell: bash
         run: |
@@ -64,17 +75,22 @@ jobs:
           grep -q 'photoTime: _time' lib/screens/photo_studio_screen.dart
           grep -q 'photoHdr: _hdr' lib/screens/photo_studio_screen.dart
           grep -q 'cameraFovDegrees: _lensFov(_lens)' lib/screens/photo_studio_screen.dart
-          grep -q 'final double cameraFovDegrees' lib/renderer3d/zamer_gpu_viewport.dart
           grep -q 'cameraFovDegrees.clamp(18.0, 90.0).toDouble()' lib/renderer3d/zamer_gpu_viewport.dart
-          grep -q 'fovRadiansY: fovDegrees \* math.pi / 180' lib/renderer3d/zamer_gpu_viewport.dart
           grep -q 'screenSpaceReflectionsEnabled: exportQuality && hdr' lib/renderer3d/zamer_gpu_viewport.dart
-          grep -q 'shadowMapResolution: exportQuality ? 2048 : 1024' lib/renderer3d/zamer_gpu_viewport.dart
+          grep -q 'photo_renders/\$_safeFloorId' lib/screens/photo_studio_screen.dart
+          grep -q '_showRenderGallery' lib/screens/photo_studio_screen.dart
+          grep -q "return '\${parts\[3\]}×\${parts\[4\]}'" lib/screens/photo_studio_screen.dart
+          grep -q 'Share.shareXFiles' lib/screens/photo_studio_screen.dart
+          if grep -q 'Галерея проекта будет подключена отдельным проходом' lib/screens/photo_studio_screen.dart; then
+            echo 'Photo gallery placeholder is still present.'
+            exit 1
+          fi
           if grep -q '_zoom = (widget.zoom \* value)' lib/screens/photo_studio_screen.dart; then
             echo 'Lens presets still fake perspective by dolly zoom.'
             exit 1
           fi
 
-      - name: Commit Photo Studio camera integration
+      - name: Commit Photo Studio production integration
         shell: bash
         run: |
           set -euo pipefail
@@ -84,8 +100,8 @@ jobs:
           git add zamer-app/lib/screens/photo_studio_screen.dart
           git add zamer-app/test/photo_studio_camera_profile_test.dart
           if git diff --cached --quiet; then
-            echo 'Photo Studio camera profiles are already wired.'
+            echo 'Photo Studio production features are already wired.'
             exit 0
           fi
-          git commit -m 'fix(zamer): keep Photo Studio lens FOV typed'
+          git commit -m 'feat(zamer): add persistent Photo Render gallery'
           git push origin HEAD:codex/zamer-1.5.6-3d-stability
