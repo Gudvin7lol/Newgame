@@ -32,7 +32,6 @@ jobs:
               raise SystemExit('window glass material anchor not found')
           path.write_text(text.replace(old, new, 1))
           PY
-          dart format zamer-app/lib/renderer3d/zamer_gpu_viewport.dart
           grep -F '..alphaMode = AlphaMode.blend' zamer-app/lib/renderer3d/zamer_gpu_viewport.dart
       - name: Commit runtime fix
         run: |
