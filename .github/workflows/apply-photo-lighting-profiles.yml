@@ -10,6 +10,7 @@ on:
       - 'zamer-app/tool/migrations/fix_photo_fov_double.py'
       - 'zamer-app/tool/migrations/apply_photo_render_gallery.py'
       - 'zamer-app/tool/migrations/fix_photo_gallery_label.py'
+      - 'zamer-app/tool/migrations/apply_photo_camera_stabilization.py'
       - '.github/workflows/apply-photo-lighting-profiles.yml'
   workflow_dispatch:
 
@@ -58,12 +59,20 @@ jobs:
           fi
           python zamer-app/tool/migrations/fix_photo_gallery_label.py
 
+      - name: Ensure real camera stabilization
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! grep -q '_stabilizedLookDelta' zamer-app/lib/screens/photo_studio_screen.dart; then
+            python zamer-app/tool/migrations/apply_photo_camera_stabilization.py
+          fi
+
       - name: Setup Dart
         uses: dart-lang/setup-dart@v1
 
       - name: Format Photo Studio production sources
         working-directory: zamer-app
-        run: dart format lib/renderer3d/zamer_gpu_viewport.dart lib/screens/photo_studio_screen.dart test/photo_studio_camera_profile_test.dart
+        run: dart format lib/renderer3d/zamer_gpu_viewport.dart lib/screens/photo_studio_screen.dart test/photo_studio_camera_profile_test.dart test/photo_render_gallery_test.dart
 
       - name: Verify Photo Studio production features
         working-directory: zamer-app
@@ -81,6 +90,8 @@ jobs:
           grep -q '_showRenderGallery' lib/screens/photo_studio_screen.dart
           grep -q "return '\${parts\[3\]}×\${parts\[4\]}'" lib/screens/photo_studio_screen.dart
           grep -q 'Share.shareXFiles' lib/screens/photo_studio_screen.dart
+          grep -q '_stabilizedLookDelta.dx \* .68 + rawLook.dx \* .32' lib/screens/photo_studio_screen.dart
+          grep -q "label: 'Стабилизация движения'" lib/screens/photo_studio_screen.dart
           if grep -q 'Галерея проекта будет подключена отдельным проходом' lib/screens/photo_studio_screen.dart; then
             echo 'Photo gallery placeholder is still present.'
             exit 1
@@ -99,9 +110,10 @@ jobs:
           git add zamer-app/lib/renderer3d/zamer_gpu_viewport.dart
           git add zamer-app/lib/screens/photo_studio_screen.dart
           git add zamer-app/test/photo_studio_camera_profile_test.dart
+          git add zamer-app/test/photo_render_gallery_test.dart
           if git diff --cached --quiet; then
             echo 'Photo Studio production features are already wired.'
             exit 0
           fi
-          git commit -m 'feat(zamer): add persistent Photo Render gallery'
+          git commit -m 'feat(zamer): make Photo Studio stabilization real'
           git push origin HEAD:codex/zamer-1.5.6-3d-stability
