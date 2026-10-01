@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('window glass uses the translucent GPU pass', () {
+  test('window glass uses the translucent GPU pass without opaque shadows', () {
     final viewport = File('lib/renderer3d/zamer_gpu_viewport.dart')
         .readAsStringSync();
 
@@ -23,6 +23,17 @@ void main() {
       viewport.contains('..doubleSided = true'),
       isTrue,
       reason: 'Window glass must stay visible from both room and exterior sides.',
+    );
+    expect(
+      viewport.contains('..castsShadows = castsShadows'),
+      isTrue,
+      reason: 'Opening bars need an explicit per-surface shadow policy.',
+    );
+    expect(
+      viewport.contains('material: glass,\n          castsShadows: false,'),
+      isTrue,
+      reason:
+          'Transparent window glass must not behave like an opaque static shadow caster.',
     );
   });
 }
