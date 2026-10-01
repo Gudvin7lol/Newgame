@@ -2,13 +2,16 @@ import 'model_asset_catalog.dart';
 
 /// Central policy for choosing model detail without scattering magic numbers
 /// through the viewport. LOD0 is always used for final photo renders. During
-/// interaction we trade distant/large-scene detail for stability and frame time.
+/// interaction we trade large-scene detail for stability and frame time.
+///
+/// [walkMode] is intentionally not part of the quality decision. The same
+/// project must keep the same realtime geometry when switching between orbit
+/// and Walk Mode, and after Photo Render restores the interactive scene.
 class ZamerModelLodPolicy {
   const ZamerModelLodPolicy._();
 
-  static const overviewLod1ObjectCount = 10;
-  static const overviewLod2ObjectCount = 28;
-  static const walkLod2ObjectCount = 18;
+  static const qualityLod1ObjectCount = 10;
+  static const qualityLod2ObjectCount = 28;
 
   static ZamerModelLod select({
     required ZamerModelAsset asset,
@@ -28,15 +31,11 @@ class ZamerModelLodPolicy {
 
     final count = visibleObjectCount < 0 ? 0 : visibleObjectCount;
 
-    // Walk mode benefits most from stable frame pacing because camera motion
-    // makes dropped frames much more noticeable than in the orbit overview.
-    if (walkMode) {
-      if (count >= walkLod2ObjectCount) return ZamerModelLod.lod2;
-      return ZamerModelLod.lod1;
-    }
-
-    if (count >= overviewLod2ObjectCount) return ZamerModelLod.lod2;
-    if (count >= overviewLod1ObjectCount) return ZamerModelLod.lod1;
+    // Do not make Walk Mode a hidden LOD switch. Apart from visible popping,
+    // Photo Render rebuild/restore could otherwise return the same project with
+    // different geometry merely because the user happened to be walking.
+    if (count >= qualityLod2ObjectCount) return ZamerModelLod.lod2;
+    if (count >= qualityLod1ObjectCount) return ZamerModelLod.lod1;
     return ZamerModelLod.lod0;
   }
 
