@@ -1114,6 +1114,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       required double height,
       double depth = 0,
       PhysicallyBasedMaterial? material,
+      bool castsShadows = true,
     }) {
       final node =
           Node(
@@ -1130,7 +1131,8 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
               ),
             )
             ..position = vm.Vector3(x, y, 0)
-            ..shadowStatic = true;
+            ..castsShadows = castsShadows
+            ..shadowStatic = castsShadows;
       return node;
     }
 
@@ -1197,6 +1199,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
           height: math.max(0.08, heightM - frameBarM * 2.2),
           depth: 0.008,
           material: glass,
+          castsShadows: false,
         ),
       );
     } else {
