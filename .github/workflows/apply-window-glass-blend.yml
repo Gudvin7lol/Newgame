@@ -26,38 +26,21 @@ jobs:
           from pathlib import Path
           path = Path('zamer-app/lib/renderer3d/zamer_gpu_viewport.dart')
           text = path.read_text()
-
-          old_sig = """      double depth = 0,
-      PhysicallyBasedMaterial? material,
-    }) {"""
-          new_sig = """      double depth = 0,
-      PhysicallyBasedMaterial? material,
-      bool castsShadows = true,
-    }) {"""
+          old_sig = "      double depth = 0,\n      PhysicallyBasedMaterial? material,\n    }) {"
+          new_sig = "      double depth = 0,\n      PhysicallyBasedMaterial? material,\n      bool castsShadows = true,\n    }) {"
           if old_sig not in text:
               raise SystemExit('opening bar signature anchor not found')
           text = text.replace(old_sig, new_sig, 1)
-
-          old_flags = """            ..position = vm.Vector3(x, y, 0)
-            ..shadowStatic = true;"""
-          new_flags = """            ..position = vm.Vector3(x, y, 0)
-            ..castsShadows = castsShadows
-            ..shadowStatic = castsShadows;"""
+          old_flags = "            ..position = vm.Vector3(x, y, 0)\n            ..shadowStatic = true;"
+          new_flags = "            ..position = vm.Vector3(x, y, 0)\n            ..castsShadows = castsShadows\n            ..shadowStatic = castsShadows;"
           if old_flags not in text:
               raise SystemExit('opening bar shadow anchor not found')
           text = text.replace(old_flags, new_flags, 1)
-
-          old_glass = """          depth: 0.008,
-          material: glass,
-        ),"""
-          new_glass = """          depth: 0.008,
-          material: glass,
-          castsShadows: false,
-        ),"""
+          old_glass = "          depth: 0.008,\n          material: glass,\n        ),"
+          new_glass = "          depth: 0.008,\n          material: glass,\n          castsShadows: false,\n        ),"
           if old_glass not in text:
               raise SystemExit('window glass call anchor not found')
           text = text.replace(old_glass, new_glass, 1)
-
           path.write_text(text)
           PY
           grep -F 'castsShadows: false' zamer-app/lib/renderer3d/zamer_gpu_viewport.dart
