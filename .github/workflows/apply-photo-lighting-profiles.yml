@@ -11,6 +11,7 @@ on:
       - 'zamer-app/tool/migrations/apply_photo_render_gallery.py'
       - 'zamer-app/tool/migrations/fix_photo_gallery_label.py'
       - 'zamer-app/tool/migrations/apply_photo_camera_stabilization.py'
+      - 'zamer-app/tool/migrations/fix_photo_stabilization_pointer_reset.py'
       - '.github/workflows/apply-photo-lighting-profiles.yml'
   workflow_dispatch:
 
@@ -66,6 +67,7 @@ jobs:
           if ! grep -q '_stabilizedLookDelta' zamer-app/lib/screens/photo_studio_screen.dart; then
             python zamer-app/tool/migrations/apply_photo_camera_stabilization.py
           fi
+          python zamer-app/tool/migrations/fix_photo_stabilization_pointer_reset.py
 
       - name: Setup Dart
         uses: dart-lang/setup-dart@v1
@@ -92,6 +94,10 @@ jobs:
           grep -q 'Share.shareXFiles' lib/screens/photo_studio_screen.dart
           grep -q '_stabilizedLookDelta.dx \* .68 + rawLook.dx \* .32' lib/screens/photo_studio_screen.dart
           grep -q "label: 'Стабилизация движения'" lib/screens/photo_studio_screen.dart
+          if [ "$(grep -c '_stabilizedLookDelta = Offset.zero;' lib/screens/photo_studio_screen.dart)" -lt 2 ]; then
+            echo 'Photo stabilization is not reset across gesture transitions.'
+            exit 1
+          fi
           if grep -q 'Галерея проекта будет подключена отдельным проходом' lib/screens/photo_studio_screen.dart; then
             echo 'Photo gallery placeholder is still present.'
             exit 1
@@ -115,5 +121,5 @@ jobs:
             echo 'Photo Studio production features are already wired.'
             exit 0
           fi
-          git commit -m 'feat(zamer): make Photo Studio stabilization real'
+          git commit -m 'fix(zamer): reset Photo stabilization across gesture modes'
           git push origin HEAD:codex/zamer-1.5.6-3d-stability
