@@ -45,7 +45,7 @@ class _PhotoStudioScreenState extends State<PhotoStudioScreen> {
 
   String _mode = 'Фото';
   String _quality = 'Высокий';
-  String _time = 'День';
+  ZamerPhotoTime _time = ZamerPhotoTime.day;
   double _lens = 1;
   bool _grid = true;
   bool _hdr = true;
@@ -232,10 +232,9 @@ class _PhotoStudioScreenState extends State<PhotoStudioScreen> {
                       Expanded(
                         flex: 2,
                         child: FilledButton.icon(
-                          onPressed: () => Share.shareXFiles(
-                            [XFile(file.path)],
-                            text: 'Фото из проекта «Замер»',
-                          ),
+                          onPressed: () => Share.shareXFiles([
+                            XFile(file.path),
+                          ], text: 'Фото из проекта «Замер»'),
                           icon: const Icon(Icons.ios_share_outlined),
                           label: const Text('Сохранить / поделиться'),
                         ),
@@ -259,25 +258,34 @@ class _PhotoStudioScreenState extends State<PhotoStudioScreen> {
     }
   }
 
+  String _timeLabel(ZamerPhotoTime value) => switch (value) {
+    ZamerPhotoTime.day => 'День',
+    ZamerPhotoTime.sunset => 'Закат',
+    ZamerPhotoTime.evening => 'Вечер',
+    ZamerPhotoTime.night => 'Ночь',
+  };
+
+  IconData _timeIcon(ZamerPhotoTime value) => switch (value) {
+    ZamerPhotoTime.day => Icons.wb_sunny_outlined,
+    ZamerPhotoTime.sunset => Icons.wb_twilight_outlined,
+    ZamerPhotoTime.evening => Icons.brightness_4_outlined,
+    ZamerPhotoTime.night => Icons.nightlight_outlined,
+  };
+
   Future<void> _showTimeSheet() async {
-    final value = await showModalBottomSheet<String>(
+    final value = await showModalBottomSheet<ZamerPhotoTime>(
       context: context,
       showDragHandle: true,
       builder: (sheetContext) => ZSheetFrame(
         title: 'Время суток',
-        description:
-            'Пока это пресет интерфейса. Управление освещением сцены подключается отдельным проходом рендера.',
+        description: 'Меняет окружение, направление и цвет основного света в превью и финальном рендере.',
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            for (final item in const ['День', 'Закат', 'Вечер', 'Ночь'])
+            for (final item in ZamerPhotoTime.values)
               _SelectionTile(
-                icon: item == 'День'
-                    ? Icons.wb_sunny_outlined
-                    : item == 'Ночь'
-                    ? Icons.nightlight_outlined
-                    : Icons.wb_twilight_outlined,
-                title: item,
+                icon: _timeIcon(item),
+                title: _timeLabel(item),
                 selected: item == _time,
                 onTap: () => Navigator.pop(sheetContext, item),
               ),
@@ -499,6 +507,9 @@ class _PhotoStudioScreenState extends State<PhotoStudioScreen> {
                           walkMode: false,
                           walkX: 0,
                           walkY: 0,
+                          photoPreview: true,
+                          photoTime: _time,
+                          photoHdr: _hdr,
                         ),
                       ),
                       if (_grid)
@@ -577,7 +588,9 @@ class _PhotoStudioScreenState extends State<PhotoStudioScreen> {
                             vertical: ZamerSpace.xs,
                           ),
                           decoration: BoxDecoration(
-                            color: ZamerColors.surfaceLow.withValues(alpha: .92),
+                            color: ZamerColors.surfaceLow.withValues(
+                              alpha: .92,
+                            ),
                             borderRadius: BorderRadius.circular(ZamerRadius.sm),
                             border: Border.all(color: ZamerColors.outlineSoft),
                           ),
@@ -591,7 +604,7 @@ class _PhotoStudioScreenState extends State<PhotoStudioScreen> {
                               ),
                               const SizedBox(width: 5),
                               Text(
-                                '$_time • ${_mode == '4K' ? '4K' : _quality}',
+                                '${_timeLabel(_time)} • ${_mode == '4K' ? '4K' : _quality}',
                                 style: const TextStyle(
                                   color: ZamerColors.textPrimary,
                                   fontSize: 10,
@@ -655,7 +668,7 @@ class _PhotoStudioScreenState extends State<PhotoStudioScreen> {
                     child: _BottomAction(
                       icon: Icons.wb_sunny_outlined,
                       label: 'Время',
-                      value: _time,
+                      value: _timeLabel(_time),
                       onTap: _showTimeSheet,
                     ),
                   ),

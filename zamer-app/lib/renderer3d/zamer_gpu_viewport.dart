@@ -17,6 +17,81 @@ import 'model_lod_policy.dart';
 import 'scene_mesh_winding.dart';
 import 'zamer_scene_geometry.dart';
 
+enum ZamerPhotoTime { day, sunset, evening, night }
+
+class ZamerPhotoLightingProfile {
+  const ZamerPhotoLightingProfile({
+    required this.environmentIntensity,
+    required this.exposure,
+    required this.temperature,
+    required this.saturation,
+    required this.lightDirection,
+    required this.lightColor,
+    required this.lightIntensity,
+    required this.backgroundTop,
+    required this.backgroundBottom,
+  });
+
+  final double environmentIntensity;
+  final double exposure;
+  final double temperature;
+  final double saturation;
+  final vm.Vector3 lightDirection;
+  final vm.Vector3 lightColor;
+  final double lightIntensity;
+  final Color backgroundTop;
+  final Color backgroundBottom;
+}
+
+ZamerPhotoLightingProfile zamerPhotoLightingProfile(ZamerPhotoTime time) {
+  return switch (time) {
+    ZamerPhotoTime.day => ZamerPhotoLightingProfile(
+      environmentIntensity: 0.92,
+      exposure: 0.94,
+      temperature: 0.025,
+      saturation: 1.025,
+      lightDirection: vm.Vector3(-0.38, -1.0, -0.28),
+      lightColor: vm.Vector3(1.0, 0.965, 0.90),
+      lightIntensity: 2.15,
+      backgroundTop: const Color(0xFFEAF1F5),
+      backgroundBottom: const Color(0xFFF7F4EE),
+    ),
+    ZamerPhotoTime.sunset => ZamerPhotoLightingProfile(
+      environmentIntensity: 0.66,
+      exposure: 0.90,
+      temperature: 0.18,
+      saturation: 1.08,
+      lightDirection: vm.Vector3(-0.82, -0.46, -0.18),
+      lightColor: vm.Vector3(1.0, 0.66, 0.40),
+      lightIntensity: 1.72,
+      backgroundTop: const Color(0xFF8FA6C3),
+      backgroundBottom: const Color(0xFFF1B27E),
+    ),
+    ZamerPhotoTime.evening => ZamerPhotoLightingProfile(
+      environmentIntensity: 0.38,
+      exposure: 0.84,
+      temperature: -0.07,
+      saturation: 1.04,
+      lightDirection: vm.Vector3(-0.34, -0.82, -0.46),
+      lightColor: vm.Vector3(0.72, 0.82, 1.0),
+      lightIntensity: 0.82,
+      backgroundTop: const Color(0xFF52627A),
+      backgroundBottom: const Color(0xFF9A887D),
+    ),
+    ZamerPhotoTime.night => ZamerPhotoLightingProfile(
+      environmentIntensity: 0.16,
+      exposure: 0.76,
+      temperature: -0.16,
+      saturation: 0.96,
+      lightDirection: vm.Vector3(-0.22, -0.74, -0.58),
+      lightColor: vm.Vector3(0.46, 0.60, 1.0),
+      lightIntensity: 0.34,
+      backgroundTop: const Color(0xFF111827),
+      backgroundBottom: const Color(0xFF26354D),
+    ),
+  };
+}
+
 /// GPU-backed 3D viewport for Zamер.
 ///
 /// Measurement data remains in millimetres in [FloorPlan]. It is converted to
@@ -36,6 +111,9 @@ class ZamerGpuViewport extends StatefulWidget {
     required this.walkX,
     required this.walkY,
     this.performanceMode = false,
+    this.photoPreview = false,
+    this.photoTime = ZamerPhotoTime.day,
+    this.photoHdr = true,
   });
 
   final FloorPlan floor;
@@ -48,6 +126,9 @@ class ZamerGpuViewport extends StatefulWidget {
   final double walkX;
   final double walkY;
   final bool performanceMode;
+  final bool photoPreview;
+  final ZamerPhotoTime photoTime;
+  final bool photoHdr;
 
   @override
   State<ZamerGpuViewport> createState() => ZamerGpuViewportState();
@@ -108,7 +189,11 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     final fingerprint = _floorFingerprint();
     final performanceChanged =
         oldWidget.performanceMode != widget.performanceMode;
-    if (performanceChanged) _configureScene();
+    final photoLightingChanged =
+        oldWidget.photoPreview != widget.photoPreview ||
+        oldWidget.photoTime != widget.photoTime ||
+        oldWidget.photoHdr != widget.photoHdr;
+    if (performanceChanged || photoLightingChanged) _configureScene();
     if (!identical(oldWidget.floor, widget.floor) ||
         fingerprint != _lastFloorFingerprint ||
         performanceChanged) {
@@ -279,6 +364,10 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
   void _configureScene() {
     final scene = _scene;
     if (scene == null) return;
+    if (widget.photoPreview) {
+      _configurePhotoLighting(exportQuality: false);
+      return;
+    }
     final performance = widget.performanceMode;
     scene.environmentSettings = EnvironmentSettings(
       toneMapping: ToneMappingMode.pbrNeutral,
@@ -314,64 +403,68 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       ..bias = 0.04;
   }
 
-  void _configurePhotoLighting() {
+  void _configurePhotoLighting({required bool exportQuality}) {
     final scene = _scene;
     if (scene == null) return;
+    final profile = zamerPhotoLightingProfile(widget.photoTime);
+    final hdr = widget.photoHdr;
+    final nightBoost = widget.photoTime == ZamerPhotoTime.night ? 0.16 : 0.0;
     scene.environmentSettings = EnvironmentSettings(
       toneMapping: ToneMappingMode.pbrNeutral,
-      environmentIntensity: 0.92,
-      exposure: 0.94,
+      environmentIntensity: profile.environmentIntensity,
+      exposure: profile.exposure,
       colorGradingEnabled: true,
       brightness: 1.0,
-      contrast: 1.04,
-      saturation: 1.025,
-      temperature: 0.025,
+      contrast: hdr ? 1.04 : 1.015,
+      saturation: profile.saturation,
+      temperature: profile.temperature,
       ambientOcclusionEnabled: true,
-      ambientOcclusionRadius: 0.28,
-      ambientOcclusionIntensity: 0.72,
+      ambientOcclusionRadius: exportQuality ? 0.28 : 0.22,
+      ambientOcclusionIntensity: exportQuality ? 0.72 : 0.56,
       ambientOcclusionBias: 0.035,
-      ambientOcclusionSampleCount: 12,
-      ambientOcclusionHalfResolution: false,
-      screenSpaceReflectionsEnabled: true,
-      screenSpaceReflectionsIntensity: 0.38,
+      ambientOcclusionSampleCount: exportQuality ? 12 : 4,
+      ambientOcclusionHalfResolution: !exportQuality,
+      screenSpaceReflectionsEnabled: exportQuality && hdr,
+      screenSpaceReflectionsIntensity: hdr ? 0.38 : 0.20,
       screenSpaceReflectionsMaxDistance: 18,
       screenSpaceReflectionsThickness: 0.42,
       screenSpaceReflectionsStride: 3,
-      screenSpaceReflectionsMaxSteps: 96,
+      screenSpaceReflectionsMaxSteps: exportQuality ? 96 : 48,
       screenSpaceReflectionsBlur: 0.18,
-      screenSpaceReflectionsResolutionScale: 1.0,
-      bloomEnabled: true,
-      bloomThreshold: 1.12,
-      bloomIntensity: 0.04,
+      screenSpaceReflectionsResolutionScale: exportQuality ? 1.0 : 0.5,
+      bloomEnabled: hdr || widget.photoTime != ZamerPhotoTime.day,
+      bloomThreshold: widget.photoTime == ZamerPhotoTime.night ? 0.82 : 1.08,
+      bloomIntensity: widget.photoTime == ZamerPhotoTime.night ? 0.10 : 0.05,
       bloomScatter: 0.62,
       vignetteEnabled: true,
-      vignetteIntensity: 0.08,
+      vignetteIntensity: widget.photoTime == ZamerPhotoTime.night ? 0.13 : 0.08,
       vignetteRadius: 0.86,
       vignetteSmoothness: 0.55,
-      autoExposureEnabled: true,
-      autoExposureStrength: 0.28,
-      autoExposureCompensation: -0.20,
-      autoExposureMinEv: -1.2,
-      autoExposureMaxEv: 1.2,
+      autoExposureEnabled: hdr,
+      autoExposureStrength: hdr ? 0.30 : 0.0,
+      autoExposureCompensation: -0.20 + nightBoost,
+      autoExposureMinEv: widget.photoTime == ZamerPhotoTime.night ? -2.0 : -1.2,
+      autoExposureMaxEv: widget.photoTime == ZamerPhotoTime.night ? 2.2 : 1.2,
     );
     scene.antiAliasingMode = AntiAliasingMode.auto;
-    scene.environmentIntensity = 0.92;
+    scene.environmentIntensity = profile.environmentIntensity;
+    final direction = profile.lightDirection.clone()..normalize();
     scene.directionalLight = DirectionalLight(
-      direction: vm.Vector3(-0.38, -1.0, -0.28)..normalize(),
-      color: vm.Vector3(1.0, 0.965, 0.90),
-      intensity: 2.15,
+      direction: direction,
+      color: profile.lightColor,
+      intensity: profile.lightIntensity,
       castsShadow: true,
       cacheStaticShadows: false,
-      shadowMapResolution: 2048,
+      shadowMapResolution: exportQuality ? 2048 : 1024,
       shadowMaxDistance: 45,
-      shadowSoftness: 0.30,
+      shadowSoftness: widget.photoTime == ZamerPhotoTime.sunset ? 0.42 : 0.30,
     );
     scene.ambientOcclusion
       ..enabled = true
-      ..halfResolution = false
-      ..sampleCount = 8
-      ..radius = 0.30
-      ..intensity = 0.82
+      ..halfResolution = !exportQuality
+      ..sampleCount = exportQuality ? 8 : 4
+      ..radius = exportQuality ? 0.30 : 0.22
+      ..intensity = exportQuality ? 0.82 : 0.62
       ..bias = 0.035;
   }
 
@@ -1535,15 +1628,16 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
 
     final camera = _camera();
     _applyCutaway(camera);
-    if (photoQuality) _configurePhotoLighting();
+    if (photoQuality) _configurePhotoLighting(exportQuality: true);
     try {
       final recorder = ui.PictureRecorder();
       final canvas = ui.Canvas(recorder);
+      final profile = zamerPhotoLightingProfile(widget.photoTime);
       final background = ui.Paint()
         ..shader = ui.Gradient.linear(
           ui.Offset(0, 0),
           ui.Offset(0, height.toDouble()),
-          const <Color>[Color(0xFFEAF1F5), Color(0xFFF7F4EE)],
+          <Color>[profile.backgroundTop, profile.backgroundBottom],
         );
       canvas.drawRect(
         ui.Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble()),
