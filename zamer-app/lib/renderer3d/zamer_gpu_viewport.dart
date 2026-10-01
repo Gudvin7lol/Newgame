@@ -205,6 +205,19 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     }
   }
 
+  void _scheduleLiveRebuildRetry() {
+    if (!mounted) return;
+    _retryTimer?.cancel();
+    _retryAttempt++;
+    final delay = Duration(
+      milliseconds: math.min(2500, 250 + _retryAttempt * 250),
+    );
+    _retryTimer = Timer(delay, () {
+      if (!mounted) return;
+      _rebuildSceneAfterUpdate();
+    });
+  }
+
   Future<void> _rebuildSceneAfterUpdate() async {
     if (_liveRebuildInProgress) {
       _liveRebuildPending = true;
@@ -217,18 +230,31 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
         try {
           await _rebuildScene();
           if (!mounted) return;
+          _retryTimer?.cancel();
+          _retryAttempt = 0;
           if (!_ready && _loadError != null) {
             _scheduleRetry(immediate: true);
           }
         } catch (error) {
           if (!mounted) return;
+
+          // A staged rebuild never touches the active scene until the new graph
+          // is complete. If that preparation fails, keep the last good frame
+          // visible and retry the latest floor state with backoff. Falling back
+          // to a blank/error viewport here would throw away the very stability
+          // benefit of staged scene replacement.
+          if (_ready && _scene != null) {
+            _liveRebuildPending = false;
+            _scheduleLiveRebuildRetry();
+            break;
+          }
+
           setState(() {
             _loadError = error;
             _ready = false;
           });
-          // Editing the plan must never leave the GPU viewport permanently
-          // blank. Recreate the GPU scene on the next frame instead of
-          // requiring the user to restart the whole application.
+          // There is no usable scene yet, so a full GPU initialization retry is
+          // appropriate for first-load/context failures.
           _scheduleRetry(immediate: true);
         }
       } while (mounted && _liveRebuildPending);
