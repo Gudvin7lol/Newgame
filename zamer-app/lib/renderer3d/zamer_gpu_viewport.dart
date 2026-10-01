@@ -580,7 +580,11 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       builder
         ..texCoord(vm.Vector2(rx / uvScale.$1, ry / uvScale.$2))
         ..addVertex(
-          vm.Vector3(_mx(point.x, bounds), 0.006, _mz(point.y, bounds)),
+          vm.Vector3(
+            _mx(point.x, bounds),
+            zamerFloorSurfaceYM,
+            _mz(point.y, bounds),
+          ),
         );
     }
     final floorIndices = floorFacingTriangleIndices(indices);
@@ -642,7 +646,11 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
         builder
           ..texCoord(vm.Vector2.zero())
           ..addVertex(
-            vm.Vector3(_mx(point.x, bounds), 0.0068, _mz(point.y, bounds)),
+            vm.Vector3(
+              _mx(point.x, bounds),
+              zamerFloorGroutYM,
+              _mz(point.y, bounds),
+            ),
           );
       }
       // XY plan -> XZ scene flips handedness, so reverse the triangle order
