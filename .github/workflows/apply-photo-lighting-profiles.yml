@@ -12,6 +12,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: zamer-photo-lighting-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   apply:
     runs-on: ubuntu-latest
