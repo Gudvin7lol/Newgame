@@ -19,5 +19,10 @@ void main() {
       isTrue,
       reason: 'Glass should keep a visibly transparent base alpha.',
     );
+    expect(
+      viewport.contains('..doubleSided = true'),
+      isTrue,
+      reason: 'Window glass must stay visible from both room and exterior sides.',
+    );
   });
 }
