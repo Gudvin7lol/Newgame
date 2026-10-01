@@ -20,8 +20,8 @@ abstract final class ZamerColors {
   // Semantic palette.
   static const success = Color(0xFF2EA043);
   static const warning = Color(0xFFFFB020);
-  static const danger = Color(0xFFFF4D57);
-  static const info = Color(0xFF38A7FF);
+  static const danger = Color(0xFFFF4444);
+  static const info = Color(0xFF3B82F6);
 
   // Neutral palette.
   static const gray100 = Color(0xFFF5F7FA);
