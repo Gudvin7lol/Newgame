@@ -1,0 +1,73 @@
+name: Apply segment-aware cutaway
+
+on:
+  push:
+    branches:
+      - 'codex/zamer-1.5.6-3d-stability'
+    paths:
+      - 'zamer-app/lib/renderer3d/cutaway_geometry.dart'
+      - 'zamer-app/test/cutaway_geometry_test.dart'
+      - 'zamer-app/tool/migrations/use_segment_cutaway.py'
+      - '.github/workflows/apply-segment-cutaway.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: zamer-segment-cutaway-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Sparse checkout
+        uses: actions/checkout@v4
+        with:
+          ref: codex/zamer-1.5.6-3d-stability
+          fetch-depth: 1
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            zamer-app/lib/renderer3d/zamer_gpu_viewport.dart
+            zamer-app/lib/renderer3d/cutaway_geometry.dart
+            zamer-app/test/cutaway_geometry_test.dart
+            zamer-app/tool/migrations/use_segment_cutaway.py
+
+      - name: Apply segment cutaway
+        run: python zamer-app/tool/migrations/use_segment_cutaway.py
+
+      - name: Setup Dart
+        uses: dart-lang/setup-dart@v1
+
+      - name: Format changed sources
+        run: dart format zamer-app/lib/renderer3d/zamer_gpu_viewport.dart zamer-app/lib/renderer3d/cutaway_geometry.dart zamer-app/test/cutaway_geometry_test.dart
+
+      - name: Verify segment integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          VIEWPORT=zamer-app/lib/renderer3d/zamer_gpu_viewport.dart
+          grep -q "import 'cutaway_geometry.dart';" "$VIEWPORT"
+          grep -q 'startX: centerX - segmentDx' "$VIEWPORT"
+          grep -q 'zamerWallSegmentOccludesCutaway(' "$VIEWPORT"
+          grep -q 'final double halfThickness;' "$VIEWPORT"
+          if grep -q 'wallPos = vm.Vector2(wall.x, wall.z)' "$VIEWPORT"; then
+            echo 'Legacy point-only cutaway is still present.' >&2
+            exit 1
+          fi
+
+      - name: Commit renderer integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add zamer-app/lib/renderer3d/zamer_gpu_viewport.dart zamer-app/lib/renderer3d/cutaway_geometry.dart zamer-app/test/cutaway_geometry_test.dart
+          if git diff --cached --quiet; then
+            echo 'Segment-aware cutaway already integrated.'
+            exit 0
+          fi
+          git commit -m 'fix(zamer): use wall segments for cutaway visibility'
+          git push origin HEAD:codex/zamer-1.5.6-3d-stability
