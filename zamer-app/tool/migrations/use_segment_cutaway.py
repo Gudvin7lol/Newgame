@@ -30,7 +30,9 @@ if loop_start < 0 or loop_end < 0:
         raise SystemExit('cutaway wall loop anchors not found')
 else:
     replacement = '''    final targetPoint = math.Point<double>(target2.x, target2.y);\n    final cameraPoint = math.Point<double>(camera2.x, camera2.y);\n    for (final wall in _wallVisuals) {\n      final occludesTarget = zamerWallSegmentOccludesCutaway(\n        start: math.Point<double>(wall.startX, wall.startZ),\n        end: math.Point<double>(wall.endX, wall.endZ),\n        target: targetPoint,\n        camera: cameraPoint,\n        corridorHalfWidth: corridorHalfWidth,\n        wallHalfThickness: wall.halfThickness,\n      );\n      wall.node.visible = !occludesTarget;\n    }\n'''
-    text = text[:loop_start] + replacement + text[loop_end:]
+    # Skip the original loop-closing brace. The replacement already includes
+    # its own closing brace; keep only the method-closing brace from the marker.
+    text = text[:loop_start] + replacement + text[loop_end + len('    }\n'):]
 
 old_class = '''class _WallVisual {\n  const _WallVisual({required this.node, required this.x, required this.z});\n  final Node node;\n  final double x;\n  final double z;\n}\n'''
 new_class = '''class _WallVisual {\n  const _WallVisual({\n    required this.node,\n    required this.startX,\n    required this.startZ,\n    required this.endX,\n    required this.endZ,\n    required this.halfThickness,\n  });\n\n  final Node node;\n  final double startX;\n  final double startZ;\n  final double endX;\n  final double endZ;\n  final double halfThickness;\n}\n'''
