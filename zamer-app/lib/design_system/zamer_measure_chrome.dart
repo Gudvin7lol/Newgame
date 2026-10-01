@@ -3,7 +3,29 @@ import 'package:flutter/material.dart';
 import 'zamer_press_effect.dart';
 import 'zamer_tokens.dart';
 
-enum ZMeasureViewMode { twoD, threeD, ar, photo }
+/// View modes from the approved UI KIT 02 selector.
+///
+/// This is intentionally a value type rather than an enum. Older production
+/// workspaces still contain three-mode switch statements, while the approved
+/// Measure screen has four visible modes. Keeping the values as constants lets
+/// those older routes remain source-compatible while the Measure shell exposes
+/// a distinct AR mode instead of silently deleting it.
+@immutable
+class ZMeasureViewMode {
+  const ZMeasureViewMode._(this.name);
+
+  final String name;
+
+  static const twoD = ZMeasureViewMode._('twoD');
+  static const threeD = ZMeasureViewMode._('threeD');
+  static const ar = ZMeasureViewMode._('ar');
+  static const photo = ZMeasureViewMode._('photo');
+
+  static const values = <ZMeasureViewMode>[twoD, threeD, ar, photo];
+
+  @override
+  String toString() => 'ZMeasureViewMode.$name';
+}
 
 enum ZMeasureTool {
   walls,
