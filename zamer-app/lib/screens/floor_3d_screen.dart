@@ -40,6 +40,7 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
   int _gesturePointers = 0;
   ZGraphicsMode _graphicsMode = ZGraphicsMode.quality;
   bool _showSceneInfo = true;
+  bool _cameraControlsExpanded = false;
   final GlobalKey<ZamerGpuViewportState> _gpuKey =
       GlobalKey<ZamerGpuViewportState>();
 
@@ -337,15 +338,44 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
                     ),
                   if (!_walkMode)
                     IconButton(
+                      tooltip: _cameraControlsExpanded
+                          ? 'Скрыть управление камерой'
+                          : 'Управление камерой',
+                      onPressed: () => setState(
+                        () => _cameraControlsExpanded = !_cameraControlsExpanded,
+                      ),
+                      icon: Icon(
+                        _cameraControlsExpanded
+                            ? Icons.expand_less_rounded
+                            : Icons.videocam_outlined,
+                      ),
+                    ),
+                  if (!_walkMode && _cameraControlsExpanded) ...[
+                    const Divider(height: 1),
+                    IconButton(
                       tooltip: 'Вид сверху',
                       onPressed: _topView,
-                      icon: const Icon(Icons.vertical_align_top),
+                      icon: const Icon(Icons.grid_view_rounded),
                     ),
+                  ],
                 ],
               ),
             ),
           ),
         ),
+        if (!_walkMode)
+          Positioned(
+            left: ZamerSpace.md,
+            bottom: 76,
+            child: SafeArea(
+              top: false,
+              right: false,
+              child: _SceneStateChip(
+                cutaway: _cutaway,
+                graphicsMode: _graphicsMode,
+              ),
+            ),
+          ),
         if (_walkMode)
           Positioned(
             left: 10,
@@ -459,6 +489,73 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
   }
 }
 
+
+
+class _SceneStateChip extends StatelessWidget {
+  const _SceneStateChip({
+    required this.cutaway,
+    required this.graphicsMode,
+  });
+
+  final bool cutaway;
+  final ZGraphicsMode graphicsMode;
+
+  String get _qualityLabel {
+    switch (graphicsMode) {
+      case ZGraphicsMode.performance:
+        return 'Performance';
+      case ZGraphicsMode.quality:
+        return 'Quality';
+      case ZGraphicsMode.photo:
+        return 'Photo';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: ZamerSpace.sm,
+          vertical: ZamerSpace.xs,
+        ),
+        decoration: BoxDecoration(
+          color: ZamerColors.surface.withValues(alpha: .90),
+          borderRadius: BorderRadius.circular(ZamerRadius.md),
+          border: Border.all(color: ZamerColors.outlineSoft),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.circle,
+              size: 7,
+              color: ZamerColors.accent,
+            ),
+            const SizedBox(width: ZamerSpace.xs),
+            Text(
+              _qualityLabel,
+              style: const TextStyle(
+                color: ZamerColors.textSecondary,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(width: ZamerSpace.sm),
+            Text(
+              cutaway ? 'Разрез включён' : 'Все стены',
+              style: const TextStyle(
+                color: ZamerColors.textMuted,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class _ThreeDMasterHeader extends StatelessWidget {
   const _ThreeDMasterHeader();
