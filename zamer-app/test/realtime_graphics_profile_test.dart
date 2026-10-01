@@ -39,9 +39,10 @@ void main() {
       isTrue,
     );
     expect(
-      viewport.contains('if (!widget.performanceMode)'),
+      viewport.contains('ZamerPhotoRenderQualityPolicy.useLocalLights('),
       isTrue,
-      reason: 'Performance mode should skip dynamic point lights.',
+      reason:
+          'Realtime point lights must stay behind the shared Performance/Photo quality policy.',
     );
   });
 }
