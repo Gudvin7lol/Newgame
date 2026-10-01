@@ -29,6 +29,7 @@ jobs:
           sparse-checkout-cone-mode: false
           sparse-checkout: |
             zamer-app/lib/renderer3d/zamer_gpu_viewport.dart
+            zamer-app/test/staged_scene_rebuild_test.dart
             zamer-app/tool/migrations/stage_gpu_scene_rebuild.py
 
       - name: Apply staged scene rebuild
