@@ -5,7 +5,6 @@ on:
     branches:
       - 'codex/zamer-1.5.6-3d-stability'
     paths:
-      - 'zamer-app/tool/migrations/apply_walk_mode_smoothing.py'
       - 'zamer-app/tool/migrations/apply_walk_mode_real_delta.py'
       - '.github/workflows/apply-walk-mode-smoothing.yml'
   workflow_dispatch:
@@ -30,11 +29,7 @@ jobs:
           sparse-checkout-cone-mode: false
           sparse-checkout: |
             zamer-app/lib/screens/floor_3d_screen.dart
-            zamer-app/tool/migrations/apply_walk_mode_smoothing.py
             zamer-app/tool/migrations/apply_walk_mode_real_delta.py
-
-      - name: Ensure smooth Walk Mode
-        run: python zamer-app/tool/migrations/apply_walk_mode_smoothing.py
 
       - name: Apply measured Walk Mode delta
         run: python zamer-app/tool/migrations/apply_walk_mode_real_delta.py
