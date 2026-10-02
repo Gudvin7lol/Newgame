@@ -29,4 +29,36 @@ void main() {
     );
     expect(yaw, inInclusiveRange(-3.141592653589793, 3.141592653589793));
   });
+
+  test('pathological pointer spikes are capped without reversing direction', () {
+    final yaw = CameraGesturePolicy.applyHorizontalSwipe(
+      yaw: 0,
+      deltaX: -10000,
+      sensitivity: 0.01,
+    );
+
+    expect(yaw, closeTo(2.4, 0.0001));
+  });
+
+  test('invalid gesture samples never poison camera yaw', () {
+    final fromNanDelta = CameraGesturePolicy.applyHorizontalSwipe(
+      yaw: 0.75,
+      deltaX: double.nan,
+      sensitivity: 0.01,
+    );
+    final fromInfiniteSensitivity = CameraGesturePolicy.applyHorizontalSwipe(
+      yaw: -0.5,
+      deltaX: 20,
+      sensitivity: double.infinity,
+    );
+    final fromNanYaw = CameraGesturePolicy.applyHorizontalSwipe(
+      yaw: double.nan,
+      deltaX: 20,
+      sensitivity: 0.01,
+    );
+
+    expect(fromNanDelta, closeTo(0.75, 0.0001));
+    expect(fromInfiniteSensitivity, closeTo(-0.5, 0.0001));
+    expect(fromNanYaw, isFinite);
+  });
 }
