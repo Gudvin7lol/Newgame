@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zamer_app/renderer3d/photo_export_policy.dart';
 import 'package:zamer_app/renderer3d/render_quality.dart';
 
 void main() {
@@ -15,5 +16,15 @@ void main() {
     expect(ZamerRenderQuality.high.isPhoto, isFalse);
     expect(ZamerRenderQuality.interactive.label, 'Performance');
     expect(ZamerRenderQuality.high.label, 'Quality');
+    expect(ZamerRenderQuality.high.width, 2560);
+    expect(ZamerRenderQuality.high.height, 1440);
+  });
+
+  test('final Photo output requires the real GPU renderer', () {
+    expect(ZamerPhotoExportPolicy.requiresGpu(photoQuality: true), isTrue);
+    expect(
+      ZamerPhotoExportPolicy.mayUseCompatibilityFallback(photoQuality: true),
+      isFalse,
+    );
   });
 }
