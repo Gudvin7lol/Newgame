@@ -66,8 +66,26 @@ void main() {
         isTrue,
       );
       expect(
-        gpu.contains('screenSpaceReflectionsEnabled: exportQuality && hdr'),
+        gpu.contains('screenSpaceReflectionsEnabled: hdr'),
         isTrue,
+        reason: 'HDR Photo preview and export must both render reflections.',
+      );
+      expect(
+        gpu.contains('screenSpaceReflectionsEnabled: exportQuality && hdr'),
+        isFalse,
+        reason: 'Photo preview must no longer disable SSR until final export.',
+      );
+      expect(
+        gpu.contains('screenSpaceReflectionsMaxSteps: exportQuality ? 96 : 48'),
+        isTrue,
+        reason: 'Preview keeps a mobile-safe SSR ray budget.',
+      );
+      expect(
+        gpu.contains(
+          'screenSpaceReflectionsResolutionScale: exportQuality ? 1.0 : 0.5',
+        ),
+        isTrue,
+        reason: 'Preview SSR stays half-resolution while export uses full resolution.',
       );
       expect(gpu.contains('autoExposureEnabled: hdr'), isTrue);
       expect(
