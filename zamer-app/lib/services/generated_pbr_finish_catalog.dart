@@ -174,6 +174,44 @@ abstract final class GeneratedPbrFinishCatalog {
     ),
   };
 
-  static GeneratedPbrFinish? byId(String materialId) =>
-      byMaterialId[materialId];
+  /// Older projects store the original material IDs. Reusing the same PBR
+  /// channels for those IDs upgrades existing rooms in place instead of
+  /// requiring the user to re-apply every finish after an app update.
+  static const legacyAliases = <String, String>{
+    'oak-natural': GeneratedMaterialIds.oakNaturalPbr,
+    'oak-smoked': GeneratedMaterialIds.darkOak,
+    'walnut': GeneratedMaterialIds.walnutPbr,
+    'spc-grey': GeneratedMaterialIds.whiteOak,
+    'oak-light': GeneratedMaterialIds.whiteOak,
+    'oak-honey': GeneratedMaterialIds.whiteOak,
+    'ash-natural': GeneratedMaterialIds.whiteOak,
+    'laminate-wenge': GeneratedMaterialIds.darkOak,
+    'tile-light-stone': GeneratedMaterialIds.travertine,
+    'tile-concrete': GeneratedMaterialIds.wallMicrocement,
+    'tile-marble': GeneratedMaterialIds.marbleBiancoPbr,
+    'tile-dark': GeneratedMaterialIds.graphiteTilePbr,
+    'tile-travertine': GeneratedMaterialIds.travertine,
+    'tile-terrazzo': GeneratedMaterialIds.terrazzo,
+    'tile-sand': GeneratedMaterialIds.terracotta,
+    'tile-emerald': GeneratedMaterialIds.slate,
+    'paint-warm-white': GeneratedMaterialIds.wallPaint,
+    'paint-cool-white': GeneratedMaterialIds.wallPaint,
+    'paint-sage': GeneratedMaterialIds.wallPaint,
+    'paint-greige': GeneratedMaterialIds.wallPaint,
+    'paint-olive': GeneratedMaterialIds.wallPaint,
+    'paint-clay': GeneratedMaterialIds.wallPaint,
+    'paint-blue': GeneratedMaterialIds.wallPaint,
+    'paint-graphite': GeneratedMaterialIds.wallPaint,
+    'paint-sand': GeneratedMaterialIds.wallPaint,
+    'plaster-sand': GeneratedMaterialIds.plasterMineralPbr,
+    'concrete-raw': GeneratedMaterialIds.concreteWarmPbr,
+    'brick-red': GeneratedMaterialIds.wallRedClay,
+  };
+
+  static GeneratedPbrFinish? byId(String materialId) {
+    final direct = byMaterialId[materialId];
+    if (direct != null) return direct;
+    final alias = legacyAliases[materialId];
+    return alias == null ? null : byMaterialId[alias];
+  }
 }
