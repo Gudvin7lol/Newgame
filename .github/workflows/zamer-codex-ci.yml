@@ -33,6 +33,21 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Restore imported visual pack
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash zamer-app/tool/imported_2026_10_02/restore_pack.sh
+
+          test -s zamer-app/assets/topview/imported_2026_10_02/sofa_2400x950.webp
+          test -s zamer-app/assets/topview/imported_2026_10_02/bed_1800x2200.webp
+          test -s zamer-app/assets/textures/imported_2026_10_02/oak_natural_1200mm_basecolor.webp
+          test -s zamer-app/assets/textures/imported_2026_10_02/oak_natural_1200mm_normal.webp
+          test -s zamer-app/assets/textures/imported_2026_10_02/oak_natural_1200mm_orm.webp
+          test -s zamer-app/tool/imported_2026_10_02/manifest.json
+
+          echo "Imported visual pack restored and verified."
+
       - name: Set up Java 17
         uses: actions/setup-java@v5
         with:
