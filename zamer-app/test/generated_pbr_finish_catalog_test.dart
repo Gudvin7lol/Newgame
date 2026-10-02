@@ -60,4 +60,37 @@ void main() {
       isTrue,
     );
   });
+
+  test('legacy floor finishes inherit PBR channels in existing projects', () {
+    final oak = GeneratedPbrFinishCatalog.byId('oak-natural');
+    final walnut = GeneratedPbrFinishCatalog.byId('walnut');
+    final marble = GeneratedPbrFinishCatalog.byId('tile-marble');
+
+    expect(oak, isNotNull);
+    expect(walnut, isNotNull);
+    expect(marble, isNotNull);
+    expect(oak!.normalAsset, contains('white_oak_normal'));
+    expect(walnut!.normalAsset, contains('dark_oak_normal'));
+    expect(marble!.metallicRoughnessAsset, contains('metallic_roughness'));
+  });
+
+  test('legacy wall finishes inherit suitable PBR surface detail', () {
+    final paint = GeneratedPbrFinishCatalog.byId('paint-warm-white');
+    final plaster = GeneratedPbrFinishCatalog.byId('plaster-sand');
+    final concrete = GeneratedPbrFinishCatalog.byId('concrete-raw');
+    final brick = GeneratedPbrFinishCatalog.byId('brick-red');
+
+    expect(paint, isNotNull);
+    expect(plaster, isNotNull);
+    expect(concrete, isNotNull);
+    expect(brick, isNotNull);
+    expect(paint!.normalScale, lessThan(1));
+    expect(plaster!.realWorldTileMm, 900);
+    expect(concrete!.realWorldTileMm, 1000);
+    expect(brick!.normalScale, greaterThan(4));
+  });
+
+  test('unknown material stays outside generated PBR catalog', () {
+    expect(GeneratedPbrFinishCatalog.byId('totally-unknown'), isNull);
+  });
 }
