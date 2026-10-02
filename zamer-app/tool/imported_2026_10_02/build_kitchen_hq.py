@@ -8,8 +8,8 @@ APP_ROOT = SCRIPT_DIR.parent.parent
 ROOT = SCRIPT_DIR / 'kitchen'
 exec((ROOT/'source/mesh_helpers.py').read_text())
 
-# Reference-driven kitchen models for Zamer. The old +106 path enlarged a
-# 256px catalogue swatch and baked that blur into every GLB. +107 synthesises
+# Reference-driven kitchen models for Zamer.  The old +106 path enlarged a
+# 256px catalogue swatch and baked that blur into every GLB.  +107 synthesises
 # a 1024px physically plausible oak surface and keeps normal/roughness detail.
 S = 1024
 rng = np.random.default_rng(107)
@@ -19,6 +19,8 @@ if base_path.exists():
     ref_arr = np.asarray(ref).astype(np.float32)
 else:
     ref_arr = np.zeros((S,S,3), dtype=np.float32) + np.array([161,122,78], dtype=np.float32)
+# Add high-frequency pores and low-frequency growth bands instead of merely
+# upscaling the tiny runtime swatch.
 y,x = np.mgrid[:S,:S]
 u=x/S; v=y/S
 from scipy.ndimage import gaussian_filter
@@ -62,17 +64,14 @@ def pipe(name,path,r=.006,mat=3,N=20):
         t=path[min(i+1,len(path)-1)]-path[max(i-1,0)]
         nt=np.linalg.norm(t)
         if nt < 1e-7:
-            prev=path[max(i-2,0)]
-            nxt=path[min(i+2,len(path)-1)]
+            prev=path[max(i-2,0)]; nxt=path[min(i+2,len(path)-1)]
             t=nxt-prev; nt=np.linalg.norm(t)
-        if nt < 1e-7:
-            t=np.array([1.0,0.0,0.0]); nt=1.0
+        if nt < 1e-7: t=np.array([1.0,0.0,0.0]); nt=1.0
         t=t/nt
         refs=(np.array([1.,0,0]),np.array([0.,1,0]),np.array([0.,0,1.]))
-        ref=min(refs,key=lambda rr: abs(float(np.dot(t,rr))))
+        ref=min(refs,key=lambda r: abs(float(np.dot(t,r))))
         a=np.cross(t,ref); an=np.linalg.norm(a)
-        if an<1e-10:
-            raise ValueError(f'degenerate pipe tangent in {name} at {i}')
+        if an<1e-10: raise ValueError(f'degenerate pipe tangent in {name} at {i}')
         a/=an; b=np.cross(t,a); b/=max(np.linalg.norm(b),1e-10)
         for k in range(N):
             ang=k*2*np.pi/N
@@ -88,8 +87,7 @@ def handle(name,x,z,width=.34,y=-.325):
     for xx in [x-width/2+.025,x+width/2-.025]:
         pipe(name+'_mount',[[xx,y+.012,z],[xx,y-.002,z]],.0045,3,16)
 
-def plinth(w,d):
-    box('plinth',(w-.07,d-.09,.10),(0,.018,.05),2,r=.008,N=8)
+def plinth(w,d): box('plinth',(w-.07,d-.09,.10),(0,.018,.05),2,r=.008,N=8)
 
 def carcass(w=.6,d=.624,h=.87):
     plinth(w,d)
@@ -103,8 +101,7 @@ def counter(w=.6,d=.624,z=.887):
     box('counter_edge',(w-.012,.012,.016),(0,-d/2+.007,z-.012),1,r=.003,N=8)
 
 def horizontal_fronts(w,d,h,heights):
-    y=-d/2-.012
-    z=.105
+    y=-d/2-.012; z=.105
     for i,hh in enumerate(heights):
         zz=z+hh/2
         box(f'front_{i}',(w-.014,.022,hh-.007),(0,y,zz),0,r=.005,N=10)
@@ -112,9 +109,7 @@ def horizontal_fronts(w,d,h,heights):
         z += hh
 
 def double_doors(w,d,h,base=.105):
-    y=-d/2-.012
-    usable=h-base-.02
-    door_w=(w-.020)/2
+    y=-d/2-.012; usable=h-base-.02; door_w=(w-.020)/2
     for i,x in enumerate((-door_w/2-.002,door_w/2+.002)):
         box(f'door_{i}',(door_w-.005,.022,usable),(x,y,base+usable/2),0,r=.005,N=10)
     handle('handle_l',-.070,base+usable*.56,width=.22,y=y-.018)
@@ -126,12 +121,10 @@ def rounded_rect_loop(name,cx,cy,w,d,z,radius=.08,tube_r=.002,mat=5):
     for ox,oy,start in corners:
         for a in np.linspace(start,start+90,14,endpoint=False):
             aa=np.deg2rad(a); pts.append([ox+radius*np.cos(aa),oy+radius*np.sin(aa),z])
-    pts.append(pts[0])
-    pipe(name,pts,tube_r,mat,12)
+    pts.append(pts[0]); pipe(name,pts,tube_r,mat,12)
 
 def basin(w=.44,d=.38,cx=0,cy=-.015,top=.904):
-    left=(.6-w)/2
-    front=(.624-d)/2
+    left=(.6-w)/2; front=(.624-d)/2
     for size,pos in [((.6,front,.035),(0,-.624/2+front/2,top-.0175)),((.6,front,.035),(0,.624/2-front/2,top-.0175)),((left,d,.035),(-.6/2+left/2,cy,top-.0175)),((left,d,.035),(.6/2-left/2,cy,top-.0175))]:
         box('counter_surround',size,pos,1,r=.004,N=10)
     rings=[(w,d,top-.012),(w-.018,d-.018,top-.035),(w-.055,d-.055,.765),(w-.09,d-.09,.735)]
@@ -144,8 +137,7 @@ def basin(w=.44,d=.38,cx=0,cy=-.015,top=.904):
                 aa=np.deg2rad(a); pts.append([cx+ox+rad*np.cos(aa),cy+oy+rad*np.sin(aa),Z])
         return pts
     for W,D,Z in rings:
-        rr=ring_points(W,D,Z)
-        for p in rr: vs.append(p); uv.append([p[0],p[1]])
+        for p in ring_points(W,D,Z): vs.append(p); uv.append([p[0],p[1]])
     N=len(ring_points(*rings[0]))
     for j in range(len(rings)-1):
         for i in range(N):
@@ -158,10 +150,8 @@ def basin(w=.44,d=.38,cx=0,cy=-.015,top=.904):
     pipe('drain_ring',[[cx+.027*np.cos(t),cy+.027*np.sin(t),.737] for t in np.linspace(0,2*np.pi,49)],.0022,3,12)
 
 def faucet():
-    pts=[]
-    pts += [[0,.215,z] for z in np.linspace(.91,1.10,8)]
-    for t in np.linspace(0,np.pi,26)[1:]:
-        pts.append([0,.145+.070*np.cos(t),1.10+.075*np.sin(t)])
+    pts=[[0,.215,z] for z in np.linspace(.91,1.10,8)]
+    for t in np.linspace(0,np.pi,26)[1:]: pts.append([0,.145+.070*np.cos(t),1.10+.075*np.sin(t)])
     pts += [[0,.075,z] for z in np.linspace(1.10,1.03,6)[1:]]
     pipe('faucet',pts,.011,3,24)
     pipe('mixer_lever',[[.021,.214,.995],[.068,.214,.995]],.005,3,18)
@@ -170,24 +160,18 @@ def hob():
     box('induction_glass',(.555,.505,.008),(0,-.018,.906),4,r=.010,N=12)
     for x,y,rr in [(-.14,-.14,.087),(.14,-.14,.083),(-.14,.11,.078),(.14,.11,.09)]:
         pipe('zone',[[x+rr*np.cos(t),y+rr*np.sin(t),.911] for t in np.linspace(0,2*np.pi,65)],.0014,5,10)
-    for x in np.linspace(-.075,.075,4):
-        box('touch',(.010,.004,.0012),(x,-.250,.912),5,r=.0004,N=4)
+    for x in np.linspace(-.075,.075,4): box('touch',(.010,.004,.0012),(x,-.250,.912),5,r=.0004,N=4)
 
 def tall_fronts(w,d,h,fridge=False):
     y=-d/2-.012
-    if fridge:
-        lower=.62; upper=h-.12-lower-.008
-        box('freezer_front',(w-.014,.022,lower),(0,y,.105+lower/2),0,r=.006,N=10)
-        box('fridge_front',(w-.014,.022,upper),(0,y,.105+lower+.008+upper/2),0,r=.006,N=10)
-        handle('freezer_handle',-.14,.105+lower*.50,width=.22,y=y-.018)
-        handle('fridge_handle',-.14,.105+lower+.008+upper*.53,width=.22,y=y-.018)
-    else:
-        usable=h-.125
-        door_w=(w-.020)/2
-        for i,x in enumerate((-door_w/2-.002,door_w/2+.002)):
-            box(f'tall_door_{i}',(door_w-.005,.022,usable),(x,y,.105+usable/2),0,r=.006,N=10)
-        handle('pantry_handle_l',-.07,1.18,width=.25,y=y-.018)
-        handle('pantry_handle_r', .07,1.18,width=.25,y=y-.018)
+    # Match the approved narrow column: one large upper section and one lower
+    # section, both with long horizontal pulls close to the section break.
+    lower=.56 if fridge else .50; gap=.010; upper=h-.125-lower-gap
+    box('lower_front',(w-.014,.022,lower),(0,y,.105+lower/2),0,r=.006,N=12)
+    box('upper_front',(w-.014,.022,upper),(0,y,.105+lower+gap+upper/2),0,r=.006,N=12)
+    pull_w=min(.36,w*.66)
+    handle('lower_handle',0,.105+lower-.095,width=pull_w,y=y-.018)
+    handle('upper_handle',0,.105+lower+gap+.095,width=pull_w,y=y-.018)
 
 def export(out):
     global P,MODEL_NAME,DETAIL,MATERIAL_NAME,NORMAL_SCALE
@@ -201,8 +185,7 @@ def render(path,top=False):
     direction=np.array([0,0,1.]) if top else np.array([-1.5,-2.4,1.55]); direction/=np.linalg.norm(direction)
     right=np.array([1.,0,0]) if top else np.cross(-direction,[0,0,1]); right/=np.linalg.norm(right); up=np.cross(direction,right); B=np.stack([right,up,direction],axis=1)
     Q=(allv-center)@B; scale=600/max(np.ptp(Q[:,0]),np.ptp(Q[:,1])); zb=np.full((H,W),-1e10); img=np.zeros((H,W,4),np.uint8)
-    light=np.array([-.45,-.65,.78]); light/=np.linalg.norm(light)
-    base=np.asarray(_oak)
+    light=np.array([-.45,-.65,.78]); light/=np.linalg.norm(light); base=np.asarray(_oak)
     for p in parts:
         q=(p['v']-center)@B; q[:,:2]*=scale; q[:,0]+=W/2; q[:,1]=H/2-q[:,1]
         for f in p['f']:
@@ -211,10 +194,10 @@ def render(path,top=False):
             den=(b[1]-c[1])*(a[0]-c[0])+(c[0]-b[0])*(a[1]-c[1])
             if abs(den)<1e-9: continue
             yy,xx=np.mgrid[l[1]:h[1]+1,l[0]:h[0]+1]; xx=xx+.5; yy=yy+.5
-            u=((b[1]-c[1])*(xx-c[0])+(c[0]-b[0])*(yy-c[1]))/den; vv=((c[1]-a[1])*(xx-c[0])+(a[0]-c[0])*(yy-c[1]))/den; w=1-u-vv; z=u*a[2]+vv*b[2]+w*c[2]
-            reg=zb[l[1]:h[1]+1,l[0]:h[0]+1]; mask=(u>=0)&(vv>=0)&(w>=0)&(z>reg)
+            u=((b[1]-c[1])*(xx-c[0])+(c[0]-b[0])*(yy-c[1]))/den; v=((c[1]-a[1])*(xx-c[0])+(a[0]-c[0])*(yy-c[1]))/den; w=1-u-v; z=u*a[2]+v*b[2]+w*c[2]
+            reg=zb[l[1]:h[1]+1,l[0]:h[0]+1]; mask=(u>=0)&(v>=0)&(w>=0)&(z>reg)
             if not mask.any(): continue
-            weights=np.stack([u[mask],vv[mask],w[mask]],1); n=weights@p['n'][f]; n/=np.maximum(np.linalg.norm(n,axis=1)[:,None],1e-9); shade=.62+.38*np.maximum(n@light,0)
+            weights=np.stack([u[mask],v[mask],w[mask]],1); n=weights@p['n'][f]; n/=np.maximum(np.linalg.norm(n,axis=1)[:,None],1e-9); shade=.62+.38*np.maximum(n@light,0)
             if p['mat']==0:
                 uv=weights@p['uv'][f]; col=(base[(uv[:,1]*S).astype(int)%S,(uv[:,0]*S).astype(int)%S]/255.)**2.2
             else:
@@ -235,7 +218,10 @@ for kind in ['drawers','sink','cooktop','corner','pantry','fridge']:
     elif kind=='cooktop':
         carcass(); counter(); horizontal_fronts(.6,.624,.87,[.255,.255,.26]); hob()
     elif kind=='corner':
-        plinth(.9,.995)
+        # Real L toe-kick follows the cabinetry instead of filling the inner
+        # void with a large black slab.
+        box('plinth_main',(.83,.53,.10),(0,.18,.05),2,r=.008,N=8)
+        box('plinth_return',(.24,.34,.10),(-.30,-.3275,.05),2,r=.008,N=8)
         box('main_side_l',(.018,.58,.76),(-.441,.17,.49),0,r=.002,N=6)
         box('main_side_r',(.018,.58,.76),(.441,.17,.49),0,r=.002,N=6)
         box('main_back',(.87,.018,.76),(0,.452,.49),6,r=.001,N=4)
@@ -251,7 +237,8 @@ for kind in ['drawers','sink','cooktop','corner','pantry','fridge']:
     else:
         w=.6 if kind=='pantry' else .610; d=.624; h=2.2
         carcass(w,d,h)
-        box('top',(w-.040,d-.055,.018),(0,.015,h-.010),6,r=.001,N=4)
+        # Visible top edge is oak, not an interior/back-panel material.
+        box('top',(w-.040,d-.055,.018),(0,.015,h-.010),0,r=.0015,N=6)
         tall_fronts(w,d,h,fridge=(kind=='fridge'))
         for z in [.58,1.08,1.58]: box('shelf',(w-.045,d-.07,.018),(0,.02,z),6,r=.001,N=4)
     out=OUT/f'{kind}.glb'; export(out)
@@ -260,4 +247,9 @@ for kind in ['drawers','sink','cooktop','corner','pantry','fridge']:
     Image.open(top_png).save(TOPVIEW/f'kitchen_{kind}.webp','WEBP',quality=92,method=6)
     V=np.concatenate([p['v'] for p in parts]); lo=V.min(0); hi=V.max(0)
     cat.append((kind, sum(len(p['f']) for p in parts), ((hi-lo)*1000).round(1).tolist(), out.stat().st_size))
+
+board=Image.new('RGB',(2160,1440),(232,228,220)); draw=ImageDraw.Draw(board)
+for i,(kind,*_) in enumerate(cat):
+    im=Image.open(OUT/f'{kind}.png'); im.thumbnail((700,650)); x=(i%3)*720; y=(i//3)*720; board.paste(im,(x+(700-im.width)//2,y+20),im); draw.text((x+25,y+665),kind,fill=(30,30,30))
+board.save(OUT/'preview_board.png')
 print(json.dumps(cat,indent=2))
