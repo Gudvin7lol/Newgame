@@ -14,17 +14,21 @@ void main() {
       ),
       isTrue,
     );
+    expect(screen.contains('ZGraphicsModeSelector('), isTrue);
+    expect(screen.contains('value: _graphicsMode'), isTrue);
+    expect(screen.contains('onChanged: _selectGraphicsMode'), isTrue);
+
     expect(
-      screen.contains('_ThreeDMasterHeader(graphicsMode: _graphicsMode)'),
+      screen.contains('ZMasterPageHeader('),
       isTrue,
+      reason: '3D must use the shared Master UI header.',
     );
-    expect(screen.contains('graphicsMode.label'), isTrue);
+    expect(screen.contains("title: '3D'"), isTrue);
+    expect(screen.contains(r'${_graphicsMode.label}'), isTrue);
     expect(
-      screen.contains(
-        "if (!_walkMode)\n          const Positioned(\n            left: ZamerSpace.md,\n            right: ZamerSpace.md,\n            top: ZamerSpace.sm,\n            child: SafeArea(\n              bottom: false,\n              child: _ThreeDMasterHeader(graphicsMode: _graphicsMode)",
-      ),
+      screen.contains('_ThreeDMasterHeader'),
       isFalse,
-      reason: 'Runtime graphics mode cannot be nested under const Positioned.',
+      reason: 'The old page-local 3D header must not return.',
     );
 
     expect(viewport.contains('final bool performanceMode;'), isTrue);
