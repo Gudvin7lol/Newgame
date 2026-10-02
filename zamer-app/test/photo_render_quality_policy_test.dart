@@ -16,14 +16,14 @@ void main() {
           photoQuality: true,
           performanceMode: true,
         ),
-        16,
+        24,
       );
       expect(
         ZamerPhotoRenderQualityPolicy.glowRings(
           photoQuality: true,
           performanceMode: true,
         ),
-        10,
+        14,
       );
     });
 
@@ -58,6 +58,20 @@ void main() {
           performanceMode: false,
         ),
         isTrue,
+      );
+      expect(
+        ZamerPhotoRenderQualityPolicy.glowSegments(
+          photoQuality: false,
+          performanceMode: false,
+        ),
+        16,
+      );
+      expect(
+        ZamerPhotoRenderQualityPolicy.glowRings(
+          photoQuality: false,
+          performanceMode: false,
+        ),
+        10,
       );
     });
   });
