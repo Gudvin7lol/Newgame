@@ -71,6 +71,10 @@ jobs:
           set -euo pipefail
           python3 -m pip install --disable-pip-version-check --quiet numpy pillow scipy
 
+          catalog_dir="zamer-app/assets/models/zamer_catalog"
+          topview_dir="zamer-app/assets/topview/imported_2026_10_02"
+          mkdir -p "$catalog_dir" "$topview_dir"
+
           build_chain() {
             kind="$1"
             high_file="$2"
@@ -78,16 +82,15 @@ jobs:
             target="$4"
 
             # True authored LOD0 for Quality/Photo. +106 incorrectly used the
-            # .55 mobile build as the canonical model, so even Photo started
-            # from reduced geometry and 512px textures.
+            # .55 mobile build as the canonical model.
             python3 zamer-app/tool/featured_models/build_models.py "$kind" 1.0
-            cp "zamer-app/tool/featured_models/$kind/high/$high_file" "zamer-app/assets/models/zamer_catalog/$target.glb"
+            cp "zamer-app/tool/featured_models/$kind/high/$high_file" "$catalog_dir/$target.glb"
 
             python3 zamer-app/tool/featured_models/build_models.py "$kind" .55
-            cp "zamer-app/tool/featured_models/$kind/mobile/$mobile_file" "zamer-app/assets/models/zamer_catalog/${target}_lod1.glb"
+            cp "zamer-app/tool/featured_models/$kind/mobile/$mobile_file" "$catalog_dir/${target}_lod1.glb"
 
             python3 zamer-app/tool/featured_models/build_models.py "$kind" .25
-            cp "zamer-app/tool/featured_models/$kind/mobile/$mobile_file" "zamer-app/assets/models/zamer_catalog/${target}_lod2.glb"
+            cp "zamer-app/tool/featured_models/$kind/mobile/$mobile_file" "$catalog_dir/${target}_lod2.glb"
           }
 
           build_chain sofa Zamer_Sofa_v3.glb Zamer_Sofa_v3_Mobile.glb sofa-3
@@ -101,18 +104,36 @@ jobs:
           build_chain sconce Zamer_Wall_Sconce_UpDown.glb Zamer_Wall_Sconce_UpDown_Mobile.glb wall-sconce-updown
 
           # +107: build the approved kitchen from the HQ reference-driven
-          # generator. This replaces the +106 path that enlarged a 256px wood
-          # swatch and baked the blur into every cabinet GLB.
+          # generator. This replaces the +106 256px-upscale path.
           python3 zamer-app/tool/imported_2026_10_02/build_kitchen_hq.py
 
           kitchen_model_dir="zamer-app/tool/imported_2026_10_02/kitchen/models_hq"
-          catalog_dir="zamer-app/assets/models/zamer_catalog"
           cp "$kitchen_model_dir/drawers.glb" "$catalog_dir/kitchen-drawers-600.glb"
           cp "$kitchen_model_dir/sink.glb" "$catalog_dir/kitchen-sink-600-pro.glb"
           cp "$kitchen_model_dir/cooktop.glb" "$catalog_dir/kitchen-cooktop-600.glb"
           cp "$kitchen_model_dir/corner.glb" "$catalog_dir/kitchen-corner-900.glb"
           cp "$kitchen_model_dir/pantry.glb" "$catalog_dir/kitchen-pantry-600.glb"
           cp "$kitchen_model_dir/fridge.glb" "$catalog_dir/fridge-built-in-610.glb"
+
+          # Render the plan preview from the very same production GLB. This
+          # removes the old split where the 2D icon and the 3D model could be
+          # unrelated assets with different proportions and detail.
+          render_topview() {
+            model="$1"
+            output="$2"
+            python3 zamer-app/tool/featured_models/render_glb_topview.py \
+              "$catalog_dir/$model.glb" "$topview_dir/$output.webp" --size 512
+          }
+
+          render_topview sofa-3 featured_sofa_3
+          render_topview bed-180 featured_bed_180
+          render_topview armchair featured_armchair
+          render_topview coffee-table featured_coffee_table
+          render_topview washer featured_washer
+          render_topview toilet featured_toilet
+          render_topview chandelier-ring featured_chandelier
+          render_topview rug-2000x1400 featured_rug
+          render_topview wall-sconce-updown featured_sconce
 
           for model in \
             kitchen-drawers-600 \
@@ -125,31 +146,30 @@ jobs:
           done
 
           for preview in \
-            kitchen_drawers \
-            kitchen_sink \
-            kitchen_cooktop \
-            kitchen_corner \
-            kitchen_pantry \
-            kitchen_fridge; do
-            test -s "zamer-app/assets/topview/imported_2026_10_02/$preview.webp"
+            kitchen_drawers kitchen_sink kitchen_cooktop kitchen_corner kitchen_pantry kitchen_fridge \
+            featured_sofa_3 featured_bed_180 featured_armchair featured_coffee_table \
+            featured_washer featured_toilet featured_chandelier featured_rug featured_sconce; do
+            test -s "$topview_dir/$preview.webp"
           done
 
           ls -lh \
-            zamer-app/assets/models/zamer_catalog/sofa-3*.glb \
-            zamer-app/assets/models/zamer_catalog/armchair*.glb \
-            zamer-app/assets/models/zamer_catalog/coffee-table*.glb \
-            zamer-app/assets/models/zamer_catalog/bed-180*.glb \
-            zamer-app/assets/models/zamer_catalog/washer*.glb \
-            zamer-app/assets/models/zamer_catalog/toilet*.glb \
-            zamer-app/assets/models/zamer_catalog/chandelier-ring*.glb \
-            zamer-app/assets/models/zamer_catalog/rug-2000x1400*.glb \
-            zamer-app/assets/models/zamer_catalog/wall-sconce-updown*.glb \
-            zamer-app/assets/models/zamer_catalog/kitchen-drawers-600.glb \
-            zamer-app/assets/models/zamer_catalog/kitchen-sink-600-pro.glb \
-            zamer-app/assets/models/zamer_catalog/kitchen-cooktop-600.glb \
-            zamer-app/assets/models/zamer_catalog/kitchen-corner-900.glb \
-            zamer-app/assets/models/zamer_catalog/kitchen-pantry-600.glb \
-            zamer-app/assets/models/zamer_catalog/fridge-built-in-610.glb
+            "$catalog_dir"/sofa-3*.glb \
+            "$catalog_dir"/armchair*.glb \
+            "$catalog_dir"/coffee-table*.glb \
+            "$catalog_dir"/bed-180*.glb \
+            "$catalog_dir"/washer*.glb \
+            "$catalog_dir"/toilet*.glb \
+            "$catalog_dir"/chandelier-ring*.glb \
+            "$catalog_dir"/rug-2000x1400*.glb \
+            "$catalog_dir"/wall-sconce-updown*.glb \
+            "$catalog_dir"/kitchen-drawers-600.glb \
+            "$catalog_dir"/kitchen-sink-600-pro.glb \
+            "$catalog_dir"/kitchen-cooktop-600.glb \
+            "$catalog_dir"/kitchen-corner-900.glb \
+            "$catalog_dir"/kitchen-pantry-600.glb \
+            "$catalog_dir"/fridge-built-in-610.glb \
+            "$topview_dir"/featured_*.webp \
+            "$topview_dir"/kitchen_*.webp
 
       - name: Format changed UI sources
         run: >-
