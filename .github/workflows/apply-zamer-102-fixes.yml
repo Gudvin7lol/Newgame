@@ -1,0 +1,112 @@
+name: Apply Zamer 102 Fixes
+
+on:
+  push:
+    paths:
+      - '.github/workflows/apply-zamer-102-fixes.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-zamer-102-fixes
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/zamer-1.5.6-3d-stability
+          fetch-depth: 1
+
+      - name: Patch UI-kit panel and current contracts
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new, label):
+              p = Path(path)
+              text = p.read_text()
+              if old not in text:
+                  raise SystemExit(f'{label}: anchor not found')
+              p.write_text(text.replace(old, new, 1))
+
+          replace_once(
+              'zamer-app/lib/design_system/zamer_components.dart',
+              '''  @override\n  Widget build(BuildContext context) => Container(\n    padding: padding,\n    decoration: BoxDecoration(\n      color: color,\n      borderRadius: BorderRadius.circular(ZamerRadius.lg),\n      border: Border.all(color: ZamerColors.outline),\n    ),\n    child: child,\n  );\n}\n\nclass ZMeasureBadge''',
+              '''  @override\n  Widget build(BuildContext context) => Material(\n    color: color,\n    borderRadius: BorderRadius.circular(ZamerRadius.lg),\n    clipBehavior: Clip.antiAlias,\n    child: Container(\n      padding: padding,\n      decoration: BoxDecoration(\n        borderRadius: BorderRadius.circular(ZamerRadius.lg),\n        border: Border.all(color: ZamerColors.outline),\n      ),\n      child: child,\n    ),\n  );\n}\n\nclass ZMeasureBadge''',
+              'ZPanel material surface',
+          )
+
+          p = Path('zamer-app/test/photo_camera_stabilization_test.dart')
+          text = p.read_text()
+          text = text.replace(
+              "    expect(\n      source.contains('final angle = _rotation + lookDelta.dx * .008;'),\n      isTrue,\n    );\n",
+              "    expect(source.contains('CameraGesturePolicy.applyHorizontalSwipe('), isTrue);\n    expect(source.contains('deltaX: lookDelta.dx'), isTrue);\n    expect(source.contains('sensitivity: .008'), isTrue);\n",
+          )
+          p.write_text(text)
+
+          p = Path('zamer-app/test/generated_pbr_finish_catalog_test.dart')
+          text = p.read_text().replace(
+              'expect(GeneratedPbrFinishCatalog.byMaterialId.length, 12);',
+              'expect(GeneratedPbrFinishCatalog.byMaterialId.length, GeneratedMaterialIds.all.length);',
+          )
+          p.write_text(text)
+
+          p = Path('zamer-app/test/model_asset_catalog_test.dart')
+          text = p.read_text().replace(
+              '    expect(ZamerModelAssetCatalog.productionLodIds, hasLength(16));\n',
+              "    expect(\n      ZamerModelAssetCatalog.productionLodIds,\n      containsAll(const {'washer', 'toilet', 'chandelier-ring', 'rug-2000x1400'}),\n    );\n",
+          )
+          p.write_text(text)
+
+          p = Path('zamer-app/test/generated_materials_and_production_models_test.dart')
+          text = p.read_text()
+          text = text.replace(
+              'expect(MaterialCatalog.generatedV1.length, 12);',
+              'expect(MaterialCatalog.generatedV1.length, GeneratedMaterialIds.all.length);',
+          )
+          text = text.replace(
+              "        asset!.startsWith('assets/textures/generated_v1/'),\n        isTrue,\n        reason: 'Generated texture escaped the +79 pack: ${preset.id}',",
+              "        asset!.startsWith('assets/textures/'),\n        isTrue,\n        reason: 'Generated texture is outside bundled texture assets: ${preset.id}',",
+          )
+          p.write_text(text)
+
+          p = Path('zamer-app/test/walk_mode_runtime_test.dart')
+          text = p.read_text().replace(
+              "    expect(source, contains('final angle = _rotation + lookDelta.dx'));\n",
+              "    expect(source, contains('CameraGesturePolicy.applyHorizontalSwipe('));\n    expect(source, contains('deltaX: lookDelta.dx'));\n",
+          )
+          p.write_text(text)
+          PY
+
+      - name: Format patched Dart
+        run: |
+          dart format \
+            zamer-app/lib/design_system/zamer_components.dart \
+            zamer-app/test/photo_camera_stabilization_test.dart \
+            zamer-app/test/generated_pbr_finish_catalog_test.dart \
+            zamer-app/test/model_asset_catalog_test.dart \
+            zamer-app/test/generated_materials_and_production_models_test.dart \
+            zamer-app/test/walk_mode_runtime_test.dart
+
+      - name: Verify patches
+        run: |
+          set -euo pipefail
+          grep -F 'Widget build(BuildContext context) => Material(' zamer-app/lib/design_system/zamer_components.dart
+          grep -F 'CameraGesturePolicy.applyHorizontalSwipe' zamer-app/test/photo_camera_stabilization_test.dart
+          grep -F 'GeneratedMaterialIds.all.length' zamer-app/test/generated_pbr_finish_catalog_test.dart
+          grep -F "'rug-2000x1400'" zamer-app/test/model_asset_catalog_test.dart
+          grep -F 'GeneratedMaterialIds.all.length' zamer-app/test/generated_materials_and_production_models_test.dart
+          grep -F 'CameraGesturePolicy.applyHorizontalSwipe' zamer-app/test/walk_mode_runtime_test.dart
+
+      - name: Commit fixes
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add zamer-app
+          git commit -m 'fix(zamer): align +102 contracts and materialize master panels'
+          git push origin HEAD:codex/zamer-1.5.6-3d-stability
