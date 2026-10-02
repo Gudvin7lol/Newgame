@@ -44,9 +44,6 @@ class ZamerModelAsset {
 }
 
 class ZamerModelAssetCatalog {
-  /// Production assets expose a complete LOD0/1/2 chain. Generated
-  /// assets are authored at three mesh densities so Photo keeps the best
-  /// geometry while realtime and dense scenes can step down safely.
   static const productionLodIds = <String>{
     'armchair',
     'bed-160',
@@ -84,11 +81,21 @@ class ZamerModelAssetCatalog {
 
   static const _productionNativeDimensionsMm =
       <String, (double width, double depth, double height)>{
-        // Featured +80 models.
+        // Featured models.
         'armchair': (920, 900, 860),
         'bed-180': (1800, 2200, 1130),
         'coffee-table': (900, 900, 420),
         'sofa-3': (2200, 950, 850),
+
+        // HQ kitchen +107. Native bounds include handles/faucet; the renderer
+        // scales them back to the exact catalogue footprint instead of letting
+        // protruding details distort placement and camera collision.
+        'kitchen-drawers-600': (600, 660, 904.5),
+        'kitchen-sink-600-pro': (600, 660, 1185.8),
+        'kitchen-cooktop-600': (600, 660, 912.6),
+        'kitchen-corner-900': (900, 1015, 904.5),
+        'kitchen-pantry-600': (600, 649.5, 2199),
+        'fridge-built-in-610': (610, 649.5, 2199),
 
         // Existing production library.
         'bed-160': (1800, 2150, 1050),
@@ -116,9 +123,6 @@ class ZamerModelAssetCatalog {
     if (matches.isEmpty) return null;
     final item = matches.first;
 
-    // +82: the approved 2D catalog id is now the canonical key. When a
-    // production entry is linked to it, the live 3D renderer consumes that
-    // exact GLB. Items not migrated yet keep the safe legacy path.
     final production = ZamerProductionCatalog.byPlanCatalogId(id);
     final legacyBasePath = 'assets/models/zamer_catalog/$id';
     final assetPath = production?.model3d ?? '$legacyBasePath.glb';
