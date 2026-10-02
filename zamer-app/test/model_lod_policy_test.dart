@@ -32,11 +32,20 @@ void main() {
       expect(
         ZamerModelLodPolicy.pathFor(
           asset: model,
-          visibleObjectCount: 12,
+          visibleObjectCount: 16,
           photoQuality: false,
           walkMode: false,
         ),
         model.lod1AssetPath,
+      );
+      expect(
+        ZamerModelLodPolicy.pathFor(
+          asset: model,
+          visibleObjectCount: 12,
+          photoQuality: false,
+          walkMode: false,
+        ),
+        model.assetPath,
       );
     },
   );
@@ -46,7 +55,7 @@ void main() {
     expect(asset, isNotNull);
     final model = asset!;
 
-    for (final count in <int>[1, 12, 40]) {
+    for (final count in <int>[1, 16, 40]) {
       final overview = ZamerModelLodPolicy.pathFor(
         asset: model,
         visibleObjectCount: count,
