@@ -11,13 +11,16 @@ void main() {
     );
   });
 
-  test('overview near plane stays close without sacrificing depth precision', () {
-    const representativeFarM = 120.0;
-    final ratio = representativeFarM / ZamerCameraClipPolicy.overviewNearM;
+  test(
+    'overview near plane stays close without sacrificing depth precision',
+    () {
+      const representativeFarM = 120.0;
+      final ratio = representativeFarM / ZamerCameraClipPolicy.overviewNearM;
 
-    expect(ZamerCameraClipPolicy.overviewNearM, lessThanOrEqualTo(0.030));
-    expect(ratio, lessThan(5000));
-  });
+      expect(ZamerCameraClipPolicy.overviewNearM, lessThanOrEqualTo(0.030));
+      expect(ratio, lessThan(5000));
+    },
+  );
 
   test('walk clipping still preserves sane depth precision', () {
     final ratio =
