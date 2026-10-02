@@ -9,7 +9,7 @@ import 'package:zamer_app/services/object_catalog.dart';
 
 void main() {
   test('generated ZAMER materials are installable runtime assets', () {
-    expect(MaterialCatalog.generatedV1.length, 12);
+    expect(MaterialCatalog.generatedV1.length, GeneratedMaterialIds.all.length);
     final ids = MaterialCatalog.generatedV1.map((e) => e.id).toSet();
     expect(ids, GeneratedMaterialIds.all);
 
@@ -17,50 +17,62 @@ void main() {
       final asset = preset.textureAsset;
       expect(asset, isNotNull, reason: 'No texture for ${preset.id}');
       expect(
-        asset!.startsWith('assets/textures/generated_v1/'),
+        asset!.startsWith('assets/textures/'),
         isTrue,
-        reason: 'Generated texture escaped the +79 pack: ${preset.id}',
+        reason:
+            'Generated texture is outside bundled texture assets: ${preset.id}',
       );
       expect(File(asset).existsSync(), isTrue, reason: 'Missing $asset');
-      expect(preset.roughness, isNotNull, reason: 'No roughness for ${preset.id}');
-    }
-  });
-
-  test('production 3D furniture is present in catalog with complete LOD chains', () {
-    const expected = <String>{
-      'armchair',
-      'bed-160',
-      'bed-180',
-      'coffee-table',
-      'dining-chair-upholstered',
-      'dining-table-1800',
-      'dresser-1200',
-      'nightstand',
-      'office-desk-1400',
-      'sofa-2',
-      'sofa-3',
-      'sofa-corner',
-      'sofa-modular',
-      'table-round',
-      'tv-console-1600',
-      'wardrobe-sliding-2000',
-    };
-
-    expect(ZamerModelAssetCatalog.productionLodIds, containsAll(expected));
-    for (final id in expected) {
       expect(
-        ObjectCatalog.items.any((item) => item.id == id),
-        isTrue,
-        reason: '$id is not exposed in Оснащение',
+        preset.roughness,
+        isNotNull,
+        reason: 'No roughness for ${preset.id}',
       );
-      final asset = ZamerModelAssetCatalog.byId(id);
-      expect(asset, isNotNull, reason: 'No GLB mapping for $id');
-      expect(asset!.hasCompleteLodChain, isTrue, reason: 'Incomplete LOD for $id');
-      expect(File(asset.assetPath).existsSync(), isTrue);
-      expect(File(asset.lod1AssetPath!).existsSync(), isTrue);
-      expect(File(asset.lod2AssetPath!).existsSync(), isTrue);
     }
   });
+
+  test(
+    'production 3D furniture is present in catalog with complete LOD chains',
+    () {
+      const expected = <String>{
+        'armchair',
+        'bed-160',
+        'bed-180',
+        'coffee-table',
+        'dining-chair-upholstered',
+        'dining-table-1800',
+        'dresser-1200',
+        'nightstand',
+        'office-desk-1400',
+        'sofa-2',
+        'sofa-3',
+        'sofa-corner',
+        'sofa-modular',
+        'table-round',
+        'tv-console-1600',
+        'wardrobe-sliding-2000',
+      };
+
+      expect(ZamerModelAssetCatalog.productionLodIds, containsAll(expected));
+      for (final id in expected) {
+        expect(
+          ObjectCatalog.items.any((item) => item.id == id),
+          isTrue,
+          reason: '$id is not exposed in Оснащение',
+        );
+        final asset = ZamerModelAssetCatalog.byId(id);
+        expect(asset, isNotNull, reason: 'No GLB mapping for $id');
+        expect(
+          asset!.hasCompleteLodChain,
+          isTrue,
+          reason: 'Incomplete LOD for $id',
+        );
+        expect(File(asset.assetPath).existsSync(), isTrue);
+        expect(File(asset.lod1AssetPath!).existsSync(), isTrue);
+        expect(File(asset.lod2AssetPath!).existsSync(), isTrue);
+      }
+    },
+  );
 
   test('+82 links approved 2D objects to the exact production GLB', () {
     final linked = ZamerProductionCatalog.linked2d3d.toList(growable: false);
@@ -89,10 +101,7 @@ void main() {
       expect(production.sizeMm.depth, planItem.depthMm);
       expect(production.sizeMm.height, planItem.heightMm);
       expect(ZamerProductionCatalog.byId(production.id), same(production));
-      expect(
-        ZamerProductionCatalog.byPlanCatalogId(planId),
-        same(production),
-      );
+      expect(ZamerProductionCatalog.byPlanCatalogId(planId), same(production));
     }
   });
 

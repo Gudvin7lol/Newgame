@@ -250,7 +250,9 @@ class ZToolAction extends StatelessWidget {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(ZamerRadius.md),
                 border: Border.all(
-                  color: selected ? ZamerColors.accent : ZamerColors.outlineSoft,
+                  color: selected
+                      ? ZamerColors.accent
+                      : ZamerColors.outlineSoft,
                 ),
               ),
               child: Column(
@@ -292,14 +294,18 @@ class ZPanel extends StatelessWidget {
   final Color color;
 
   @override
-  Widget build(BuildContext context) => Container(
-    padding: padding,
-    decoration: BoxDecoration(
-      color: color,
-      borderRadius: BorderRadius.circular(ZamerRadius.lg),
-      border: Border.all(color: ZamerColors.outline),
+  Widget build(BuildContext context) => Material(
+    color: color,
+    borderRadius: BorderRadius.circular(ZamerRadius.lg),
+    clipBehavior: Clip.antiAlias,
+    child: Container(
+      padding: padding,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(ZamerRadius.lg),
+        border: Border.all(color: ZamerColors.outline),
+      ),
+      child: child,
     ),
-    child: child,
   );
 }
 

@@ -10,29 +10,21 @@ void main() {
     expect(source, contains('Duration(milliseconds: 16)'));
     expect(source, contains('final Stopwatch _frameClock = Stopwatch();'));
     expect(source, contains('int? _lastFrameMicros;'));
-    expect(source, contains('final nowMicros = _frameClock.elapsedMicroseconds;'));
+    expect(
+      source,
+      contains('final nowMicros = _frameClock.elapsedMicroseconds;'),
+    );
     expect(source, contains('nowMicros - previousMicros'));
     expect(source, contains('elapsedMicros / Duration.microsecondsPerSecond'));
     expect(source, contains('.clamp(1 / 240, 0.05)'));
-    expect(
-      source,
-      contains('forward * _walkSpeedMmPerSecond * deltaSeconds'),
-    );
-    expect(
-      source,
-      contains('sideways * _walkSpeedMmPerSecond * deltaSeconds'),
-    );
+    expect(source, contains('forward * _walkSpeedMmPerSecond * deltaSeconds'));
+    expect(source, contains('sideways * _walkSpeedMmPerSecond * deltaSeconds'));
     expect(source, contains("toStringAsFixed(1)} м/с"));
 
-    expect(
-      source,
-      contains('_walkLookDelta.dx * .55 + rawLook.dx * .45'),
-    );
-    expect(
-      source,
-      contains('_walkLookDelta.dy * .55 + rawLook.dy * .45'),
-    );
-    expect(source, contains('final angle = _rotation + lookDelta.dx'));
+    expect(source, contains('_walkLookDelta.dx * .55 + rawLook.dx * .45'));
+    expect(source, contains('_walkLookDelta.dy * .55 + rawLook.dy * .45'));
+    expect(source, contains('CameraGesturePolicy.applyHorizontalSwipe('));
+    expect(source, contains('deltaX: lookDelta.dx'));
     expect(source, contains('_tilt - lookDelta.dy'));
 
     final resetCount = '_walkLookDelta = Offset.zero'.allMatches(source).length;

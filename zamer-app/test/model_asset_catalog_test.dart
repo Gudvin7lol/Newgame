@@ -25,7 +25,15 @@ void main() {
   });
 
   test('production assets expose complete existing LOD chains', () {
-    expect(ZamerModelAssetCatalog.productionLodIds, hasLength(16));
+    expect(
+      ZamerModelAssetCatalog.productionLodIds,
+      containsAll(const {
+        'washer',
+        'toilet',
+        'chandelier-ring',
+        'rug-2000x1400',
+      }),
+    );
     for (final id in ZamerModelAssetCatalog.productionLodIds) {
       final model = ZamerModelAssetCatalog.byId(id);
       expect(model, isNotNull, reason: 'Missing production catalog item $id');
@@ -96,7 +104,10 @@ void main() {
       ZamerModelAssetCatalog.byId('dining-chair-upholstered')!.yawCorrectionRad,
       closeTo(math.pi, 0.000001),
     );
-    expect(ZamerModelAssetCatalog.byId('dining-table-1800')!.yawCorrectionRad, 0);
+    expect(
+      ZamerModelAssetCatalog.byId('dining-table-1800')!.yawCorrectionRad,
+      0,
+    );
     expect(ZamerModelAssetCatalog.byId('coffee-table')!.yawCorrectionRad, 0);
   });
 

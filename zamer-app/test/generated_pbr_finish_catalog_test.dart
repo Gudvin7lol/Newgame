@@ -6,7 +6,10 @@ import 'package:zamer_app/services/generated_pbr_finish_catalog.dart';
 
 void main() {
   test('all generated ZAMER finishes have complete PBR texture sets', () {
-    expect(GeneratedPbrFinishCatalog.byMaterialId.length, 12);
+    expect(
+      GeneratedPbrFinishCatalog.byMaterialId.length,
+      GeneratedMaterialIds.all.length,
+    );
     expect(
       GeneratedPbrFinishCatalog.byMaterialId.keys.toSet(),
       GeneratedMaterialIds.all,
@@ -41,8 +44,8 @@ void main() {
   });
 
   test('live GPU viewport consumes generated normal and roughness maps', () {
-    final source =
-        File('lib/renderer3d/zamer_gpu_viewport.dart').readAsStringSync();
+    final source = File('lib/renderer3d/zamer_gpu_viewport.dart')
+        .readAsStringSync();
 
     expect(source.contains('GeneratedPbrFinishCatalog.byId'), isTrue);
     expect(source.contains('normalTexture = normal'), isTrue);
