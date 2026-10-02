@@ -159,6 +159,17 @@ class WalkNavigationService {
     double sideways, {
     bool ignoreCollisions = false,
   }) {
+    // Pointer/controller glitches must never be allowed to poison the persisted
+    // Walk camera position. Once NaN reaches the renderer, even resetting the
+    // view can fail because every subsequent vector operation remains NaN.
+    if (!start.x.isFinite ||
+        !start.y.isFinite ||
+        !rotation.isFinite ||
+        !forward.isFinite ||
+        !sideways.isFinite) {
+      return start;
+    }
+
     // Keep navigation in the exact same basis as the GPU camera:
     // camera forward = (cos(rotation), sin(rotation)) in plan X/Y.
     // Positive sideways follows the camera's screen-right vector.
