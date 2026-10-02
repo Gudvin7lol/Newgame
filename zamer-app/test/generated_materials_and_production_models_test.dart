@@ -74,9 +74,14 @@ void main() {
     },
   );
 
-  test('+82 links approved 2D objects to the exact production GLB', () {
+  test('production links approved 2D objects to exact production GLBs', () {
     final linked = ZamerProductionCatalog.linked2d3d.toList(growable: false);
-    expect(linked, hasLength(11));
+    expect(linked, isNotEmpty);
+    expect(
+      linked.length,
+      greaterThanOrEqualTo(ZamerModelAssetCatalog.productionLodIds.length),
+      reason: 'Production bridge must grow with the approved 3D library',
+    );
 
     for (final production in linked) {
       final planId = production.planCatalogId!;
