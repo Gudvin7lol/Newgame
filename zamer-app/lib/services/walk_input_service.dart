@@ -16,18 +16,24 @@ class WalkInputService {
     if (!x.isFinite || !y.isFinite) {
       return (forward: 0.0, sideways: 0.0);
     }
-    final magnitude = math.sqrt(x * x + y * y).clamp(0.0, 1.0).toDouble();
-    final zone = deadZoneRadius.clamp(0.0, 0.95).toDouble();
-    if (magnitude <= zone || magnitude <= 0.000001) {
+
+    final rawMagnitude = math.sqrt(x * x + y * y);
+    final zone = deadZoneRadius.isFinite
+        ? deadZoneRadius.clamp(0.0, 0.95).toDouble()
+        : deadZone;
+    if (rawMagnitude <= zone || rawMagnitude <= 0.000001) {
       return (forward: 0.0, sideways: 0.0);
     }
 
-    // Remove the dead zone, then keep a linear response up to full travel.
+    // Clamp only the requested strength. Direction must be normalized with the
+    // real vector length, otherwise a full diagonal stick (1, 1) becomes a
+    // sqrt(2) speed boost and Walk Mode moves faster diagonally than forward.
+    final magnitude = rawMagnitude.clamp(0.0, 1.0).toDouble();
     final strength = ((magnitude - zone) / (1.0 - zone))
         .clamp(0.0, 1.0)
         .toDouble();
-    final nx = x / magnitude;
-    final ny = y / magnitude;
+    final nx = x / rawMagnitude;
+    final ny = y / rawMagnitude;
     return (forward: -ny * strength, sideways: nx * strength);
   }
 }
