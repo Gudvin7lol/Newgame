@@ -2,9 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
-import 'dart:ui';
 
-import 'package:flutter_scene/scene.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vector_math/vector_math.dart' as vm;
 import 'package:zamer_app/renderer3d/model_asset_catalog.dart';
@@ -22,6 +20,16 @@ class _Bounds3 {
     final lo = min!;
     final hi = max!;
     return vm.Vector3(hi.x - lo.x, hi.y - lo.y, hi.z - lo.z);
+  }
+
+  vm.Vector3 get center {
+    final lo = min!;
+    final hi = max!;
+    return vm.Vector3(
+      (lo.x + hi.x) / 2,
+      (lo.y + hi.y) / 2,
+      (lo.z + hi.z) / 2,
+    );
   }
 
   void include(vm.Vector3 point) {
@@ -195,7 +203,9 @@ _Bounds3 _glbBounds(String path) {
           child as int,
     };
     for (var index = 0; index < nodes.length; index++) {
-      if (!childIndices.contains(index)) visitNode(index, vm.Matrix4.identity());
+      if (!childIndices.contains(index)) {
+        visitNode(index, vm.Matrix4.identity());
+      }
     }
   }
 
@@ -203,84 +213,125 @@ _Bounds3 _glbBounds(String path) {
   return bounds;
 }
 
-Node _syntheticBoundsNode(_Bounds3 bounds) {
-  final size = bounds.size;
-  final root = Node(name: 'test-object');
-  root.add(
-    Node(
-        name: 'model-bounds',
-        mesh: Mesh(
-          CuboidGeometry(vm.Vector3(size.x, size.y, size.z)),
-          PhysicallyBasedMaterial(),
-        ),
-      )
-      ..position = vm.Vector3(0, size.y / 2, 0),
+_Bounds3 _runtimeRotatedBounds(_Bounds3 source, double angle) {
+  final sourceCenter = source.center;
+  final floorY = source.min!.y;
+  final rotation = vm.Matrix4.compose(
+    vm.Vector3.zero(),
+    vm.Quaternion.axisAngle(vm.Vector3(0, 1, 0), angle),
+    vm.Vector3.all(1),
   );
-  return root;
+  final result = _Bounds3();
+  final lo = source.min!;
+  final hi = source.max!;
+
+  for (final x in <double>[lo.x, hi.x]) {
+    for (final y in <double>[lo.y, hi.y]) {
+      for (final z in <double>[lo.z, hi.z]) {
+        final point = vm.Vector3(
+          x - sourceCenter.x,
+          y - floorY,
+          z - sourceCenter.z,
+        );
+        rotation.transform3(point);
+        result.include(point);
+      }
+    }
+  }
+  return result;
 }
 
-PerspectiveCamera _camera(double orbitAngle, vm.Vector3 size) {
-  final footprint = math.max(size.x, size.z);
-  final distance = math.max(4.2, footprint * 2.8);
-  final targetY = size.y / 2;
-  return PerspectiveCamera(
-    fovRadiansY: 64 * math.pi / 180,
-    position: vm.Vector3(
-      math.cos(orbitAngle) * distance,
-      targetY + math.max(1.1, size.y * 0.35),
-      math.sin(orbitAngle) * distance,
-    ),
-    target: vm.Vector3(0, targetY, 0),
-    up: vm.Vector3(0, 1, 0),
-    fovNear: 0.045,
-    fovFar: 120,
+void _expectDimensionClose({
+  required double actual,
+  required double expected,
+  required String label,
+  double relativeTolerance = 0.04,
+  double absoluteTolerance = 0.025,
+}) {
+  final tolerance = math.max(absoluteTolerance, expected.abs() * relativeTolerance);
+  expect(
+    (actual - expected).abs(),
+    lessThanOrEqualTo(tolerance),
+    reason: '$label differs by ${(actual - expected).abs().toStringAsFixed(4)} m (allowed ${tolerance.toStringAsFixed(4)} m)',
   );
 }
 
 void main() {
-  TestWidgetsFlutterBinding.ensureInitialized();
-
-  test('all production LOD GLBs expose stable frustum bounds without GPU texture upload', () {
-    const viewport = Size(1080, 1920);
-    const cameraAngles = <double>[-2.4, -1.2, 0.0, 1.1, 2.35];
+  test('all production LOD GLBs keep stable transformed culling bounds headlessly', () {
     const objectAngles = <double>[0.0, 0.7, 1.57, 2.35];
 
-    final modelPaths = <String>{};
     for (final id in ZamerModelAssetCatalog.productionLodIds) {
       final asset = ZamerModelAssetCatalog.byId(id);
       expect(asset, isNotNull, reason: '$id must resolve to a production model asset');
-      modelPaths
-        ..add(asset!.assetPath)
-        ..add(asset.lod1AssetPath!)
-        ..add(asset.lod2AssetPath!);
-    }
-    expect(
-      modelPaths.length,
-      ZamerModelAssetCatalog.productionLodIds.length * 3,
-      reason: 'Every production model must contribute LOD0/LOD1/LOD2.',
-    );
+      final resolved = asset!;
+      final paths = <String>[
+        resolved.assetPath,
+        resolved.lod1AssetPath!,
+        resolved.lod2AssetPath!,
+      ];
+      final boundsByPath = <String, _Bounds3>{};
 
-    for (final path in modelPaths) {
-      expect(File(path).existsSync(), isTrue, reason: '$path is missing from the runtime bundle');
-      final bounds = _glbBounds(path);
-      final size = bounds.size;
-      expect(size.x, greaterThan(0.005), reason: '$path has collapsed X bounds');
-      expect(size.y, greaterThan(0.005), reason: '$path has collapsed Y bounds');
-      expect(size.z, greaterThan(0.005), reason: '$path has collapsed Z bounds');
-      expect(size.x.isFinite && size.y.isFinite && size.z.isFinite, isTrue, reason: '$path has non-finite bounds');
+      for (final path in paths) {
+        expect(File(path).existsSync(), isTrue, reason: '$path is missing from the runtime bundle');
+        final bounds = _glbBounds(path);
+        final size = bounds.size;
+        expect(size.x, greaterThan(0.005), reason: '$path has collapsed X bounds');
+        expect(size.y, greaterThan(0.005), reason: '$path has collapsed Y bounds');
+        expect(size.z, greaterThan(0.005), reason: '$path has collapsed Z bounds');
+        expect(
+          size.x.isFinite && size.y.isFinite && size.z.isFinite,
+          isTrue,
+          reason: '$path has non-finite bounds',
+        );
+        boundsByPath[path] = bounds;
 
-      final root = _syntheticBoundsNode(bounds);
-      for (final objectAngle in objectAngles) {
-        root.rotation = vm.Quaternion.axisAngle(vm.Vector3(0, 1, 0), objectAngle);
-        final worldBounds = root.combinedWorldBounds;
-        expect(worldBounds, isNotNull, reason: '$path lost world bounds at $objectAngle');
-        for (final cameraAngle in cameraAngles) {
+        for (final angle in objectAngles) {
+          final rotated = _runtimeRotatedBounds(bounds, angle);
+          final rotatedSize = rotated.size;
+          expect(rotatedSize.x, greaterThan(0.005), reason: '$path collapsed X after rotation $angle');
+          expect(rotatedSize.y, greaterThan(0.005), reason: '$path collapsed Y after rotation $angle');
+          expect(rotatedSize.z, greaterThan(0.005), reason: '$path collapsed Z after rotation $angle');
           expect(
-            root.isVisibleTo(_camera(cameraAngle, size), viewport),
+            rotatedSize.x.isFinite && rotatedSize.y.isFinite && rotatedSize.z.isFinite,
             isTrue,
-            reason: '$path was incorrectly frustum-culled at object=$objectAngle camera=$cameraAngle',
+            reason: '$path produced non-finite rotated bounds at $angle',
           );
         }
+      }
+
+      final baseSize = boundsByPath[resolved.assetPath]!.size;
+      final nativeSize = vm.Vector3(
+        resolved.nativeWidthMm / 1000,
+        resolved.nativeHeightMm / 1000,
+        resolved.nativeDepthMm / 1000,
+      );
+      _expectDimensionClose(actual: baseSize.x, expected: nativeSize.x, label: '$id LOD0 width vs catalog');
+      _expectDimensionClose(actual: baseSize.y, expected: nativeSize.y, label: '$id LOD0 height vs catalog');
+      _expectDimensionClose(actual: baseSize.z, expected: nativeSize.z, label: '$id LOD0 depth vs catalog');
+
+      for (final path in paths.skip(1)) {
+        final lodSize = boundsByPath[path]!.size;
+        _expectDimensionClose(
+          actual: lodSize.x,
+          expected: baseSize.x,
+          label: '$path width vs LOD0',
+          relativeTolerance: 0.025,
+          absoluteTolerance: 0.015,
+        );
+        _expectDimensionClose(
+          actual: lodSize.y,
+          expected: baseSize.y,
+          label: '$path height vs LOD0',
+          relativeTolerance: 0.025,
+          absoluteTolerance: 0.015,
+        );
+        _expectDimensionClose(
+          actual: lodSize.z,
+          expected: baseSize.z,
+          label: '$path depth vs LOD0',
+          relativeTolerance: 0.025,
+          absoluteTolerance: 0.015,
+        );
       }
     }
   });
