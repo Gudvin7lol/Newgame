@@ -10,8 +10,12 @@ import 'model_asset_catalog.dart';
 class ZamerModelLodPolicy {
   const ZamerModelLodPolicy._();
 
-  static const qualityLod1ObjectCount = 10;
-  static const qualityLod2ObjectCount = 28;
+  // Quality mode should stay visibly high-detail for a normal furnished room.
+  // Ten objects was too aggressive: a sofa, bed, table, chairs and a few
+  // fixtures were enough to drop the entire scene to LOD1. Keep LOD0 through
+  // typical room counts and reserve LOD2 for genuinely dense projects.
+  static const qualityLod1ObjectCount = 16;
+  static const qualityLod2ObjectCount = 40;
 
   static ZamerModelLod select({
     required ZamerModelAsset asset,
