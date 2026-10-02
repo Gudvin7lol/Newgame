@@ -81,8 +81,6 @@ jobs:
             mobile_file="$3"
             target="$4"
 
-            # True authored LOD0 for Quality/Photo. +106 incorrectly used the
-            # .55 mobile build as the canonical model.
             python3 zamer-app/tool/featured_models/build_models.py "$kind" 1.0
             cp "zamer-app/tool/featured_models/$kind/high/$high_file" "$catalog_dir/$target.glb"
 
@@ -103,10 +101,8 @@ jobs:
           build_chain rug Zamer_Rug_2000x1400.glb Zamer_Rug_2000x1400_Mobile.glb rug-2000x1400
           build_chain sconce Zamer_Wall_Sconce_UpDown.glb Zamer_Wall_Sconce_UpDown_Mobile.glb wall-sconce-updown
 
-          # +107: build the approved kitchen from the HQ reference-driven
-          # generator. This replaces the +106 256px-upscale path.
+          # +107 kitchen, rebuilt from reference-driven HQ geometry/materials.
           python3 zamer-app/tool/imported_2026_10_02/build_kitchen_hq.py
-
           kitchen_model_dir="zamer-app/tool/imported_2026_10_02/kitchen/models_hq"
           cp "$kitchen_model_dir/drawers.glb" "$catalog_dir/kitchen-drawers-600.glb"
           cp "$kitchen_model_dir/sink.glb" "$catalog_dir/kitchen-sink-600-pro.glb"
@@ -115,9 +111,19 @@ jobs:
           cp "$kitchen_model_dir/pantry.glb" "$catalog_dir/kitchen-pantry-600.glb"
           cp "$kitchen_model_dir/fridge.glb" "$catalog_dir/fridge-built-in-610.glb"
 
-          # Render the plan preview from the very same production GLB. This
-          # removes the old split where the 2D icon and the 3D model could be
-          # unrelated assets with different proportions and detail.
+          # +107 casework. Existing catalogue IDs stay stable, but the old
+          # placeholder TV console/wardrobe assets are replaced across all LODs.
+          build_casework_chain() {
+            kind="$1"
+            target="$2"
+            python3 zamer-app/tool/imported_2026_10_02/build_casework_hq.py "$kind" 1.0 "$catalog_dir/$target.glb"
+            python3 zamer-app/tool/imported_2026_10_02/build_casework_hq.py "$kind" .55 "$catalog_dir/${target}_lod1.glb"
+            python3 zamer-app/tool/imported_2026_10_02/build_casework_hq.py "$kind" .25 "$catalog_dir/${target}_lod2.glb"
+          }
+          build_casework_chain tv tv-console-1600
+          build_casework_chain wardrobe wardrobe-sliding-2000
+
+          # Render 2D from the exact same LOD0 GLB shown in 3D.
           render_topview() {
             model="$1"
             output="$2"
@@ -129,6 +135,8 @@ jobs:
           render_topview bed-180 featured_bed_180
           render_topview armchair featured_armchair
           render_topview coffee-table featured_coffee_table
+          render_topview tv-console-1600 featured_tv_console
+          render_topview wardrobe-sliding-2000 featured_wardrobe
           render_topview washer featured_washer
           render_topview toilet featured_toilet
           render_topview chandelier-ring featured_chandelier
@@ -145,10 +153,17 @@ jobs:
             test -s "$catalog_dir/$model.glb"
           done
 
+          for model in tv-console-1600 wardrobe-sliding-2000; do
+            test -s "$catalog_dir/$model.glb"
+            test -s "$catalog_dir/${model}_lod1.glb"
+            test -s "$catalog_dir/${model}_lod2.glb"
+          done
+
           for preview in \
             kitchen_drawers kitchen_sink kitchen_cooktop kitchen_corner kitchen_pantry kitchen_fridge \
             featured_sofa_3 featured_bed_180 featured_armchair featured_coffee_table \
-            featured_washer featured_toilet featured_chandelier featured_rug featured_sconce; do
+            featured_tv_console featured_wardrobe featured_washer featured_toilet \
+            featured_chandelier featured_rug featured_sconce; do
             test -s "$topview_dir/$preview.webp"
           done
 
@@ -157,6 +172,8 @@ jobs:
             "$catalog_dir"/armchair*.glb \
             "$catalog_dir"/coffee-table*.glb \
             "$catalog_dir"/bed-180*.glb \
+            "$catalog_dir"/tv-console-1600*.glb \
+            "$catalog_dir"/wardrobe-sliding-2000*.glb \
             "$catalog_dir"/washer*.glb \
             "$catalog_dir"/toilet*.glb \
             "$catalog_dir"/chandelier-ring*.glb \
