@@ -12,6 +12,12 @@ abstract final class GeneratedMaterialIds {
   static const wallRedClay = 'zamer-wall-red-clay';
   static const wallWhiteClay = 'zamer-wall-white-clay';
   static const wallLinen = 'zamer-wall-linen';
+  static const oakNaturalPbr = 'zamer-oak-natural-pbr';
+  static const walnutPbr = 'zamer-walnut-pbr';
+  static const marbleBiancoPbr = 'zamer-marble-bianco-pbr';
+  static const concreteWarmPbr = 'zamer-concrete-warm-pbr';
+  static const plasterMineralPbr = 'zamer-plaster-mineral-pbr';
+  static const graphiteTilePbr = 'zamer-graphite-tile-pbr';
 
   static const all = <String>{
     darkOak,
@@ -26,5 +32,11 @@ abstract final class GeneratedMaterialIds {
     wallRedClay,
     wallWhiteClay,
     wallLinen,
+    oakNaturalPbr,
+    walnutPbr,
+    marbleBiancoPbr,
+    concreteWarmPbr,
+    plasterMineralPbr,
+    graphiteTilePbr,
   };
 }

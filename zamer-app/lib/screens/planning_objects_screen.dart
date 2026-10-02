@@ -2,6 +2,9 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../design_system/zamer_components.dart';
+import '../design_system/zamer_master_page_header.dart';
+import '../design_system/zamer_tokens.dart';
 import '../models/models.dart';
 import '../services/angle_snap_service.dart';
 import '../services/object_catalog.dart';
@@ -804,7 +807,7 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: const Color(0xFF0E1517),
+      backgroundColor: ZamerColors.background,
       showDragHandle: true,
       builder: (sheetContext) => FractionallySizedBox(
         heightFactor: .94,
@@ -894,9 +897,13 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
                                       final selected = candidate == group;
                                       return Material(
                                         color: selected
-                                            ? const Color(0xFF3B3028)
+                                            ? ZamerColors.accent.withValues(
+                                                alpha: .12,
+                                              )
                                             : Colors.transparent,
-                                        borderRadius: BorderRadius.circular(12),
+                                        borderRadius: BorderRadius.circular(
+                                          ZamerRadius.md,
+                                        ),
                                         child: InkWell(
                                           borderRadius: BorderRadius.circular(
                                             12,
@@ -974,7 +981,9 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
                                                 item.id == _catalogId;
                                             return InkWell(
                                               borderRadius:
-                                                  BorderRadius.circular(18),
+                                                  BorderRadius.circular(
+                                                    ZamerRadius.lg,
+                                                  ),
                                               onTap: () => choose(item),
                                               child: Container(
                                                 padding: const EdgeInsets.all(
@@ -985,7 +994,9 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
                                                     0xFF172125,
                                                   ),
                                                   borderRadius:
-                                                      BorderRadius.circular(18),
+                                                      BorderRadius.circular(
+                                                        ZamerRadius.lg,
+                                                      ),
                                                   border: Border.all(
                                                     color: selected
                                                         ? const Color(
@@ -1131,39 +1142,17 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Row(
-                children: [
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Оснащение',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: .1,
-                          ),
-                        ),
-                        SizedBox(height: 2),
-                        Text(
-                          'Выбери объект и размести его касанием по плану',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Color(0xFF8C989D),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  IconButton.filledTonal(
-                    tooltip: 'Открыть каталог',
-                    onPressed: _source == _AddSource.catalog
-                        ? _chooseModel
-                        : null,
-                    icon: const Icon(Icons.grid_view_rounded),
-                  ),
-                ],
+              ZMasterPageHeader(
+                icon: Icons.chair_alt_outlined,
+                title: 'Оснащение',
+                subtitle: 'Выбери объект и размести его касанием по плану',
+                trailing: IconButton.filledTonal(
+                  tooltip: 'Открыть каталог',
+                  onPressed: _source == _AddSource.catalog
+                      ? _chooseModel
+                      : null,
+                  icon: const Icon(Icons.grid_view_rounded),
+                ),
               ),
               const SizedBox(height: 9),
               SegmentedButton<_AddSource>(
@@ -1186,13 +1175,9 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
               ),
               const SizedBox(height: 9),
               if (_source == _AddSource.catalog)
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF111A1F),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color(0xFF2A3941)),
-                  ),
+                ZPanel(
+                  padding: const EdgeInsets.all(ZamerSpace.sm),
+                  color: ZamerColors.surfaceLow,
                   child: Row(
                     children: [
                       _modelPreview(ObjectCatalog.byId(_catalogId), 82),
@@ -1372,9 +1357,9 @@ class _EquipmentChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
       decoration: BoxDecoration(
-        color: const Color(0xFF0B1216),
+        color: ZamerColors.background,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFF2A3941)),
+        border: Border.all(color: ZamerColors.outline),
       ),
       child: Text(
         label,
@@ -1463,7 +1448,7 @@ class _PlanningPainter extends CustomPainter {
     };
     final fill = Paint()..color = color.withValues(alpha: 0.12);
     final stroke = Paint()
-      ..color = selected ? const Color(0xFFF1C79E) : color
+      ..color = selected ? ZamerColors.accent : color
       ..style = PaintingStyle.stroke
       ..strokeWidth = selected ? 2.5 : 1.5;
     canvas.save();

@@ -8,6 +8,7 @@ import '../design_system/zamer_graphics_selector.dart';
 import '../design_system/zamer_tokens.dart';
 import '../models/models.dart';
 import '../renderer3d/zamer_gpu_viewport.dart';
+import '../services/camera_gesture_policy.dart';
 import '../services/walk_input_service.dart';
 import '../services/walk_navigation_service.dart';
 import 'photo_studio_screen.dart';
@@ -147,8 +148,11 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
             : rawLook;
         if (!_walkMode) _walkLookDelta = Offset.zero;
         final lookSensitivity = _walkMode ? _lookSensitivity : 0.010;
-        final angle = _rotation + lookDelta.dx * lookSensitivity;
-        _rotation = math.atan2(math.sin(angle), math.cos(angle));
+        _rotation = CameraGesturePolicy.applyHorizontalSwipe(
+          yaw: _rotation,
+          deltaX: lookDelta.dx,
+          sensitivity: lookSensitivity,
+        );
         _tilt = (_tilt - lookDelta.dy * lookSensitivity * 0.6)
             .clamp(_walkMode ? -0.7 : 0.22, _walkMode ? 0.7 : 1.48)
             .toDouble();

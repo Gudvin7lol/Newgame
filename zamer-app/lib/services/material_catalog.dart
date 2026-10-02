@@ -130,6 +130,60 @@ class MaterialCatalog {
       textureAsset: 'assets/textures/generated_v1/wall_linen.jpg',
       roughness: .92,
     ),
+    VisualMaterialPreset(
+      id: GeneratedMaterialIds.oakNaturalPbr,
+      name: 'Дуб натуральный · PBR',
+      category: 'Пол',
+      color: Color(0xFFD0AD7D),
+      pattern: 'wood',
+      textureAsset: 'assets/textures/floor_oak_natural.png',
+      roughness: .52,
+    ),
+    VisualMaterialPreset(
+      id: GeneratedMaterialIds.walnutPbr,
+      name: 'Орех натуральный · PBR',
+      category: 'Пол',
+      color: Color(0xFF815A3D),
+      pattern: 'wood',
+      textureAsset: 'assets/textures/floor_walnut.png',
+      roughness: .50,
+    ),
+    VisualMaterialPreset(
+      id: GeneratedMaterialIds.marbleBiancoPbr,
+      name: 'Мрамор Bianco · PBR',
+      category: 'Плитка',
+      color: Color(0xFFE9E6E0),
+      pattern: 'tile',
+      textureAsset: 'assets/textures/tile_marble.png',
+      roughness: .28,
+    ),
+    VisualMaterialPreset(
+      id: GeneratedMaterialIds.concreteWarmPbr,
+      name: 'Бетон тёплый · PBR',
+      category: 'Стены',
+      color: Color(0xFFB9B2A8),
+      pattern: 'concrete',
+      textureAsset: 'assets/textures/concrete_soft.png',
+      roughness: .86,
+    ),
+    VisualMaterialPreset(
+      id: GeneratedMaterialIds.plasterMineralPbr,
+      name: 'Минеральная штукатурка · PBR',
+      category: 'Стены',
+      color: Color(0xFFD2C7B6),
+      pattern: 'concrete',
+      textureAsset: 'assets/textures/plaster_warm.png',
+      roughness: .88,
+    ),
+    VisualMaterialPreset(
+      id: GeneratedMaterialIds.graphiteTilePbr,
+      name: 'Керамогранит графит · PBR',
+      category: 'Плитка',
+      color: Color(0xFF696D70),
+      pattern: 'tile',
+      textureAsset: 'assets/textures/tile_graphite.png',
+      roughness: .43,
+    ),
   ];
 
   static const presets = <VisualMaterialPreset>[
@@ -375,12 +429,13 @@ class MaterialCatalog {
       .where((e) => e.category == 'Стены' || e.category == 'Плитка')
       .toList(growable: false);
 
-  static List<VisualMaterialPreset> get tileFinishes => presets
-      .where((e) => e.category == 'Плитка')
-      .toList(growable: false);
+  static List<VisualMaterialPreset> get tileFinishes =>
+      presets.where((e) => e.category == 'Плитка').toList(growable: false);
 
   static List<VisualMaterialPreset> get paintFinishes => presets
-      .where((e) =>
-          e.id.startsWith('paint-') || e.id == GeneratedMaterialIds.wallPaint)
+      .where(
+        (e) =>
+            e.id.startsWith('paint-') || e.id == GeneratedMaterialIds.wallPaint,
+      )
       .toList(growable: false);
 }

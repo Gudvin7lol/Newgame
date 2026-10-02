@@ -37,10 +37,10 @@ class ZamerModelAsset {
   bool get hasCompleteLodChain => hasLod1 && hasLod2;
 
   String pathForLod(ZamerModelLod lod) => switch (lod) {
-        ZamerModelLod.lod0 => assetPath,
-        ZamerModelLod.lod1 => lod1AssetPath ?? assetPath,
-        ZamerModelLod.lod2 => lod2AssetPath ?? lod1AssetPath ?? assetPath,
-      };
+    ZamerModelLod.lod0 => assetPath,
+    ZamerModelLod.lod1 => lod1AssetPath ?? assetPath,
+    ZamerModelLod.lod2 => lod2AssetPath ?? lod1AssetPath ?? assetPath,
+  };
 }
 
 class ZamerModelAssetCatalog {
@@ -64,6 +64,10 @@ class ZamerModelAssetCatalog {
     'table-round',
     'tv-console-1600',
     'wardrobe-sliding-2000',
+    'washer',
+    'toilet',
+    'chandelier-ring',
+    'rug-2000x1400',
   };
 
   static const _reverseFacingProductionIds = <String>{
@@ -98,6 +102,10 @@ class ZamerModelAssetCatalog {
         'table-round': (1100, 1100, 760),
         'tv-console-1600': (1600, 450, 550),
         'wardrobe-sliding-2000': (2000, 650, 2400),
+        'washer': (600, 620, 850),
+        'toilet': (390, 700, 760),
+        'chandelier-ring': (900, 900, 350),
+        'rug-2000x1400': (2000, 1400, 35),
       };
 
   static ZamerModelAsset? byId(String id) {
@@ -126,8 +134,7 @@ class ZamerModelAssetCatalog {
       nativeWidthMm: native?.$1 ?? item.widthMm,
       nativeDepthMm: native?.$2 ?? item.depthMm,
       nativeHeightMm: native?.$3 ?? item.heightMm,
-      yawCorrectionRad:
-          _reverseFacingProductionIds.contains(id) ? math.pi : 0,
+      yawCorrectionRad: _reverseFacingProductionIds.contains(id) ? math.pi : 0,
     );
     return asset.hasRenderableDimensions ? asset : null;
   }

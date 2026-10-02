@@ -532,7 +532,7 @@ class ObjectCatalog {
       type: PlanObjectType.lighting,
       widthMm: 900,
       depthMm: 900,
-      heightMm: 180,
+      heightMm: 350,
       mount: CatalogMount.ceiling,
     ),
     ObjectCatalogItem(
@@ -774,6 +774,15 @@ class ObjectCatalog {
       widthMm: 500,
       depthMm: 500,
       heightMm: 1000,
+    ),
+    ObjectCatalogItem(
+      id: 'rug-2000x1400',
+      name: 'Ковёр 2000×1400',
+      group: 'Декор',
+      type: PlanObjectType.furniture,
+      widthMm: 2000,
+      depthMm: 1400,
+      heightMm: 35,
     ),
   ];
 

@@ -2,6 +2,9 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../design_system/zamer_components.dart';
+import '../design_system/zamer_master_page_header.dart';
+import '../design_system/zamer_tokens.dart';
 import '../models/models.dart';
 import '../services/layout_service.dart';
 import '../services/geometry_service.dart';
@@ -356,14 +359,10 @@ class _ElevationsScreenState extends State<ElevationsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
-                'Развёртки',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                '${meta.name} • ${runs.length} стен',
-                style: const TextStyle(fontSize: 11, color: Color(0xFF8C989D)),
+              ZMasterPageHeader(
+                icon: Icons.view_agenda_outlined,
+                title: 'Развёртки',
+                subtitle: '${meta.name} • ${runs.length} стен',
               ),
               const SizedBox(height: 10),
               DropdownButtonFormField<String>(
@@ -401,12 +400,12 @@ class _ElevationsScreenState extends State<ElevationsScreen> {
                     return ChoiceChip(
                       selected: selected,
                       showCheckmark: false,
-                      selectedColor: const Color(0xFF3B3028),
-                      backgroundColor: const Color(0xFF111A1F),
+                      selectedColor: ZamerColors.accent.withValues(alpha: .12),
+                      backgroundColor: ZamerColors.surfaceLow,
                       side: BorderSide(
                         color: selected
-                            ? const Color(0xFFF1C79E)
-                            : const Color(0xFF2A3941),
+                            ? ZamerColors.accent
+                            : ZamerColors.outline,
                       ),
                       avatar: CircleAvatar(
                         radius: 13,
@@ -509,13 +508,9 @@ class _ElevationsScreenState extends State<ElevationsScreen> {
                 // drag gestures inside the drawing area.
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                  child: Card(
-                    elevation: 0,
-                    color: const Color(0xFF111A1F),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18),
-                      side: const BorderSide(color: Color(0xFF2A3941)),
-                    ),
+                  child: ZPanel(
+                    padding: EdgeInsets.zero,
+                    color: ZamerColors.surfaceLow,
                     child: Column(
                       children: [
                         Padding(
@@ -572,8 +567,10 @@ class _ElevationsScreenState extends State<ElevationsScreen> {
                                       : null,
                                   child: DecoratedBox(
                                     decoration: BoxDecoration(
-                                      color: const Color(0xFF0B1115),
-                                      borderRadius: BorderRadius.circular(12),
+                                      color: ZamerColors.background,
+                                      borderRadius: BorderRadius.circular(
+                                        ZamerRadius.md,
+                                      ),
                                       border: Border.all(
                                         color: Theme.of(context)
                                             .colorScheme
@@ -581,7 +578,9 @@ class _ElevationsScreenState extends State<ElevationsScreen> {
                                       ),
                                     ),
                                     child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(11),
+                                      borderRadius: BorderRadius.circular(
+                                        ZamerRadius.md,
+                                      ),
                                       child: CustomPaint(
                                         painter: ElevationPainter(
                                           floor: widget.floor,
@@ -790,9 +789,9 @@ class _InfoPill extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
     decoration: BoxDecoration(
-      color: const Color(0xFF172125),
-      borderRadius: BorderRadius.circular(10),
-      border: Border.all(color: const Color(0xFF2A3941)),
+      color: ZamerColors.surface,
+      borderRadius: BorderRadius.circular(ZamerRadius.sm),
+      border: Border.all(color: ZamerColors.outline),
     ),
     child: Row(
       mainAxisSize: MainAxisSize.min,

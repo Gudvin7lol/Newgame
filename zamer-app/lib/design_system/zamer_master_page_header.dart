@@ -41,7 +41,11 @@ class ZMasterPageHeader extends StatelessWidget {
               border: Border.all(color: ZamerColors.outlineSoft),
             ),
             alignment: Alignment.center,
-            child: Icon(icon, color: ZamerColors.accent, size: ZamerSize.iconMd),
+            child: Icon(
+              icon,
+              color: ZamerColors.accent,
+              size: ZamerSize.iconMd,
+            ),
           ),
           const SizedBox(width: ZamerSpace.sm),
           Expanded(

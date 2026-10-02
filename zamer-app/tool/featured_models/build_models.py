@@ -6,8 +6,8 @@ KIND=sys.argv[1];DETAIL=float(sys.argv[2]) if len(sys.argv)>2 else 1.
 OUT=ROOT/KIND/('mobile' if DETAIL<1 else 'high');OUT.mkdir(parents=True,exist_ok=True)
 os.environ['SOFA_DETAIL']=str(DETAIL)
 exec((ROOT/'mesh_helpers.py').read_text())
-P=str(OUT);MODEL_NAME={'sofa':'Zamer_Sofa_v3','armchair':'Zamer_Armchair_Sand','table':'Zamer_Table_Walnut','bed':'Zamer_Bed_Sand'}[KIND]
-MATERIAL_NAME='Sand fine woven linen';NORMAL_SCALE=.35
+P=str(OUT);MODEL_NAME={'sofa':'Zamer_Sofa_v3','armchair':'Zamer_Armchair_Sand','table':'Zamer_Table_Walnut','bed':'Zamer_Bed_Sand','washer':'Zamer_Washer','toilet':'Zamer_Toilet','chandelier':'Zamer_Chandelier_Ring','rug':'Zamer_Rug_2000x1400'}[KIND]
+MATERIAL_NAME='Sand fine woven linen';NORMAL_SCALE=.35;MATERIAL_OVERRIDES=None
 def cylinder(name,r0,r1,height,pos,rotation=(0,0,0),mat=0,N=72):
  N=max(16,round(N*DETAIL));vs=[];uv=[];fs=[];R=rot(*rotation)
  for j,(r,z) in enumerate([(r0,-height/2),(r1,height/2)]):
@@ -104,6 +104,48 @@ elif KIND=='bed':
  for x in [-.726,.726]:
   for y in [-.881,.851]:softbox('dark_walnut_foot',(.074,.074,.128),(x,y,.064),.008,mat=2,N=5)
  dims=np.array([1.80,2.20,1.13]);LABEL='Кровать Sand';CATEGORY='Кровати'
+elif KIND=='washer':
+ softbox('washer_body',(.60,.60,.85),(0,0,.425),.025,N=10,mat=0)
+ softbox('control_panel',(.54,.035,.14),(0,-.304,.735),.008,N=7,mat=0)
+ cylinder('door_rim',.225,.225,.036,(0,-.312,.43),rotation=(math.pi/2,0,0),mat=2,N=64)
+ cylinder('door_glass',.180,.180,.041,(0,-.334,.43),rotation=(math.pi/2,0,0),mat=1,N=64)
+ cylinder('selector',.038,.038,.025,(.14,-.326,.75),rotation=(math.pi/2,0,0),mat=2,N=40)
+ dims=np.array([.60,.62,.85]);LABEL='Стиральная машина Pro';CATEGORY='Бытовая техника'
+ MATERIAL_OVERRIDES=[
+  {'name':'White enamel','pbrMetallicRoughness':{'baseColorFactor':[.84,.87,.88,1],'metallicFactor':.04,'roughnessFactor':.27}},
+  {'name':'Dark washer glass','pbrMetallicRoughness':{'baseColorFactor':[.025,.035,.045,1],'metallicFactor':.18,'roughnessFactor':.10}},
+  {'name':'Brushed steel','pbrMetallicRoughness':{'baseColorFactor':[.55,.58,.60,1],'metallicFactor':.82,'roughnessFactor':.20}},
+ ]
+elif KIND=='toilet':
+ softbox('toilet_base',(.34,.54,.42),(0,-.04,.21),.09,.015,N=20,mat=0)
+ softbox('toilet_bowl',(.39,.68,.30),(0,-.08,.47),.11,.025,N=24,mat=0)
+ cylinder('seat',.19,.19,.035,(0,-.12,.625),mat=1,N=64)
+ parts[-1]['v'][:,1]=(parts[-1]['v'][:,1]+.12)*1.48-.12
+ softbox('cistern',(.37,.19,.43),(0,.235,.555),.035,N=16,mat=0)
+ cylinder('flush_button',.032,.032,.012,(0,.235,.78),mat=2,N=36)
+ dims=np.array([.39,.70,.76]);LABEL='Унитаз керамический';CATEGORY='Сантехника'
+ MATERIAL_OVERRIDES=[
+  {'name':'Gloss ceramic','pbrMetallicRoughness':{'baseColorFactor':[.96,.965,.96,1],'metallicFactor':0,'roughnessFactor':.12}},
+  {'name':'Seat soft white','pbrMetallicRoughness':{'baseColorFactor':[.90,.91,.90,1],'metallicFactor':0,'roughnessFactor':.24}},
+  {'name':'Chrome button','pbrMetallicRoughness':{'baseColorFactor':[.65,.68,.70,1],'metallicFactor':.92,'roughnessFactor':.12}},
+ ]
+elif KIND=='chandelier':
+ circle=[np.array([.43*math.cos(t),.43*math.sin(t),.10]) for t in np.linspace(0,2*math.pi,96,endpoint=False)]
+ tube('outer_ring',circle,r=.020,mat=0)
+ circle_glow=[np.array([.405*math.cos(t),.405*math.sin(t),.10]) for t in np.linspace(0,2*math.pi,96,endpoint=False)]
+ tube('light_ring',circle_glow,r=.010,mat=1)
+ cylinder('ceiling_canopy',.09,.09,.045,(0,0,.327),mat=0,N=48)
+ for a in [0,2*math.pi/3,4*math.pi/3]:
+  cylinder('suspension',.003,.003,.22,(.32*math.cos(a),.32*math.sin(a),.215),mat=2,N=18)
+ dims=np.array([.90,.90,.35]);LABEL='Люстра-кольцо Production';CATEGORY='Освещение'
+ MATERIAL_OVERRIDES=[
+  {'name':'Black anodized metal','pbrMetallicRoughness':{'baseColorFactor':[.035,.04,.045,1],'metallicFactor':.82,'roughnessFactor':.24}},
+  {'name':'Warm diffuser','pbrMetallicRoughness':{'baseColorFactor':[1,.78,.48,1],'metallicFactor':0,'roughnessFactor':.20},'emissiveFactor':[1,.48,.18]},
+  {'name':'Suspension wire','pbrMetallicRoughness':{'baseColorFactor':[.24,.25,.26,1],'metallicFactor':.74,'roughnessFactor':.28}},
+ ]
+elif KIND=='rug':
+ softbox('rug_body',(2.0,1.4,.035),(0,0,.0175),.028,.003,N=20,mat=0)
+ dims=np.array([2.0,1.4,.035]);LABEL='Ковёр 2000×1400';CATEGORY='Декор';MATERIAL_NAME='Dense woven rug';NORMAL_SCALE=.55
 else:raise ValueError(KIND)
 # Units and floor origin are exactly consistent across all furniture models.
 V=np.concatenate([p['v'] for p in parts]);lo=V.min(0);hi=V.max(0);factor=dims/(hi-lo)

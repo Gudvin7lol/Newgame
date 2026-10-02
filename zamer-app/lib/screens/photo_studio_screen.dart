@@ -9,6 +9,7 @@ import '../design_system/zamer_components.dart';
 import '../design_system/zamer_tokens.dart';
 import '../models/models.dart';
 import '../renderer3d/zamer_gpu_viewport.dart';
+import '../services/camera_gesture_policy.dart';
 
 class PhotoStudioScreen extends StatefulWidget {
   const PhotoStudioScreen({
@@ -364,8 +365,11 @@ class _PhotoStudioScreenState extends State<PhotoStudioScreen> {
               ))
             : rawLook;
         if (!_stabilization) _stabilizedLookDelta = rawLook;
-        final angle = _rotation + lookDelta.dx * .008;
-        _rotation = math.atan2(math.sin(angle), math.cos(angle));
+        _rotation = CameraGesturePolicy.applyHorizontalSwipe(
+          yaw: _rotation,
+          deltaX: lookDelta.dx,
+          sensitivity: .008,
+        );
         final minTilt = _usesWalkOrigin ? -0.7 : 0.15;
         final maxTilt = _usesWalkOrigin ? 0.7 : 1.48;
         _tilt = (_tilt - lookDelta.dy * .005)
