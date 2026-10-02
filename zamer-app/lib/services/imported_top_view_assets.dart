@@ -3,10 +3,10 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-/// Lazy cache for the approved 2026-10-02 raster top-view pack.
+/// Lazy cache for the approved raster top-view pack.
 ///
-/// The CAD renderer keeps its vector symbols underneath these images, so a
-/// missing or corrupt optional preview never makes an object disappear.
+/// The CAD renderer keeps deterministic vector symbols underneath these
+/// images, so a missing optional preview never makes an object disappear.
 class ImportedTopViewAssets extends ChangeNotifier {
   ImportedTopViewAssets._();
 
@@ -28,6 +28,15 @@ class ImportedTopViewAssets extends ChangeNotifier {
     'shower': 'shower_900x900',
     'radiator': 'radiator_1000x120',
     'radiator-600': 'radiator_1000x120',
+
+    // +107 kitchen views are rendered from the exact same HQ geometry that is
+    // copied into the 3D catalogue, so 2D and 3D can no longer silently drift.
+    'kitchen-drawers-600': 'kitchen_drawers',
+    'kitchen-sink-600-pro': 'kitchen_sink',
+    'kitchen-cooktop-600': 'kitchen_cooktop',
+    'kitchen-corner-900': 'kitchen_corner',
+    'kitchen-pantry-600': 'kitchen_pantry',
+    'fridge-built-in-610': 'kitchen_fridge',
   };
 
   final Map<String, ui.Image> _images = <String, ui.Image>{};
