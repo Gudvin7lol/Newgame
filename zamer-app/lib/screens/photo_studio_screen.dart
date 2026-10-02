@@ -18,6 +18,8 @@ class PhotoStudioScreen extends StatefulWidget {
     required this.tilt,
     required this.zoom,
     required this.pan,
+    this.cameraOriginXMm,
+    this.cameraOriginYMm,
   });
 
   final FloorPlan floor;
@@ -25,6 +27,8 @@ class PhotoStudioScreen extends StatefulWidget {
   final double tilt;
   final double zoom;
   final Offset pan;
+  final double? cameraOriginXMm;
+  final double? cameraOriginYMm;
 
   @override
   State<PhotoStudioScreen> createState() => _PhotoStudioScreenState();
@@ -54,6 +58,9 @@ class _PhotoStudioScreenState extends State<PhotoStudioScreen> {
   bool _horizon = true;
   bool _rendering = false;
   int _renderCount = 0;
+
+  bool get _usesWalkOrigin =>
+      widget.cameraOriginXMm != null && widget.cameraOriginYMm != null;
 
   @override
   void initState() {
@@ -359,7 +366,11 @@ class _PhotoStudioScreenState extends State<PhotoStudioScreen> {
         if (!_stabilization) _stabilizedLookDelta = rawLook;
         final angle = _rotation + lookDelta.dx * .008;
         _rotation = math.atan2(math.sin(angle), math.cos(angle));
-        _tilt = (_tilt - lookDelta.dy * .005).clamp(.15, 1.48).toDouble();
+        final minTilt = _usesWalkOrigin ? -0.7 : 0.15;
+        final maxTilt = _usesWalkOrigin ? 0.7 : 1.48;
+        _tilt = (_tilt - lookDelta.dy * .005)
+            .clamp(minTilt, maxTilt)
+            .toDouble();
       }
     });
   }
@@ -790,6 +801,8 @@ class _PhotoStudioScreenState extends State<PhotoStudioScreen> {
                           photoTime: _time,
                           photoHdr: _hdr,
                           cameraFovDegrees: _lensFov(_lens),
+                          photoCameraOriginXMm: widget.cameraOriginXMm,
+                          photoCameraOriginYMm: widget.cameraOriginYMm,
                         ),
                       ),
                       if (_grid)

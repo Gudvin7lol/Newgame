@@ -166,6 +166,8 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
           tilt: _tilt,
           zoom: _zoom,
           pan: _pan,
+          cameraOriginXMm: _walkMode ? _walkX : null,
+          cameraOriginYMm: _walkMode ? _walkY : null,
         ),
       ),
     );

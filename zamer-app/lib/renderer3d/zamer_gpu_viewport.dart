@@ -123,6 +123,8 @@ class ZamerGpuViewport extends StatefulWidget {
     this.photoTime = ZamerPhotoTime.day,
     this.photoHdr = true,
     this.cameraFovDegrees = 46,
+    this.photoCameraOriginXMm,
+    this.photoCameraOriginYMm,
   });
 
   final FloorPlan floor;
@@ -139,6 +141,8 @@ class ZamerGpuViewport extends StatefulWidget {
   final ZamerPhotoTime photoTime;
   final bool photoHdr;
   final double cameraFovDegrees;
+  final double? photoCameraOriginXMm;
+  final double? photoCameraOriginYMm;
 
   @override
   State<ZamerGpuViewport> createState() => ZamerGpuViewportState();
@@ -1538,6 +1542,34 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     final g = _geometry;
     if (g == null) return PerspectiveCamera();
     final bounds = g.bounds;
+
+    final photoOriginXMm = widget.photoCameraOriginXMm;
+    final photoOriginYMm = widget.photoCameraOriginYMm;
+    if (widget.photoPreview &&
+        photoOriginXMm != null &&
+        photoOriginYMm != null) {
+      final eye = vm.Vector3(
+        _mx(photoOriginXMm, bounds),
+        1.65,
+        _mz(photoOriginYMm, bounds),
+      );
+      final pitch = widget.tilt.clamp(-0.7, 0.7).toDouble();
+      final cp = math.cos(pitch);
+      final forward = vm.Vector3(
+        math.cos(widget.rotation) * cp,
+        math.sin(pitch),
+        math.sin(widget.rotation) * cp,
+      );
+      final fovDegrees = widget.cameraFovDegrees.clamp(18.0, 90.0).toDouble();
+      return PerspectiveCamera(
+        fovRadiansY: fovDegrees * math.pi / 180,
+        position: eye,
+        target: eye + forward * 4,
+        up: vm.Vector3(0, 1, 0),
+        fovNear: ZamerCameraClipPolicy.near(walkMode: true),
+        fovFar: ZamerCameraClipPolicy.walkFarM,
+      );
+    }
 
     if (widget.walkMode) {
       final eye = vm.Vector3(
