@@ -4,13 +4,20 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('Measure page uses the approved UI Kit 02 composition', () {
-    final workspace = File('lib/screens/floor_workspace_screen.dart').readAsStringSync();
-    final measure = File('lib/screens/measure_concept_workspace_screen.dart').readAsStringSync();
-    final chrome = File('lib/design_system/zamer_measure_chrome.dart').readAsStringSync();
-    final production = File('lib/screens/plan_editor_production_screen.dart').readAsStringSync();
-    final editor = File('lib/screens/plan_editor_master_v4_screen.dart').readAsStringSync();
+    final workspace =
+        File('lib/screens/floor_workspace_screen.dart').readAsStringSync();
+    final measure = File('lib/screens/measure_concept_workspace_screen.dart')
+        .readAsStringSync();
+    final chrome =
+        File('lib/design_system/zamer_measure_chrome.dart').readAsStringSync();
+    final production = File('lib/screens/plan_editor_production_screen.dart')
+        .readAsStringSync();
+    final editor = File('lib/screens/plan_editor_master_v4_screen.dart')
+        .readAsStringSync();
     final adapter = File('lib/widgets/cad_plan_painter.dart').readAsStringSync();
-    final painter = File('lib/widgets/cad_plan_painter_v2.dart').readAsStringSync();
+    final painter =
+        File('lib/widgets/cad_plan_painter_v2.dart').readAsStringSync();
+    final v3 = File('lib/widgets/cad_plan_painter_v3.dart').readAsStringSync();
 
     expect(workspace.contains('MeasureConceptWorkspaceScreen('), isTrue);
     expect(measure.contains('PlanEditorProductionScreen('), isTrue);
@@ -38,11 +45,18 @@ void main() {
       "'Привязка'",
       "'Настройки'",
     ]) {
-      expect(editor.contains(required), isTrue, reason: 'Missing UI Kit element: $required');
+      expect(
+        editor.contains(required),
+        isTrue,
+        reason: 'Missing UI Kit element: $required',
+      );
     }
 
     expect(adapter.contains('class CadPlanPainter'), isTrue);
-    expect(adapter.contains('extends CadPlanPainterV2'), isTrue);
+    expect(adapter.contains('extends CadPlanPainterV3'), isTrue);
+    expect(v3.contains('CadPlanPainterV2('), isTrue);
+    expect(v3.contains('ImportedTopViewAssets.instance'), isTrue);
+    expect(v3.contains('paintImage('), isTrue);
     expect(painter.contains('_objects(canvas)'), isTrue);
     expect(painter.contains('_drawFinish('), isTrue);
     expect(painter.contains('DoorSwing'), isTrue);
