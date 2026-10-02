@@ -1235,7 +1235,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       final hardwareMaterial = _pbr(
         vm.Vector4(0.56, 0.58, 0.58, 1),
         roughness: 0.22,
-      )..metallic = 0.86;
+      )..metallicFactor = 0.86;
       final leafRoot = Node(name: 'door-leaf-root')
         ..position = vm.Vector3(-hingeSign * leafWidth / 2, leafHeight / 2, 0);
       leafRoot.add(
