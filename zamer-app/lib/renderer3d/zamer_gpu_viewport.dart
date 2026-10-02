@@ -12,6 +12,7 @@ import '../services/generated_pbr_finish_catalog.dart';
 import '../services/material_catalog.dart';
 import '../widgets/floor_3d_painter.dart';
 import 'camera_clip_policy.dart';
+import 'ceiling_visibility_policy.dart';
 import 'floor_grout_geometry.dart';
 import 'cutaway_geometry.dart';
 import 'host_wall_visibility.dart';
@@ -1597,7 +1598,10 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
   void _applyCutaway(PerspectiveCamera camera) {
     if (!_ready) return;
     for (final ceiling in _ceilingNodes) {
-      ceiling.visible = widget.walkMode;
+      ceiling.visible = ZamerCeilingVisibilityPolicy.visible(
+        walkMode: widget.walkMode,
+        photoPreview: widget.photoPreview,
+      );
     }
     if (!widget.cutaway || widget.walkMode || widget.tilt >= 1.32) {
       for (final wall in _wallVisuals) {
