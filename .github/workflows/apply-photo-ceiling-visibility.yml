@@ -33,10 +33,12 @@ jobs:
                   raise SystemExit(f'expected one camera clip import anchor, found {text.count(import_anchor)}')
               text = text.replace(import_anchor, import_anchor + '\n' + import_line, 1)
           old = '      ceiling.visible = widget.walkMode;'
-          new = '''      ceiling.visible = ZamerCeilingVisibilityPolicy.visible(
-        walkMode: widget.walkMode,
-        photoPreview: widget.photoPreview,
-      );'''
+          new = (
+              '      ceiling.visible = ZamerCeilingVisibilityPolicy.visible(\n'
+              '        walkMode: widget.walkMode,\n'
+              '        photoPreview: widget.photoPreview,\n'
+              '      );'
+          )
           if old in text:
               text = text.replace(old, new, 1)
           elif new not in text:
