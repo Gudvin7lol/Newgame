@@ -17,6 +17,7 @@ void main() {
     final adapter = File('lib/widgets/cad_plan_painter.dart').readAsStringSync();
     final painter =
         File('lib/widgets/cad_plan_painter_v2.dart').readAsStringSync();
+    final v3 = File('lib/widgets/cad_plan_painter_v3.dart').readAsStringSync();
     final objects =
         File('lib/widgets/top_view_object_renderer.dart').readAsStringSync();
 
@@ -53,9 +54,10 @@ void main() {
       );
     }
 
-    // +78 keeps the stable CadPlanPainter entry point, but delegates all
-    // visible plan rendering to the material-aware V2 renderer.
-    expect(adapter.contains('extends CadPlanPainterV2'), isTrue);
+    expect(adapter.contains('extends CadPlanPainterV3'), isTrue);
+    expect(v3.contains('CadPlanPainterV2('), isTrue);
+    expect(v3.contains('ImportedTopViewAssets.instance'), isTrue);
+    expect(v3.contains('paintImage('), isTrue);
     expect(painter.contains('_drawFinish('), isTrue);
     expect(painter.contains('_objects(canvas)'), isTrue);
     expect(painter.contains('TopViewObjectRenderer.draw('), isTrue);
