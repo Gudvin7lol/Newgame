@@ -93,29 +93,11 @@ jobs:
           build_chain rug Zamer_Rug_2000x1400_Mobile.glb rug-2000x1400
           build_chain sconce Zamer_Wall_Sconce_UpDown_Mobile.glb wall-sconce-updown
 
-          # Generate the six imported kitchen models from the source supplied
-          # with the 2026-10-02 content pack. Reuse the imported oak material
-          # as the cabinet veneer so the generated GLBs visually match the pack.
-          python3 - <<'PY'
-          from pathlib import Path
-          from PIL import Image
-          app = Path('zamer-app')
-          source = app / 'assets/textures/imported_2026_10_02/oak_natural_1200mm_basecolor.webp'
-          target = app / 'tool/imported_2026_10_02/kitchen/source/oak_veneer.png'
-          target.parent.mkdir(parents=True, exist_ok=True)
-          Image.open(source).convert('RGB').save(target)
-          PY
-          python3 zamer-app/tool/imported_2026_10_02/kitchen/source/build.py
+          # +107: build the approved reference-driven kitchen instead of the
+          # low-detail source-pack generator used by +106.
+          python3 zamer-app/tool/hq_kitchen/build_hq.py
 
-          kitchen_model_dir="zamer-app/tool/imported_2026_10_02/kitchen/models"
           catalog_dir="zamer-app/assets/models/zamer_catalog"
-          cp "$kitchen_model_dir/drawers.glb" "$catalog_dir/kitchen-drawers-600.glb"
-          cp "$kitchen_model_dir/sink.glb" "$catalog_dir/kitchen-sink-600-pro.glb"
-          cp "$kitchen_model_dir/cooktop.glb" "$catalog_dir/kitchen-cooktop-600.glb"
-          cp "$kitchen_model_dir/corner.glb" "$catalog_dir/kitchen-corner-900.glb"
-          cp "$kitchen_model_dir/pantry.glb" "$catalog_dir/kitchen-pantry-600.glb"
-          cp "$kitchen_model_dir/fridge.glb" "$catalog_dir/fridge-built-in-610.glb"
-
           for model in \
             kitchen-drawers-600 \
             kitchen-sink-600-pro \
@@ -125,6 +107,7 @@ jobs:
             fridge-built-in-610; do
             test -s "$catalog_dir/$model.glb"
           done
+          test -s zamer-app/tool/hq_kitchen/hq_kitchen_catalog.json
 
           ls -lh \
             zamer-app/assets/models/zamer_catalog/sofa-3*.glb \
