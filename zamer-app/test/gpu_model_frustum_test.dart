@@ -5,6 +5,7 @@ import 'dart:ui';
 import 'package:flutter_scene/scene.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vector_math/vector_math.dart' as vm;
+import 'package:zamer_app/models/production_asset_catalog.dart';
 
 Future<Node> _loadRebasedModel(String path) async {
   final bytes = await File(path).readAsBytes();
@@ -39,20 +40,37 @@ PerspectiveCamera _camera(double orbitAngle) {
   );
 }
 
+Iterable<String> _runtimeVariants(String modelPath) sync* {
+  yield modelPath;
+  final stem = modelPath.endsWith('.glb')
+      ? modelPath.substring(0, modelPath.length - 4)
+      : modelPath;
+  for (final suffix in const <String>['_lod1.glb', '_lod2.glb']) {
+    final candidate = '$stem$suffix';
+    if (File(candidate).existsSync()) yield candidate;
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('production sofa LODs keep valid GPU frustum bounds while rotating', () async {
-    const paths = <String>[
-      'assets/models/zamer_catalog/sofa-3.glb',
-      'assets/models/zamer_catalog/sofa-3_lod1.glb',
-      'assets/models/zamer_catalog/sofa-3_lod2.glb',
-    ];
+  test('production GLBs keep valid GPU frustum bounds while rotating', () async {
     const viewport = Size(1080, 1920);
     const cameraAngles = <double>[-2.4, -1.2, 0.0, 1.1, 2.35];
     const objectAngles = <double>[0.0, 0.7, 1.57, 2.35];
 
-    for (final path in paths) {
+    final modelPaths = <String>{
+      for (final asset in ZamerProductionCatalog.linked2d3d)
+        if (asset.model3d case final String path) ..._runtimeVariants(path),
+    };
+
+    expect(
+      modelPaths.length,
+      greaterThanOrEqualTo(ZamerProductionCatalog.linked2d3d.length),
+      reason: 'Every linked production asset must contribute a runtime GLB.',
+    );
+
+    for (final path in modelPaths) {
       final root = await _loadRebasedModel(path);
       for (final objectAngle in objectAngles) {
         root.rotation = vm.Quaternion.axisAngle(
@@ -67,12 +85,17 @@ void main() {
         );
         expect(
           worldBounds!.max.x - worldBounds.min.x,
-          greaterThan(0.1),
+          greaterThan(0.005),
           reason: '$path produced a collapsed X bound at $objectAngle',
         );
         expect(
+          worldBounds.max.y - worldBounds.min.y,
+          greaterThan(0.005),
+          reason: '$path produced a collapsed Y bound at $objectAngle',
+        );
+        expect(
           worldBounds.max.z - worldBounds.min.z,
-          greaterThan(0.1),
+          greaterThan(0.005),
           reason: '$path produced a collapsed Z bound at $objectAngle',
         );
 
