@@ -3,7 +3,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-/// Lazy cache for the approved raster top-view pack.
+/// Lazy cache for raster top-view assets generated from production geometry.
 ///
 /// The CAD renderer keeps deterministic vector symbols underneath these
 /// images, so a missing optional preview never makes an object disappear.
@@ -14,15 +14,23 @@ class ImportedTopViewAssets extends ChangeNotifier {
 
   static const _root = 'assets/topview/imported_2026_10_02';
   static const _assetByCatalogId = <String, String>{
-    'sofa-3': 'sofa_2400x950',
-    'bed-180': 'bed_1800x2200',
-    'armchair': 'armchair_900x900',
+    // +107: these views are rendered from the same LOD0 GLBs used in 3D.
+    'sofa-3': 'featured_sofa_3',
+    'bed-180': 'featured_bed_180',
+    'armchair': 'featured_armchair',
+    'coffee-table': 'featured_coffee_table',
+    'washer': 'featured_washer',
+    'toilet': 'featured_toilet',
+    'chandelier-ring': 'featured_chandelier',
+    'rug-2000x1400': 'featured_rug',
+    'wall-sconce-updown': 'featured_sconce',
+
+    // Existing pack entries retained where no same-geometry replacement exists.
     'table-round': 'table_round_900',
     'dining-table-1800': 'dining_table_1600x1300',
     'dining-table-6': 'dining_table_1600x1300',
     'wardrobe-sliding-2000': 'wardrobe_1800x600',
     'wardrobe-3': 'wardrobe_1800x600',
-    'toilet': 'toilet_380x650',
     'sink': 'sink_600x500',
     'bath': 'bath_1700x700',
     'shower': 'shower_900x900',
@@ -30,7 +38,7 @@ class ImportedTopViewAssets extends ChangeNotifier {
     'radiator-600': 'radiator_1000x120',
 
     // +107 kitchen views are rendered from the exact same HQ geometry that is
-    // copied into the 3D catalogue, so 2D and 3D can no longer silently drift.
+    // copied into the 3D catalogue, so 2D and 3D cannot silently drift.
     'kitchen-drawers-600': 'kitchen_drawers',
     'kitchen-sink-600-pro': 'kitchen_sink',
     'kitchen-cooktop-600': 'kitchen_cooktop',
