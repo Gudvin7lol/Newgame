@@ -66,6 +66,7 @@ jobs:
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add zamer-app .github/workflows/zamer-codex-ci.yml
+          git restore .github/workflows/zamer-codex-ci.yml
+          git add zamer-app
           git commit -m 'feat(zamer): intuitive camera master UI kit and content pack'
           git push origin HEAD:codex/zamer-1.5.6-3d-stability
