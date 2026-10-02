@@ -369,7 +369,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       ambientOcclusionBias: 0.035,
       ambientOcclusionSampleCount: exportQuality ? 12 : 4,
       ambientOcclusionHalfResolution: !exportQuality,
-      screenSpaceReflectionsEnabled: exportQuality && hdr,
+      screenSpaceReflectionsEnabled: hdr,
       screenSpaceReflectionsIntensity: hdr ? 0.38 : 0.20,
       screenSpaceReflectionsMaxDistance: 18,
       screenSpaceReflectionsThickness: 0.42,
