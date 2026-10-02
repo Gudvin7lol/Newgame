@@ -1,0 +1,179 @@
+name: Apply Zamer 103
+
+on:
+  push:
+    paths:
+      - '.github/workflows/apply-zamer-103.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-zamer-103
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/zamer-1.5.6-3d-stability
+          fetch-depth: 1
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+
+      - name: Apply +103 runtime package
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new, label):
+              p = Path(path)
+              text = p.read_text()
+              if old not in text:
+                  raise SystemExit(f'{label}: anchor not found in {path}')
+              p.write_text(text.replace(old, new, 1))
+
+          # 3D master page now consumes the same shared header as Equipment/Elevations.
+          path = 'zamer-app/lib/screens/floor_3d_screen.dart'
+          replace_once(
+              path,
+              "import '../design_system/zamer_graphics_selector.dart';\n",
+              "import '../design_system/zamer_graphics_selector.dart';\nimport '../design_system/zamer_master_page_header.dart';\n",
+              '3d master header import',
+          )
+          replace_once(
+              path,
+              "              child: _ThreeDMasterHeader(graphicsMode: _graphicsMode),\n",
+              "              child: ZMasterPageHeader(\n                icon: Icons.view_in_ar_outlined,\n                title: '3D',\n                subtitle: 'Просмотр сцены • ${_graphicsMode.label}',\n              ),\n",
+              '3d master header usage',
+          )
+          p = Path(path)
+          text = p.read_text()
+          start = text.index('class _ThreeDMasterHeader extends StatelessWidget {')
+          end = text.index('class _WalkJoystick extends StatefulWidget {')
+          p.write_text(text[:start] + text[end:])
+
+          # Detailed parametric door that preserves measured size + hinge/swing semantics.
+          path = 'zamer-app/lib/renderer3d/zamer_gpu_viewport.dart'
+          old = '''      final leafMaterial = _pbr(\n        vm.Vector4(0.68, 0.52, 0.36, 1),\n        roughness: 0.62,\n      );\n      hinge.add(\n        Node(\n            name: 'door-leaf',\n            mesh: Mesh(\n              CuboidGeometry(vm.Vector3(leafWidth, leafHeight, 0.038)),\n              leafMaterial,\n            ),\n          )\n          ..position = vm.Vector3(-hingeSign * leafWidth / 2, leafHeight / 2, 0)\n          ..shadowStatic = true,\n      );\n      root.add(hinge);\n'''
+          new = '''      final leafMaterial = _pbr(\n        vm.Vector4(0.63, 0.43, 0.26, 1),\n        roughness: 0.52,\n      );\n      final trimMaterial = _pbr(\n        vm.Vector4(0.48, 0.30, 0.17, 1),\n        roughness: 0.46,\n      );\n      final hardwareMaterial = _pbr(\n        vm.Vector4(0.56, 0.58, 0.58, 1),\n        roughness: 0.22,\n      )..metallic = 0.86;\n      final leafRoot = Node(name: 'door-leaf-root')\n        ..position = vm.Vector3(\n          -hingeSign * leafWidth / 2,\n          leafHeight / 2,\n          0,\n        );\n      leafRoot.add(\n        Node(\n          name: 'door-leaf',\n          mesh: Mesh(\n            CuboidGeometry(vm.Vector3(leafWidth, leafHeight, 0.042)),\n            leafMaterial,\n          ),\n        )..shadowStatic = true,\n      );\n\n      final panelWidth = math.max(0.10, leafWidth - 0.20);\n      final upperPanelHeight = math.max(0.20, leafHeight * 0.38);\n      final lowerPanelHeight = math.max(0.18, leafHeight * 0.30);\n      final upperPanelY = leafHeight * 0.17;\n      final lowerPanelY = -leafHeight * 0.23;\n      for (final faceSign in const [-1.0, 1.0]) {\n        leafRoot\n          ..add(\n            Node(\n              name: faceSign > 0 ? 'door-panel-upper-front' : 'door-panel-upper-back',\n              mesh: Mesh(\n                CuboidGeometry(\n                  vm.Vector3(panelWidth, upperPanelHeight, 0.010),\n                ),\n                trimMaterial,\n              ),\n            )..position = vm.Vector3(0, upperPanelY, faceSign * 0.025),\n          )\n          ..add(\n            Node(\n              name: faceSign > 0 ? 'door-panel-lower-front' : 'door-panel-lower-back',\n              mesh: Mesh(\n                CuboidGeometry(\n                  vm.Vector3(panelWidth, lowerPanelHeight, 0.010),\n                ),\n                trimMaterial,\n              ),\n            )..position = vm.Vector3(0, lowerPanelY, faceSign * 0.025),\n          );\n      }\n\n      final latchX = -hingeSign * math.max(0.04, leafWidth / 2 - 0.105);\n      final handleY = math.min(0.98, leafHeight * 0.48) - leafHeight / 2;\n      for (final faceSign in const [-1.0, 1.0]) {\n        leafRoot.add(\n          Node(\n            name: faceSign > 0 ? 'door-handle-front' : 'door-handle-back',\n            mesh: Mesh(\n              SphereGeometry(radius: 0.028, segments: 14, rings: 9),\n              hardwareMaterial,\n            ),\n          )..position = vm.Vector3(latchX, handleY, faceSign * 0.052),\n        );\n        leafRoot.add(\n          Node(\n            name: faceSign > 0 ? 'door-lever-front' : 'door-lever-back',\n            mesh: Mesh(\n              CuboidGeometry(vm.Vector3(0.105, 0.018, 0.018)),\n              hardwareMaterial,\n            ),\n          )..position = vm.Vector3(\n            latchX - hingeSign * 0.045,\n            handleY,\n            faceSign * 0.060,\n          ),\n        );\n      }\n\n      final hingePlateX = hingeSign * math.max(0.02, leafWidth / 2 - 0.014);\n      for (final hingeY in <double>[-leafHeight * 0.31, leafHeight * 0.31]) {\n        leafRoot.add(\n          Node(\n            name: 'door-hinge-plate',\n            mesh: Mesh(\n              CuboidGeometry(vm.Vector3(0.026, 0.11, 0.050)),\n              hardwareMaterial,\n            ),\n          )..position = vm.Vector3(hingePlateX, hingeY, 0),\n        );\n      }\n\n      hinge.add(leafRoot);\n      root.add(hinge);\n'''
+          replace_once(path, old, new, 'detailed parametric door')
+
+          # Promote up/down wall sconce into the generated production LOD pack.
+          path = 'zamer-app/lib/renderer3d/model_asset_catalog.dart'
+          replace_once(
+              path,
+              "    'rug-2000x1400',\n  };",
+              "    'rug-2000x1400',\n    'wall-sconce-updown',\n  };",
+              'sconce production id',
+          )
+          replace_once(
+              path,
+              "        'rug-2000x1400': (2000, 1400, 35),\n      };",
+              "        'rug-2000x1400': (2000, 1400, 35),\n        'wall-sconce-updown': (180, 150, 300),\n      };",
+              'sconce native dimensions',
+          )
+          p = Path(path)
+          text = p.read_text().replace(
+              '  /// Production furniture has a complete LOD0/1/2 chain. The four +80\n  /// Sand/Walnut models are generated in CI at three mesh densities so Photo\n  /// keeps the best geometry while realtime and dense scenes can step down.\n',
+              '  /// Production assets expose a complete LOD0/1/2 chain. Generated\n  /// assets are authored at three mesh densities so Photo keeps the best\n  /// geometry while realtime and dense scenes can step down safely.\n',
+          )
+          p.write_text(text)
+
+          path = 'zamer-app/tool/featured_models/build_models.py'
+          replace_once(
+              path,
+              "'rug':'Zamer_Rug_2000x1400'}[KIND]",
+              "'rug':'Zamer_Rug_2000x1400','sconce':'Zamer_Wall_Sconce_UpDown'}[KIND]",
+              'sconce model name',
+          )
+          replace_once(
+              path,
+              "elif KIND=='rug':\n softbox('rug_body',(2.0,1.4,.035),(0,0,.0175),.028,.003,N=20,mat=0)\n dims=np.array([2.0,1.4,.035]);LABEL='Ковёр 2000×1400';CATEGORY='Декор';MATERIAL_NAME='Dense woven rug';NORMAL_SCALE=.55\nelse:raise ValueError(KIND)\n",
+              "elif KIND=='sconce':\n softbox('wall_backplate',(.18,.035,.22),(0,.052,.15),.012,N=8,mat=0)\n softbox('sconce_body',(.13,.14,.25),(0,0,.15),.028,N=14,mat=0)\n cylinder('upper_diffuser',.052,.062,.035,(0,0,.282),mat=1,N=52)\n cylinder('lower_diffuser',.062,.052,.035,(0,0,.018),mat=1,N=52)\n softbox('inner_reflector',(.09,.095,.16),(0,-.018,.15),.018,N=9,mat=2)\n dims=np.array([.18,.15,.30]);LABEL='Бра вверх/вниз Production';CATEGORY='Освещение'\n MATERIAL_OVERRIDES=[\n  {'name':'Black anodized body','pbrMetallicRoughness':{'baseColorFactor':[.035,.040,.043,1],'metallicFactor':.78,'roughnessFactor':.27}},\n  {'name':'Warm diffuser','pbrMetallicRoughness':{'baseColorFactor':[1,.80,.52,1],'metallicFactor':0,'roughnessFactor':.18},'emissiveFactor':[1,.42,.12]},\n  {'name':'Inner reflector','pbrMetallicRoughness':{'baseColorFactor':[.66,.60,.50,1],'metallicFactor':.62,'roughnessFactor':.22}},\n ]\nelif KIND=='rug':\n softbox('rug_body',(2.0,1.4,.035),(0,0,.0175),.028,.003,N=20,mat=0)\n dims=np.array([2.0,1.4,.035]);LABEL='Ковёр 2000×1400';CATEGORY='Декор';MATERIAL_NAME='Dense woven rug';NORMAL_SCALE=.55\nelse:raise ValueError(KIND)\n",
+              'sconce generator branch',
+          )
+          PY
+
+      - name: Add +103 regression tests
+        run: |
+          cat > zamer-app/test/door_render_detail_test.dart <<'DART'
+          import 'dart:io';
+
+          import 'package:flutter_test/flutter_test.dart';
+
+          void main() {
+            test('3D door keeps swing semantics and detailed hardware', () {
+              final source =
+                  File('lib/renderer3d/zamer_gpu_viewport.dart').readAsStringSync();
+
+              expect(source, contains('opening.doorSwing == DoorSwing.leftIn'));
+              expect(source, contains("name: 'door-leaf-root'"));
+              expect(source, contains('door-panel-upper-front'));
+              expect(source, contains('door-panel-lower-front'));
+              expect(source, contains('door-handle-front'));
+              expect(source, contains('door-handle-back'));
+              expect(source, contains('door-lever-front'));
+              expect(source, contains('door-hinge-plate'));
+              expect(source, contains('swingSign * 32 * math.pi / 180'));
+            });
+          }
+          DART
+
+          cat > zamer-app/test/content_pack_103_test.dart <<'DART'
+          import 'dart:io';
+
+          import 'package:flutter_test/flutter_test.dart';
+          import 'package:zamer_app/renderer3d/model_asset_catalog.dart';
+
+          void main() {
+            test('up/down sconce is a complete production LOD asset', () {
+              final asset = ZamerModelAssetCatalog.byId('wall-sconce-updown');
+              expect(asset, isNotNull);
+              expect(asset!.hasCompleteLodChain, isTrue);
+              expect(ZamerModelAssetCatalog.productionLodIds,
+                  contains('wall-sconce-updown'));
+              expect(asset.nativeWidthMm, 180);
+              expect(asset.nativeDepthMm, 150);
+              expect(asset.nativeHeightMm, 300);
+              expect(File(asset.assetPath).existsSync(), isTrue);
+              expect(File(asset.lod1AssetPath!).existsSync(), isTrue);
+              expect(File(asset.lod2AssetPath!).existsSync(), isTrue);
+            });
+
+            test('3D page consumes shared master UI header', () {
+              final source = File('lib/screens/floor_3d_screen.dart').readAsStringSync();
+              expect(source, contains('ZMasterPageHeader('));
+              expect(source, isNot(contains('class _ThreeDMasterHeader')));
+              expect(source, contains("title: '3D'"));
+            });
+          }
+          DART
+
+      - name: Format and verify
+        run: |
+          dart format \
+            zamer-app/lib/screens/floor_3d_screen.dart \
+            zamer-app/lib/renderer3d/zamer_gpu_viewport.dart \
+            zamer-app/lib/renderer3d/model_asset_catalog.dart \
+            zamer-app/test/door_render_detail_test.dart \
+            zamer-app/test/content_pack_103_test.dart
+          grep -F 'door-handle-front' zamer-app/lib/renderer3d/zamer_gpu_viewport.dart
+          grep -F 'ZMasterPageHeader(' zamer-app/lib/screens/floor_3d_screen.dart
+          grep -F "'wall-sconce-updown'" zamer-app/lib/renderer3d/model_asset_catalog.dart
+          grep -F "KIND=='sconce'" zamer-app/tool/featured_models/build_models.py
+
+      - name: Commit runtime package
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add zamer-app
+          git commit -m 'feat(zamer): detail doors add production sconce and unify 3D UI'
+          git push origin HEAD:codex/zamer-1.5.6-3d-stability
