@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../design_system/zamer_components.dart';
 import '../design_system/zamer_graphics_selector.dart';
+import '../design_system/zamer_master_page_header.dart';
 import '../design_system/zamer_tokens.dart';
 import '../models/models.dart';
 import '../renderer3d/zamer_gpu_viewport.dart';
@@ -329,7 +330,11 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
             top: ZamerSpace.sm,
             child: SafeArea(
               bottom: false,
-              child: _ThreeDMasterHeader(graphicsMode: _graphicsMode),
+              child: ZMasterPageHeader(
+                icon: Icons.view_in_ar_outlined,
+                title: '3D',
+                subtitle: 'Просмотр сцены • ${_graphicsMode.label}',
+              ),
             ),
           ),
         Positioned(
@@ -572,74 +577,6 @@ class _SceneStateChip extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _ThreeDMasterHeader extends StatelessWidget {
-  const _ThreeDMasterHeader({required this.graphicsMode});
-
-  final ZGraphicsMode graphicsMode;
-
-  @override
-  Widget build(BuildContext context) {
-    return IgnorePointer(
-      child: Container(
-        height: 48,
-        padding: const EdgeInsets.symmetric(horizontal: ZamerSpace.md),
-        decoration: BoxDecoration(
-          color: ZamerColors.surface.withValues(alpha: .94),
-          borderRadius: BorderRadius.circular(ZamerRadius.lg),
-          border: Border.all(color: ZamerColors.outline),
-        ),
-        child: Row(
-          children: [
-            const Icon(
-              Icons.view_in_ar_outlined,
-              size: 20,
-              color: ZamerColors.accent,
-            ),
-            const SizedBox(width: ZamerSpace.sm),
-            const Text(
-              '3D',
-              style: TextStyle(
-                color: ZamerColors.textPrimary,
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const Spacer(),
-            const _ThreeDStatus(icon: Icons.layers_outlined, label: 'Сцена'),
-            const SizedBox(width: ZamerSpace.md),
-            _ThreeDStatus(icon: graphicsMode.icon, label: graphicsMode.label),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ThreeDStatus extends StatelessWidget {
-  const _ThreeDStatus({required this.icon, required this.label});
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 16, color: ZamerColors.textSecondary),
-        const SizedBox(width: ZamerSpace.xs),
-        Text(
-          label,
-          style: const TextStyle(
-            color: ZamerColors.textSecondary,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ],
     );
   }
 }

@@ -6,7 +6,7 @@ KIND=sys.argv[1];DETAIL=float(sys.argv[2]) if len(sys.argv)>2 else 1.
 OUT=ROOT/KIND/('mobile' if DETAIL<1 else 'high');OUT.mkdir(parents=True,exist_ok=True)
 os.environ['SOFA_DETAIL']=str(DETAIL)
 exec((ROOT/'mesh_helpers.py').read_text())
-P=str(OUT);MODEL_NAME={'sofa':'Zamer_Sofa_v3','armchair':'Zamer_Armchair_Sand','table':'Zamer_Table_Walnut','bed':'Zamer_Bed_Sand','washer':'Zamer_Washer','toilet':'Zamer_Toilet','chandelier':'Zamer_Chandelier_Ring','rug':'Zamer_Rug_2000x1400'}[KIND]
+P=str(OUT);MODEL_NAME={'sofa':'Zamer_Sofa_v3','armchair':'Zamer_Armchair_Sand','table':'Zamer_Table_Walnut','bed':'Zamer_Bed_Sand','washer':'Zamer_Washer','toilet':'Zamer_Toilet','chandelier':'Zamer_Chandelier_Ring','rug':'Zamer_Rug_2000x1400','sconce':'Zamer_Wall_Sconce_UpDown'}[KIND]
 MATERIAL_NAME='Sand fine woven linen';NORMAL_SCALE=.35;MATERIAL_OVERRIDES=None
 def cylinder(name,r0,r1,height,pos,rotation=(0,0,0),mat=0,N=72):
  N=max(16,round(N*DETAIL));vs=[];uv=[];fs=[];R=rot(*rotation)
@@ -142,6 +142,18 @@ elif KIND=='chandelier':
   {'name':'Black anodized metal','pbrMetallicRoughness':{'baseColorFactor':[.035,.04,.045,1],'metallicFactor':.82,'roughnessFactor':.24}},
   {'name':'Warm diffuser','pbrMetallicRoughness':{'baseColorFactor':[1,.78,.48,1],'metallicFactor':0,'roughnessFactor':.20},'emissiveFactor':[1,.48,.18]},
   {'name':'Suspension wire','pbrMetallicRoughness':{'baseColorFactor':[.24,.25,.26,1],'metallicFactor':.74,'roughnessFactor':.28}},
+ ]
+elif KIND=='sconce':
+ softbox('wall_backplate',(.18,.035,.22),(0,.052,.15),.012,N=8,mat=0)
+ softbox('sconce_body',(.13,.14,.25),(0,0,.15),.028,N=14,mat=0)
+ cylinder('upper_diffuser',.052,.062,.035,(0,0,.282),mat=1,N=52)
+ cylinder('lower_diffuser',.062,.052,.035,(0,0,.018),mat=1,N=52)
+ softbox('inner_reflector',(.09,.095,.16),(0,-.018,.15),.018,N=9,mat=2)
+ dims=np.array([.18,.15,.30]);LABEL='Бра вверх/вниз Production';CATEGORY='Освещение'
+ MATERIAL_OVERRIDES=[
+  {'name':'Black anodized body','pbrMetallicRoughness':{'baseColorFactor':[.035,.040,.043,1],'metallicFactor':.78,'roughnessFactor':.27}},
+  {'name':'Warm diffuser','pbrMetallicRoughness':{'baseColorFactor':[1,.80,.52,1],'metallicFactor':0,'roughnessFactor':.18},'emissiveFactor':[1,.42,.12]},
+  {'name':'Inner reflector','pbrMetallicRoughness':{'baseColorFactor':[.66,.60,.50,1],'metallicFactor':.62,'roughnessFactor':.22}},
  ]
 elif KIND=='rug':
  softbox('rug_body',(2.0,1.4,.035),(0,0,.0175),.028,.003,N=20,mat=0)

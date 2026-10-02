@@ -44,9 +44,9 @@ class ZamerModelAsset {
 }
 
 class ZamerModelAssetCatalog {
-  /// Production furniture has a complete LOD0/1/2 chain. The four +80
-  /// Sand/Walnut models are generated in CI at three mesh densities so Photo
-  /// keeps the best geometry while realtime and dense scenes can step down.
+  /// Production assets expose a complete LOD0/1/2 chain. Generated
+  /// assets are authored at three mesh densities so Photo keeps the best
+  /// geometry while realtime and dense scenes can step down safely.
   static const productionLodIds = <String>{
     'armchair',
     'bed-160',
@@ -68,6 +68,7 @@ class ZamerModelAssetCatalog {
     'toilet',
     'chandelier-ring',
     'rug-2000x1400',
+    'wall-sconce-updown',
   };
 
   static const _reverseFacingProductionIds = <String>{
@@ -106,6 +107,7 @@ class ZamerModelAssetCatalog {
         'toilet': (390, 700, 760),
         'chandelier-ring': (900, 900, 350),
         'rug-2000x1400': (2000, 1400, 35),
+        'wall-sconce-updown': (180, 150, 300),
       };
 
   static ZamerModelAsset? byId(String id) {

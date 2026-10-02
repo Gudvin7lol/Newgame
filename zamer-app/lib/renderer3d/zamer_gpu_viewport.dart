@@ -1225,20 +1225,102 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
           swingSign * 32 * math.pi / 180,
         );
       final leafMaterial = _pbr(
-        vm.Vector4(0.68, 0.52, 0.36, 1),
-        roughness: 0.62,
+        vm.Vector4(0.63, 0.43, 0.26, 1),
+        roughness: 0.52,
       );
-      hinge.add(
+      final trimMaterial = _pbr(
+        vm.Vector4(0.48, 0.30, 0.17, 1),
+        roughness: 0.46,
+      );
+      final hardwareMaterial = _pbr(
+        vm.Vector4(0.56, 0.58, 0.58, 1),
+        roughness: 0.22,
+      )..metallic = 0.86;
+      final leafRoot = Node(name: 'door-leaf-root')
+        ..position = vm.Vector3(-hingeSign * leafWidth / 2, leafHeight / 2, 0);
+      leafRoot.add(
         Node(
-            name: 'door-leaf',
-            mesh: Mesh(
-              CuboidGeometry(vm.Vector3(leafWidth, leafHeight, 0.038)),
-              leafMaterial,
-            ),
-          )
-          ..position = vm.Vector3(-hingeSign * leafWidth / 2, leafHeight / 2, 0)
-          ..shadowStatic = true,
+          name: 'door-leaf',
+          mesh: Mesh(
+            CuboidGeometry(vm.Vector3(leafWidth, leafHeight, 0.042)),
+            leafMaterial,
+          ),
+        )..shadowStatic = true,
       );
+
+      final panelWidth = math.max(0.10, leafWidth - 0.20);
+      final upperPanelHeight = math.max(0.20, leafHeight * 0.38);
+      final lowerPanelHeight = math.max(0.18, leafHeight * 0.30);
+      final upperPanelY = leafHeight * 0.17;
+      final lowerPanelY = -leafHeight * 0.23;
+      for (final faceSign in const [-1.0, 1.0]) {
+        leafRoot
+          ..add(
+            Node(
+              name: faceSign > 0
+                  ? 'door-panel-upper-front'
+                  : 'door-panel-upper-back',
+              mesh: Mesh(
+                CuboidGeometry(vm.Vector3(panelWidth, upperPanelHeight, 0.010)),
+                trimMaterial,
+              ),
+            )..position = vm.Vector3(0, upperPanelY, faceSign * 0.025),
+          )
+          ..add(
+            Node(
+              name: faceSign > 0
+                  ? 'door-panel-lower-front'
+                  : 'door-panel-lower-back',
+              mesh: Mesh(
+                CuboidGeometry(vm.Vector3(panelWidth, lowerPanelHeight, 0.010)),
+                trimMaterial,
+              ),
+            )..position = vm.Vector3(0, lowerPanelY, faceSign * 0.025),
+          );
+      }
+
+      final latchX = -hingeSign * math.max(0.04, leafWidth / 2 - 0.105);
+      final handleY = math.min(0.98, leafHeight * 0.48) - leafHeight / 2;
+      for (final faceSign in const [-1.0, 1.0]) {
+        leafRoot.add(
+          Node(
+            name: faceSign > 0 ? 'door-handle-front' : 'door-handle-back',
+            mesh: Mesh(
+              SphereGeometry(radius: 0.028, segments: 14, rings: 9),
+              hardwareMaterial,
+            ),
+          )..position = vm.Vector3(latchX, handleY, faceSign * 0.052),
+        );
+        leafRoot.add(
+          Node(
+              name: faceSign > 0 ? 'door-lever-front' : 'door-lever-back',
+              mesh: Mesh(
+                CuboidGeometry(vm.Vector3(0.105, 0.018, 0.018)),
+                hardwareMaterial,
+              ),
+            )
+            ..position = vm.Vector3(
+              latchX - hingeSign * 0.045,
+              handleY,
+              faceSign * 0.060,
+            ),
+        );
+      }
+
+      final hingePlateX = hingeSign * math.max(0.02, leafWidth / 2 - 0.014);
+      for (final hingeY in <double>[-leafHeight * 0.31, leafHeight * 0.31]) {
+        leafRoot.add(
+          Node(
+            name: 'door-hinge-plate',
+            mesh: Mesh(
+              CuboidGeometry(vm.Vector3(0.026, 0.11, 0.050)),
+              hardwareMaterial,
+            ),
+          )..position = vm.Vector3(hingePlateX, hingeY, 0),
+        );
+      }
+
+      hinge.add(leafRoot);
       root.add(hinge);
     }
     _markStatic(root);
