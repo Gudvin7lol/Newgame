@@ -93,21 +93,12 @@ jobs:
           build_chain rug Zamer_Rug_2000x1400_Mobile.glb rug-2000x1400
           build_chain sconce Zamer_Wall_Sconce_UpDown_Mobile.glb wall-sconce-updown
 
-          # Generate the six imported kitchen models from the source supplied
-          # with the 2026-10-02 content pack. Reuse the imported oak material
-          # as the cabinet veneer so the generated GLBs visually match the pack.
-          python3 - <<'PY'
-          from pathlib import Path
-          from PIL import Image
-          app = Path('zamer-app')
-          source = app / 'assets/textures/imported_2026_10_02/oak_natural_1200mm_basecolor.webp'
-          target = app / 'tool/imported_2026_10_02/kitchen/source/oak_veneer.png'
-          target.parent.mkdir(parents=True, exist_ok=True)
-          Image.open(source).convert('RGB').save(target)
-          PY
-          python3 zamer-app/tool/imported_2026_10_02/kitchen/source/build.py
+          # +107: build the approved kitchen from the HQ reference-driven
+          # generator. This replaces the +106 path that enlarged a 256px wood
+          # swatch and baked the blur into every cabinet GLB.
+          python3 zamer-app/tool/imported_2026_10_02/build_kitchen_hq.py
 
-          kitchen_model_dir="zamer-app/tool/imported_2026_10_02/kitchen/models"
+          kitchen_model_dir="zamer-app/tool/imported_2026_10_02/kitchen/models_hq"
           catalog_dir="zamer-app/assets/models/zamer_catalog"
           cp "$kitchen_model_dir/drawers.glb" "$catalog_dir/kitchen-drawers-600.glb"
           cp "$kitchen_model_dir/sink.glb" "$catalog_dir/kitchen-sink-600-pro.glb"
@@ -124,6 +115,16 @@ jobs:
             kitchen-pantry-600 \
             fridge-built-in-610; do
             test -s "$catalog_dir/$model.glb"
+          done
+
+          for preview in \
+            kitchen_drawers \
+            kitchen_sink \
+            kitchen_cooktop \
+            kitchen_corner \
+            kitchen_pantry \
+            kitchen_fridge; do
+            test -s "zamer-app/assets/topview/imported_2026_10_02/$preview.webp"
           done
 
           ls -lh \
