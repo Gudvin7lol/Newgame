@@ -18,6 +18,7 @@ import 'cutaway_geometry.dart';
 import 'host_wall_visibility.dart';
 import 'model_asset_catalog.dart';
 import 'model_lod_policy.dart';
+import 'photo_render_quality_policy.dart';
 import 'photo_export_policy.dart';
 import 'photo_render_quality_policy.dart';
 import 'scene_fingerprint.dart';
