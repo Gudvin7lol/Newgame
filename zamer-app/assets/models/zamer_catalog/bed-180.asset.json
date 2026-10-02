@@ -1,0 +1,35 @@
+{
+  "id": "bed-180",
+  "name": "Кровать 180",
+  "category": "beds",
+  "file": "assets/models/zamer_catalog/bed-180.glb",
+  "dimensions_m": {
+    "width": 2.0,
+    "depth": 2.18,
+    "height": 1.08
+  },
+  "placement": "floor",
+  "pivot": "floor_center",
+  "lod": {
+    "lod0_triangles": 5596,
+    "lod1_file": "assets/models/zamer_catalog/bed-180_lod1.glb",
+    "lod1_triangles": 2188,
+    "lod2_file": "assets/models/zamer_catalog/bed-180_lod2.glb",
+    "lod2_triangles": 1060
+  },
+  "materials": {
+    "pbr": true,
+    "max_texture_size": 2048,
+    "material_count": 3
+  },
+  "collision": {
+    "type": "box",
+    "file": null
+  },
+  "source": {
+    "generator": "zamer-procedural-furniture-v2",
+    "license": "project-generated",
+    "reference": "internal"
+  },
+  "version": 1
+}

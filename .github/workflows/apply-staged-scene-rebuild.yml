@@ -1,0 +1,76 @@
+name: Apply staged GPU scene rebuild
+
+on:
+  push:
+    branches:
+      - 'codex/zamer-1.5.6-3d-stability'
+    paths:
+      - 'zamer-app/tool/migrations/stage_gpu_scene_rebuild.py'
+      - '.github/workflows/apply-staged-scene-rebuild.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: zamer-staged-scene-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Sparse checkout
+        uses: actions/checkout@v4
+        with:
+          ref: codex/zamer-1.5.6-3d-stability
+          fetch-depth: 1
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            zamer-app/lib/renderer3d/zamer_gpu_viewport.dart
+            zamer-app/test/staged_scene_rebuild_test.dart
+            zamer-app/tool/migrations/stage_gpu_scene_rebuild.py
+
+      - name: Apply staged scene rebuild
+        run: python zamer-app/tool/migrations/stage_gpu_scene_rebuild.py
+
+      - name: Setup Dart
+        uses: dart-lang/setup-dart@v1
+
+      - name: Format changed sources
+        run: dart format zamer-app/lib/renderer3d/zamer_gpu_viewport.dart zamer-app/test/staged_scene_rebuild_test.dart
+
+      - name: Verify staged swap ordering
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          text = Path('zamer-app/lib/renderer3d/zamer_gpu_viewport.dart').read_text()
+          start = text.index('  Future<void> _rebuildScene({bool photoQuality = false}) async {')
+          end = text.index('\n  Node? _buildFloorNode(', start)
+          body = text[start:end]
+          model = body.index('await _buildObjectNode(')
+          clear = body.index('scene.removeAll();')
+          swap = body.index('_geometry = geometry;')
+          assert 'final nextNodes = <Node>[];' in body
+          assert 'final keepCurrentScene = _ready && _loadError == null;' in body
+          assert model < clear < swap
+          assert '_wallVisuals.clear();' not in body[:clear]
+          assert '_ceilingNodes.clear();' not in body[:clear]
+          PY
+
+      - name: Commit staged rebuild
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add zamer-app/lib/renderer3d/zamer_gpu_viewport.dart zamer-app/test/staged_scene_rebuild_test.dart
+          if git diff --cached --quiet; then
+            echo 'Staged scene rebuild already applied.'
+            exit 0
+          fi
+          git commit -m 'fix(zamer): stage GPU scene rebuild before swap'
+          git push origin HEAD:codex/zamer-1.5.6-3d-stability

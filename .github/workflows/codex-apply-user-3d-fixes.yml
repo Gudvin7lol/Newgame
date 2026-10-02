@@ -1,0 +1,192 @@
+name: Apply user 3D visual fixes
+
+on:
+  push:
+    branches:
+      - codex/zamer-1.5.6-3d-stability
+    paths:
+      - .github/workflows/codex-apply-user-3d-fixes.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/zamer-1.5.6-3d-stability
+          fetch-depth: 0
+
+      - name: Apply focused 3D fixes
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str):
+              p = Path(path)
+              text = p.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected exactly one match, found {count}')
+              p.write_text(text.replace(old, new, 1))
+
+          viewport = 'zamer-app/lib/renderer3d/zamer_gpu_viewport.dart'
+          replace_once(
+              viewport,
+              '''        _mz(object.yMm, bounds),
+              )
+              ..rotation = vm.Quaternion.axisAngle(
+                vm.Vector3(0, 1, 0),
+                -object.rotationRad,
+              );''',
+              '''        _mz(object.yMm, bounds),
+              )
+              ..rotation = vm.Quaternion.axisAngle(
+                vm.Vector3(0, 1, 0),
+                -object.rotationRad + (asset?.yawCorrectionRad ?? 0),
+              );''',
+          )
+
+          replace_once(
+              viewport,
+              "    final key = '${surface.materialMode}:${surface.materialId}';",
+              '''    final key = <Object?>[
+              surface.materialMode,
+              surface.materialId,
+              surface.laminatePattern,
+              surface.laminateOffsetMode,
+              surface.plankLengthMm,
+              surface.plankWidthMm,
+              surface.tilePattern,
+              surface.tileWidthMm,
+              surface.tileHeightMm,
+            ].join(':');''',
+          )
+
+          replace_once(
+              viewport,
+              '''    final tint = texture == null
+                ? _vectorColor(preset.color)
+                : vm.Vector4(0.98, 0.98, 0.98, 1);''',
+              '''    final source = _vectorColor(preset.color);
+            // Keep the selected finish visibly identifiable even under a bright
+            // PBR environment. Previously textured floors were multiplied by
+            // almost-white, so light oak/SPC could read as a generic grey slab.
+            final tint = texture == null
+                ? source
+                : vm.Vector4(
+                    0.18 + source.x * 0.82,
+                    0.18 + source.y * 0.82,
+                    0.18 + source.z * 0.82,
+                    1,
+                  );''',
+          )
+
+          replace_once(
+              viewport,
+              '''      environmentIntensity: 1.15,
+              exposure: 1.06,''',
+              '''      environmentIntensity: 0.96,
+              exposure: 0.94,''',
+          )
+          replace_once(
+              viewport,
+              '''      bloomThreshold: 1.12,
+              bloomIntensity: 0.09,''',
+              '''      bloomThreshold: 1.28,
+              bloomIntensity: 0.035,''',
+          )
+          replace_once(
+              viewport,
+              '''      autoExposureEnabled: true,
+              autoExposureStrength: 0.45,
+              autoExposureCompensation: 0.15,
+              autoExposureMinEv: -1.2,
+              autoExposureMaxEv: 1.8,''',
+              '''      autoExposureEnabled: false,
+              autoExposureStrength: 0.0,
+              autoExposureCompensation: 0.0,
+              autoExposureMinEv: -1.2,
+              autoExposureMaxEv: 1.2,''',
+          )
+          replace_once(viewport, '    scene.environmentIntensity = 1.15;', '    scene.environmentIntensity = 0.96;')
+          replace_once(viewport, '      intensity: 3.05,', '      intensity: 2.25,')
+          replace_once(viewport, '      ..intensity = 0.82', '      ..intensity = 0.68')
+
+          replace_once(
+              viewport,
+              '''    final intensity = isWall
+                ? 9.0
+                : isFloor
+                ? 7.0
+                : isTrack
+                ? 22.0
+                : isPendant
+                ? 28.0
+                : isCeiling
+                ? 20.0
+                : 8.0;
+            final range = isWall
+                ? 5.0
+                : isFloor
+                ? 5.5
+                : 9.5;''',
+              '''    final intensity = isWall
+                ? 5.0
+                : isFloor
+                ? 4.0
+                : isTrack
+                ? 8.0
+                : isPendant
+                ? 9.0
+                : isCeiling
+                ? 7.0
+                : 4.5;
+            final range = isWall
+                ? 4.0
+                : isFloor
+                ? 4.5
+                : 6.5;''',
+          )
+          replace_once(
+              viewport,
+              '      ..emissiveStrength = isWall ? 2.8 : 4.8;',
+              '      ..emissiveStrength = isWall ? 1.7 : 2.5;',
+          )
+
+          screen = 'zamer-app/lib/screens/floor_3d_screen.dart'
+          replace_once(
+              screen,
+              '                    color: const Color(0xFF111416),',
+              '                    color: const Color(0xFFF0F2F2),',
+          )
+
+          replace_once(
+              'zamer-app/pubspec.yaml',
+              'version: 1.5.6+47',
+              'version: 1.5.6+48',
+          )
+
+          demo = 'zamer-app/lib/services/demo_project_factory.dart'
+          replace_once(demo, "  static const buildTag = '1.5.5+46';", "  static const buildTag = '1.5.6+48';")
+          replace_once(demo, "  static const projectId = '__zamer_demo_1_5_5_46__';", "  static const projectId = '__zamer_demo_1_5_6_48__';")
+
+          changelog = Path('zamer-app/CHANGELOG.md')
+          old = changelog.read_text()
+          section = '''## 1.5.6+48\n\n- Исправлено смысловое направление импортированных GLB: кровати, диваны и кресла теперь сохраняют в 3D ту же сторону спинки/изголовья, что и на 2D-плане.\n- Покрытие пола в GPU-3D больше не вымывается почти белым PBR-тоном: текстура сохраняет цвет выбранного декора; ключ кэша материала учитывает схему ламината/плитки.\n- Освещение и photo-профиль сделаны мягче: снижены point-light/emissive, отключена агрессивная автоэкспозиция и уменьшены bloom/общая яркость, чтобы убрать локальные засветы стен.\n- Предпросмотр финального рендера получил нейтральный светлый фон вместо больших чёрных полей вокруг 16:9 кадра на вертикальном телефоне.\n- Тестовый проект обновлён до 1.5.6+48 для повторной проверки пола, ориентации кровати и рендера.\n\n'''
+          if not old.startswith('## 1.5.6+48'):
+              changelog.write_text(section + old)
+          PY
+
+      - name: Commit fixes
+        shell: bash
+        run: |
+          git config user.name "Codex Zamer CI"
+          git config user.email "actions@users.noreply.github.com"
+          git add zamer-app
+          git diff --cached --check
+          git commit -m "Fix floor finish, GLB facing and render glare"
+          git push origin HEAD:codex/zamer-1.5.6-3d-stability

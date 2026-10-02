@@ -1,0 +1,35 @@
+{
+  "id": "office-desk-1400",
+  "name": "Стол офисный 1400",
+  "category": "office",
+  "file": "assets/models/zamer_catalog/office-desk-1400.glb",
+  "dimensions_m": {
+    "width": 1.4,
+    "depth": 0.7,
+    "height": 0.76
+  },
+  "placement": "floor",
+  "pivot": "floor_center",
+  "lod": {
+    "lod0_triangles": 2476,
+    "lod1_file": "assets/models/zamer_catalog/office-desk-1400_lod1.glb",
+    "lod1_triangles": 1036,
+    "lod2_file": "assets/models/zamer_catalog/office-desk-1400_lod2.glb",
+    "lod2_triangles": 424
+  },
+  "materials": {
+    "pbr": true,
+    "max_texture_size": 2048,
+    "material_count": 2
+  },
+  "collision": {
+    "type": "box",
+    "file": null
+  },
+  "source": {
+    "generator": "zamer-procedural-furniture-v2",
+    "license": "project-generated",
+    "reference": "internal"
+  },
+  "version": 1
+}

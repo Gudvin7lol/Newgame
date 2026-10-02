@@ -1,0 +1,35 @@
+{
+  "id": "sofa-modular",
+  "name": "Диван модульный",
+  "category": "soft_furniture",
+  "file": "assets/models/zamer_catalog/sofa-modular.glb",
+  "dimensions_m": {
+    "width": 2.4,
+    "depth": 1.05,
+    "height": 0.78
+  },
+  "placement": "floor",
+  "pivot": "floor_center",
+  "lod": {
+    "lod0_triangles": 12516,
+    "lod1_file": "assets/models/zamer_catalog/sofa-modular_lod1.glb",
+    "lod1_triangles": 4644,
+    "lod2_file": "assets/models/zamer_catalog/sofa-modular_lod2.glb",
+    "lod2_triangles": 1548
+  },
+  "materials": {
+    "pbr": true,
+    "max_texture_size": 2048,
+    "material_count": 3
+  },
+  "collision": {
+    "type": "box",
+    "file": null
+  },
+  "source": {
+    "generator": "zamer-procedural-furniture-v2",
+    "license": "project-generated",
+    "reference": "internal"
+  },
+  "version": 1
+}

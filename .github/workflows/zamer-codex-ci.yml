@@ -1,0 +1,242 @@
+name: Zamer Codex CI
+
+on:
+  push:
+    branches:
+      - 'codex/**'
+    paths:
+      - 'zamer-app/**'
+      - 'tools/**'
+      - '.github/workflows/zamer-codex-ci.yml'
+  pull_request:
+    paths:
+      - 'zamer-app/**'
+      - 'tools/**'
+      - '.github/workflows/zamer-codex-ci.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: zamer-codex-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Restore imported visual pack
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash zamer-app/tool/imported_2026_10_02/restore_pack.sh
+
+          test -s zamer-app/assets/topview/imported_2026_10_02/sofa_2400x950.webp
+          test -s zamer-app/assets/topview/imported_2026_10_02/bed_1800x2200.webp
+          test -s zamer-app/assets/textures/imported_2026_10_02/oak_natural_1200mm_basecolor.webp
+          test -s zamer-app/assets/textures/imported_2026_10_02/oak_natural_1200mm_normal.webp
+          test -s zamer-app/assets/textures/imported_2026_10_02/oak_natural_1200mm_orm.webp
+          test -s zamer-app/tool/imported_2026_10_02/manifest.json
+
+          echo "Imported visual pack restored and verified."
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+
+      - name: Get packages
+        working-directory: zamer-app
+        run: flutter pub get
+
+      - name: Generate featured 3D models
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check --quiet numpy pillow scipy
+
+          catalog_dir="zamer-app/assets/models/zamer_catalog"
+          topview_dir="zamer-app/assets/topview/imported_2026_10_02"
+          mkdir -p "$catalog_dir" "$topview_dir"
+
+          build_chain() {
+            kind="$1"
+            high_file="$2"
+            mobile_file="$3"
+            target="$4"
+
+            python3 zamer-app/tool/featured_models/build_models.py "$kind" 1.0
+            cp "zamer-app/tool/featured_models/$kind/high/$high_file" "$catalog_dir/$target.glb"
+
+            python3 zamer-app/tool/featured_models/build_models.py "$kind" .55
+            cp "zamer-app/tool/featured_models/$kind/mobile/$mobile_file" "$catalog_dir/${target}_lod1.glb"
+
+            python3 zamer-app/tool/featured_models/build_models.py "$kind" .25
+            cp "zamer-app/tool/featured_models/$kind/mobile/$mobile_file" "$catalog_dir/${target}_lod2.glb"
+          }
+
+          build_chain sofa Zamer_Sofa_v3.glb Zamer_Sofa_v3_Mobile.glb sofa-3
+          build_chain armchair Zamer_Armchair_Sand.glb Zamer_Armchair_Sand_Mobile.glb armchair
+          build_chain table Zamer_Table_Walnut.glb Zamer_Table_Walnut_Mobile.glb coffee-table
+          build_chain bed Zamer_Bed_Sand.glb Zamer_Bed_Sand_Mobile.glb bed-180
+          build_chain washer Zamer_Washer.glb Zamer_Washer_Mobile.glb washer
+          build_chain toilet Zamer_Toilet.glb Zamer_Toilet_Mobile.glb toilet
+          build_chain chandelier Zamer_Chandelier_Ring.glb Zamer_Chandelier_Ring_Mobile.glb chandelier-ring
+          build_chain rug Zamer_Rug_2000x1400.glb Zamer_Rug_2000x1400_Mobile.glb rug-2000x1400
+          build_chain sconce Zamer_Wall_Sconce_UpDown.glb Zamer_Wall_Sconce_UpDown_Mobile.glb wall-sconce-updown
+
+          # +107 kitchen, rebuilt from reference-driven HQ geometry/materials.
+          python3 zamer-app/tool/imported_2026_10_02/build_kitchen_hq.py
+          kitchen_model_dir="zamer-app/tool/imported_2026_10_02/kitchen/models_hq"
+          cp "$kitchen_model_dir/drawers.glb" "$catalog_dir/kitchen-drawers-600.glb"
+          cp "$kitchen_model_dir/sink.glb" "$catalog_dir/kitchen-sink-600-pro.glb"
+          cp "$kitchen_model_dir/cooktop.glb" "$catalog_dir/kitchen-cooktop-600.glb"
+          cp "$kitchen_model_dir/corner.glb" "$catalog_dir/kitchen-corner-900.glb"
+          cp "$kitchen_model_dir/pantry.glb" "$catalog_dir/kitchen-pantry-600.glb"
+          cp "$kitchen_model_dir/fridge.glb" "$catalog_dir/fridge-built-in-610.glb"
+
+          # +107 casework. Existing catalogue IDs stay stable, but the old
+          # placeholder TV console/wardrobe assets are replaced across all LODs.
+          build_casework_chain() {
+            kind="$1"
+            target="$2"
+            python3 zamer-app/tool/imported_2026_10_02/build_casework_hq.py "$kind" 1.0 "$catalog_dir/$target.glb"
+            python3 zamer-app/tool/imported_2026_10_02/build_casework_hq.py "$kind" .55 "$catalog_dir/${target}_lod1.glb"
+            python3 zamer-app/tool/imported_2026_10_02/build_casework_hq.py "$kind" .25 "$catalog_dir/${target}_lod2.glb"
+          }
+          build_casework_chain tv tv-console-1600
+          build_casework_chain wardrobe wardrobe-sliding-2000
+
+          # Render 2D from the exact same LOD0 GLB shown in 3D.
+          render_topview() {
+            model="$1"
+            output="$2"
+            python3 zamer-app/tool/featured_models/render_glb_topview.py \
+              "$catalog_dir/$model.glb" "$topview_dir/$output.webp" --size 512
+          }
+
+          render_topview sofa-3 featured_sofa_3
+          render_topview bed-180 featured_bed_180
+          render_topview armchair featured_armchair
+          render_topview coffee-table featured_coffee_table
+          render_topview tv-console-1600 featured_tv_console
+          render_topview wardrobe-sliding-2000 featured_wardrobe
+          render_topview washer featured_washer
+          render_topview toilet featured_toilet
+          render_topview chandelier-ring featured_chandelier
+          render_topview rug-2000x1400 featured_rug
+          render_topview wall-sconce-updown featured_sconce
+
+          for model in \
+            kitchen-drawers-600 \
+            kitchen-sink-600-pro \
+            kitchen-cooktop-600 \
+            kitchen-corner-900 \
+            kitchen-pantry-600 \
+            fridge-built-in-610; do
+            test -s "$catalog_dir/$model.glb"
+          done
+
+          for model in tv-console-1600 wardrobe-sliding-2000; do
+            test -s "$catalog_dir/$model.glb"
+            test -s "$catalog_dir/${model}_lod1.glb"
+            test -s "$catalog_dir/${model}_lod2.glb"
+          done
+
+          for preview in \
+            kitchen_drawers kitchen_sink kitchen_cooktop kitchen_corner kitchen_pantry kitchen_fridge \
+            featured_sofa_3 featured_bed_180 featured_armchair featured_coffee_table \
+            featured_tv_console featured_wardrobe featured_washer featured_toilet \
+            featured_chandelier featured_rug featured_sconce; do
+            test -s "$topview_dir/$preview.webp"
+          done
+
+          ls -lh \
+            "$catalog_dir"/sofa-3*.glb \
+            "$catalog_dir"/armchair*.glb \
+            "$catalog_dir"/coffee-table*.glb \
+            "$catalog_dir"/bed-180*.glb \
+            "$catalog_dir"/tv-console-1600*.glb \
+            "$catalog_dir"/wardrobe-sliding-2000*.glb \
+            "$catalog_dir"/washer*.glb \
+            "$catalog_dir"/toilet*.glb \
+            "$catalog_dir"/chandelier-ring*.glb \
+            "$catalog_dir"/rug-2000x1400*.glb \
+            "$catalog_dir"/wall-sconce-updown*.glb \
+            "$catalog_dir"/kitchen-drawers-600.glb \
+            "$catalog_dir"/kitchen-sink-600-pro.glb \
+            "$catalog_dir"/kitchen-cooktop-600.glb \
+            "$catalog_dir"/kitchen-corner-900.glb \
+            "$catalog_dir"/kitchen-pantry-600.glb \
+            "$catalog_dir"/fridge-built-in-610.glb \
+            "$topview_dir"/featured_*.webp \
+            "$topview_dir"/kitchen_*.webp
+
+      - name: Format changed UI sources
+        run: >-
+          dart format
+          zamer-app/lib/main.dart
+          zamer-app/lib/design_system
+          zamer-app/lib/screens/home_concept_screen.dart
+          zamer-app/lib/screens/projects_screen.dart
+          zamer-app/lib/screens/floor_workspace_screen.dart
+          zamer-app/lib/screens/plan_editor_production_screen.dart
+          zamer-app/lib/screens/plan_editor_master_v4_screen.dart
+          zamer-app/lib/screens/floor_3d_screen.dart
+          zamer-app/lib/screens/photo_studio_screen.dart
+          zamer-app/lib/screens/planning_objects_screen.dart
+          zamer-app/lib/screens/elevations_screen.dart
+          zamer-app/lib/services/camera_gesture_policy.dart
+          zamer-app/lib/renderer3d/zamer_gpu_viewport.dart
+          zamer-app/lib/renderer3d/model_asset_catalog.dart
+          zamer-app/lib/widgets/projects_home_widgets.dart
+          zamer-app/lib/widgets/workspace_master_header.dart
+          zamer-app/lib/widgets/workspace_navigation.dart
+
+      - name: Analyze
+        working-directory: zamer-app
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      - name: Test headless-safe suite
+        working-directory: zamer-app
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -d '' tests < <(find test -name '*_test.dart' \
+            ! -name 'workspace_history_test.dart' \
+            ! -name 'v102_screen_smoke_test.dart' -print0)
+          if [ "${#tests[@]}" -gt 0 ]; then
+            flutter test "${tests[@]}"
+          fi
+
+      - name: GPU UI tests
+        working-directory: zamer-app
+        continue-on-error: true
+        run: flutter test test/workspace_history_test.dart test/v102_screen_smoke_test.dart
+
+      - name: Build release APK
+        working-directory: zamer-app
+        run: flutter build apk --release
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Zamer-Codex-APK
+          path: zamer-app/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 7

@@ -1,0 +1,1 @@
+Generated mobile material assets are committed as real binary blobs through the Git data API. This marker is plain text.

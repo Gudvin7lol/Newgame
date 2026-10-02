@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'generated_material_ids.dart';
+
 class VisualMaterialPreset {
   const VisualMaterialPreset({
     required this.id,
@@ -21,7 +23,171 @@ class VisualMaterialPreset {
 }
 
 class MaterialCatalog {
+  static const generatedV1 = <VisualMaterialPreset>[
+    VisualMaterialPreset(
+      id: GeneratedMaterialIds.darkOak,
+      name: 'Тёмный дуб',
+      category: 'Пол',
+      color: Color(0xFF5B4030),
+      pattern: 'wood',
+      textureAsset: 'assets/textures/generated_v1/dark_oak.jpg',
+      roughness: .54,
+    ),
+    VisualMaterialPreset(
+      id: GeneratedMaterialIds.whiteOak,
+      name: 'Выбеленный дуб',
+      category: 'Пол',
+      color: Color(0xFFC7B79F),
+      pattern: 'wood',
+      textureAsset: 'assets/textures/generated_v1/white_oak.jpg',
+      roughness: .56,
+    ),
+    VisualMaterialPreset(
+      id: GeneratedMaterialIds.travertine,
+      name: 'Травертин',
+      category: 'Плитка',
+      color: Color(0xFFCBB997),
+      pattern: 'tile',
+      textureAsset: 'assets/textures/generated_v1/travertine.jpg',
+      roughness: .62,
+    ),
+    VisualMaterialPreset(
+      id: GeneratedMaterialIds.terrazzo,
+      name: 'Терраццо',
+      category: 'Плитка',
+      color: Color(0xFFD3D0C7),
+      pattern: 'tile',
+      textureAsset: 'assets/textures/generated_v1/terrazzo.jpg',
+      roughness: .43,
+    ),
+    VisualMaterialPreset(
+      id: GeneratedMaterialIds.slate,
+      name: 'Сланец',
+      category: 'Плитка',
+      color: Color(0xFF53575A),
+      pattern: 'tile',
+      textureAsset: 'assets/textures/generated_v1/slate.jpg',
+      roughness: .72,
+    ),
+    VisualMaterialPreset(
+      id: GeneratedMaterialIds.terracotta,
+      name: 'Терракота',
+      category: 'Плитка',
+      color: Color(0xFFA76646),
+      pattern: 'tile',
+      textureAsset: 'assets/textures/generated_v1/terracotta.jpg',
+      roughness: .68,
+    ),
+    VisualMaterialPreset(
+      id: GeneratedMaterialIds.wallPaint,
+      name: 'Матовая краска · тёплый белый',
+      category: 'Стены',
+      color: Color(0xFFECE7DE),
+      textureAsset: 'assets/textures/generated_v1/wall_paint.jpg',
+      roughness: .86,
+    ),
+    VisualMaterialPreset(
+      id: GeneratedMaterialIds.wallLime,
+      name: 'Известковая штукатурка · песочный',
+      category: 'Стены',
+      color: Color(0xFFC9B496),
+      pattern: 'concrete',
+      textureAsset: 'assets/textures/generated_v1/wall_lime.jpg',
+      roughness: .88,
+    ),
+    VisualMaterialPreset(
+      id: GeneratedMaterialIds.wallMicrocement,
+      name: 'Микроцемент · тёплый серый',
+      category: 'Стены',
+      color: Color(0xFF9C958A),
+      pattern: 'concrete',
+      textureAsset: 'assets/textures/generated_v1/wall_microcement.jpg',
+      roughness: .82,
+    ),
+    VisualMaterialPreset(
+      id: GeneratedMaterialIds.wallRedClay,
+      name: 'Красный кирпич',
+      category: 'Стены',
+      color: Color(0xFF9D5943),
+      pattern: 'brick',
+      textureAsset: 'assets/textures/generated_v1/wall_red_clay.jpg',
+      roughness: .78,
+    ),
+    VisualMaterialPreset(
+      id: GeneratedMaterialIds.wallWhiteClay,
+      name: 'Белёный кирпич',
+      category: 'Стены',
+      color: Color(0xFFD8D2C7),
+      pattern: 'brick',
+      textureAsset: 'assets/textures/generated_v1/wall_white_clay.jpg',
+      roughness: .82,
+    ),
+    VisualMaterialPreset(
+      id: GeneratedMaterialIds.wallLinen,
+      name: 'Льняные обои · натуральный бежевый',
+      category: 'Стены',
+      color: Color(0xFFBBA98D),
+      textureAsset: 'assets/textures/generated_v1/wall_linen.jpg',
+      roughness: .92,
+    ),
+    VisualMaterialPreset(
+      id: GeneratedMaterialIds.oakNaturalPbr,
+      name: 'Дуб натуральный · PBR',
+      category: 'Пол',
+      color: Color(0xFFD0AD7D),
+      pattern: 'wood',
+      textureAsset: 'assets/textures/floor_oak_natural.png',
+      roughness: .52,
+    ),
+    VisualMaterialPreset(
+      id: GeneratedMaterialIds.walnutPbr,
+      name: 'Орех натуральный · PBR',
+      category: 'Пол',
+      color: Color(0xFF815A3D),
+      pattern: 'wood',
+      textureAsset: 'assets/textures/floor_walnut.png',
+      roughness: .50,
+    ),
+    VisualMaterialPreset(
+      id: GeneratedMaterialIds.marbleBiancoPbr,
+      name: 'Мрамор Bianco · PBR',
+      category: 'Плитка',
+      color: Color(0xFFE9E6E0),
+      pattern: 'tile',
+      textureAsset: 'assets/textures/tile_marble.png',
+      roughness: .28,
+    ),
+    VisualMaterialPreset(
+      id: GeneratedMaterialIds.concreteWarmPbr,
+      name: 'Бетон тёплый · PBR',
+      category: 'Стены',
+      color: Color(0xFFB9B2A8),
+      pattern: 'concrete',
+      textureAsset: 'assets/textures/concrete_soft.png',
+      roughness: .86,
+    ),
+    VisualMaterialPreset(
+      id: GeneratedMaterialIds.plasterMineralPbr,
+      name: 'Минеральная штукатурка · PBR',
+      category: 'Стены',
+      color: Color(0xFFD2C7B6),
+      pattern: 'concrete',
+      textureAsset: 'assets/textures/plaster_warm.png',
+      roughness: .88,
+    ),
+    VisualMaterialPreset(
+      id: GeneratedMaterialIds.graphiteTilePbr,
+      name: 'Керамогранит графит · PBR',
+      category: 'Плитка',
+      color: Color(0xFF696D70),
+      pattern: 'tile',
+      textureAsset: 'assets/textures/tile_graphite.png',
+      roughness: .43,
+    ),
+  ];
+
   static const presets = <VisualMaterialPreset>[
+    ...generatedV1,
     VisualMaterialPreset(
       id: 'oak-natural',
       name: 'Дуб натуральный',
@@ -263,11 +429,13 @@ class MaterialCatalog {
       .where((e) => e.category == 'Стены' || e.category == 'Плитка')
       .toList(growable: false);
 
-  static List<VisualMaterialPreset> get tileFinishes => presets
-      .where((e) => e.category == 'Плитка')
-      .toList(growable: false);
+  static List<VisualMaterialPreset> get tileFinishes =>
+      presets.where((e) => e.category == 'Плитка').toList(growable: false);
 
   static List<VisualMaterialPreset> get paintFinishes => presets
-      .where((e) => e.id.startsWith('paint-'))
+      .where(
+        (e) =>
+            e.id.startsWith('paint-') || e.id == GeneratedMaterialIds.wallPaint,
+      )
       .toList(growable: false);
 }

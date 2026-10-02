@@ -1,0 +1,50 @@
+name: Validate 3D assets
+
+on:
+  pull_request:
+    paths:
+      - 'zamer-app/assets/models/**'
+      - 'zamer-app/tool/asset_pipeline/**'
+      - '.github/workflows/validate-3d-assets.yml'
+  push:
+    branches:
+      - 'codex/zamer-1.5.6-3d-stability'
+    paths:
+      - 'zamer-app/assets/models/**'
+      - 'zamer-app/tool/asset_pipeline/**'
+      - '.github/workflows/validate-3d-assets.yml'
+
+concurrency:
+  group: zamer-3d-assets-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-metadata:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: zamer-app
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Dart
+        uses: dart-lang/setup-dart@v1
+
+      - name: Validate asset metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t metadata_files < <(find assets/models -type f -name '*.asset.json' | sort)
+          if [ ${#metadata_files[@]} -eq 0 ]; then
+            echo 'No *.asset.json files found; pipeline scaffold is valid.'
+          else
+            for file in "${metadata_files[@]}"; do
+              echo "Validating $file"
+              dart run tool/asset_pipeline/validate_asset.dart "$file"
+            done
+          fi
+
+      - name: Validate production embedded PBR profiles
+        run: dart run tool/asset_pipeline/validate_production_pbr.dart

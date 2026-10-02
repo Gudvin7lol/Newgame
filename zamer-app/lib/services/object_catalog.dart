@@ -40,7 +40,7 @@ class ObjectCatalog {
       group: 'Мягкая мебель',
       type: PlanObjectType.furniture,
       widthMm: 2200,
-      depthMm: 900,
+      depthMm: 950,
       heightMm: 850,
     ),
     ObjectCatalogItem(
@@ -57,9 +57,9 @@ class ObjectCatalog {
       name: 'Кресло',
       group: 'Мягкая мебель',
       type: PlanObjectType.furniture,
-      widthMm: 850,
-      depthMm: 850,
-      heightMm: 900,
+      widthMm: 920,
+      depthMm: 900,
+      heightMm: 860,
     ),
     ObjectCatalogItem(
       id: 'bed-160',
@@ -75,9 +75,9 @@ class ObjectCatalog {
       name: 'Кровать 180×200',
       group: 'Кровати',
       type: PlanObjectType.furniture,
-      widthMm: 1900,
-      depthMm: 2100,
-      heightMm: 950,
+      widthMm: 1800,
+      depthMm: 2200,
+      heightMm: 1130,
     ),
     ObjectCatalogItem(
       id: 'wardrobe-2',
@@ -444,11 +444,11 @@ class ObjectCatalog {
     ),
     ObjectCatalogItem(
       id: 'coffee-table',
-      name: 'Журнальный стол',
+      name: 'Журнальный стол круглый 900',
       group: 'Столы и стулья',
       type: PlanObjectType.furniture,
-      widthMm: 1000,
-      depthMm: 600,
+      widthMm: 900,
+      depthMm: 900,
       heightMm: 420,
     ),
     ObjectCatalogItem(
@@ -532,7 +532,7 @@ class ObjectCatalog {
       type: PlanObjectType.lighting,
       widthMm: 900,
       depthMm: 900,
-      heightMm: 180,
+      heightMm: 350,
       mount: CatalogMount.ceiling,
     ),
     ObjectCatalogItem(
@@ -774,6 +774,15 @@ class ObjectCatalog {
       widthMm: 500,
       depthMm: 500,
       heightMm: 1000,
+    ),
+    ObjectCatalogItem(
+      id: 'rug-2000x1400',
+      name: 'Ковёр 2000×1400',
+      group: 'Декор',
+      type: PlanObjectType.furniture,
+      widthMm: 2000,
+      depthMm: 1400,
+      heightMm: 35,
     ),
   ];
 

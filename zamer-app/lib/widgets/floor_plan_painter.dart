@@ -1,6 +1,8 @@
 import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
+import '../design_system/zamer_tokens.dart';
 import '../models/models.dart';
 import '../services/geometry_service.dart';
 
@@ -45,12 +47,12 @@ class FloorPlanPainter extends CustomPainter {
   void _grid(Canvas canvas, Size size) {
     canvas.drawRect(
       Offset.zero & size,
-      Paint()..color = const Color(0xFFEEF1F1),
+      Paint()..color = ZamerColors.background,
     );
     final major = 500 * mmToPx;
     if (major < 14) return;
     final majorPaint = Paint()
-      ..color = const Color(0xFFDDE3E3)
+      ..color = ZamerColors.outlineSoft.withValues(alpha: .68)
       ..strokeWidth = 0.7;
     for (double x = origin.dx % major; x < size.width; x += major) {
       canvas.drawLine(Offset(x, 0), Offset(x, size.height), majorPaint);
@@ -73,11 +75,11 @@ class FloorPlanPainter extends CustomPainter {
         path.lineTo(o.dx, o.dy);
       }
       path.close();
-      canvas.drawPath(path, Paint()..color = const Color(0xFFF7FAFF));
+      canvas.drawPath(path, Paint()..color = ZamerColors.surfaceInput);
       canvas.drawPath(
         path,
         Paint()
-          ..color = const Color(0xFFD8E6FA)
+          ..color = ZamerColors.outline
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1.2,
       );
@@ -121,14 +123,14 @@ class FloorPlanPainter extends CustomPainter {
           path.lineTo(q.dx, q.dy);
         }
         final color = demolition
-            ? const Color(0xFFD85B68)
+            ? ZamerColors.danger
             : selected
-            ? const Color(0xFF56D6A3)
+            ? ZamerColors.accent
             : proposed
-            ? const Color(0xFF55B98C)
+            ? ZamerColors.success
             : grouped.first.type == WallType.exterior
-            ? const Color(0xFF20242A)
-            : const Color(0xFF4C5561);
+            ? ZamerColors.textPrimary
+            : ZamerColors.textMuted;
         canvas.drawPath(
           path,
           Paint()
@@ -140,7 +142,7 @@ class FloorPlanPainter extends CustomPainter {
         );
         if (demolition) {
           final dash = Paint()
-            ..color = const Color(0xFFB33B49)
+            ..color = ZamerColors.danger.withValues(alpha: .72)
             ..style = PaintingStyle.stroke
             ..strokeWidth = math.max(1.5, width * 0.12)
             ..strokeCap = StrokeCap.round;
@@ -168,20 +170,20 @@ class FloorPlanPainter extends CustomPainter {
           wall.demolition || wall.projectLayer == ProjectLayer.demolition;
       final paint = Paint()
         ..color = isDemolition
-            ? const Color(0xFFD85B68)
+            ? ZamerColors.danger
             : selected
-            ? const Color(0xFF56D6A3)
+            ? ZamerColors.accent
             : wall.projectLayer == ProjectLayer.proposed
-            ? const Color(0xFF55B98C)
+            ? ZamerColors.success
             : wall.type == WallType.exterior
-            ? const Color(0xFF20242A)
-            : const Color(0xFF4C5561)
+            ? ZamerColors.textPrimary
+            : ZamerColors.textMuted
         ..strokeWidth = width
         ..strokeCap = StrokeCap.square;
       canvas.drawLine(pa, pb, paint);
       if (isDemolition) {
         final dash = Paint()
-          ..color = const Color(0xFFB33B49)
+          ..color = ZamerColors.danger.withValues(alpha: .72)
           ..strokeWidth = math.max(1.5, width * 0.12)
           ..strokeCap = StrokeCap.round;
         final v = pb - pa;
@@ -224,7 +226,7 @@ class FloorPlanPainter extends CustomPainter {
         o1,
         o2,
         Paint()
-          ..color = const Color(0xFFF5F7FA)
+          ..color = ZamerColors.surfaceInput
           ..strokeWidth = wallWidth + 3
           ..strokeCap = StrokeCap.square,
       );
@@ -233,8 +235,8 @@ class FloorPlanPainter extends CustomPainter {
         o2,
         Paint()
           ..color = opening.type == OpeningType.window
-              ? const Color(0xFF5B9BFF)
-              : const Color(0xFFC89A68)
+              ? ZamerColors.info
+              : ZamerColors.accent
           ..strokeWidth = math.max(2.0, wallWidth * 0.28)
           ..strokeCap = StrokeCap.square,
       );
@@ -261,10 +263,10 @@ class FloorPlanPainter extends CustomPainter {
     final chainOffset = -(wallWidth / 2 + 15);
     final baseA = a + normal * chainOffset;
     final linePaint = Paint()
-      ..color = const Color(0xFF65707A)
+      ..color = ZamerColors.textMuted
       ..strokeWidth = 0.8;
     final tickPaint = Paint()
-      ..color = const Color(0xFF65707A)
+      ..color = ZamerColors.textMuted
       ..strokeWidth = 0.8;
 
     final sorted = wall.openings.toList()
@@ -290,7 +292,8 @@ class FloorPlanPainter extends CustomPainter {
       return null;
     }
 
-    Offset pointAt(double mm) => baseA + unit * (screenLength * mm / wallLength);
+    Offset pointAt(double mm) =>
+        baseA + unit * (screenLength * mm / wallLength);
 
     final first = pointAt(marks.first);
     final last = pointAt(marks.last);
@@ -316,25 +319,19 @@ class FloorPlanPainter extends CustomPainter {
           : opening.type == OpeningType.window
           ? 'О '
           : 'Д ';
-      final tp = TextPainter(
-        text: TextSpan(
-          text: '$prefix${mm.round()}',
-          style: TextStyle(
-            color: opening == null
-                ? const Color(0xFF46505A)
-                : opening.type == OpeningType.window
-                ? const Color(0xFF3879CF)
-                : const Color(0xFF99662F),
-            fontSize: 9,
-            fontWeight: FontWeight.w700,
-            backgroundColor: const Color(0xEFFFFFFF),
-          ),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout(maxWidth: math.max(26.0, px + 12));
-
-      final center = pointAt((from + to) / 2) + normal * -7;
-      tp.paint(canvas, center - Offset(tp.width / 2, tp.height / 2));
+      final color = opening == null
+          ? ZamerColors.textPrimary
+          : opening.type == OpeningType.window
+          ? ZamerColors.info
+          : ZamerColors.accent;
+      _dimensionBadge(
+        canvas,
+        '$prefix${mm.round()}',
+        pointAt((from + to) / 2) + normal * -7,
+        color: color,
+        fontSize: 9,
+        maxWidth: math.max(26.0, px + 12),
+      );
     }
   }
 
@@ -350,19 +347,13 @@ class FloorPlanPainter extends CustomPainter {
     if (d < 35) return;
     final normal = Offset(-v.dy / d, v.dx / d);
     final center = (a + b) / 2 + normal * (wallWidth / 2 + 16);
-    final tp = TextPainter(
-      text: TextSpan(
-        text: '${floor.wallLengthMm(wall).round()}',
-        style: const TextStyle(
-          color: Color(0xFF242930),
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          backgroundColor: Color(0xEEFFFFFF),
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    tp.paint(canvas, center - Offset(tp.width / 2, tp.height / 2));
+    _dimensionBadge(
+      canvas,
+      '${floor.wallLengthMm(wall).round()}',
+      center,
+      color: ZamerColors.textPrimary,
+      fontSize: 11,
+    );
   }
 
   void _curveDimension(Canvas canvas, PlanWall wall) {
@@ -377,19 +368,51 @@ class FloorPlanPainter extends CustomPainter {
         floor.walls
             .where((w) => w.curveGroupId == groupId)
             .fold<double>(0, (s, w) => s + floor.wallLengthMm(w));
+    _dimensionBadge(
+      canvas,
+      'дуга ${arc.round()}',
+      pos,
+      color: ZamerColors.textPrimary,
+      fontSize: 11,
+    );
+  }
+
+  void _dimensionBadge(
+    Canvas canvas,
+    String text,
+    Offset center, {
+    required Color color,
+    required double fontSize,
+    double maxWidth = double.infinity,
+  }) {
     final tp = TextPainter(
       text: TextSpan(
-        text: 'дуга ${arc.round()}',
-        style: const TextStyle(
-          color: Color(0xFF242930),
-          fontSize: 11,
+        text: text,
+        style: TextStyle(
+          color: color,
+          fontSize: fontSize,
           fontWeight: FontWeight.w800,
-          backgroundColor: Color(0xEEFFFFFF),
         ),
       ),
       textDirection: TextDirection.ltr,
-    )..layout();
-    tp.paint(canvas, pos - Offset(tp.width / 2, tp.height / 2));
+    )..layout(maxWidth: maxWidth);
+    final rect = Rect.fromCenter(
+      center: center,
+      width: tp.width + 8,
+      height: tp.height + 5,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect, const Radius.circular(4)),
+      Paint()..color = ZamerColors.surfaceLow.withValues(alpha: .94),
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect, const Radius.circular(4)),
+      Paint()
+        ..color = ZamerColors.outlineSoft
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = .7,
+    );
+    tp.paint(canvas, center - Offset(tp.width / 2, tp.height / 2));
   }
 
   bool _internalCurveNode(PlanNode node) {
@@ -409,15 +432,16 @@ class FloorPlanPainter extends CustomPainter {
       canvas.drawCircle(
         pos,
         active ? 8 : 6,
-        Paint()..color = active ? const Color(0xFF1769E8) : Colors.white,
+        Paint()
+          ..color = active ? ZamerColors.accent : ZamerColors.surfaceLow,
       );
       canvas.drawCircle(
         pos,
         active ? 8 : 6,
         Paint()
-          ..color = const Color(0xFF252A30)
+          ..color = active ? ZamerColors.accent : ZamerColors.textSecondary
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.8,
+          ..strokeWidth = active ? 2.2 : 1.8,
       );
     }
   }
@@ -432,15 +456,31 @@ class FloorPlanPainter extends CustomPainter {
           text:
               '${meta?.name ?? 'Помещение ${i + 1}'}\n${face.areaM2.toStringAsFixed(2)} м²',
           style: const TextStyle(
-            color: Color(0xFF20242A),
+            color: ZamerColors.textPrimary,
             fontSize: 12,
             height: 1.25,
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w800,
           ),
         ),
         textAlign: TextAlign.center,
         textDirection: TextDirection.ltr,
       )..layout(maxWidth: 160);
+      final rect = Rect.fromCenter(
+        center: center,
+        width: tp.width + 12,
+        height: tp.height + 8,
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(rect, const Radius.circular(6)),
+        Paint()..color = ZamerColors.surfaceLow.withValues(alpha: .86),
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(rect, const Radius.circular(6)),
+        Paint()
+          ..color = ZamerColors.outlineSoft
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = .8,
+      );
       tp.paint(canvas, center - Offset(tp.width / 2, tp.height / 2));
     }
   }
@@ -454,29 +494,22 @@ class FloorPlanPainter extends CustomPainter {
       final pb = p(b);
       final calc = GeometryService.distance(a, b);
       final delta = (m.measuredMm - calc).abs();
+      final ok = delta <= 5;
       canvas.drawLine(
         pa,
         pb,
         Paint()
-          ..color = delta <= 5
-              ? const Color(0xFF2E9D57)
-              : const Color(0xFFE78A22)
+          ..color = ok ? ZamerColors.success : ZamerColors.warning
           ..strokeWidth = 1.5,
       );
       final c = (pa + pb) / 2;
-      final tp = TextPainter(
-        text: TextSpan(
-          text: '${m.measuredMm.round()} / Δ${delta.round()}',
-          style: const TextStyle(
-            color: Color(0xFF2E6B45),
-            fontSize: 10,
-            fontWeight: FontWeight.w700,
-            backgroundColor: Color(0xEEFFFFFF),
-          ),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
-      tp.paint(canvas, c - Offset(tp.width / 2, tp.height / 2));
+      _dimensionBadge(
+        canvas,
+        '${m.measuredMm.round()} / Δ${delta.round()}',
+        c,
+        color: ok ? ZamerColors.success : ZamerColors.warning,
+        fontSize: 10,
+      );
     }
   }
 

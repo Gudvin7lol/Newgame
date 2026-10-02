@@ -1,0 +1,35 @@
+{
+  "id": "bed-160",
+  "name": "Кровать 160",
+  "category": "beds",
+  "file": "assets/models/zamer_catalog/bed-160.glb",
+  "dimensions_m": {
+    "width": 1.8,
+    "depth": 2.15,
+    "height": 1.05
+  },
+  "placement": "floor",
+  "pivot": "floor_center",
+  "lod": {
+    "lod0_triangles": 5596,
+    "lod1_file": "assets/models/zamer_catalog/bed-160_lod1.glb",
+    "lod1_triangles": 2188,
+    "lod2_file": "assets/models/zamer_catalog/bed-160_lod2.glb",
+    "lod2_triangles": 1060
+  },
+  "materials": {
+    "pbr": true,
+    "max_texture_size": 2048,
+    "material_count": 3
+  },
+  "collision": {
+    "type": "box",
+    "file": null
+  },
+  "source": {
+    "generator": "zamer-procedural-furniture-v1",
+    "license": "project-generated",
+    "reference": "internal"
+  },
+  "version": 1
+}

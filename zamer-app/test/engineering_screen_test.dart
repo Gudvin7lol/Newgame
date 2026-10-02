@@ -37,7 +37,8 @@ void main() {
     await tester.tap(find.text('Добавить потолочную зону'));
     await tester.pump();
     expect(floor.roomMetas.first.ceiling.zones, hasLength(1));
-    await tester.ensureVisible(find.text('Ш 1200'));
+    await tester.drag(find.byType(ListView).first, const Offset(0, -320));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Ш 1200'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), '1500');
@@ -49,7 +50,7 @@ void main() {
     await tester.tap(find.text('Водяной тёплый пол'));
     await tester.pump();
     expect(floor.roomMetas.first.heating.enabled, true);
-    await tester.tap(find.text('Трубы'));
+    await tester.tap(find.text('Трассы'));
     await tester.pump();
     final preview = find.byWidgetPredicate(
       (w) =>

@@ -1,0 +1,35 @@
+{
+  "id": "sofa-corner",
+  "name": "Диван угловой",
+  "category": "soft_furniture",
+  "file": "assets/models/zamer_catalog/sofa-corner.glb",
+  "dimensions_m": {
+    "width": 2.8,
+    "depth": 1.9,
+    "height": 0.88
+  },
+  "placement": "floor",
+  "pivot": "floor_center",
+  "lod": {
+    "lod0_triangles": 19128,
+    "lod1_file": "assets/models/zamer_catalog/sofa-corner_lod1.glb",
+    "lod1_triangles": 7192,
+    "lod2_file": "assets/models/zamer_catalog/sofa-corner_lod2.glb",
+    "lod2_triangles": 2452
+  },
+  "materials": {
+    "pbr": true,
+    "max_texture_size": 2048,
+    "material_count": 3
+  },
+  "collision": {
+    "type": "box",
+    "file": null
+  },
+  "source": {
+    "generator": "zamer-procedural-furniture-v2",
+    "license": "project-generated",
+    "reference": "internal"
+  },
+  "version": 1
+}

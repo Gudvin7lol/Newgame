@@ -1,0 +1,35 @@
+{
+  "id": "tv-console-1600",
+  "name": "ТВ-тумба 1600",
+  "category": "storage",
+  "file": "assets/models/zamer_catalog/tv-console-1600.glb",
+  "dimensions_m": {
+    "width": 1.6,
+    "depth": 0.45,
+    "height": 0.55
+  },
+  "placement": "floor",
+  "pivot": "floor_center",
+  "lod": {
+    "lod0_triangles": 940,
+    "lod1_file": "assets/models/zamer_catalog/tv-console-1600_lod1.glb",
+    "lod1_triangles": 484,
+    "lod2_file": "assets/models/zamer_catalog/tv-console-1600_lod2.glb",
+    "lod2_triangles": 388
+  },
+  "materials": {
+    "pbr": true,
+    "max_texture_size": 2048,
+    "material_count": 3
+  },
+  "collision": {
+    "type": "box",
+    "file": null
+  },
+  "source": {
+    "generator": "zamer-procedural-furniture-v2",
+    "license": "project-generated",
+    "reference": "internal"
+  },
+  "version": 1
+}

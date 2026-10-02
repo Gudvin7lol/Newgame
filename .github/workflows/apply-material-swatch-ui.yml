@@ -1,0 +1,58 @@
+name: Apply textured material swatches
+
+on:
+  push:
+    branches:
+      - 'codex/zamer-1.5.6-3d-stability'
+    paths:
+      - 'zamer-app/tool/migrations/apply_material_swatch_ui.py'
+      - '.github/workflows/apply-material-swatch-ui.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: codex/zamer-1.5.6-3d-stability
+
+      - name: Apply material picker migration
+        run: python zamer-app/tool/migrations/apply_material_swatch_ui.py
+
+      - name: Setup Dart
+        uses: dart-lang/setup-dart@v1
+
+      - name: Format material UI
+        working-directory: zamer-app
+        run: dart format lib/screens/materials_screen.dart lib/widgets/material_finish_swatch.dart
+
+      - name: Verify textured swatches are wired
+        working-directory: zamer-app
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q "material_finish_swatch.dart" lib/screens/materials_screen.dart
+          grep -q "MaterialFinishSwatch" lib/screens/materials_screen.dart
+          grep -q "Image.asset" lib/widgets/material_finish_swatch.dart
+          grep -q "GeneratedPbrFinishCatalog.byId" lib/widgets/material_finish_swatch.dart
+
+      - name: Commit material picker integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add zamer-app/lib/screens/materials_screen.dart
+          git add zamer-app/lib/widgets/material_finish_swatch.dart
+          if git diff --cached --quiet; then
+            echo 'Textured material swatches are already wired.'
+            exit 0
+          fi
+          git commit -m 'feat(zamer): show real textures in material pickers'
+          git push origin HEAD:codex/zamer-1.5.6-3d-stability

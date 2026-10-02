@@ -103,6 +103,7 @@ void main() {
       );
     },
   );
+
   test('free partition is not an unclosed outer boundary', () {
     final floor = FloorPlan(id: 'f', name: 'F');
     floor.nodes.addAll([
@@ -161,5 +162,46 @@ void main() {
     ).singleWhere((e) => e.deltaMm != null);
     expect(issue.description, contains('Сумма участков'));
     expect(issue.deltaMm, 25);
+  });
+
+  test('review flags an acute wall angle below 65 degrees', () {
+    final floor = FloorPlan(id: 'acute', name: 'F');
+    floor.nodes.addAll([
+      PlanNode(id: 'o', xMm: 0, yMm: 0),
+      PlanNode(id: 'a', xMm: 3000, yMm: 0),
+      PlanNode(id: 'b', xMm: 2000, yMm: 2000),
+    ]);
+    floor.walls.addAll([
+      PlanWall(id: 'oa', startNodeId: 'o', endNodeId: 'a'),
+      PlanWall(id: 'ob', startNodeId: 'o', endNodeId: 'b'),
+    ]);
+
+    final issues = MeasurementReviewService.review(floor);
+    final acute = issues.where(
+      (issue) => issue.kind == MeasurementIssueKind.acuteAngle,
+    );
+    expect(acute, hasLength(1));
+    expect(acute.single.description, contains('45.0°'));
+  });
+
+  test('review flags walls crossing without a shared node', () {
+    final floor = FloorPlan(id: 'crossing', name: 'F');
+    floor.nodes.addAll([
+      PlanNode(id: 'a', xMm: 0, yMm: 0),
+      PlanNode(id: 'b', xMm: 3000, yMm: 3000),
+      PlanNode(id: 'c', xMm: 0, yMm: 3000),
+      PlanNode(id: 'd', xMm: 3000, yMm: 0),
+    ]);
+    floor.walls.addAll([
+      PlanWall(id: 'ab', startNodeId: 'a', endNodeId: 'b'),
+      PlanWall(id: 'cd', startNodeId: 'c', endNodeId: 'd'),
+    ]);
+
+    final crossing = MeasurementReviewService.review(floor).where(
+      (issue) => issue.kind == MeasurementIssueKind.intersection,
+    );
+    expect(crossing, hasLength(1));
+    expect(crossing.single.position.x, 1500);
+    expect(crossing.single.position.y, 1500);
   });
 }
