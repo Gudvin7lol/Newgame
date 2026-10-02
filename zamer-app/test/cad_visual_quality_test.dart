@@ -15,8 +15,17 @@ void main() {
     expect(v3.contains('ImportedTopViewAssets.instance'), isTrue);
     expect(v3.contains('paintImage('), isTrue);
     expect(imported.contains('assets/topview/imported_2026_10_02'), isTrue);
-    expect(imported.contains("'sofa-3': 'sofa_2400x950'"), isTrue);
-    expect(imported.contains("'bed-180': 'bed_1800x2200'"), isTrue);
+
+    // +107 renders top views from the exact production LOD0 GLBs, so the
+    // approved 2D symbol and the live 3D object cannot silently diverge.
+    expect(imported.contains("'sofa-3': 'featured_sofa_3'"), isTrue);
+    expect(imported.contains("'bed-180': 'featured_bed_180'"), isTrue);
+    expect(imported.contains("'armchair': 'featured_armchair'"), isTrue);
+    expect(imported.contains("'coffee-table': 'featured_coffee_table'"), isTrue);
+    expect(imported.contains("'tv-console-1600': 'featured_tv_console'"), isTrue);
+    expect(imported.contains("'wardrobe-sliding-2000': 'featured_wardrobe'"), isTrue);
+    expect(imported.contains("'kitchen-drawers-600': 'kitchen_drawers'"), isTrue);
+    expect(imported.contains("'kitchen-sink-600-pro': 'kitchen_sink'"), isTrue);
 
     expect(painter.contains('settings.floorDirectionDeg'), isTrue);
     expect(painter.contains('settings.laminatePlankLengthMm'), isTrue);
