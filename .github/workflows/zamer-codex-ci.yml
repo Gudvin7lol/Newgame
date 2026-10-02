@@ -73,25 +73,32 @@ jobs:
 
           build_chain() {
             kind="$1"
-            file="$2"
-            target="$3"
+            high_file="$2"
+            mobile_file="$3"
+            target="$4"
+
+            # True authored LOD0 for Quality/Photo. +106 incorrectly used the
+            # .55 mobile build as the canonical model, so even Photo started
+            # from reduced geometry and 512px textures.
+            python3 zamer-app/tool/featured_models/build_models.py "$kind" 1.0
+            cp "zamer-app/tool/featured_models/$kind/high/$high_file" "zamer-app/assets/models/zamer_catalog/$target.glb"
+
             python3 zamer-app/tool/featured_models/build_models.py "$kind" .55
-            cp "zamer-app/tool/featured_models/$kind/mobile/$file" "zamer-app/assets/models/zamer_catalog/$target.glb"
-            python3 zamer-app/tool/featured_models/build_models.py "$kind" .35
-            cp "zamer-app/tool/featured_models/$kind/mobile/$file" "zamer-app/assets/models/zamer_catalog/${target}_lod1.glb"
-            python3 zamer-app/tool/featured_models/build_models.py "$kind" .18
-            cp "zamer-app/tool/featured_models/$kind/mobile/$file" "zamer-app/assets/models/zamer_catalog/${target}_lod2.glb"
+            cp "zamer-app/tool/featured_models/$kind/mobile/$mobile_file" "zamer-app/assets/models/zamer_catalog/${target}_lod1.glb"
+
+            python3 zamer-app/tool/featured_models/build_models.py "$kind" .25
+            cp "zamer-app/tool/featured_models/$kind/mobile/$mobile_file" "zamer-app/assets/models/zamer_catalog/${target}_lod2.glb"
           }
 
-          build_chain sofa Zamer_Sofa_v3_Mobile.glb sofa-3
-          build_chain armchair Zamer_Armchair_Sand_Mobile.glb armchair
-          build_chain table Zamer_Table_Walnut_Mobile.glb coffee-table
-          build_chain bed Zamer_Bed_Sand_Mobile.glb bed-180
-          build_chain washer Zamer_Washer_Mobile.glb washer
-          build_chain toilet Zamer_Toilet_Mobile.glb toilet
-          build_chain chandelier Zamer_Chandelier_Ring_Mobile.glb chandelier-ring
-          build_chain rug Zamer_Rug_2000x1400_Mobile.glb rug-2000x1400
-          build_chain sconce Zamer_Wall_Sconce_UpDown_Mobile.glb wall-sconce-updown
+          build_chain sofa Zamer_Sofa_v3.glb Zamer_Sofa_v3_Mobile.glb sofa-3
+          build_chain armchair Zamer_Armchair_Sand.glb Zamer_Armchair_Sand_Mobile.glb armchair
+          build_chain table Zamer_Table_Walnut.glb Zamer_Table_Walnut_Mobile.glb coffee-table
+          build_chain bed Zamer_Bed_Sand.glb Zamer_Bed_Sand_Mobile.glb bed-180
+          build_chain washer Zamer_Washer.glb Zamer_Washer_Mobile.glb washer
+          build_chain toilet Zamer_Toilet.glb Zamer_Toilet_Mobile.glb toilet
+          build_chain chandelier Zamer_Chandelier_Ring.glb Zamer_Chandelier_Ring_Mobile.glb chandelier-ring
+          build_chain rug Zamer_Rug_2000x1400.glb Zamer_Rug_2000x1400_Mobile.glb rug-2000x1400
+          build_chain sconce Zamer_Wall_Sconce_UpDown.glb Zamer_Wall_Sconce_UpDown_Mobile.glb wall-sconce-updown
 
           # +107: build the approved kitchen from the HQ reference-driven
           # generator. This replaces the +106 path that enlarged a 256px wood
