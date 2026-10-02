@@ -72,12 +72,20 @@ jobs:
           build_chain armchair Zamer_Armchair_Sand_Mobile.glb armchair
           build_chain table Zamer_Table_Walnut_Mobile.glb coffee-table
           build_chain bed Zamer_Bed_Sand_Mobile.glb bed-180
+          build_chain washer Zamer_Washer_Mobile.glb washer
+          build_chain toilet Zamer_Toilet_Mobile.glb toilet
+          build_chain chandelier Zamer_Chandelier_Ring_Mobile.glb chandelier-ring
+          build_chain rug Zamer_Rug_2000x1400_Mobile.glb rug-2000x1400
 
           ls -lh \
             zamer-app/assets/models/zamer_catalog/sofa-3*.glb \
             zamer-app/assets/models/zamer_catalog/armchair*.glb \
             zamer-app/assets/models/zamer_catalog/coffee-table*.glb \
-            zamer-app/assets/models/zamer_catalog/bed-180*.glb
+            zamer-app/assets/models/zamer_catalog/bed-180*.glb \
+            zamer-app/assets/models/zamer_catalog/washer*.glb \
+            zamer-app/assets/models/zamer_catalog/toilet*.glb \
+            zamer-app/assets/models/zamer_catalog/chandelier-ring*.glb \
+            zamer-app/assets/models/zamer_catalog/rug-2000x1400*.glb
 
       - name: Format changed UI sources
         run: >-
@@ -90,6 +98,10 @@ jobs:
           zamer-app/lib/screens/plan_editor_production_screen.dart
           zamer-app/lib/screens/plan_editor_master_v4_screen.dart
           zamer-app/lib/screens/floor_3d_screen.dart
+          zamer-app/lib/screens/photo_studio_screen.dart
+          zamer-app/lib/screens/planning_objects_screen.dart
+          zamer-app/lib/screens/elevations_screen.dart
+          zamer-app/lib/services/camera_gesture_policy.dart
           zamer-app/lib/widgets/projects_home_widgets.dart
           zamer-app/lib/widgets/workspace_master_header.dart
           zamer-app/lib/widgets/workspace_navigation.dart
