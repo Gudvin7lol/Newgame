@@ -138,4 +138,30 @@ void main() {
     );
     expect(moved.x, lessThan(0));
   });
+
+  test('invalid controller samples cannot corrupt walk camera position', () {
+    const start = math.Point<double>(1000, 1250);
+
+    final invalidRotation = WalkNavigationService.advance(
+      floor,
+      start,
+      double.nan,
+      400,
+      0,
+      ignoreCollisions: true,
+    );
+    final invalidMovement = WalkNavigationService.advance(
+      floor,
+      start,
+      0,
+      double.infinity,
+      0,
+      ignoreCollisions: true,
+    );
+
+    expect(invalidRotation, start);
+    expect(invalidMovement, start);
+    expect(invalidRotation.x.isFinite, isTrue);
+    expect(invalidRotation.y.isFinite, isTrue);
+  });
 }
