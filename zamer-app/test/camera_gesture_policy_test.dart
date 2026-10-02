@@ -59,6 +59,6 @@ void main() {
 
     expect(fromNanDelta, closeTo(0.75, 0.0001));
     expect(fromInfiniteSensitivity, closeTo(-0.5, 0.0001));
-    expect(fromNanYaw, isFinite);
+    expect(fromNanYaw.isFinite, isTrue);
   });
 }
