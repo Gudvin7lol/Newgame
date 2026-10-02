@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zamer_app/services/generated_material_ids.dart';
 import 'package:zamer_app/services/generated_pbr_finish_catalog.dart';
+import 'package:zamer_app/services/material_catalog.dart';
 
 void main() {
   test('all generated ZAMER finishes have complete PBR texture sets', () {
@@ -88,6 +89,28 @@ void main() {
     expect(plaster!.realWorldTileMm, 900);
     expect(concrete!.realWorldTileMm, 1000);
     expect(brick!.normalScale, greaterThan(4));
+  });
+
+  test('every textured catalog finish resolves to a PBR surface set', () {
+    for (final preset in MaterialCatalog.presets.where(
+      (preset) => preset.textureAsset != null,
+    )) {
+      expect(
+        GeneratedPbrFinishCatalog.byId(preset.id),
+        isNotNull,
+        reason: '${preset.id} has a base texture but no Normal/Roughness set',
+      );
+    }
+  });
+
+  test('all legacy PBR aliases point to canonical generated finishes', () {
+    for (final entry in GeneratedPbrFinishCatalog.legacyAliases.entries) {
+      expect(
+        GeneratedPbrFinishCatalog.byMaterialId.containsKey(entry.value),
+        isTrue,
+        reason: '${entry.key} points to missing canonical PBR id ${entry.value}',
+      );
+    }
   });
 
   test('unknown material stays outside generated PBR catalog', () {
