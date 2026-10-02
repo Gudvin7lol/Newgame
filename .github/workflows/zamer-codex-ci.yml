@@ -33,6 +33,21 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Restore imported visual pack
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash zamer-app/tool/imported_2026_10_02/restore_pack.sh
+
+          test -s zamer-app/assets/topview/imported_2026_10_02/sofa_2400x950.webp
+          test -s zamer-app/assets/topview/imported_2026_10_02/bed_1800x2200.webp
+          test -s zamer-app/assets/textures/imported_2026_10_02/oak_natural_1200mm_basecolor.webp
+          test -s zamer-app/assets/textures/imported_2026_10_02/oak_natural_1200mm_normal.webp
+          test -s zamer-app/assets/textures/imported_2026_10_02/oak_natural_1200mm_orm.webp
+          test -s zamer-app/tool/imported_2026_10_02/manifest.json
+
+          echo "Imported visual pack restored and verified."
+
       - name: Set up Java 17
         uses: actions/setup-java@v5
         with:
@@ -78,6 +93,39 @@ jobs:
           build_chain rug Zamer_Rug_2000x1400_Mobile.glb rug-2000x1400
           build_chain sconce Zamer_Wall_Sconce_UpDown_Mobile.glb wall-sconce-updown
 
+          # Generate the six imported kitchen models from the source supplied
+          # with the 2026-10-02 content pack. Reuse the imported oak material
+          # as the cabinet veneer so the generated GLBs visually match the pack.
+          python3 - <<'PY'
+          from pathlib import Path
+          from PIL import Image
+          app = Path('zamer-app')
+          source = app / 'assets/textures/imported_2026_10_02/oak_natural_1200mm_basecolor.webp'
+          target = app / 'tool/imported_2026_10_02/kitchen/source/oak_veneer.png'
+          target.parent.mkdir(parents=True, exist_ok=True)
+          Image.open(source).convert('RGB').save(target)
+          PY
+          python3 zamer-app/tool/imported_2026_10_02/kitchen/source/build.py
+
+          kitchen_model_dir="zamer-app/tool/imported_2026_10_02/kitchen/models"
+          catalog_dir="zamer-app/assets/models/zamer_catalog"
+          cp "$kitchen_model_dir/drawers.glb" "$catalog_dir/kitchen-drawers-600.glb"
+          cp "$kitchen_model_dir/sink.glb" "$catalog_dir/kitchen-sink-600-pro.glb"
+          cp "$kitchen_model_dir/cooktop.glb" "$catalog_dir/kitchen-cooktop-600.glb"
+          cp "$kitchen_model_dir/corner.glb" "$catalog_dir/kitchen-corner-900.glb"
+          cp "$kitchen_model_dir/pantry.glb" "$catalog_dir/kitchen-pantry-600.glb"
+          cp "$kitchen_model_dir/fridge.glb" "$catalog_dir/fridge-built-in-610.glb"
+
+          for model in \
+            kitchen-drawers-600 \
+            kitchen-sink-600-pro \
+            kitchen-cooktop-600 \
+            kitchen-corner-900 \
+            kitchen-pantry-600 \
+            fridge-built-in-610; do
+            test -s "$catalog_dir/$model.glb"
+          done
+
           ls -lh \
             zamer-app/assets/models/zamer_catalog/sofa-3*.glb \
             zamer-app/assets/models/zamer_catalog/armchair*.glb \
@@ -87,7 +135,13 @@ jobs:
             zamer-app/assets/models/zamer_catalog/toilet*.glb \
             zamer-app/assets/models/zamer_catalog/chandelier-ring*.glb \
             zamer-app/assets/models/zamer_catalog/rug-2000x1400*.glb \
-            zamer-app/assets/models/zamer_catalog/wall-sconce-updown*.glb
+            zamer-app/assets/models/zamer_catalog/wall-sconce-updown*.glb \
+            zamer-app/assets/models/zamer_catalog/kitchen-drawers-600.glb \
+            zamer-app/assets/models/zamer_catalog/kitchen-sink-600-pro.glb \
+            zamer-app/assets/models/zamer_catalog/kitchen-cooktop-600.glb \
+            zamer-app/assets/models/zamer_catalog/kitchen-corner-900.glb \
+            zamer-app/assets/models/zamer_catalog/kitchen-pantry-600.glb \
+            zamer-app/assets/models/zamer_catalog/fridge-built-in-610.glb
 
       - name: Format changed UI sources
         run: >-
