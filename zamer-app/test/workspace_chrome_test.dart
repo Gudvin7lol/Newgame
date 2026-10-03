@@ -15,6 +15,7 @@ void main() {
   ) async {
     var selected = -1;
     var homePressed = false;
+    var profilePressed = false;
 
     await tester.pumpWidget(
       _host(
@@ -24,6 +25,7 @@ void main() {
             selectedIndex: 0,
             onSelected: (value) => selected = value,
             onHome: () => homePressed = true,
+            onProfile: () => profilePressed = true,
           ),
         ),
       ),
@@ -32,14 +34,17 @@ void main() {
     expect(find.text('Главная'), findsOneWidget);
     expect(find.text('Замер'), findsOneWidget);
     expect(find.text('3D'), findsOneWidget);
-    expect(find.text('Оснащение'), findsOneWidget);
     expect(find.text('Развёртки'), findsOneWidget);
+    expect(find.text('Профиль'), findsOneWidget);
 
     await tester.tap(find.text('3D'));
     expect(selected, 1);
 
     await tester.tap(find.text('Главная'));
     expect(homePressed, isTrue);
+
+    await tester.tap(find.text('Профиль'));
+    expect(profilePressed, isTrue);
   });
 
   testWidgets('workspace subnavigation selects its working page', (
