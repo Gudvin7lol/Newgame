@@ -62,26 +62,19 @@ class ZWorkspaceSubnav extends StatelessWidget {
         color: ZamerColors.surfaceLow,
         border: Border(top: BorderSide(color: ZamerColors.outlineSoft)),
       ),
-      child: Container(
-        height: 40,
-        padding: const EdgeInsets.all(3),
-        decoration: BoxDecoration(
-          color: ZamerColors.surface,
-          borderRadius: BorderRadius.circular(ZamerRadius.md),
-          border: Border.all(color: ZamerColors.outlineSoft),
-        ),
-        child: Row(
-          children: [
-            for (var i = 0; i < items.length; i++)
-              Expanded(
-                child: _SubnavItem(
-                  icon: items[i].$2,
-                  label: items[i].$1,
-                  selected: selectedIndex == i,
-                  onTap: () => onSelected(i),
-                ),
-              ),
-          ],
+      child: SizedBox(
+        height: 44,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.all(3),
+          itemCount: items.length,
+          separatorBuilder: (_, __) => const SizedBox(width: 4),
+          itemBuilder: (_, i) => _SubnavItem(
+            icon: items[i].$2,
+            label: items[i].$1,
+            selected: selectedIndex == i,
+            onTap: () => onSelected(i),
+          ),
         ),
       ),
     );
@@ -106,31 +99,36 @@ class _SubnavItem extends StatelessWidget {
     final foreground = selected
         ? ZamerColors.accentInk
         : ZamerColors.textSecondary;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 2),
-      child: ZPressEffect(
-        scale: .96,
-        child: Material(
-          color: selected ? ZamerColors.accent : Colors.transparent,
-          borderRadius: BorderRadius.circular(ZamerRadius.sm),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: onTap,
+    return ZPressEffect(
+      scale: .96,
+      child: Material(
+        color: selected ? ZamerColors.accent : ZamerColors.surface,
+        borderRadius: BorderRadius.circular(ZamerRadius.sm),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Container(
+            constraints: const BoxConstraints(minWidth: 92),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(ZamerRadius.sm),
+              border: Border.all(
+                color: selected ? ZamerColors.accent : ZamerColors.outlineSoft,
+              ),
+            ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(icon, size: 16, color: foreground),
-                const SizedBox(width: 5),
-                Flexible(
-                  child: Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: foreground,
-                      fontSize: 10.5,
-                      fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                    ),
+                const SizedBox(width: 6),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: foreground,
+                    fontSize: 10.5,
+                    fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
                   ),
                 ),
               ],
@@ -142,31 +140,38 @@ class _SubnavItem extends StatelessWidget {
   }
 }
 
-/// Shared five-section navigation from the master concept.
+/// Primary production navigation.
+///
+/// Equipment is intentionally not a top-level destination anymore. Furniture,
+/// electrical, engineering, floors and materials live as functional layers in
+/// Measure. This keeps the main navigation aligned with the actual field
+/// workflow: project -> measure -> 3D -> documentation -> profile.
 class ZWorkspacePrimaryNav extends StatelessWidget {
   const ZWorkspacePrimaryNav({
     super.key,
     required this.selectedIndex,
     required this.onSelected,
     required this.onHome,
+    required this.onProfile,
   });
 
-  /// Project-mode index: 0 = Measure, 1 = 3D, 2 = Equipment, 3 = Elevations.
+  /// Workspace index: 0 = Measure, 1 = 3D, 2 = Elevations.
   final int selectedIndex;
   final ValueChanged<int> onSelected;
   final VoidCallback onHome;
+  final VoidCallback onProfile;
 
   static const _items = <(IconData icon, String label)>[
     (Icons.home_outlined, 'Главная'),
     (Icons.architecture_outlined, 'Замер'),
     (Icons.view_in_ar_outlined, '3D'),
-    (Icons.chair_alt_outlined, 'Оснащение'),
     (Icons.view_carousel_outlined, 'Развёртки'),
+    (Icons.person_outline_rounded, 'Профиль'),
   ];
 
   @override
   Widget build(BuildContext context) {
-    final active = selectedIndex + 1;
+    final active = selectedIndex.clamp(0, 2) + 1;
     return SafeArea(
       top: false,
       child: Container(
@@ -183,7 +188,13 @@ class ZWorkspacePrimaryNav extends StatelessWidget {
                   icon: _items[i].$1,
                   label: _items[i].$2,
                   selected: i == active,
-                  onTap: i == 0 ? onHome : () => onSelected(i - 1),
+                  onTap: switch (i) {
+                    0 => onHome,
+                    1 => () => onSelected(0),
+                    2 => () => onSelected(1),
+                    3 => () => onSelected(2),
+                    _ => onProfile,
+                  },
                 ),
               ),
           ],
@@ -193,6 +204,8 @@ class ZWorkspacePrimaryNav extends StatelessWidget {
   }
 }
 
+/// Preview/review navigation follows the same production information
+/// architecture as the live app.
 class ZMasterBottomNav extends StatelessWidget {
   const ZMasterBottomNav({
     super.key,
@@ -207,8 +220,8 @@ class ZMasterBottomNav extends StatelessWidget {
     (Icons.home_outlined, 'Главная'),
     (Icons.architecture_outlined, 'Замер'),
     (Icons.view_in_ar_outlined, '3D'),
-    (Icons.chair_alt_outlined, 'Оснащение'),
     (Icons.view_carousel_outlined, 'Развёртки'),
+    (Icons.person_outline_rounded, 'Профиль'),
   ];
 
   @override
