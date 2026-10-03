@@ -3,13 +3,15 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('measure workspace routes advanced wall work to production geometry', () {
+  test('Measure routes advanced wall work to production geometry', () {
     final workspace =
         File('lib/screens/floor_workspace_screen.dart').readAsStringSync();
+    final measure = File('lib/screens/measure_unified_workspace_screen.dart')
+        .readAsStringSync();
 
     expect(workspace.contains("import 'plan_geometry_tools_screen.dart';"), isTrue);
     expect(workspace.contains('PlanGeometryToolsScreen('), isTrue);
-    expect(workspace.contains('onOpenAdvanced: _openGeometryTools'), isTrue);
+    expect(measure.contains('onOpenAdvanced: widget.onOpenGeometry'), isTrue);
     expect(workspace.contains("title: 'Радиусы и узлы'"), isTrue);
     expect(workspace.contains("title: 'Расширенный редактор'"), isTrue);
   });
