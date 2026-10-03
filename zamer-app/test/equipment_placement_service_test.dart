@@ -41,4 +41,50 @@ void main() {
     expect(restoredObject.xMm, 2000);
     expect(restoredObject.yMm, 1500);
   });
+
+  test('placed equipment can move rotate duplicate and delete persistently', () {
+    final floor = FloorPlan(id: 'floor-1', name: 'Этаж 1');
+    final source = EquipmentPlacementService.addCatalogItem(
+      floor: floor,
+      item: ObjectCatalog.byId('armchair'),
+      objectId: 'source',
+    );
+
+    EquipmentPlacementService.moveBy(source, dxMm: 250, dyMm: -100);
+    EquipmentPlacementService.rotateBy(source, 450);
+    expect(source.xMm, 250);
+    expect(source.yMm, -100);
+    expect(source.rotationDeg, 90);
+
+    final copy = EquipmentPlacementService.duplicateObject(
+      floor: floor,
+      source: source,
+      objectId: 'copy',
+    );
+    expect(floor.planObjects, hasLength(2));
+    expect(copy.catalogId, source.catalogId);
+    expect(copy.rotationDeg, source.rotationDeg);
+    expect(copy.xMm, source.xMm + 160);
+    expect(copy.yMm, source.yMm + 160);
+
+    floor.electricalPoints.add(
+      ElectricalPoint(
+        id: 'fixture:${copy.id}',
+        type: ElectricalPointType.ceilingLight,
+        xMm: copy.xMm,
+        yMm: copy.yMm,
+      ),
+    );
+    expect(
+      EquipmentPlacementService.removeObject(floor: floor, object: copy),
+      isTrue,
+    );
+    expect(floor.planObjects.map((object) => object.id), ['source']);
+    expect(floor.electricalPoints, isEmpty);
+
+    final restored = FloorPlan.fromJson(floor.toJson());
+    expect(restored.planObjects.single.rotationDeg, 90);
+    expect(restored.planObjects.single.xMm, 250);
+    expect(restored.planObjects.single.yMm, -100);
+  });
 }
