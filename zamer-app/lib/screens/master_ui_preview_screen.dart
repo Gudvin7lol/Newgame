@@ -251,8 +251,10 @@ class _MasterUiPreviewScreenState extends State<MasterUiPreviewScreen> {
       MasterProfileScreen(
         project: project,
         projectCount: _projects.length,
+        onHome: () => Navigator.of(context).popUntil((route) => route.isFirst),
         onOpenMeasure: _openMeasure,
-        onOpenPhoto: _openPhoto,
+        onOpen3D: _open3D,
+        onOpenElevations: _openElevations,
       ),
     );
   }
