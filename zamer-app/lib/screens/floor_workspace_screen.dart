@@ -160,6 +160,13 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
     });
   }
 
+  void _openRoomsFromMeasure() {
+    setState(() {
+      _index = 1;
+      _lastByMode[0] = 1;
+    });
+  }
+
   void _openObjectsFromMeasure() {
     setState(() {
       _index = 5;
@@ -378,6 +385,15 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               ZActionTile(
+                icon: Icons.grid_view_outlined,
+                title: 'Комнаты',
+                subtitle: 'Названия, высоты и параметры помещений',
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _openRoomsFromMeasure();
+                },
+              ),
+              ZActionTile(
                 icon: Icons.layers_outlined,
                 title: 'Этажи',
                 subtitle: 'Переключить или добавить этаж',
@@ -443,7 +459,7 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
     final roomCount = GeometryService.roomFaces(widget.floor).length;
     final hasRooms = roomCount > 0;
 
-    if (_mode == 0) {
+    if (_mode == 0 && _index == 0) {
       return MeasureConceptWorkspaceScreen(
         project: widget.project,
         floor: widget.floor,
@@ -523,16 +539,19 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
     final modeTabs = _modeTabs[_mode];
     final subItems = [for (final i in modeTabs) tabs[i]];
     final contextTitle = switch (_mode) {
+      0 => 'План и помещения',
       1 => 'Пространственная модель',
       2 => 'Комплектация объекта',
       _ => 'Рабочая документация',
     };
     final contextSubtitle = switch (_mode) {
+      0 => 'Геометрия, параметры и состав помещений',
       1 => 'Realtime-сцена, прогулка и фоторендер',
       2 => 'Каталог, размещение, электрика и инженерия',
       _ => 'Развёртки стен, раскладки пола и материалы',
     };
     final contextIcon = switch (_mode) {
+      0 => Icons.architecture_outlined,
       1 => Icons.view_in_ar_outlined,
       2 => Icons.chair_alt_outlined,
       _ => Icons.view_carousel_outlined,
@@ -544,6 +563,12 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
         value: tabs[_index].$1,
         emphasized: true,
       ),
+      if (_mode == 0)
+        ZWorkspaceMetric(
+          icon: Icons.grid_view_outlined,
+          value: '$roomCount',
+          label: 'пом.',
+        ),
       if (_mode == 1 || _mode == 3)
         ZWorkspaceMetric(
           icon: Icons.square_foot_outlined,
