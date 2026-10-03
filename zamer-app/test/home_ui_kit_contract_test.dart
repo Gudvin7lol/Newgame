@@ -3,49 +3,47 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('Concept Home keeps the approved production composition', () {
-    final source = File(
-      'lib/screens/home_concept_screen.dart',
-    ).readAsStringSync();
+  test('production Home keeps the approved dark field composition', () {
+    final source =
+        File('lib/screens/production_home_screen.dart').readAsStringSync();
 
     for (final requiredLabel in const [
       'ЗАМЕР',
-      'ПРОФЕССИОНАЛЬНЫЙ ЗАМЕР',
-      'ТЕКУЩИЙ ПРОЕКТ',
+      'Обмер • проект • рабочая документация',
+      'Продолжить работу',
+      'АКТИВНЫЙ ПРОЕКТ',
       'Новый проект',
+      'Сканировать',
+      'Импорт плана',
+      'Восстановить',
+      'Недавние проекты',
+      'Главная',
       'Замер',
       '3D',
-      'Оснащение',
       'Развёртки',
-      'МОИ ПРОЕКТЫ',
-      'ШАБЛОНЫ',
-      'Все',
-      'Главная',
-      'Проекты',
-      'Каталог',
-      'Обучение',
-      'Ещё',
+      'Профиль',
     ]) {
       expect(
         source.contains(requiredLabel),
         isTrue,
-        reason: 'Missing approved concept Home element: $requiredLabel',
+        reason: 'Missing approved production Home element: $requiredLabel',
       );
     }
 
     expect(source.contains('HomeConceptAssets.logo'), isTrue);
     expect(source.contains('HomeConceptAssets.currentProject'), isTrue);
-    expect(source.contains('foregroundColor: ZamerColors.beige'), isTrue);
-    expect(source.contains('const _homeBackground = Color(0xFF050B10)'), isTrue);
+    expect(source.contains('const _bg = Color(0xFF050B10)'), isTrue);
+    expect(source.contains('FloorsScreen('), isFalse);
+    expect(source.contains("'Оснащение'"), isFalse);
   });
 
-  test('production build starts from the functional Home screen', () {
+  test('production build starts from the field-first Home screen', () {
     final source = File('lib/main.dart').readAsStringSync();
     expect(
-      source.contains("import 'screens/ready_home_screen.dart';"),
+      source.contains("import 'screens/production_home_screen.dart';"),
       isTrue,
     );
-    expect(source.contains('home: const ReadyHomeScreen()'), isTrue);
+    expect(source.contains('home: const ProductionHomeScreen()'), isTrue);
     expect(source.contains('MasterUiPreviewScreen'), isFalse);
   });
 }
