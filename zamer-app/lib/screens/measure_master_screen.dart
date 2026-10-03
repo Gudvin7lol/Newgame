@@ -294,7 +294,7 @@ class _MeasureMasterScreenState extends State<MeasureMasterScreen> {
         heightMm: type == OpeningType.window ? 1400 : 2100,
         offsetFromStartMm: (length - width) / 2,
         sillHeightMm: type == OpeningType.window ? 850 : 0,
-        doorSwing: type == OpeningType.door ? DoorSwing.leftIn : null,
+        doorSwing: DoorSwing.leftIn,
       ),
     );
     setState(() => _selectedWallId = wall.id);
