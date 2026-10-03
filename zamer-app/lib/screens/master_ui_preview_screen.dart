@@ -174,7 +174,7 @@ class _PreviewTile extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           child: Container(
-            minHeight: 86,
+            constraints: const BoxConstraints(minHeight: 86),
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
