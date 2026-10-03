@@ -11,9 +11,9 @@ import 'master_control_screen.dart';
 import 'master_documentation_screen.dart';
 import 'master_elevations_screen.dart';
 import 'master_equipment_screen.dart';
+import 'master_object_placement_workspace.dart';
 import 'master_photo_screen.dart';
 import 'master_profile_screen.dart';
-import 'planning_objects_screen.dart';
 
 /// Master UI connected to the same persisted project model as production.
 ///
@@ -147,7 +147,7 @@ class _MasterUiPreviewScreenState extends State<MasterUiPreviewScreen> {
             ),
           ],
         ),
-        body: PlanningObjectsScreen(
+        body: MasterObjectPlacementWorkspace(
           floor: floor,
           onChanged: _save,
         ),
@@ -252,7 +252,7 @@ class _MasterUiPreviewScreenState extends State<MasterUiPreviewScreen> {
             const SizedBox(height: 10),
             _PreviewTile(
               title: 'РАЗМЕЩЕНИЕ ОБЪЕКТОВ',
-              subtitle: 'Выбор, перетаскивание, поворот и удаление на плане',
+              subtitle: 'Перетаскивание, поворот, копирование и удаление',
               icon: Icons.open_with_rounded,
               onTap: _openPlacement,
             ),
