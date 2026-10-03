@@ -3,13 +3,11 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('Measure page uses the approved UI Kit 02 composition', () {
+  test('Measure page keeps UI Kit 02 CAD inside the unified workspace', () {
     final workspace =
         File('lib/screens/floor_workspace_screen.dart').readAsStringSync();
-    final measure = File('lib/screens/measure_concept_workspace_screen.dart')
+    final measure = File('lib/screens/measure_unified_workspace_screen.dart')
         .readAsStringSync();
-    final chrome =
-        File('lib/design_system/zamer_measure_chrome.dart').readAsStringSync();
     final production = File('lib/screens/plan_editor_production_screen.dart')
         .readAsStringSync();
     final editor = File('lib/screens/plan_editor_master_v4_screen.dart')
@@ -19,19 +17,17 @@ void main() {
         File('lib/widgets/cad_plan_painter_v2.dart').readAsStringSync();
     final v3 = File('lib/widgets/cad_plan_painter_v3.dart').readAsStringSync();
 
-    expect(workspace.contains('MeasureConceptWorkspaceScreen('), isTrue);
+    expect(workspace.contains('MeasureUnifiedWorkspaceScreen('), isTrue);
     expect(measure.contains('PlanEditorProductionScreen('), isTrue);
     expect(production.contains('PlanEditorMasterV4Screen('), isTrue);
     expect(production.contains('PlanEditorMasterV3Screen('), isFalse);
 
-    expect(measure.contains('_ConceptHeader('), isTrue);
-    expect(measure.contains("'ЗАМЕР'"), isTrue);
-    expect(measure.contains("'Сохранить'"), isTrue);
-    expect(measure.contains('Icons.undo_rounded'), isTrue);
-    expect(measure.contains('Icons.redo_rounded'), isTrue);
-
+    expect(measure.contains("modeLabel: 'ЗАМЕР'"), isTrue);
+    expect(measure.contains('onUndo: widget.onUndo'), isTrue);
+    expect(measure.contains('onRedo: widget.onRedo'), isTrue);
     expect(measure.contains('ZMeasureViewTabs('), isTrue);
-    expect(chrome.contains("_tab('AR', ZMeasureViewMode.ar)"), isTrue);
+    expect(measure.contains('ZWorkspaceSubnav('), isTrue);
+    expect(measure.contains('ZWorkspacePrimaryNav('), isTrue);
 
     for (final required in const [
       'class _ToolRail',
@@ -48,8 +44,19 @@ void main() {
       expect(
         editor.contains(required),
         isTrue,
-        reason: 'Missing UI Kit element: $required',
+        reason: 'Missing UI Kit CAD element: $required',
       );
+    }
+
+    for (final layer in const [
+      "('План'",
+      "('Пол'",
+      "('Объекты'",
+      "('Электрика'",
+      "('Инженерия'",
+      "('Материалы'",
+    ]) {
+      expect(measure.contains(layer), isTrue, reason: 'Missing Measure layer: $layer');
     }
 
     expect(adapter.contains('class CadPlanPainter'), isTrue);
@@ -61,11 +68,5 @@ void main() {
     expect(painter.contains('_drawFinish('), isTrue);
     expect(painter.contains('DoorSwing'), isTrue);
     expect(painter.contains('TopViewObjectRenderer.draw('), isTrue);
-
-    expect(measure.contains('_ConceptBottomNav('), isTrue);
-    expect(measure.contains("'Проекты'"), isTrue);
-    expect(measure.contains("'Каталог'"), isTrue);
-    expect(measure.contains("'Обучение'"), isTrue);
-    expect(measure.contains('ZWorkspacePrimaryNav('), isFalse);
   });
 }
