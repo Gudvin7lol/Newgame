@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../design_system/zamer_measure_chrome.dart';
 import '../design_system/zamer_tokens.dart';
 import '../models/models.dart';
+import 'materials_screen.dart';
 import 'plan_editor_production_screen.dart';
 
 /// Production shell for the approved UI KIT 02 «Замер» concept.
@@ -150,6 +151,25 @@ class _MeasureConceptWorkspaceScreenState
     }
   }
 
+  Future<void> _openMaterials() async {
+    final callback = widget.onOpenMaterials;
+    if (callback != null) {
+      callback();
+      return;
+    }
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => MaterialsScreen(
+          floor: widget.floor,
+          project: widget.project,
+          onChanged: widget.onChanged,
+        ),
+      ),
+    );
+    if (mounted) setState(() {});
+  }
+
   Future<void> _showMeasureSettings() async {
     final height = TextEditingController(
       text: widget.floor.defaultHeightMm.round().toString(),
@@ -269,7 +289,7 @@ class _MeasureConceptWorkspaceScreenState
     } else if (result == 'floors') {
       widget.onOpenFloors();
     } else if (result == 'materials') {
-      (widget.onOpenMaterials ?? widget.onOpenSettings)();
+      await _openMaterials();
     } else if (result == 'more') {
       widget.onOpenSettings();
     }
@@ -371,8 +391,7 @@ class _MeasureConceptWorkspaceScreenState
                 onOpen3D: widget.onOpen3D,
                 onOpenFloors: widget.onOpenFloors,
                 onOpenSettings: _showMeasureSettings,
-                onOpenMaterials:
-                    widget.onOpenMaterials ?? widget.onOpenSettings,
+                onOpenMaterials: _openMaterials,
                 onUndo: widget.onUndo,
                 onRedo: widget.onRedo,
                 canUndo: widget.canUndo,
