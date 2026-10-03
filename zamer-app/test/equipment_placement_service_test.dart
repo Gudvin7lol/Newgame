@@ -6,6 +6,23 @@ import 'package:zamer_app/renderer3d/zamer_scene_geometry.dart';
 import 'package:zamer_app/services/equipment_placement_service.dart';
 import 'package:zamer_app/services/object_catalog.dart';
 
+FloorPlan _rectFloor() => FloorPlan(
+      id: 'floor-rect',
+      name: 'Этаж 1',
+      nodes: [
+        PlanNode(id: 'a', xMm: 0, yMm: 0),
+        PlanNode(id: 'b', xMm: 4000, yMm: 0),
+        PlanNode(id: 'c', xMm: 4000, yMm: 3000),
+        PlanNode(id: 'd', xMm: 0, yMm: 3000),
+      ],
+      walls: [
+        PlanWall(id: 'ab', startNodeId: 'a', endNodeId: 'b'),
+        PlanWall(id: 'bc', startNodeId: 'b', endNodeId: 'c'),
+        PlanWall(id: 'cd', startNodeId: 'c', endNodeId: 'd'),
+        PlanWall(id: 'da', startNodeId: 'd', endNodeId: 'a'),
+      ],
+    );
+
 void main() {
   test('catalog equipment is added with exact metadata and survives JSON reload', () {
     final floor = FloorPlan(
@@ -98,5 +115,69 @@ void main() {
     expect(sceneObject.xMm, 250);
     expect(sceneObject.yMm, -100);
     expect(sceneObject.rotationRad, closeTo(math.pi / 2, 0.0001));
+  });
+
+  test('ceiling light snaps to ceiling and creates one electrical fixture', () {
+    final floor = _rectFloor()..defaultHeightMm = 2800;
+    final chandelier = EquipmentPlacementService.addCatalogItem(
+      floor: floor,
+      item: ObjectCatalog.byId('chandelier-ring'),
+      objectId: 'light-ceiling',
+    );
+
+    expect(chandelier.elevationMm, 2450);
+    expect(floor.electricalPoints, hasLength(1));
+    final point = floor.electricalPoints.single;
+    expect(point.id, 'fixture:light-ceiling');
+    expect(point.type, ElectricalPointType.ceilingLight);
+    expect(point.heightMm, 2800);
+    expect(point.wallId, isNull);
+
+    final copy = EquipmentPlacementService.duplicateObject(
+      floor: floor,
+      source: chandelier,
+      objectId: 'light-ceiling-copy',
+    );
+    expect(copy.elevationMm, 2450);
+    expect(floor.electricalPoints, hasLength(2));
+  });
+
+  test('wall light is mounted to a wall and keeps its electrical binding', () {
+    final floor = _rectFloor();
+    final sconce = EquipmentPlacementService.addCatalogItem(
+      floor: floor,
+      item: ObjectCatalog.byId('wall-sconce-updown'),
+      objectId: 'light-wall',
+    );
+
+    expect(floor.electricalPoints, hasLength(1));
+    final point = floor.electricalPoints.single;
+    expect(point.id, 'fixture:light-wall');
+    expect(point.type, ElectricalPointType.wallLight);
+    expect(point.wallId, isNotNull);
+    expect(point.wallOffsetMm, isNotNull);
+    expect(point.heightMm, 1800);
+
+    final mountDistance = math.sqrt(
+      math.pow(sconce.xMm - point.xMm, 2) +
+          math.pow(sconce.yMm - point.yMm, 2),
+    );
+    expect(mountDistance, closeTo(131, 0.01));
+
+    final authoredRotation = sconce.rotationDeg;
+    EquipmentPlacementService.rotateBy(sconce, 90);
+    expect(sconce.rotationDeg, authoredRotation);
+
+    final copy = EquipmentPlacementService.duplicateObject(
+      floor: floor,
+      source: sconce,
+      objectId: 'light-wall-copy',
+    );
+    expect(floor.electricalPoints, hasLength(2));
+    final copyPoint = floor.electricalPoints
+        .firstWhere((candidate) => candidate.id == 'fixture:light-wall-copy');
+    expect(copyPoint.wallId, isNotNull);
+    expect(copyPoint.type, ElectricalPointType.wallLight);
+    expect(copy.catalogId, 'wall-sconce-updown');
   });
 }
