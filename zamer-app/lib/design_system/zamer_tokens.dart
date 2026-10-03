@@ -1,61 +1,60 @@
 import 'package:flutter/material.dart';
 
-/// ZAMER UI KIT 01 / 02 production tokens.
+/// ZAMER MASTER CONCEPT production tokens.
 ///
-/// The working CAD surfaces follow the approved master concept: near-black
-/// graphite/teal surfaces with a warm cream accent. Keep the named brand
-/// colors available, but use the semantic aliases below for production UI.
+/// Source of truth: the approved dark graphite + warm sand UI boards supplied
+/// by the product owner (3D, Equipment, Elevations, Documentation, Photos,
+/// Control, Profile). Do not re-introduce the older cyan prototype palette.
 abstract final class ZamerColors {
-  // Brand palette.
-  static const navy = Color(0xFF0B1F3B);
-  static const graphite = Color(0xFF1A2A3A);
-  static const darkGray = Color(0xFF2C3B4A);
-  static const beige = Color(0xFFDBC3A5);
-  static const cream = Color(0xFFF3E9D7);
-  static const white = Color(0xFFFFFFFF);
+  // Brand / master palette sampled from the approved boards.
+  static const navy = Color(0xFF0B0F12);
+  static const graphite = Color(0xFF11171B);
+  static const darkGray = Color(0xFF171D21);
+  static const beige = Color(0xFFFDD2A3);
+  static const cream = Color(0xFFFFE0B8);
+  static const white = Color(0xFFF7F7F5);
 
-  // UI KIT 02 concept accent sampled from the approved CAD board.
-  static const conceptAccent = Color(0xFFFED8AB);
+  // Primary interaction accent used throughout the approved master concept.
+  static const conceptAccent = Color(0xFFFDD2A3);
 
   // Semantic palette.
-  static const success = Color(0xFF2EA043);
-  static const warning = Color(0xFFFFB020);
-  static const danger = Color(0xFFFF4444);
-  static const info = Color(0xFF3B82F6);
+  static const success = Color(0xFF69D79B);
+  static const warning = Color(0xFFFFA629);
+  static const danger = Color(0xFFFF5C5C);
+  static const info = Color(0xFF6EA8FF);
 
   // Neutral palette.
-  static const gray100 = Color(0xFFF5F7FA);
-  static const gray300 = Color(0xFFD1D5DE);
-  static const gray500 = Color(0xFF9AA4B2);
-  static const gray700 = Color(0xFF6B7280);
+  static const gray100 = Color(0xFFF4F4F2);
+  static const gray300 = Color(0xFFD3D5D6);
+  static const gray500 = Color(0xFFA6ADB1);
+  static const gray700 = Color(0xFF667077);
 
-  // Semantic aliases used by the app. These values intentionally follow the
-  // approved concept rather than the older blue prototype shown in +76.
+  // Semantic aliases.
   static const accent = conceptAccent;
-  static const accentInk = Color(0xFF10233A);
+  static const accentInk = Color(0xFF18130F);
   static const secondary = cream;
-  static const secondaryInk = navy;
+  static const secondaryInk = Color(0xFF18130F);
 
-  static const background = Color(0xFF040F13);
-  static const surfaceLow = Color(0xFF071820);
-  static const surface = Color(0xFF0B1E26);
-  static const surfaceInput = Color(0xFF13242C);
-  static const surfaceHigh = Color(0xFF152832);
-  static const surfaceHighest = Color(0xFF1B303A);
+  static const background = Color(0xFF0A1215);
+  static const surfaceLow = Color(0xFF0B1316);
+  static const surface = Color(0xFF11171B);
+  static const surfaceInput = Color(0xFF151C20);
+  static const surfaceHigh = Color(0xFF171E22);
+  static const surfaceHighest = Color(0xFF1D252A);
 
-  static const outline = Color(0xFF253944);
-  static const outlineSoft = Color(0xFF2D434E);
-  static const outlineLight = gray300;
-  static const divider = Color(0xFF20343E);
-  static const focus = info;
+  static const outline = Color(0xFF30383D);
+  static const outlineSoft = Color(0xFF262E33);
+  static const outlineLight = Color(0xFF5E676C);
+  static const divider = Color(0xFF2A3237);
+  static const focus = conceptAccent;
 
   static const textPrimary = white;
-  static const textSecondary = Color(0xFFD9E0E4);
-  static const textMuted = Color(0xFF9CAAB3);
-  static const textFaint = Color(0xFF687782);
+  static const textSecondary = Color(0xFFD6D8D9);
+  static const textMuted = Color(0xFFA5ABAF);
+  static const textFaint = Color(0xFF6B7479);
 }
 
-/// Approved spacing scale: 4 / 8 / 12 / 16 / 20 / 24 / 32 / 40 / 48.
+/// Master spacing scale. The phone boards use a dense 4/8/12/16 rhythm.
 abstract final class ZamerSpace {
   static const xxs = 4.0;
   static const xs = 8.0;
@@ -68,27 +67,28 @@ abstract final class ZamerSpace {
   static const jumbo = 48.0;
 }
 
-/// Approved radius scale: 4 / 8 / 12 / 16 / 20 / 24.
+/// Master radius scale. Panels are restrained; controls are softer than the
+/// old prototype but never excessively pill-shaped.
 abstract final class ZamerRadius {
   static const xs = 4.0;
   static const sm = 8.0;
-  static const md = 12.0;
-  static const lg = 16.0;
-  static const xl = 20.0;
-  static const xxl = 24.0;
+  static const md = 10.0;
+  static const lg = 12.0;
+  static const xl = 16.0;
+  static const xxl = 20.0;
   static const pill = 999.0;
 }
 
-/// Base component dimensions from UI KIT 01.
+/// Base component dimensions derived from the approved phone frames.
 abstract final class ZamerSize {
-  static const referenceWidth = 375.0;
-  static const referenceHeight = 812.0;
-  static const contentWidth = 343.0;
+  static const referenceWidth = 390.0;
+  static const referenceHeight = 844.0;
+  static const contentWidth = 358.0;
 
   static const topBar = 56.0;
-  static const minTouch = 48.0;
-  static const button = 56.0;
-  static const input = 56.0;
+  static const minTouch = 44.0;
+  static const button = 52.0;
+  static const input = 48.0;
   static const bottomNavigation = 72.0;
   static const cardSmall = 80.0;
   static const cardMedium = 120.0;
@@ -98,86 +98,84 @@ abstract final class ZamerSize {
   static const iconLg = 28.0;
 }
 
-/// Typography from UI KIT 01.
-/// Flutter `height` is line-height / font-size.
+/// Typography tuned to the master concept's compact phone layouts.
 abstract final class ZamerTypography {
   static const h1 = TextStyle(
     color: ZamerColors.textPrimary,
     fontSize: 28,
-    height: 36 / 28,
-    fontWeight: FontWeight.w600,
+    height: 34 / 28,
+    fontWeight: FontWeight.w700,
   );
 
   static const h2 = TextStyle(
     color: ZamerColors.textPrimary,
-    fontSize: 24,
-    height: 32 / 24,
-    fontWeight: FontWeight.w600,
+    fontSize: 22,
+    height: 28 / 22,
+    fontWeight: FontWeight.w700,
   );
 
   static const h3 = TextStyle(
     color: ZamerColors.textPrimary,
-    fontSize: 20,
-    height: 28 / 20,
-    fontWeight: FontWeight.w600,
+    fontSize: 18,
+    height: 24 / 18,
+    fontWeight: FontWeight.w700,
   );
 
   static const h4 = TextStyle(
     color: ZamerColors.textPrimary,
-    fontSize: 18,
-    height: 26 / 18,
-    fontWeight: FontWeight.w500,
+    fontSize: 16,
+    height: 22 / 16,
+    fontWeight: FontWeight.w600,
   );
 
   static const h5 = TextStyle(
     color: ZamerColors.textPrimary,
-    fontSize: 16,
-    height: 24 / 16,
-    fontWeight: FontWeight.w500,
+    fontSize: 14,
+    height: 20 / 14,
+    fontWeight: FontWeight.w600,
   );
 
   static const body = TextStyle(
     color: ZamerColors.textPrimary,
-    fontSize: 16,
-    height: 24 / 16,
+    fontSize: 15,
+    height: 21 / 15,
     fontWeight: FontWeight.w400,
   );
 
   static const bodySmall = TextStyle(
     color: ZamerColors.textSecondary,
-    fontSize: 14,
-    height: 20 / 14,
+    fontSize: 13,
+    height: 18 / 13,
     fontWeight: FontWeight.w400,
   );
 
   static const caption = TextStyle(
     color: ZamerColors.textMuted,
-    fontSize: 12,
-    height: 16 / 12,
+    fontSize: 11,
+    height: 15 / 11,
     fontWeight: FontWeight.w400,
   );
 
   static const button = TextStyle(
-    fontSize: 14,
-    height: 18 / 14,
+    fontSize: 13,
+    height: 18 / 13,
     fontWeight: FontWeight.w600,
   );
 
   static const technical = TextStyle(
     color: ZamerColors.textPrimary,
-    fontSize: 14,
-    height: 20 / 14,
+    fontSize: 13,
+    height: 18 / 13,
     fontWeight: FontWeight.w500,
   );
 
   static const measurement = TextStyle(
     color: ZamerColors.textPrimary,
-    fontSize: 16,
-    height: 24 / 16,
-    fontWeight: FontWeight.w500,
+    fontSize: 14,
+    height: 20 / 14,
+    fontWeight: FontWeight.w600,
   );
 
-  // Backward-compatible semantic aliases.
   static const pageTitle = h1;
   static const sectionTitle = h3;
   static const sheetTitle = h3;
