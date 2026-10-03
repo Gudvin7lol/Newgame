@@ -13,15 +13,19 @@ class MasterProfileScreen extends StatefulWidget {
     required this.project,
     this.projectCount = 1,
     this.onBack,
+    this.onHome,
     this.onOpenMeasure,
-    this.onOpenPhoto,
+    this.onOpen3D,
+    this.onOpenElevations,
   });
 
   final MeasureProject project;
   final int projectCount;
   final VoidCallback? onBack;
+  final VoidCallback? onHome;
   final VoidCallback? onOpenMeasure;
-  final VoidCallback? onOpenPhoto;
+  final VoidCallback? onOpen3D;
+  final VoidCallback? onOpenElevations;
 
   @override
   State<MasterProfileScreen> createState() => _MasterProfileScreenState();
@@ -62,13 +66,19 @@ class _MasterProfileScreenState extends State<MasterProfileScreen> {
     final result = await showDialog<(String, String)>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Локальный профиль'),
+        title: const Text('Профиль'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(controller: name, decoration: const InputDecoration(labelText: 'Имя')),
+            TextField(
+              controller: name,
+              decoration: const InputDecoration(labelText: 'Имя'),
+            ),
             const SizedBox(height: 10),
-            TextField(controller: role, decoration: const InputDecoration(labelText: 'Роль')),
+            TextField(
+              controller: role,
+              decoration: const InputDecoration(labelText: 'Специализация'),
+            ),
           ],
         ),
         actions: [
@@ -128,21 +138,31 @@ class _MasterProfileScreenState extends State<MasterProfileScreen> {
 
   void _notConnected(String feature) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$feature пока не подключено. Локальные данные остаются на устройстве.')),
+      SnackBar(
+        content: Text(
+          '$feature пока не подключено. Локальные данные остаются на устройстве.',
+        ),
+      ),
     );
   }
 
+  void _goBack() => widget.onBack?.call() ?? Navigator.maybePop(context);
+
   @override
   Widget build(BuildContext context) {
-    final initial = _name.trim().isEmpty ? 'П' : _name.trim().characters.first.toUpperCase();
+    final initial = _name.trim().isEmpty
+        ? 'П'
+        : _name.trim().characters.first.toUpperCase();
     return Scaffold(
       backgroundColor: ZamerColors.background,
       body: SafeArea(
+        bottom: false,
         child: Column(
           children: [
             ZMasterTopBar(
               title: 'Профиль',
-              onBack: widget.onBack ?? () => Navigator.maybePop(context),
+              subtitle: 'Настройки и резервные копии',
+              onBack: _goBack,
               onSettings: _editProfile,
             ),
             Expanded(
@@ -180,9 +200,15 @@ class _MasterProfileScreenState extends State<MasterProfileScreen> {
                                       const SizedBox(height: 5),
                                       Row(
                                         children: [
-                                          const Icon(Icons.work_outline_rounded, size: 16),
+                                          const Icon(
+                                            Icons.work_outline_rounded,
+                                            size: 16,
+                                          ),
                                           const SizedBox(width: 5),
-                                          Text('${widget.projectCount} проектов', style: ZamerTypography.caption),
+                                          Text(
+                                            '${widget.projectCount} проектов',
+                                            style: ZamerTypography.caption,
+                                          ),
                                         ],
                                       ),
                                     ],
@@ -203,17 +229,32 @@ class _MasterProfileScreenState extends State<MasterProfileScreen> {
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.phone_android_rounded, color: ZamerColors.accent, size: 32),
+                              const Icon(
+                                Icons.phone_android_rounded,
+                                color: ZamerColors.accent,
+                                size: 32,
+                              ),
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text('Локальный режим', style: ZamerTypography.h4.copyWith(color: ZamerColors.accent)),
+                                    Text(
+                                      'Локальный режим',
+                                      style: ZamerTypography.h4.copyWith(
+                                        color: ZamerColors.accent,
+                                      ),
+                                    ),
                                     const SizedBox(height: 3),
-                                    Text('Все функции проекта работают на устройстве', style: ZamerTypography.bodySmall),
+                                    Text(
+                                      'Проекты и настройки хранятся на устройстве',
+                                      style: ZamerTypography.bodySmall,
+                                    ),
                                     const SizedBox(height: 3),
-                                    Text('Облачный аккаунт и подписка не подключены', style: ZamerTypography.caption),
+                                    Text(
+                                      'Облачный аккаунт будет подключён отдельно',
+                                      style: ZamerTypography.caption,
+                                    ),
                                   ],
                                 ),
                               ),
@@ -222,16 +263,18 @@ class _MasterProfileScreenState extends State<MasterProfileScreen> {
                         ),
                         const SizedBox(height: 12),
                         _ProfileRow(
-                          icon: Icons.cloud_off_outlined,
-                          title: 'Синхронизация',
-                          subtitle: 'Облачный backend не подключён',
-                          onTap: () => _notConnected('Синхронизация'),
+                          icon: Icons.person_outline_rounded,
+                          title: 'Имя и специализация',
+                          subtitle: '$_name • $_role',
+                          onTap: _editProfile,
                         ),
                         const SizedBox(height: 8),
                         _ProfileRow(
                           icon: Icons.storage_outlined,
                           title: 'Резервная копия',
-                          subtitle: _exporting ? 'Подготавливаю архив…' : 'Экспорт проекта, фото и настроек',
+                          subtitle: _exporting
+                              ? 'Подготавливаю архив…'
+                              : 'Проект, фото и настройки в ZIP',
                           status: _exporting ? null : Icons.download_done_rounded,
                           onTap: _exporting ? null : _exportBackup,
                         ),
@@ -240,20 +283,20 @@ class _MasterProfileScreenState extends State<MasterProfileScreen> {
                           icon: Icons.folder_outlined,
                           title: 'Текущий проект',
                           subtitle: widget.project.name,
-                          onTap: widget.onBack ?? () => Navigator.maybePop(context),
+                          onTap: widget.onOpenMeasure ?? _goBack,
                         ),
                         const SizedBox(height: 8),
                         _ProfileRow(
-                          icon: Icons.tune_rounded,
-                          title: 'Настройки профиля',
-                          subtitle: 'Имя и роль хранятся локально',
-                          onTap: _editProfile,
+                          icon: Icons.cloud_off_outlined,
+                          title: 'Синхронизация',
+                          subtitle: 'Облачный backend пока не подключён',
+                          onTap: () => _notConnected('Синхронизация'),
                         ),
                         const SizedBox(height: 8),
                         _ProfileRow(
                           icon: Icons.workspace_premium_outlined,
                           title: 'Подписка',
-                          subtitle: 'Платёжный backend ещё не подключён',
+                          subtitle: 'Платёжный backend пока не подключён',
                           onTap: () => _notConnected('Подписка'),
                         ),
                       ],
@@ -262,38 +305,11 @@ class _MasterProfileScreenState extends State<MasterProfileScreen> {
           ],
         ),
       ),
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: Container(
-          height: 72,
-          decoration: const BoxDecoration(
-            color: ZamerColors.surfaceLow,
-            border: Border(top: BorderSide(color: ZamerColors.outline)),
-          ),
-          child: Row(
-            children: [
-              _BottomItem(
-                icon: Icons.home_outlined,
-                label: 'Проект',
-                selected: false,
-                onTap: widget.onBack ?? () => Navigator.maybePop(context),
-              ),
-              _BottomItem(
-                icon: Icons.straighten_outlined,
-                label: 'Замер',
-                selected: false,
-                onTap: widget.onOpenMeasure,
-              ),
-              _BottomItem(
-                icon: Icons.camera_alt_outlined,
-                label: 'Фото',
-                selected: false,
-                onTap: widget.onOpenPhoto,
-              ),
-              const _BottomItem(icon: Icons.person_rounded, label: 'Профиль', selected: true),
-            ],
-          ),
-        ),
+      bottomNavigationBar: _ProfilePrimaryNav(
+        onHome: widget.onHome ?? _goBack,
+        onMeasure: widget.onOpenMeasure ?? _goBack,
+        on3D: widget.onOpen3D,
+        onElevations: widget.onOpenElevations,
       ),
     );
   }
@@ -369,39 +385,94 @@ class _ProfileRow extends StatelessWidget {
       );
 }
 
-class _BottomItem extends StatelessWidget {
-  const _BottomItem({
-    required this.icon,
-    required this.label,
-    required this.selected,
-    this.onTap,
+class _ProfilePrimaryNav extends StatelessWidget {
+  const _ProfilePrimaryNav({
+    required this.onHome,
+    required this.onMeasure,
+    this.on3D,
+    this.onElevations,
   });
 
-  final IconData icon;
-  final String label;
-  final bool selected;
-  final VoidCallback? onTap;
+  final VoidCallback onHome;
+  final VoidCallback onMeasure;
+  final VoidCallback? on3D;
+  final VoidCallback? onElevations;
 
   @override
-  Widget build(BuildContext context) => Expanded(
-        child: InkWell(
-          onTap: onTap,
-          child: Opacity(
-            opacity: onTap == null && !selected ? .45 : 1,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon, color: selected ? ZamerColors.accent : ZamerColors.textPrimary),
-                const SizedBox(height: 4),
-                Text(
-                  label,
-                  style: ZamerTypography.caption.copyWith(
-                    color: selected ? ZamerColors.accent : ZamerColors.textSecondary,
+  Widget build(BuildContext context) {
+    final items = <(IconData, String, VoidCallback?)>[
+      (Icons.home_outlined, 'Главная', onHome),
+      (Icons.architecture_outlined, 'Замер', onMeasure),
+      (Icons.view_in_ar_outlined, '3D', on3D),
+      (Icons.view_carousel_outlined, 'Развёртки', onElevations),
+      (Icons.person_rounded, 'Профиль', null),
+    ];
+
+    return SafeArea(
+      top: false,
+      child: Container(
+        height: 62,
+        decoration: const BoxDecoration(
+          color: ZamerColors.surfaceLow,
+          border: Border(top: BorderSide(color: ZamerColors.outlineSoft)),
+        ),
+        child: Row(
+          children: [
+            for (var i = 0; i < items.length; i++)
+              Expanded(
+                child: InkWell(
+                  onTap: items[i].$3,
+                  child: Opacity(
+                    opacity: items[i].$3 == null && i != 4 ? .4 : 1,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 30,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: i == 4
+                                ? ZamerColors.accent.withValues(alpha: .13)
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(9),
+                            border: i == 4
+                                ? Border.all(
+                                    color: ZamerColors.accent.withValues(alpha: .55),
+                                  )
+                                : null,
+                          ),
+                          child: Icon(
+                            items[i].$1,
+                            size: 19,
+                            color: i == 4
+                                ? ZamerColors.accent
+                                : ZamerColors.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          items[i].$2,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: i == 4
+                                ? ZamerColors.accent
+                                : ZamerColors.textSecondary,
+                            fontSize: 8.8,
+                            fontWeight: i == 4
+                                ? FontWeight.w800
+                                : FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ],
-            ),
-          ),
+              ),
+          ],
         ),
-      );
+      ),
+    );
+  }
 }
