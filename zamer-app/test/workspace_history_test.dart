@@ -43,7 +43,7 @@ void main() {
     expect(find.text('Комнаты'), findsWidgets);
     await tester.tap(find.text('Помещение 1').first);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Переименовать'));
+    await tester.tap(find.text('Название'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField).last, 'Кабинет');
     await tester.tap(find.text('Сохранить').last);
