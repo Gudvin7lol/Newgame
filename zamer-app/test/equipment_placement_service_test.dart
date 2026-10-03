@@ -1,5 +1,8 @@
+import 'dart:math' as math;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zamer_app/models/models.dart';
+import 'package:zamer_app/renderer3d/zamer_scene_geometry.dart';
 import 'package:zamer_app/services/equipment_placement_service.dart';
 import 'package:zamer_app/services/object_catalog.dart';
 
@@ -86,5 +89,14 @@ void main() {
     expect(restored.planObjects.single.rotationDeg, 90);
     expect(restored.planObjects.single.xMm, 250);
     expect(restored.planObjects.single.yMm, -100);
+
+    final scene = ZamerSceneGeometry.fromFloor(restored);
+    expect(scene.objects, hasLength(1));
+    final sceneObject = scene.objects.single;
+    expect(sceneObject.id, 'source');
+    expect(sceneObject.catalogId, 'armchair');
+    expect(sceneObject.xMm, 250);
+    expect(sceneObject.yMm, -100);
+    expect(sceneObject.rotationRad, closeTo(math.pi / 2, 0.0001));
   });
 }
