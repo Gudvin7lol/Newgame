@@ -2,16 +2,15 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:zamer_app/design_system/zamer_tokens.dart';
 
 void main() {
-  group('UI KIT 01 production tokens', () {
-    test('uses the approved color palette', () {
-      expect(ZamerColors.navy.toARGB32(), 0xFF0B1F3B);
-      expect(ZamerColors.graphite.toARGB32(), 0xFF1A2A3A);
-      expect(ZamerColors.darkGray.toARGB32(), 0xFF2C3B4A);
-      expect(ZamerColors.beige.toARGB32(), 0xFFDBC3A5);
-      expect(ZamerColors.cream.toARGB32(), 0xFFF3E9D7);
-      expect(ZamerColors.success.toARGB32(), 0xFF2EA043);
-      expect(ZamerColors.warning.toARGB32(), 0xFFFFB020);
-      expect(ZamerColors.danger.toARGB32(), 0xFFFF4444);
+  group('Master UI production tokens', () {
+    test('uses the approved warm color palette', () {
+      expect(ZamerColors.background.toARGB32(), 0xFF0F1419);
+      expect(ZamerColors.surface.toARGB32(), 0xFF1A222B);
+      expect(ZamerColors.card.toARGB32(), 0xFF202A35);
+      expect(ZamerColors.accent.toARGB32(), 0xFFE9C48F);
+      expect(ZamerColors.success.toARGB32(), 0xFF22C55E);
+      expect(ZamerColors.warning.toARGB32(), 0xFFF59E0B);
+      expect(ZamerColors.danger.toARGB32(), 0xFFEF4444);
       expect(ZamerColors.info.toARGB32(), 0xFF3B82F6);
     });
 
@@ -20,7 +19,7 @@ void main() {
       expect(ZamerSize.referenceHeight, 812);
       expect(ZamerSize.contentWidth, 343);
       expect(ZamerSize.topBar, 56);
-      expect(ZamerSize.input, 56);
+      expect(ZamerSize.input, 48);
       expect(ZamerSize.button, 56);
       expect(ZamerSize.bottomNavigation, 72);
       expect(ZamerSize.cardSmall, 80);
@@ -54,6 +53,15 @@ void main() {
         ],
         [4, 8, 12, 16, 20, 24],
       );
+    });
+
+    test('uses the approved master typography scale', () {
+      expect(ZamerTypography.h1.fontSize, 28);
+      expect(ZamerTypography.h1.fontWeight, isNotNull);
+      expect(ZamerTypography.h2.fontSize, 20);
+      expect(ZamerTypography.h3.fontSize, 16);
+      expect(ZamerTypography.body.fontSize, 14);
+      expect(ZamerTypography.caption.fontSize, 12);
     });
   });
 }
