@@ -8,8 +8,8 @@ import '../widgets/workspace_mode_context.dart';
 import '../widgets/workspace_navigation.dart';
 import 'electrical_screen.dart';
 import 'engineering_screen.dart';
-import 'layouts_screen.dart';
 import 'materials_screen.dart';
+import 'measure_floor_plan_layer_screen.dart';
 import 'plan_editor_production_screen.dart';
 import 'planning_objects_screen.dart';
 
@@ -115,7 +115,10 @@ class _MeasureUnifiedWorkspaceScreenState
         canUndo: widget.canUndo,
         canRedo: widget.canRedo,
       ),
-      LayoutsScreen(floor: widget.floor, onChanged: widget.onChanged),
+      MeasureFloorPlanLayerScreen(
+        floor: widget.floor,
+        onChanged: widget.onChanged,
+      ),
       PlanningObjectsScreen(floor: widget.floor, onChanged: widget.onChanged),
       ElectricalScreen(floor: widget.floor, onChanged: widget.onChanged),
       EngineeringScreen(floor: widget.floor, onChanged: widget.onChanged),
@@ -146,7 +149,7 @@ class _MeasureUnifiedWorkspaceScreenState
             title: _layers[_layer].$1,
             subtitle: switch (_layer) {
               0 => 'Геометрия, проёмы, размеры и помещения',
-              1 => 'Раскладка покрытия по измеренному контуру',
+              1 => 'Раскладка покрытия прямо на измеренном плане',
               2 => 'Добавление, перемещение и вращение объектов на плане',
               3 => 'Розетки, выключатели, свет и группы',
               4 => 'Вода, канализация, отопление и трассы',
