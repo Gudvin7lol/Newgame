@@ -56,17 +56,20 @@ extension ZMeasureToolMeta on ZMeasureTool {
       };
 }
 
-/// UI KIT 02 view selector. The four equal segments are intentional: the
-/// approved CAD concept always exposes 2D / 3D / AR / Photo in one row.
+/// UI KIT 02 view selector. Modes that are not production-ready can remain
+/// visible for design continuity while being clearly disabled instead of
+/// pretending to work.
 class ZMeasureViewTabs extends StatelessWidget {
   const ZMeasureViewTabs({
     super.key,
     required this.value,
     required this.onChanged,
+    this.enabledModes = ZMeasureViewMode.values,
   });
 
   final ZMeasureViewMode value;
   final ValueChanged<ZMeasureViewMode> onChanged;
+  final List<ZMeasureViewMode> enabledModes;
 
   @override
   Widget build(BuildContext context) {
@@ -94,23 +97,31 @@ class ZMeasureViewTabs extends StatelessWidget {
 
   Widget _tab(String label, ZMeasureViewMode mode) {
     final selected = mode == value;
-    return ZPressEffect(
-      scale: .97,
-      child: Material(
-        color: selected ? ZamerColors.accent : Colors.transparent,
-        borderRadius: BorderRadius.circular(ZamerRadius.sm),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: () => onChanged(mode),
-          child: Center(
-            child: Text(
-              label,
-              style: ZamerTypography.button.copyWith(
-                fontSize: 13,
-                color: selected
-                    ? ZamerColors.accentInk
-                    : ZamerColors.textPrimary,
-                fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
+    final enabled = enabledModes.contains(mode);
+    return Opacity(
+      opacity: enabled ? 1 : .38,
+      child: Tooltip(
+        message: enabled ? label : '$label пока недоступен в этой сборке',
+        child: ZPressEffect(
+          enabled: enabled,
+          scale: .97,
+          child: Material(
+            color: selected ? ZamerColors.accent : Colors.transparent,
+            borderRadius: BorderRadius.circular(ZamerRadius.sm),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: enabled ? () => onChanged(mode) : null,
+              child: Center(
+                child: Text(
+                  label,
+                  style: ZamerTypography.button.copyWith(
+                    fontSize: 13,
+                    color: selected
+                        ? ZamerColors.accentInk
+                        : ZamerColors.textPrimary,
+                    fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
+                  ),
+                ),
               ),
             ),
           ),
