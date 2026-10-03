@@ -236,11 +236,16 @@ class _MasterElevationsProductionScreenState
                         child: index == _runIndex
                             ? FilledButton(
                                 onPressed: () {},
-                                child: Text('Стена ${String.fromCharCode(65 + index)}'),
+                                child: Text(
+                                  'Стена ${String.fromCharCode(65 + index)}',
+                                ),
                               )
                             : OutlinedButton(
-                                onPressed: () => setState(() => _runIndex = index),
-                                child: Text('Стена ${String.fromCharCode(65 + index)}'),
+                                onPressed: () =>
+                                    setState(() => _runIndex = index),
+                                child: Text(
+                                  'Стена ${String.fromCharCode(65 + index)}',
+                                ),
                               ),
                       ),
                     ),
@@ -264,7 +269,12 @@ class _MasterElevationsProductionScreenState
                   const SizedBox(height: 12),
                   Row(
                     children: [
-                      Expanded(child: Text('Покрытие стены', style: ZamerTypography.h4)),
+                      Expanded(
+                        child: Text(
+                          'Покрытие стены',
+                          style: ZamerTypography.h4,
+                        ),
+                      ),
                       IconButton.filledTonal(
                         tooltip: 'Редактировать отделку',
                         onPressed: _openMaterials,
@@ -320,7 +330,10 @@ class _MasterElevationsProductionScreenState
                     padding: const EdgeInsets.all(12),
                     child: Row(
                       children: [
-                        const Icon(Icons.electrical_services_outlined, color: ZamerColors.accent),
+                        const Icon(
+                          Icons.electrical_services_outlined,
+                          color: ZamerColors.accent,
+                        ),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
@@ -369,7 +382,8 @@ class _MasterElevationsProductionScreenState
               _BottomAction(
                 icon: Icons.description_outlined,
                 label: 'Спецификация',
-                onTap: () => ReportService.shareFloorPdf(widget.project, widget.floor),
+                onTap: () =>
+                    ReportService.shareFloorPdf(widget.project, widget.floor),
               ),
             ],
           ),
@@ -397,7 +411,7 @@ class _BottomAction extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 7),
+            margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(10),
               border: selected ? Border.all(color: ZamerColors.accent) : null,
@@ -405,12 +419,26 @@ class _BottomAction extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(icon, size: 22, color: selected ? ZamerColors.accent : ZamerColors.textPrimary),
-                const SizedBox(height: 3),
-                Text(
-                  label,
-                  style: ZamerTypography.caption.copyWith(
-                    color: selected ? ZamerColors.accent : ZamerColors.textSecondary,
+                Icon(
+                  icon,
+                  size: 19,
+                  color: selected
+                      ? ZamerColors.accent
+                      : ZamerColors.textPrimary,
+                ),
+                const SizedBox(height: 1),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    style: ZamerTypography.caption.copyWith(
+                      fontSize: 9,
+                      height: 1,
+                      color: selected
+                          ? ZamerColors.accent
+                          : ZamerColors.textSecondary,
+                    ),
                   ),
                 ),
               ],
