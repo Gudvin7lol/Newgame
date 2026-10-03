@@ -6,7 +6,9 @@ import '../design_system/zamer_components.dart';
 import '../design_system/zamer_measure_chrome.dart';
 import '../design_system/zamer_tokens.dart';
 import '../models/models.dart';
+import '../services/equipment_placement_service.dart';
 import '../services/geometry_service.dart';
+import '../services/object_catalog.dart';
 import '../services/report_service.dart';
 import '../widgets/workspace_master_header.dart';
 import '../widgets/workspace_mode_context.dart';
@@ -16,6 +18,7 @@ import 'electrical_screen.dart';
 import 'engineering_screen.dart';
 import 'floor_3d_screen.dart';
 import 'layouts_screen.dart';
+import 'master_equipment_screen.dart';
 import 'materials_screen.dart';
 import 'measure_concept_workspace_screen.dart';
 import 'measurement_review_screen.dart';
@@ -51,11 +54,11 @@ class FloorWorkspaceScreen extends StatefulWidget {
 class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
   int _index = 0;
 
-  final _lastByMode = [0, 8, 5, 2];
+  final _lastByMode = [0, 8, 9, 2];
   static const _modeTabs = <List<int>>[
     [0, 1],
     [8],
-    [4, 5, 6],
+    [9, 5, 4, 6],
     [2, 3, 7],
   ];
 
@@ -110,6 +113,41 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
     if (mounted) setState(() {});
   }
 
+  Future<void> _addEquipment(ObjectCatalogItem item) async {
+    final object = EquipmentPlacementService.addCatalogItem(
+      floor: widget.floor,
+      item: item,
+    );
+    try {
+      GeometryService.syncRoomMetadata(widget.floor);
+      await widget.onChanged();
+      _recordHistory();
+      if (!mounted) return;
+      setState(() {});
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${item.name} добавлен и сохранён'),
+          action: SnackBarAction(
+            label: 'РАЗМЕСТИТЬ',
+            onPressed: () => setState(() {
+              _index = 5;
+              _lastByMode[2] = 5;
+            }),
+          ),
+        ),
+      );
+    } catch (error) {
+      EquipmentPlacementService.removeObject(
+        floor: widget.floor,
+        object: object,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Не удалось сохранить объект: $error')),
+      );
+    }
+  }
+
   void _selectPrimaryMode(int mode) {
     setState(() => _index = _lastByMode[mode]);
   }
@@ -126,6 +164,13 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
     setState(() {
       _index = 5;
       _lastByMode[2] = 5;
+    });
+  }
+
+  void _openCatalogFromMeasure() {
+    setState(() {
+      _index = 9;
+      _lastByMode[2] = 9;
     });
   }
 
@@ -417,7 +462,7 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
         onOpenSettings: _showProjectActions,
         onHome: _goHome,
         onProjects: _openProjects,
-        onCatalog: _openObjectsFromMeasure,
+        onCatalog: _openCatalogFromMeasure,
       );
     }
 
@@ -455,6 +500,11 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
               floor: widget.floor,
             )
           : const SizedBox.shrink(),
+      MasterEquipmentScreen(
+        projectTitle: widget.project.name,
+        embedded: true,
+        onAdd: _addEquipment,
+      ),
     ];
 
     const tabs = <(String, IconData)>[
@@ -467,6 +517,7 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
       ('Инженерия', Icons.plumbing_outlined),
       ('Материалы', Icons.inventory_2_outlined),
       ('3D', Icons.view_in_ar_outlined),
+      ('Каталог', Icons.category_outlined),
     ];
 
     final modeTabs = _modeTabs[_mode];
@@ -478,7 +529,7 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
     };
     final contextSubtitle = switch (_mode) {
       1 => 'Realtime-сцена, прогулка и фоторендер',
-      2 => 'Мебель, электрика, сантехника и инженерия',
+      2 => 'Каталог, размещение, электрика и инженерия',
       _ => 'Развёртки стен, раскладки пола и материалы',
     };
     final contextIcon = switch (_mode) {
