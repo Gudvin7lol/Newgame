@@ -6,6 +6,9 @@ import '../design_system/zamer_master_components.dart';
 import '../design_system/zamer_tokens.dart';
 import '../models/models.dart';
 import '../renderer3d/zamer_gpu_viewport.dart';
+import '../services/camera_gesture_policy.dart';
+import '../services/walk_navigation_service.dart';
+import '../widgets/master_walk_joystick.dart';
 import 'photo_studio_screen.dart';
 
 class Master3DScreen extends StatefulWidget {
@@ -39,11 +42,20 @@ class _Master3DScreenState extends State<Master3DScreen> {
   int _gesturePointers = 0;
 
   bool _walk = false;
+  bool _noclip = false;
   bool _cutaway = true;
   bool _hideWalls = false;
   bool _perspective = true;
   int _lightMode = 0;
   int _qualityMode = 1;
+
+  double _walkX = 0;
+  double _walkY = 0;
+  double _walkSpeedMmPerSecond = 2500;
+  double _overviewRotation = -.65;
+  double _overviewTilt = .82;
+  double _overviewZoom = .92;
+  Offset _overviewPan = Offset.zero;
 
   void _resetOverview() => setState(() {
         _walk = false;
@@ -52,6 +64,54 @@ class _Master3DScreenState extends State<Master3DScreen> {
         _zoom = .92;
         _pan = Offset.zero;
       });
+
+  void _centerWalk() {
+    final start = WalkNavigationService.startingPoint(widget.floor);
+    _walkX = start.x;
+    _walkY = start.y;
+  }
+
+  void _toggleWalk() {
+    setState(() {
+      if (!_walk) {
+        _overviewRotation = _rotation;
+        _overviewTilt = _tilt;
+        _overviewZoom = _zoom;
+        _overviewPan = _pan;
+        _centerWalk();
+        _rotation = WalkNavigationService.startingRotation(
+          widget.floor,
+          math.Point(_walkX, _walkY),
+        );
+        _tilt = 0;
+        _zoom = 1;
+        _pan = Offset.zero;
+        _walk = true;
+      } else {
+        _rotation = _overviewRotation;
+        _tilt = _overviewTilt;
+        _zoom = _overviewZoom;
+        _pan = _overviewPan;
+        _walk = false;
+      }
+    });
+  }
+
+  void _walkStep(double forward, double sideways, double deltaSeconds) {
+    final next = WalkNavigationService.advance(
+      widget.floor,
+      math.Point(_walkX, _walkY),
+      _rotation,
+      forward * _walkSpeedMmPerSecond * deltaSeconds,
+      sideways * _walkSpeedMmPerSecond * deltaSeconds,
+      ignoreCollisions: _noclip,
+    );
+    if (next.x == _walkX && next.y == _walkY) return;
+    setState(() {
+      _walkX = next.x;
+      _walkY = next.y;
+    });
+  }
 
   void _onScaleStart(ScaleStartDetails details) {
     _gestureZoom = _zoom;
@@ -69,13 +129,19 @@ class _Master3DScreenState extends State<Master3DScreen> {
       return;
     }
     setState(() {
-      if (details.pointerCount >= 2) {
+      if (details.pointerCount >= 2 && !_walk) {
         _zoom = (_gestureZoom * details.scale).clamp(.2, 8).toDouble();
         _pan = _gesturePan + (details.focalPoint - _gestureFocal);
       } else {
-        _rotation += details.focalPointDelta.dx * .010;
+        _rotation = CameraGesturePolicy.applyHorizontalSwipe(
+          yaw: _rotation,
+          deltaX: details.focalPointDelta.dx,
+          sensitivity: .010,
+        );
+        final minTilt = _walk ? -.7 : .22;
+        final maxTilt = _walk ? .7 : 1.48;
         _tilt = (_tilt - details.focalPointDelta.dy * .006)
-            .clamp(.22, 1.48)
+            .clamp(minTilt, maxTilt)
             .toDouble();
       }
     });
@@ -92,6 +158,8 @@ class _Master3DScreenState extends State<Master3DScreen> {
           tilt: _tilt,
           zoom: _zoom,
           pan: _pan,
+          cameraOriginXMm: _walk ? _walkX : null,
+          cameraOriginYMm: _walk ? _walkY : null,
         ),
       ),
     );
@@ -166,6 +234,34 @@ class _Master3DScreenState extends State<Master3DScreen> {
                           height: 38,
                         ),
                       ),
+                      if (_walk) ...[
+                        const SizedBox(height: 12),
+                        _SettingsRow(
+                          label: 'Скорость',
+                          child: Slider(
+                            value: _walkSpeedMmPerSecond,
+                            min: 800,
+                            max: 4500,
+                            divisions: 37,
+                            label:
+                                '${(_walkSpeedMmPerSecond / 1000).toStringAsFixed(1)} м/с',
+                            onChanged: (value) {
+                              setState(() => _walkSpeedMmPerSecond = value);
+                              setSheetState(() {});
+                            },
+                          ),
+                        ),
+                        _SettingsRow(
+                          label: 'Сквозь объекты',
+                          child: Switch.adaptive(
+                            value: _noclip,
+                            onChanged: (value) {
+                              setState(() => _noclip = value);
+                              setSheetState(() {});
+                            },
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -307,14 +403,24 @@ class _Master3DScreenState extends State<Master3DScreen> {
                           rotation: _rotation,
                           tilt: _tilt,
                           zoom: _zoom,
-                          cutaway: _hideWalls || _cutaway,
+                          cutaway: !_walk && (_hideWalls || _cutaway),
                           pan: _pan,
-                          walkMode: false,
-                          walkX: 0,
-                          walkY: 0,
+                          walkMode: _walk,
+                          walkX: _walkX,
+                          walkY: _walkY,
                           performanceMode: _qualityMode == 0,
                         ),
                       ),
+                      if (_walk)
+                        const IgnorePointer(
+                          child: Center(
+                            child: Icon(
+                              Icons.add_rounded,
+                              size: 20,
+                              color: ZamerColors.accent,
+                            ),
+                          ),
+                        ),
                       Positioned(
                         top: 14,
                         right: 10,
@@ -337,7 +443,9 @@ class _Master3DScreenState extends State<Master3DScreen> {
                                 icon: Icons.view_in_ar_outlined,
                                 tooltip: 'Перспектива',
                                 selected: _perspective,
-                                onTap: () => setState(() => _perspective = !_perspective),
+                                onTap: () => setState(
+                                  () => _perspective = !_perspective,
+                                ),
                               ),
                               ZMasterVerticalToolButton(
                                 icon: Icons.layers_outlined,
@@ -348,15 +456,22 @@ class _Master3DScreenState extends State<Master3DScreen> {
                           ),
                         ),
                       ),
-                      Positioned(
-                        left: 10,
-                        bottom: 10,
-                        child: IconButton.filledTonal(
-                          tooltip: 'Сбросить обзор',
-                          onPressed: _resetOverview,
-                          icon: const Icon(Icons.open_with_rounded),
+                      if (_walk)
+                        Positioned(
+                          left: 8,
+                          bottom: 8,
+                          child: MasterWalkJoystick(onStep: _walkStep),
+                        )
+                      else
+                        Positioned(
+                          left: 10,
+                          bottom: 10,
+                          child: IconButton.filledTonal(
+                            tooltip: 'Сбросить обзор',
+                            onPressed: _resetOverview,
+                            icon: const Icon(Icons.open_with_rounded),
+                          ),
                         ),
-                      ),
                     ],
                   ),
                 ),
@@ -374,7 +489,7 @@ class _Master3DScreenState extends State<Master3DScreen> {
                         icon: Icons.open_with_rounded,
                         label: 'Обзор',
                         selected: !_walk,
-                        onTap: _resetOverview,
+                        onTap: _walk ? _toggleWalk : _resetOverview,
                         compact: true,
                       ),
                     ),
@@ -384,17 +499,23 @@ class _Master3DScreenState extends State<Master3DScreen> {
                         icon: Icons.directions_walk_rounded,
                         label: 'Прогулка',
                         selected: _walk,
-                        onTap: () => setState(() => _walk = !_walk),
+                        onTap: _toggleWalk,
                         compact: true,
                       ),
                     ),
                     const SizedBox(width: 5),
                     Expanded(
                       child: ZMasterToolButton(
-                        icon: Icons.view_in_ar_outlined,
-                        label: 'Разрез',
-                        selected: _cutaway,
-                        onTap: () => setState(() => _cutaway = !_cutaway),
+                        icon: _walk ? Icons.blur_on : Icons.view_in_ar_outlined,
+                        label: _walk ? 'Сквозь' : 'Разрез',
+                        selected: _walk ? _noclip : _cutaway,
+                        onTap: () => setState(() {
+                          if (_walk) {
+                            _noclip = !_noclip;
+                          } else {
+                            _cutaway = !_cutaway;
+                          }
+                        }),
                         compact: true,
                       ),
                     ),
