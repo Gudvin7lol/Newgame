@@ -6,21 +6,18 @@ import '../services/demo_project_factory.dart';
 import '../services/equipment_placement_service.dart';
 import '../services/object_catalog.dart';
 import '../services/project_store.dart';
+import 'floor_workspace_screen.dart';
 import 'master_3d_screen.dart';
 import 'master_control_screen.dart';
 import 'master_documentation_screen.dart';
-import 'master_elevations_screen.dart';
+import 'master_elevations_production_screen.dart';
 import 'master_equipment_screen.dart';
 import 'master_object_placement_workspace.dart';
 import 'master_photo_screen.dart';
 import 'master_profile_screen.dart';
+import 'projects_screen.dart';
 
-/// Master UI connected to the same persisted project model as production.
-///
-/// This screen used to rebuild a fresh demo project on every build. That made
-/// the approved UI look convincing while every edit vanished. The review shell
-/// now owns a real project list, saves mutations through [ProjectStore], and
-/// lets the master Equipment and 3D pages operate on the same [FloorPlan].
+/// Production master shell. Every page works on the same persisted project.
 class MasterUiPreviewScreen extends StatefulWidget {
   const MasterUiPreviewScreen({super.key});
 
@@ -45,9 +42,8 @@ class _MasterUiPreviewScreenState extends State<MasterUiPreviewScreen> {
     try {
       final result = await _store.loadWithStatus();
       if (result.unreadable) {
-        throw StateError('Файл проектов повреждён. Автосохранение отключено.');
+        throw StateError('Локальный файл проектов повреждён. Импортируй резервную копию в разделе «Проекты».');
       }
-
       final loaded = <MeasureProject>[...result.projects];
       MeasureProject? current;
       for (final candidate in loaded.reversed) {
@@ -65,7 +61,6 @@ class _MasterUiPreviewScreenState extends State<MasterUiPreviewScreen> {
         loaded.add(current);
         await _store.save(loaded);
       }
-
       if (!mounted) return;
       setState(() {
         _projects
@@ -73,12 +68,13 @@ class _MasterUiPreviewScreenState extends State<MasterUiPreviewScreen> {
           ..addAll(loaded);
         _project = current;
         _loading = false;
+        _loadError = null;
       });
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _loadError = '$error';
         _loading = false;
+        _loadError = '$error';
       });
     }
   }
@@ -86,6 +82,24 @@ class _MasterUiPreviewScreenState extends State<MasterUiPreviewScreen> {
   Future<void> _save() async {
     await _store.save(_projects);
     if (mounted) setState(() {});
+  }
+
+  Future<void> _open(Widget screen) async {
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute(builder: (_) => screen),
+    );
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _openProjects() async {
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute(builder: (_) => const ProjectsScreen()),
+    );
+    if (!mounted) return;
+    setState(() => _loading = true);
+    await _loadProject();
   }
 
   Future<void> _addEquipment(ObjectCatalogItem item) async {
@@ -101,15 +115,12 @@ class _MasterUiPreviewScreenState extends State<MasterUiPreviewScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('${item.name} добавлен и сохранён'),
-          action: SnackBarAction(
-            label: 'РАЗМЕСТИТЬ',
-            onPressed: _openPlacement,
-          ),
+          content: Text('${item.name} добавлен в ${floor.name}'),
+          action: SnackBarAction(label: 'РАЗМЕСТИТЬ', onPressed: _openPlacement),
         ),
       );
     } catch (error) {
-      floor.planObjects.removeWhere((candidate) => candidate.id == object.id);
+      EquipmentPlacementService.removeObject(floor: floor, object: object);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Не удалось сохранить объект: $error')),
@@ -117,10 +128,42 @@ class _MasterUiPreviewScreenState extends State<MasterUiPreviewScreen> {
     }
   }
 
-  void _open(Widget screen) {
-    Navigator.push<void>(
-      context,
-      MaterialPageRoute(builder: (_) => screen),
+  void _openMeasure() {
+    final project = _project;
+    if (project == null || project.floors.isEmpty) return;
+    _open(
+      FloorWorkspaceScreen(
+        project: project,
+        floor: project.floors.first,
+        onChanged: _save,
+        initialMode: 0,
+      ),
+    );
+  }
+
+  void _open3D() {
+    final project = _project;
+    if (project == null || project.floors.isEmpty) return;
+    _open(
+      Master3DScreen(
+        floor: project.floors.first,
+        projectTitle: project.name,
+        onOpen2D: () {
+          Navigator.pop(context);
+          WidgetsBinding.instance.addPostFrameCallback((_) => _openMeasure());
+        },
+      ),
+    );
+  }
+
+  void _openEquipment() {
+    final project = _project;
+    if (project == null) return;
+    _open(
+      MasterEquipmentScreen(
+        projectTitle: project.name,
+        onAdd: _addEquipment,
+      ),
     );
   }
 
@@ -136,13 +179,7 @@ class _MasterUiPreviewScreenState extends State<MasterUiPreviewScreen> {
           actions: [
             IconButton(
               tooltip: 'Открыть 3D',
-              onPressed: () => _open(
-                Master3DScreen(
-                  floor: floor,
-                  projectTitle: project.name,
-                  onOpen2D: () => Navigator.pop(context),
-                ),
-              ),
+              onPressed: _open3D,
               icon: const Icon(Icons.view_in_ar_outlined),
             ),
           ],
@@ -155,40 +192,79 @@ class _MasterUiPreviewScreenState extends State<MasterUiPreviewScreen> {
     );
   }
 
-  Widget _loadingView() => Scaffold(
+  void _openElevations() {
+    final project = _project;
+    if (project == null || project.floors.isEmpty) return;
+    _open(
+      MasterElevationsProductionScreen(
+        project: project,
+        floor: project.floors.first,
+        onChanged: _save,
+      ),
+    );
+  }
+
+  void _openPhoto() {
+    final project = _project;
+    if (project == null || project.floors.isEmpty) return;
+    _open(
+      MasterPhotoScreen(
+        projectTitle: project.name,
+        floor: project.floors.first,
+        onChanged: _save,
+        onOpenMeasure: _openMeasure,
+        onOpenProfile: _openProfile,
+      ),
+    );
+  }
+
+  void _openControl() {
+    final project = _project;
+    if (project == null || project.floors.isEmpty) return;
+    _open(
+      MasterControlScreen(
+        projectTitle: project.name,
+        floor: project.floors.first,
+        onOpenMeasure: _openMeasure,
+        onOpenProfile: _openProfile,
+      ),
+    );
+  }
+
+  void _openDocumentation() {
+    final project = _project;
+    if (project == null || project.floors.isEmpty) return;
+    _open(
+      MasterDocumentationScreen(
+        project: project,
+        floor: project.floors.first,
+        onOpenMeasure: _openMeasure,
+        onOpenProfile: _openProfile,
+      ),
+    );
+  }
+
+  void _openProfile() {
+    final project = _project;
+    if (project == null) return;
+    _open(
+      MasterProfileScreen(
+        project: project,
+        projectCount: _projects.length,
+        onOpenMeasure: _openMeasure,
+        onOpenPhoto: _openPhoto,
+      ),
+    );
+  }
+
+  Widget _loadingView() => const Scaffold(
         backgroundColor: ZamerColors.background,
-        body: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'ZAMER',
-                  style: ZamerTypography.h1.copyWith(letterSpacing: 2),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'MASTER UI REVIEW',
-                  style: ZamerTypography.caption.copyWith(
-                    color: ZamerColors.accent,
-                    letterSpacing: 1.4,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const Spacer(),
-                const Center(child: CircularProgressIndicator()),
-                const Spacer(),
-              ],
-            ),
-          ),
-        ),
+        body: SafeArea(child: Center(child: CircularProgressIndicator())),
       );
 
   @override
   Widget build(BuildContext context) {
     if (_loading) return _loadingView();
-
     if (_loadError != null || _project == null || _project!.floors.isEmpty) {
       return Scaffold(
         backgroundColor: ZamerColors.background,
@@ -201,9 +277,11 @@ class _MasterUiPreviewScreenState extends State<MasterUiPreviewScreen> {
                 children: [
                   const Icon(Icons.error_outline_rounded, size: 44),
                   const SizedBox(height: 12),
-                  Text(_loadError ?? 'В проекте нет этажей'),
+                  Text(_loadError ?? 'В проекте нет этажей', textAlign: TextAlign.center),
                   const SizedBox(height: 16),
-                  FilledButton(
+                  FilledButton(onPressed: _openProjects, child: const Text('Открыть проекты')),
+                  const SizedBox(height: 8),
+                  OutlinedButton(
                     onPressed: () {
                       setState(() {
                         _loading = true;
@@ -223,100 +301,120 @@ class _MasterUiPreviewScreenState extends State<MasterUiPreviewScreen> {
 
     final project = _project!;
     final floor = project.floors.first;
-    final objectCount = floor.planObjects.length;
-
     return Scaffold(
       backgroundColor: ZamerColors.background,
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
           children: [
-            Text('ZAMER', style: ZamerTypography.h1.copyWith(letterSpacing: 2)),
-            const SizedBox(height: 4),
-            Text(
-              'MASTER UI REVIEW',
-              style: ZamerTypography.caption.copyWith(
-                color: ZamerColors.accent,
-                letterSpacing: 1.4,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '${project.name} • ${floor.name} • $objectCount объектов',
-              style: ZamerTypography.bodySmall,
-            ),
-            const SizedBox(height: 22),
-            _PreviewTile(
-              title: '3D ВИД',
-              subtitle: 'Реальная геометрия и сохранённые объекты проекта',
-              icon: Icons.view_in_ar_outlined,
-              onTap: () => _open(
-                Master3DScreen(
-                  floor: floor,
-                  projectTitle: project.name,
-                  onOpen2D: () => Navigator.pop(context),
-                  onOpenAr: () => ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('AR ещё не подключён')),
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('ZAMER', style: ZamerTypography.h1.copyWith(letterSpacing: 2)),
+                      const SizedBox(height: 3),
+                      Text(
+                        'РАБОЧИЙ ПРОЕКТ',
+                        style: ZamerTypography.caption.copyWith(
+                          color: ZamerColors.accent,
+                          letterSpacing: 1.3,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ),
-            ),
-            const SizedBox(height: 10),
-            _PreviewTile(
-              title: 'ОСНАЩЕНИЕ',
-              subtitle: 'Каталог, поиск, фильтры и сохранение объектов',
-              icon: Icons.chair_alt_outlined,
-              onTap: () => _open(
-                MasterEquipmentScreen(
-                  projectTitle: project.name,
-                  onAdd: (item) => _addEquipment(item),
+                IconButton.filledTonal(
+                  tooltip: 'Проекты',
+                  onPressed: _openProjects,
+                  icon: const Icon(Icons.folder_open_outlined),
                 ),
+                const SizedBox(width: 6),
+                IconButton.filledTonal(
+                  tooltip: 'Профиль',
+                  onPressed: _openProfile,
+                  icon: const Icon(Icons.person_outline_rounded),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: ZamerColors.surface,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: ZamerColors.outline),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.apartment_rounded, color: ZamerColors.accent, size: 32),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(project.name, style: ZamerTypography.h3),
+                        const SizedBox(height: 3),
+                        Text(
+                          '${floor.name} • ${floor.walls.length} стен • ${floor.planObjects.length} объектов',
+                          style: ZamerTypography.caption,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 10),
-            _PreviewTile(
-              title: 'РАЗМЕЩЕНИЕ ОБЪЕКТОВ',
-              subtitle: 'Перетаскивание, поворот, копирование и удаление',
+            const SizedBox(height: 16),
+            _ProductionTile(
+              title: 'ЗАМЕР',
+              subtitle: 'План, стены, проёмы, размеры и геометрия',
+              icon: Icons.straighten_outlined,
+              onTap: _openMeasure,
+            ),
+            _ProductionTile(
+              title: '3D ВИД',
+              subtitle: 'Обзор, прогулка, разрез, свет и рендер',
+              icon: Icons.view_in_ar_outlined,
+              onTap: _open3D,
+            ),
+            _ProductionTile(
+              title: 'ОСНАЩЕНИЕ',
+              subtitle: 'Поиск, фильтры и реальные модели каталога',
+              icon: Icons.chair_alt_outlined,
+              onTap: _openEquipment,
+            ),
+            _ProductionTile(
+              title: 'РАЗМЕЩЕНИЕ',
+              subtitle: 'Перемещение, поворот, копирование и удаление',
               icon: Icons.open_with_rounded,
               onTap: _openPlacement,
             ),
-            const SizedBox(height: 10),
-            _PreviewTile(
+            _ProductionTile(
               title: 'РАЗВЁРТКИ',
-              subtitle: 'Работают на геометрии текущего этажа',
+              subtitle: 'Реальные стены, проёмы, электрика и отделка',
               icon: Icons.view_carousel_outlined,
-              onTap: () => _open(
-                MasterElevationsScreen(floor: floor, projectTitle: project.name),
-              ),
+              onTap: _openElevations,
             ),
-            const SizedBox(height: 10),
-            _PreviewTile(
+            _ProductionTile(
               title: 'ФОТО И ЗАМЕТКИ',
-              subtitle: 'Следующий блок подключения к хранилищу проекта',
+              subtitle: 'Камера, галерея, помещения и сохранение заметок',
               icon: Icons.camera_alt_outlined,
-              onTap: () => _open(MasterPhotoScreen(projectTitle: project.name)),
+              onTap: _openPhoto,
             ),
-            const SizedBox(height: 10),
-            _PreviewTile(
+            _ProductionTile(
               title: 'КОНТРОЛЬ',
-              subtitle: 'Проверки замера и источников размеров',
+              subtitle: 'Реальные ошибки обмера и источники размеров',
               icon: Icons.verified_user_outlined,
-              onTap: () => _open(MasterControlScreen(projectTitle: project.name)),
+              onTap: _openControl,
             ),
-            const SizedBox(height: 10),
-            _PreviewTile(
+            _ProductionTile(
               title: 'ДОКУМЕНТАЦИЯ',
-              subtitle: 'PDF-комплект и статусы готовности',
+              subtitle: 'PDF-комплект, предпросмотр и экспорт',
               icon: Icons.description_outlined,
-              onTap: () => _open(MasterDocumentationScreen(projectTitle: project.name)),
-            ),
-            const SizedBox(height: 10),
-            _PreviewTile(
-              title: 'ПРОФИЛЬ',
-              subtitle: 'Локальные настройки; backend будет подключён отдельно',
-              icon: Icons.person_outline_rounded,
-              onTap: () => _open(const MasterProfileScreen()),
+              onTap: _openDocumentation,
             ),
           ],
         ),
@@ -325,8 +423,8 @@ class _MasterUiPreviewScreenState extends State<MasterUiPreviewScreen> {
   }
 }
 
-class _PreviewTile extends StatelessWidget {
-  const _PreviewTile({
+class _ProductionTile extends StatelessWidget {
+  const _ProductionTile({
     required this.title,
     required this.subtitle,
     required this.icon,
@@ -339,44 +437,47 @@ class _PreviewTile extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Material(
-        color: ZamerColors.surface,
-        borderRadius: BorderRadius.circular(12),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Container(
-            constraints: const BoxConstraints(minHeight: 82),
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: ZamerColors.outline),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 50,
-                  height: 50,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: ZamerColors.accent,
-                    borderRadius: BorderRadius.circular(10),
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(bottom: 9),
+        child: Material(
+          color: ZamerColors.surface,
+          borderRadius: BorderRadius.circular(12),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            child: Container(
+              constraints: const BoxConstraints(minHeight: 76),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: ZamerColors.outline),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: ZamerColors.accent,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(icon, color: ZamerColors.accentInk, size: 25),
                   ),
-                  child: Icon(icon, color: ZamerColors.accentInk, size: 27),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(title, style: ZamerTypography.h4),
-                      const SizedBox(height: 4),
-                      Text(subtitle, style: ZamerTypography.caption),
-                    ],
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(title, style: ZamerTypography.h4),
+                        const SizedBox(height: 3),
+                        Text(subtitle, style: ZamerTypography.caption),
+                      ],
+                    ),
                   ),
-                ),
-                const Icon(Icons.chevron_right_rounded),
-              ],
+                  const Icon(Icons.chevron_right_rounded),
+                ],
+              ),
             ),
           ),
         ),
