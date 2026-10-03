@@ -1,56 +1,52 @@
 import 'package:flutter/material.dart';
 
 /// Canonical tokens from the approved ZAMER master UI kit.
-///
-/// Keep all production screens on these values. The previous warm/cream
-/// prototype palette is intentionally not used by the five master pages.
+/// Reference: warm dark concept, screens 1-18.
 abstract final class ZamerColors {
-  // Master UI kit palette.
-  static const background = Color(0xFF0B0F14);
-  static const surface = Color(0xFF1A1F26);
-  static const surfaceInput = Color(0xFF242B36);
-  static const surfaceHigh = Color(0xFF242B36);
-  static const surfaceHighest = Color(0xFF2F3A46);
-  static const outline = Color(0xFF3B4858);
-
-  static const accent = Color(0xFF00C2FF);
-  static const accent2 = Color(0xFF0091EA);
+  // Exact palette printed in the approved component sheet.
+  static const background = Color(0xFF0F1419);
+  static const surface = Color(0xFF1A222B);
+  static const card = Color(0xFF202A35);
+  static const accent = Color(0xFFE9C48F);
   static const success = Color(0xFF22C55E);
-  static const warning = Color(0xFFF59E0B);
   static const danger = Color(0xFFEF4444);
+  static const warning = Color(0xFFF59E0B);
   static const info = Color(0xFF3B82F6);
 
-  // Compatibility aliases used by older widgets. They intentionally resolve
-  // to the master kit rather than resurrecting the old warm prototype.
+  // Production semantic aliases.
+  static const surfaceLow = background;
+  static const surfaceInput = surface;
+  static const surfaceHigh = card;
+  static const surfaceHighest = Color(0xFF26323E);
+  static const outline = Color(0xFF31404C);
+  static const outlineSoft = Color(0xFF283640);
+  static const divider = Color(0xFF26343D);
+  static const focus = accent;
+
+  static const white = Color(0xFFFFFFFF);
+  static const textPrimary = Color(0xFFF7F8FA);
+  static const textSecondary = Color(0xFFD3D9DE);
+  static const textMuted = Color(0xFF9BA7B0);
+  static const textFaint = Color(0xFF687680);
+
+  // Backward-compatible aliases used by older widgets.
   static const conceptAccent = accent;
   static const navy = background;
   static const graphite = surface;
-  static const darkGray = surfaceHigh;
-  static const beige = accent2;
+  static const darkGray = card;
+  static const beige = accent;
   static const cream = accent;
-  static const white = Color(0xFFFFFFFF);
-  static const secondary = accent2;
-  static const accentInk = Color(0xFF061018);
-  static const secondaryInk = white;
-
-  static const surfaceLow = background;
-  static const outlineSoft = Color(0xFF303C4A);
-  static const outlineLight = Color(0xFFD1D5DE);
-  static const divider = Color(0xFF26313D);
-  static const focus = accent;
+  static const secondary = surfaceHigh;
+  static const accentInk = background;
+  static const secondaryInk = textPrimary;
 
   static const gray100 = Color(0xFFF5F7FA);
   static const gray300 = Color(0xFFD1D5DE);
   static const gray500 = Color(0xFF9AA4B2);
   static const gray700 = Color(0xFF6B7280);
-
-  static const textPrimary = Color(0xFFF7F9FB);
-  static const textSecondary = Color(0xFFC8D0D9);
-  static const textMuted = Color(0xFF94A0AD);
-  static const textFaint = Color(0xFF687583);
+  static const outlineLight = gray300;
 }
 
-/// Approved spacing scale: 4 / 8 / 12 / 16 / 20 / 24 / 32 / 40 / 48.
 abstract final class ZamerSpace {
   static const xxs = 4.0;
   static const xs = 8.0;
@@ -63,7 +59,6 @@ abstract final class ZamerSpace {
   static const jumbo = 48.0;
 }
 
-/// Approved radius scale: 4 / 8 / 12 / 16 / 20 / 24.
 abstract final class ZamerRadius {
   static const xs = 4.0;
   static const sm = 8.0;
@@ -74,7 +69,7 @@ abstract final class ZamerRadius {
   static const pill = 999.0;
 }
 
-/// Base dimensions of the 375 × 812 master phones.
+/// Base dimensions used by the approved phone comps.
 abstract final class ZamerSize {
   static const referenceWidth = 375.0;
   static const referenceHeight = 812.0;
@@ -83,7 +78,7 @@ abstract final class ZamerSize {
   static const topBar = 56.0;
   static const minTouch = 48.0;
   static const button = 56.0;
-  static const input = 56.0;
+  static const input = 48.0;
   static const bottomNavigation = 72.0;
   static const cardSmall = 80.0;
   static const cardMedium = 120.0;
@@ -93,55 +88,55 @@ abstract final class ZamerSize {
   static const iconLg = 28.0;
 }
 
-/// Typography printed in the approved master UI kit.
-/// Flutter `height` is line-height / font-size.
+/// Typography printed in the approved component sheet:
+/// H1 28/Bold, H2 20/Semibold, H3 16/Semibold, Body 14/Regular, Caption 12/Regular.
 abstract final class ZamerTypography {
   static const h1 = TextStyle(
     color: ZamerColors.textPrimary,
-    fontSize: 32,
-    height: 40 / 32,
+    fontSize: 28,
+    height: 34 / 28,
     fontWeight: FontWeight.w700,
   );
 
   static const h2 = TextStyle(
     color: ZamerColors.textPrimary,
-    fontSize: 24,
-    height: 32 / 24,
+    fontSize: 20,
+    height: 26 / 20,
     fontWeight: FontWeight.w600,
   );
 
   static const h3 = TextStyle(
     color: ZamerColors.textPrimary,
-    fontSize: 20,
-    height: 28 / 20,
+    fontSize: 16,
+    height: 22 / 16,
     fontWeight: FontWeight.w600,
   );
 
   static const h4 = TextStyle(
     color: ZamerColors.textPrimary,
-    fontSize: 18,
-    height: 24 / 18,
+    fontSize: 15,
+    height: 21 / 15,
     fontWeight: FontWeight.w600,
   );
 
   static const h5 = TextStyle(
     color: ZamerColors.textPrimary,
-    fontSize: 16,
-    height: 24 / 16,
+    fontSize: 14,
+    height: 20 / 14,
     fontWeight: FontWeight.w600,
   );
 
   static const body = TextStyle(
     color: ZamerColors.textPrimary,
-    fontSize: 16,
-    height: 24 / 16,
+    fontSize: 14,
+    height: 20 / 14,
     fontWeight: FontWeight.w400,
   );
 
   static const bodySmall = TextStyle(
     color: ZamerColors.textSecondary,
-    fontSize: 14,
-    height: 20 / 14,
+    fontSize: 13,
+    height: 18 / 13,
     fontWeight: FontWeight.w400,
   );
 
@@ -154,26 +149,26 @@ abstract final class ZamerTypography {
 
   static const button = TextStyle(
     color: ZamerColors.textPrimary,
-    fontSize: 16,
-    height: 24 / 16,
+    fontSize: 14,
+    height: 20 / 14,
     fontWeight: FontWeight.w600,
   );
 
   static const technical = TextStyle(
     color: ZamerColors.textPrimary,
-    fontSize: 14,
-    height: 20 / 14,
+    fontSize: 12,
+    height: 16 / 12,
     fontWeight: FontWeight.w500,
   );
 
   static const measurement = TextStyle(
     color: ZamerColors.textPrimary,
-    fontSize: 16,
-    height: 24 / 16,
-    fontWeight: FontWeight.w500,
+    fontSize: 14,
+    height: 20 / 14,
+    fontWeight: FontWeight.w600,
   );
 
   static const pageTitle = h1;
-  static const sectionTitle = h3;
-  static const sheetTitle = h3;
+  static const sectionTitle = h2;
+  static const sheetTitle = h2;
 }
