@@ -39,12 +39,12 @@ void main() {
     expect(source.contains('const _homeBackground = Color(0xFF050B10)'), isTrue);
   });
 
-  test('Application starts from the concept Home screen', () {
+  test('UI review build starts from the supplied master screen launcher', () {
     final source = File('lib/main.dart').readAsStringSync();
     expect(
-      source.contains("import 'screens/home_concept_screen.dart';"),
+      source.contains("import 'screens/master_ui_preview_screen.dart';"),
       isTrue,
     );
-    expect(source.contains('home: const HomeConceptScreen()'), isTrue);
+    expect(source.contains('home: const MasterUiPreviewScreen()'), isTrue);
   });
 }
