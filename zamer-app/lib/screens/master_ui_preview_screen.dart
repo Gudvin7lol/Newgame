@@ -155,14 +155,39 @@ class _MasterUiPreviewScreenState extends State<MasterUiPreviewScreen> {
     );
   }
 
+  Widget _loadingView() => Scaffold(
+        backgroundColor: ZamerColors.background,
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'ZAMER',
+                  style: ZamerTypography.h1.copyWith(letterSpacing: 2),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'MASTER UI REVIEW',
+                  style: ZamerTypography.caption.copyWith(
+                    color: ZamerColors.accent,
+                    letterSpacing: 1.4,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const Spacer(),
+                const Center(child: CircularProgressIndicator()),
+                const Spacer(),
+              ],
+            ),
+          ),
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
-    if (_loading) {
-      return const Scaffold(
-        backgroundColor: ZamerColors.background,
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
+    if (_loading) return _loadingView();
 
     if (_loadError != null || _project == null || _project!.floors.isEmpty) {
       return Scaffold(
