@@ -25,11 +25,22 @@ void main() {
     ]);
     GeometryService.syncRoomMetadata(floor);
     final project = MeasureProject(id: 'p', name: 'Квартира', floors: [floor]);
-    await tester.pumpWidget(MaterialApp(home: FloorWorkspaceScreen(
-      project: project, floor: floor, onChanged: () async {},
-    )));
-    await tester.tap(find.text('Комнаты').last);
-    await tester.pump();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: FloorWorkspaceScreen(
+          project: project,
+          floor: floor,
+          onChanged: () async {},
+        ),
+      ),
+    );
+
+    await tester.tap(find.byIcon(Icons.more_horiz_rounded).first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Комнаты'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Комнаты'), findsWidgets);
     await tester.tap(find.text('Помещение 1').first);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Переименовать'));
