@@ -75,12 +75,5 @@ class CadPlanPainterV3 extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CadPlanPainterV3 oldDelegate) =>
-      oldDelegate.floor != floor ||
-      oldDelegate.mmToPx != mmToPx ||
-      oldDelegate.origin != origin ||
-      oldDelegate.selectedWallId != selectedWallId ||
-      oldDelegate.showGrid != showGrid ||
-      oldDelegate.showDimensions != showDimensions ||
-      oldDelegate.visibleLayers != visibleLayers;
+  bool shouldRepaint(covariant CadPlanPainterV3 oldDelegate) => true;
 }
