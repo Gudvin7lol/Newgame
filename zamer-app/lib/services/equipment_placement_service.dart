@@ -35,7 +35,9 @@ class EquipmentPlacementService {
       catalogId: item.id,
     );
 
+    final mount = _applyCatalogMount(floor, object, item);
     floor.planObjects.add(object);
+    _syncFixedLighting(floor, object, item, mount);
     return object;
   }
 
@@ -60,18 +62,40 @@ class EquipmentPlacementService {
       slopePct: source.slopePct,
       catalogId: source.catalogId,
     );
-    floor.planObjects.add(duplicate);
+
+    ObjectCatalogItem? item;
+    if (source.catalogId.isNotEmpty) {
+      item = ObjectCatalog.byId(source.catalogId);
+      final mount = _applyCatalogMount(floor, duplicate, item);
+      floor.planObjects.add(duplicate);
+      _syncFixedLighting(floor, duplicate, item, mount);
+    } else {
+      floor.planObjects.add(duplicate);
+    }
     return duplicate;
   }
 
   static void rotateBy(PlanObject object, double deltaDeg) {
+    if (object.catalogId.isNotEmpty &&
+        ObjectCatalog.byId(object.catalogId).mount == CatalogMount.wall) {
+      return;
+    }
     final raw = object.rotationDeg + deltaDeg;
     object.rotationDeg = ((raw % 360) + 360) % 360;
   }
 
-  static void moveBy(PlanObject object, {double dxMm = 0, double dyMm = 0}) {
+  static void moveBy(
+    PlanObject object, {
+    double dxMm = 0,
+    double dyMm = 0,
+    FloorPlan? floor,
+  }) {
     object.xMm += dxMm;
     object.yMm += dyMm;
+    if (floor == null || object.catalogId.isEmpty) return;
+    final item = ObjectCatalog.byId(object.catalogId);
+    final mount = _applyCatalogMount(floor, object, item);
+    _syncFixedLighting(floor, object, item, mount);
   }
 
   static bool removeObject({
@@ -84,6 +108,108 @@ class EquipmentPlacementService {
       (point) => point.id == 'fixture:${object.id}',
     );
     return floor.planObjects.length != before;
+  }
+
+  static ({String? wallId, double? wallOffsetMm, int wallSide})
+      _applyCatalogMount(
+    FloorPlan floor,
+    PlanObject object,
+    ObjectCatalogItem item,
+  ) {
+    if (item.mount == CatalogMount.ceiling) {
+      object.elevationMm = math.max(0.0, floor.defaultHeightMm - object.heightMm);
+      return (wallId: null, wallOffsetMm: null, wallSide: 1);
+    }
+    if (item.mount != CatalogMount.wall || floor.walls.isEmpty) {
+      return (wallId: null, wallOffsetMm: null, wallSide: 1);
+    }
+
+    final hit = GeometryService.nearestWallProjection(
+      floor,
+      math.Point<double>(object.xMm, object.yMm),
+      thresholdMm: 100000,
+    );
+    if (hit == null) {
+      return (wallId: null, wallOffsetMm: null, wallSide: 1);
+    }
+    final a = floor.nodeById(hit.wall.startNodeId);
+    final b = floor.nodeById(hit.wall.endNodeId);
+    if (a == null || b == null) {
+      return (wallId: null, wallOffsetMm: null, wallSide: 1);
+    }
+
+    final dx = b.xMm - a.xMm;
+    final dy = b.yMm - a.yMm;
+    final length = math.sqrt(dx * dx + dy * dy);
+    if (length < 1) {
+      return (wallId: null, wallOffsetMm: null, wallSide: 1);
+    }
+    final nx = -dy / length;
+    final ny = dx / length;
+    final sideValue =
+        (object.xMm - hit.point.x) * nx + (object.yMm - hit.point.y) * ny;
+    final wallSide = sideValue >= 0 ? 1 : -1;
+    final clearance = hit.wall.thicknessMm / 2 + object.depthMm / 2 + 6;
+    object.xMm = hit.point.x + nx * wallSide * clearance;
+    object.yMm = hit.point.y + ny * wallSide * clearance;
+    object.rotationDeg = math.atan2(dy, dx) * 180 / math.pi;
+
+    return (
+      wallId: hit.wall.id,
+      wallOffsetMm: length * hit.t,
+      wallSide: wallSide,
+    );
+  }
+
+  static void _syncFixedLighting(
+    FloorPlan floor,
+    PlanObject object,
+    ObjectCatalogItem item,
+    ({String? wallId, double? wallOffsetMm, int wallSide}) mount,
+  ) {
+    final fixtureId = 'fixture:${object.id}';
+    if (item.type != PlanObjectType.lighting || item.mount == CatalogMount.floor) {
+      floor.electricalPoints.removeWhere((point) => point.id == fixtureId);
+      return;
+    }
+
+    final isWall = item.mount == CatalogMount.wall;
+    var pointX = object.xMm;
+    var pointY = object.yMm;
+    if (isWall && mount.wallId != null) {
+      final wall = floor.wallById(mount.wallId!);
+      final a = wall == null ? null : floor.nodeById(wall.startNodeId);
+      final b = wall == null ? null : floor.nodeById(wall.endNodeId);
+      if (wall != null && a != null && b != null) {
+        final length = floor.wallLengthMm(wall);
+        if (length > 1) {
+          final t = ((mount.wallOffsetMm ?? 0) / length).clamp(0.0, 1.0);
+          pointX = a.xMm + (b.xMm - a.xMm) * t;
+          pointY = a.yMm + (b.yMm - a.yMm) * t;
+        }
+      }
+    }
+
+    floor.electricalPoints.removeWhere((point) => point.id == fixtureId);
+    floor.electricalPoints.add(
+      ElectricalPoint(
+        id: fixtureId,
+        type: isWall
+            ? ElectricalPointType.wallLight
+            : ElectricalPointType.ceilingLight,
+        xMm: pointX,
+        yMm: pointY,
+        label: item.name,
+        heightMm: isWall
+            ? object.elevationMm + object.heightMm / 2
+            : floor.defaultHeightMm,
+        circuit: 'Освещение',
+        powerW: isWall ? 12 : 24,
+        wallId: mount.wallId,
+        wallOffsetMm: mount.wallOffsetMm,
+        wallSide: mount.wallSide,
+      ),
+    );
   }
 
   static math.Point<double> _defaultAnchor(FloorPlan floor) {
