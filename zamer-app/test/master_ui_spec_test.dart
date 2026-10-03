@@ -43,6 +43,7 @@ void main() {
           selectedIndex: 1,
           onSelected: (_) {},
           onHome: () {},
+          onProfile: () {},
         ),
       ),
     );
@@ -51,8 +52,8 @@ void main() {
       'Главная',
       'Замер',
       '3D',
-      'Оснащение',
       'Развёртки',
+      'Профиль',
     ]) {
       expect(find.text(label), findsOneWidget);
     }
