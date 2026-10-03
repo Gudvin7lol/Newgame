@@ -12,6 +12,7 @@ class MasterEquipmentScreen extends StatefulWidget {
     this.onBack,
     this.onAdd,
     this.renderModelPreviews = true,
+    this.embedded = false,
   });
 
   final String projectTitle;
@@ -22,6 +23,10 @@ class MasterEquipmentScreen extends StatefulWidget {
   /// them off because flutter_gpu requires Impeller, which is not available in
   /// the normal test runner.
   final bool renderModelPreviews;
+
+  /// When true the page becomes a workspace pane instead of nesting a second
+  /// Scaffold/TopBar inside the production workspace chrome.
+  final bool embedded;
 
   @override
   State<MasterEquipmentScreen> createState() => _MasterEquipmentScreenState();
@@ -118,126 +123,139 @@ class _MasterEquipmentScreenState extends State<MasterEquipmentScreen> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final items = _items;
-    return Scaffold(
-      backgroundColor: ZamerColors.background,
-      body: SafeArea(
-        child: Column(
-          children: [
+  Widget _content(List<ObjectCatalogItem> items) => Column(
+        children: [
+          if (!widget.embedded)
             ZMasterTopBar(
               title: widget.projectTitle,
               onBack: widget.onBack ?? () => Navigator.maybePop(context),
               onSettings: () {},
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text('Оснащение', style: ZamerTypography.h2),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+          Padding(
+            padding: EdgeInsets.fromLTRB(16, widget.embedded ? 10 : 0, 16, 8),
+            child: Align(
+              alignment: Alignment.centerLeft,
               child: Row(
                 children: [
-                  Expanded(
-                    child: SizedBox(
-                      height: 46,
-                      child: TextField(
-                        controller: _search,
-                        decoration: const InputDecoration(
-                          hintText: 'Поиск (например: диван, унитаз, дверь...)',
-                          prefixIcon: Icon(Icons.search_rounded),
-                        ),
-                      ),
+                  Expanded(child: Text('Оснащение', style: ZamerTypography.h2)),
+                  if (widget.embedded)
+                    Text(
+                      '${ObjectCatalog.items.length} моделей',
+                      style: ZamerTypography.caption,
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  SizedBox(
-                    width: 46,
+                ],
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: SizedBox(
                     height: 46,
-                    child: OutlinedButton(
-                      onPressed: () {},
-                      style: OutlinedButton.styleFrom(padding: EdgeInsets.zero),
-                      child: const Icon(Icons.tune_rounded, size: 21),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 8),
-            SizedBox(
-              height: 38,
-              child: ListView.separated(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                scrollDirection: Axis.horizontal,
-                itemCount: _filters.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 6),
-                itemBuilder: (_, index) {
-                  final label = _filters[index];
-                  final selected = label == _filter;
-                  return ChoiceChip(
-                    selected: selected,
-                    label: Text(label),
-                    onSelected: (_) => setState(() => _filter = label),
-                  );
-                },
-              ),
-            ),
-            const SizedBox(height: 8),
-            Expanded(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  SizedBox(
-                    width: 126,
-                    child: ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(10, 0, 6, 12),
-                      itemCount: _categories.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 3),
-                      itemBuilder: (_, index) {
-                        final entry = _categories[index];
-                        return ZMasterCategoryTile(
-                          icon: entry.$2,
-                          label: entry.$1,
-                          selected: _category == entry.$1,
-                          onTap: () => setState(() => _category = entry.$1),
-                        );
-                      },
-                    ),
-                  ),
-                  Expanded(
-                    child: GridView.builder(
-                      padding: const EdgeInsets.fromLTRB(2, 0, 10, 12),
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        childAspectRatio: .78,
-                        crossAxisSpacing: 7,
-                        mainAxisSpacing: 7,
-                      ),
-                      itemCount: items.length,
-                      itemBuilder: (_, index) => _EquipmentCard(
-                        item: items[index],
-                        favorite: _favorites.contains(items[index].id),
-                        renderModelPreview: widget.renderModelPreviews,
-                        onFavorite: () => setState(() {
-                          if (!_favorites.add(items[index].id)) {
-                            _favorites.remove(items[index].id);
-                          }
-                        }),
-                        onAdd: () => _add(items[index]),
+                    child: TextField(
+                      controller: _search,
+                      decoration: const InputDecoration(
+                        hintText: 'Поиск (например: диван, унитаз, дверь...)',
+                        prefixIcon: Icon(Icons.search_rounded),
                       ),
                     ),
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(width: 8),
+                SizedBox(
+                  width: 46,
+                  height: 46,
+                  child: OutlinedButton(
+                    onPressed: () {},
+                    style: OutlinedButton.styleFrom(padding: EdgeInsets.zero),
+                    child: const Icon(Icons.tune_rounded, size: 21),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 38,
+            child: ListView.separated(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              scrollDirection: Axis.horizontal,
+              itemCount: _filters.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 6),
+              itemBuilder: (_, index) {
+                final label = _filters[index];
+                final selected = label == _filter;
+                return ChoiceChip(
+                  selected: selected,
+                  label: Text(label),
+                  onSelected: (_) => setState(() => _filter = label),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(
+                  width: 126,
+                  child: ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(10, 0, 6, 12),
+                    itemCount: _categories.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 3),
+                    itemBuilder: (_, index) {
+                      final entry = _categories[index];
+                      return ZMasterCategoryTile(
+                        icon: entry.$2,
+                        label: entry.$1,
+                        selected: _category == entry.$1,
+                        onTap: () => setState(() => _category = entry.$1),
+                      );
+                    },
+                  ),
+                ),
+                Expanded(
+                  child: GridView.builder(
+                    padding: const EdgeInsets.fromLTRB(2, 0, 10, 12),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      childAspectRatio: .78,
+                      crossAxisSpacing: 7,
+                      mainAxisSpacing: 7,
+                    ),
+                    itemCount: items.length,
+                    itemBuilder: (_, index) => _EquipmentCard(
+                      item: items[index],
+                      favorite: _favorites.contains(items[index].id),
+                      renderModelPreview: widget.renderModelPreviews,
+                      onFavorite: () => setState(() {
+                        if (!_favorites.add(items[index].id)) {
+                          _favorites.remove(items[index].id);
+                        }
+                      }),
+                      onAdd: () => _add(items[index]),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    final content = _content(_items);
+    if (widget.embedded) {
+      return ColoredBox(color: ZamerColors.background, child: content);
+    }
+    return Scaffold(
+      backgroundColor: ZamerColors.background,
+      body: SafeArea(child: content),
     );
   }
 }
