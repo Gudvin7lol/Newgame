@@ -55,7 +55,7 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
   @override
   void initState() {
     super.initState();
-    _mode = widget.initialMode.clamp(0, 2);
+    _mode = widget.initialMode.clamp(0, 2).toInt();
     _history.add(jsonEncode(widget.floor.toJson()));
   }
 
@@ -124,7 +124,7 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
 
   void _selectPrimaryMode(int mode) {
     if (mode == _mode) return;
-    setState(() => _mode = mode.clamp(0, 2));
+    setState(() => _mode = mode.clamp(0, 2).toInt());
   }
 
   Future<void> _openCatalogFromMeasure() async {
@@ -134,11 +134,13 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
         builder: (catalogContext) => MasterEquipmentScreen(
           projectTitle: widget.project.name,
           onBack: () => Navigator.pop(catalogContext),
-          onAdd: (item) async {
-            final added = await _addEquipment(item);
-            if (added != null && catalogContext.mounted) {
-              Navigator.pop(catalogContext);
-            }
+          onAdd: (item) {
+            () async {
+              final added = await _addEquipment(item);
+              if (added != null && catalogContext.mounted) {
+                Navigator.pop(catalogContext);
+              }
+            }();
           },
         ),
       ),
