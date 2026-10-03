@@ -209,7 +209,7 @@ class _MasterUiPreviewScreenState extends State<MasterUiPreviewScreen> {
             Text('ZAMER', style: ZamerTypography.h1.copyWith(letterSpacing: 2)),
             const SizedBox(height: 4),
             Text(
-              'MASTER • FUNCTIONAL',
+              'MASTER UI REVIEW',
               style: ZamerTypography.caption.copyWith(
                 color: ZamerColors.accent,
                 letterSpacing: 1.4,
