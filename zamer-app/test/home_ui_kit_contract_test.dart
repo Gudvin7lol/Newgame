@@ -3,23 +3,21 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('Concept Home keeps the approved production composition', () {
+  test('Production Home keeps the approved master composition', () {
     final source = File(
-      'lib/screens/home_concept_screen.dart',
+      'lib/screens/home_production_screen.dart',
     ).readAsStringSync();
 
     for (final requiredLabel in const [
       'ЗАМЕР',
-      'ПРОФЕССИОНАЛЬНЫЙ ЗАМЕР',
-      'ТЕКУЩИЙ ПРОЕКТ',
+      'Поиск проектов…',
       'Новый проект',
-      'Замер',
-      '3D',
-      'Оснащение',
-      'Развёртки',
-      'МОИ ПРОЕКТЫ',
-      'ШАБЛОНЫ',
-      'Все',
+      'Импорт плана',
+      'Недавние проекты',
+      'Шаблоны',
+      'Квартира',
+      'Дом',
+      'Коммерция',
       'Главная',
       'Проекты',
       'Каталог',
@@ -29,22 +27,22 @@ void main() {
       expect(
         source.contains(requiredLabel),
         isTrue,
-        reason: 'Missing approved concept Home element: $requiredLabel',
+        reason: 'Missing approved master Home element: $requiredLabel',
       );
     }
 
-    expect(source.contains('HomeConceptAssets.logo'), isTrue);
-    expect(source.contains('HomeConceptAssets.currentProject'), isTrue);
-    expect(source.contains('foregroundColor: ZamerColors.beige'), isTrue);
-    expect(source.contains('const _homeBackground = Color(0xFF050B10)'), isTrue);
+    expect(source.contains('ZProjectThumbnail'), isTrue);
+    expect(source.contains('ZamerSize.bottomNavigation'), isTrue);
+    expect(source.contains('ZamerColors.beige'), isTrue);
+    expect(source.contains('ZamerColors.graphite'), isTrue);
   });
 
-  test('Application starts from the concept Home screen', () {
+  test('Application starts from the production Home screen', () {
     final source = File('lib/main.dart').readAsStringSync();
     expect(
-      source.contains("import 'screens/home_concept_screen.dart';"),
+      source.contains("import 'screens/home_production_screen.dart';"),
       isTrue,
     );
-    expect(source.contains('home: const HomeConceptScreen()'), isTrue);
+    expect(source.contains('home: const HomeProductionScreen()'), isTrue);
   });
 }
