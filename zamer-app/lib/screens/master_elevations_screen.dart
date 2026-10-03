@@ -31,17 +31,8 @@ class _MasterElevationsScreenState extends State<MasterElevationsScreen> {
   double get _wallWidthMm {
     if (widget.floor.walls.isEmpty) return 3120;
     final wall = widget.floor.walls[_wall % widget.floor.walls.length];
-    final a = widget.floor.nodes.firstWhere(
-      (node) => node.id == wall.aNodeId,
-      orElse: () => widget.floor.nodes.first,
-    );
-    final b = widget.floor.nodes.firstWhere(
-      (node) => node.id == wall.bNodeId,
-      orElse: () => widget.floor.nodes.first,
-    );
-    final dx = b.xMm - a.xMm;
-    final dy = b.yMm - a.yMm;
-    return (dx * dx + dy * dy).sqrt();
+    final length = widget.floor.wallLengthMm(wall);
+    return length <= 0 ? 3120 : length;
   }
 
   String _fmt(double value) => value.round().toString().replaceAllMapped(
@@ -204,22 +195,44 @@ class _MasterElevationsScreenState extends State<MasterElevationsScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  const _AccordionRow(icon: Icons.horizontal_rule_rounded, label: 'Плинтус (1)'),
+                  const _AccordionRow(
+                    icon: Icons.horizontal_rule_rounded,
+                    label: 'Плинтус (1)',
+                  ),
                   const SizedBox(height: 6),
-                  const _AccordionRow(icon: Icons.electrical_services_outlined, label: 'Розетки (3)'),
+                  const _AccordionRow(
+                    icon: Icons.electrical_services_outlined,
+                    label: 'Розетки (3)',
+                  ),
                   const SizedBox(height: 6),
-                  const _AccordionRow(icon: Icons.toggle_on_outlined, label: 'Выключатели (2)'),
+                  const _AccordionRow(
+                    icon: Icons.toggle_on_outlined,
+                    label: 'Выключатели (2)',
+                  ),
                   const SizedBox(height: 6),
-                  const _AccordionRow(icon: Icons.lightbulb_outline_rounded, label: 'Светильники (3)'),
+                  const _AccordionRow(
+                    icon: Icons.lightbulb_outline_rounded,
+                    label: 'Светильники (3)',
+                  ),
                   const SizedBox(height: 14),
                   Text('Размеры и привязки', style: ZamerTypography.h4),
                   const SizedBox(height: 8),
                   ZMasterPanel(
                     child: Row(
                       children: [
-                        Expanded(child: _DimensionField(label: 'Ширина стены', value: _fmt(width))),
+                        Expanded(
+                          child: _DimensionField(
+                            label: 'Ширина стены',
+                            value: _fmt(width),
+                          ),
+                        ),
                         const SizedBox(width: 8),
-                        Expanded(child: _DimensionField(label: 'Высота стены', value: _fmt(height))),
+                        Expanded(
+                          child: _DimensionField(
+                            label: 'Высота стены',
+                            value: _fmt(height),
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -265,21 +278,6 @@ class _MasterElevationsScreenState extends State<MasterElevationsScreen> {
         ),
       ),
     );
-  }
-}
-
-extension on double {
-  double sqrt() => this <= 0 ? 0 : MathSqrt.sqrt(this);
-}
-
-abstract final class MathSqrt {
-  static double sqrt(double value) {
-    var x = value;
-    if (x == 0) return 0;
-    for (var i = 0; i < 10; i++) {
-      x = .5 * (x + value / x);
-    }
-    return x;
   }
 }
 
@@ -341,7 +339,12 @@ class _FinishTile extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 4),
-              Text(label, style: ZamerTypography.caption.copyWith(color: ZamerColors.textPrimary)),
+              Text(
+                label,
+                style: ZamerTypography.caption.copyWith(
+                  color: ZamerColors.textPrimary,
+                ),
+              ),
               Text(subtitle, style: ZamerTypography.caption),
             ],
           ),
@@ -394,7 +397,12 @@ class _DimensionField extends StatelessWidget {
               borderRadius: BorderRadius.circular(8),
               border: Border.all(color: ZamerColors.outline),
             ),
-            child: Text(value, style: ZamerTypography.bodySmall.copyWith(color: ZamerColors.textPrimary)),
+            child: Text(
+              value,
+              style: ZamerTypography.bodySmall.copyWith(
+                color: ZamerColors.textPrimary,
+              ),
+            ),
           ),
         ],
       );
@@ -426,12 +434,20 @@ class _BottomTab extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(icon, size: 21, color: selected ? ZamerColors.accent : ZamerColors.textPrimary),
+                Icon(
+                  icon,
+                  size: 21,
+                  color: selected
+                      ? ZamerColors.accent
+                      : ZamerColors.textPrimary,
+                ),
                 const SizedBox(height: 3),
                 Text(
                   label,
                   style: ZamerTypography.caption.copyWith(
-                    color: selected ? ZamerColors.accent : ZamerColors.textSecondary,
+                    color: selected
+                        ? ZamerColors.accent
+                        : ZamerColors.textSecondary,
                   ),
                 ),
               ],
@@ -455,8 +471,8 @@ class _ElevationPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()..strokeWidth = 1;
-    final marginLeft = 36.0;
-    final marginTop = 24.0;
+    const marginLeft = 36.0;
+    const marginTop = 24.0;
     final wall = Rect.fromLTWH(
       marginLeft,
       marginTop + 18,
@@ -494,22 +510,14 @@ class _ElevationPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..color = ZamerColors.textPrimary
       ..strokeWidth = 1;
-    canvas.drawLine(
-      Offset(wall.left, 12),
-      Offset(wall.right, 12),
-      paint,
-    );
-    canvas.drawLine(
-      Offset(16, wall.top),
-      Offset(16, wall.bottom),
-      paint,
-    );
+    canvas.drawLine(Offset(wall.left, 12), Offset(wall.right, 12), paint);
+    canvas.drawLine(Offset(16, wall.top), Offset(16, wall.bottom), paint);
 
     final text = TextPainter(textDirection: TextDirection.ltr);
     text.text = TextSpan(
       text: wallWidthMm.round().toString().replaceAllMapped(
             RegExp(r'\B(?=(\d{3})+(?!\d))'),
-            (m) => ' ',
+            (match) => ' ',
           ),
       style: const TextStyle(color: ZamerColors.textPrimary, fontSize: 11),
     );
@@ -519,7 +527,7 @@ class _ElevationPainter extends CustomPainter {
     text.text = TextSpan(
       text: wallHeightMm.round().toString().replaceAllMapped(
             RegExp(r'\B(?=(\d{3})+(?!\d))'),
-            (m) => ' ',
+            (match) => ' ',
           ),
       style: const TextStyle(color: ZamerColors.textPrimary, fontSize: 11),
     );
