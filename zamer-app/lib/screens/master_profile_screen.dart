@@ -146,7 +146,14 @@ class _MasterProfileScreenState extends State<MasterProfileScreen> {
     );
   }
 
-  void _goBack() => widget.onBack?.call() ?? Navigator.maybePop(context);
+  void _goBack() {
+    final callback = widget.onBack;
+    if (callback != null) {
+      callback();
+      return;
+    }
+    Navigator.maybePop(context);
+  }
 
   @override
   Widget build(BuildContext context) {
