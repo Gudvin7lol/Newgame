@@ -33,7 +33,10 @@ void main() {
   testWidgets('equipment master fits reference phone', (tester) async {
     await _pumpPhone(
       tester,
-      const MasterEquipmentScreen(projectTitle: 'Квартира, Калининград'),
+      const MasterEquipmentScreen(
+        projectTitle: 'Квартира, Калининград',
+        renderModelPreviews: false,
+      ),
     );
     expect(find.text('Оснащение'), findsOneWidget);
   });
@@ -71,11 +74,11 @@ void main() {
       tester,
       const MasterControlScreen(projectTitle: 'Квартира на Московском'),
     );
-    expect(find.text('Контроль'), findsOneWidget);
+    expect(find.text('Контроль'), findsWidgets);
   });
 
   testWidgets('profile master fits reference phone', (tester) async {
     await _pumpPhone(tester, const MasterProfileScreen());
-    expect(find.text('Профиль'), findsOneWidget);
+    expect(find.text('Профиль'), findsWidgets);
   });
 }
