@@ -43,28 +43,65 @@ class _MasterLivePhotoScreenState extends State<MasterLivePhotoScreen> {
   RoomMeta? get _room {
     final rooms = _rooms;
     if (rooms.isEmpty) return null;
-    _roomIndex = _roomIndex.clamp(0, rooms.length - 1);
+    _roomIndex = _roomIndex.clamp(0, rooms.length - 1).toInt();
     return rooms[_roomIndex];
   }
 
   Future<void> _addPhoto(ImageSource source) async {
     final room = _room;
     if (room == null) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Сначала создай замкнутое помещение в Замере')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Сначала создай замкнутое помещение в Замере')),
+        );
+      }
       return;
     }
-    final image = await _picker.pickImage(source: source, imageQuality: 82);
-    if (image == null) return;
+    final picked = await _picker.pickImage(source: source, imageQuality: 82);
+    if (picked == null) return;
     final root = await getApplicationDocumentsDirectory();
     final folder = Directory('${root.path}/room_photos');
     await folder.create(recursive: true);
-    final saved = await File(image.path).copy(
+    final saved = await File(picked.path).copy(
       '${folder.path}/${room.id}-${DateTime.now().microsecondsSinceEpoch}.jpg',
     );
     room.photoPaths.add(saved.path);
+    await widget.onChanged();
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _editNote() async {
+    final room = _room;
+    if (room == null) return;
+    final controller = TextEditingController(text: room.notes);
+    final value = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Заметка • ${room.name}'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          minLines: 4,
+          maxLines: 8,
+          decoration: const InputDecoration(
+            hintText: 'Что важно зафиксировать на объекте...',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Отмена'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, controller.text.trim()),
+            child: const Text('Сохранить'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (value == null) return;
+    room.notes = value;
     await widget.onChanged();
     if (mounted) setState(() {});
   }
@@ -112,50 +149,12 @@ class _MasterLivePhotoScreenState extends State<MasterLivePhotoScreen> {
     );
   }
 
-  Future<void> _editNote() async {
-    final room = _room;
-    if (room == null) return;
-    final controller = TextEditingController(text: room.notes);
-    final value = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text('Заметка • ${room.name}'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          minLines: 4,
-          maxLines: 8,
-          decoration: const InputDecoration(
-            hintText: 'Что важно зафиксировать на объекте...',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Отмена'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, controller.text.trim()),
-            child: const Text('Сохранить'),
-          ),
-        ],
-      ),
-    );
-    controller.dispose();
-    if (value == null) return;
-    room.notes = value;
-    await widget.onChanged();
-    if (mounted) setState(() {});
-  }
-
   Future<void> _deletePhoto(RoomMeta room, String path) async {
     room.photoPaths.remove(path);
     try {
       final file = File(path);
       if (await file.exists()) await file.delete();
-    } catch (_) {
-      // The project must remain editable even if the source file disappeared.
-    }
+    } catch (_) {}
     await widget.onChanged();
     if (mounted) setState(() {});
   }
@@ -169,6 +168,9 @@ class _MasterLivePhotoScreenState extends State<MasterLivePhotoScreen> {
         for (final path in meta.photoPaths) (room: meta, path: path),
     ];
     final notes = rooms.where((meta) => meta.notes.trim().isNotEmpty).toList();
+    final previewPath = room == null || room.photoPaths.isEmpty
+        ? null
+        : room.photoPaths.first;
 
     return Scaffold(
       backgroundColor: ZamerColors.background,
@@ -191,7 +193,7 @@ class _MasterLivePhotoScreenState extends State<MasterLivePhotoScreen> {
                     padding: const EdgeInsets.all(10),
                     child: Row(
                       children: [
-                        _LiveRoomPreview(path: room?.photoPaths.firstOrNull),
+                        _RoomPreview(path: previewPath),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Column(
@@ -201,10 +203,7 @@ class _MasterLivePhotoScreenState extends State<MasterLivePhotoScreen> {
                               const SizedBox(height: 7),
                               DropdownButtonFormField<int>(
                                 initialValue: rooms.isEmpty ? null : _roomIndex,
-                                decoration: const InputDecoration(
-                                  isDense: true,
-                                  labelText: 'Помещение',
-                                ),
+                                decoration: const InputDecoration(labelText: 'Помещение'),
                                 items: [
                                   for (var i = 0; i < rooms.length; i++)
                                     DropdownMenuItem(value: i, child: Text(rooms[i].name)),
@@ -227,26 +226,26 @@ class _MasterLivePhotoScreenState extends State<MasterLivePhotoScreen> {
                   const SizedBox(height: 12),
                   Row(
                     children: [
-                      for (final (index, label, icon) in const [
-                        (0, 'Все', Icons.grid_view_rounded),
-                        (1, 'Фото', Icons.image_outlined),
-                        (2, 'Заметки', Icons.notes_rounded),
-                      ]) ...[
-                        if (index > 0) const SizedBox(width: 6),
-                        Expanded(
-                          child: index == _filter
-                              ? FilledButton.icon(
-                                  onPressed: () => setState(() => _filter = index),
-                                  icon: Icon(icon, size: 17),
-                                  label: Text(label),
-                                )
-                              : OutlinedButton.icon(
-                                  onPressed: () => setState(() => _filter = index),
-                                  icon: Icon(icon, size: 17),
-                                  label: Text(label),
-                                ),
-                        ),
-                      ],
+                      _FilterButton(
+                        label: 'Все',
+                        icon: Icons.grid_view_rounded,
+                        selected: _filter == 0,
+                        onTap: () => setState(() => _filter = 0),
+                      ),
+                      const SizedBox(width: 6),
+                      _FilterButton(
+                        label: 'Фото',
+                        icon: Icons.image_outlined,
+                        selected: _filter == 1,
+                        onTap: () => setState(() => _filter = 1),
+                      ),
+                      const SizedBox(width: 6),
+                      _FilterButton(
+                        label: 'Заметки',
+                        icon: Icons.notes_rounded,
+                        selected: _filter == 2,
+                        onTap: () => setState(() => _filter = 2),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -263,15 +262,15 @@ class _MasterLivePhotoScreenState extends State<MasterLivePhotoScreen> {
                       ),
                       itemBuilder: (_, index) {
                         final item = photos[index];
-                        return _LivePhotoTile(
+                        return _PhotoTile(
                           path: item.path,
                           roomName: item.room.name,
                           onDelete: () => _deletePhoto(item.room, item.path),
                         );
                       },
                     )
-                  else if (_filter == 1 && photos.isEmpty)
-                    const _MasterEmpty(
+                  else if (_filter == 1)
+                    const _EmptyPanel(
                       icon: Icons.photo_camera_back_outlined,
                       title: 'Фото пока нет',
                       subtitle: 'Сделай фото камерой или выбери его из галереи.',
@@ -291,15 +290,28 @@ class _MasterLivePhotoScreenState extends State<MasterLivePhotoScreen> {
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Icon(Icons.sticky_note_2_outlined, color: ZamerColors.accent),
+                              const Icon(
+                                Icons.sticky_note_2_outlined,
+                                color: ZamerColors.accent,
+                              ),
                               const SizedBox(width: 10),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(meta.name, style: ZamerTypography.bodySmall.copyWith(fontWeight: FontWeight.w700)),
+                                    Text(
+                                      meta.name,
+                                      style: ZamerTypography.bodySmall.copyWith(
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
                                     const SizedBox(height: 3),
-                                    Text(meta.notes, maxLines: 4, overflow: TextOverflow.ellipsis, style: ZamerTypography.caption),
+                                    Text(
+                                      meta.notes,
+                                      maxLines: 4,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: ZamerTypography.caption,
+                                    ),
                                   ],
                                 ),
                               ),
@@ -311,7 +323,7 @@ class _MasterLivePhotoScreenState extends State<MasterLivePhotoScreen> {
                       const SizedBox(height: 8),
                     ],
                   ] else if (_filter == 2)
-                    const _MasterEmpty(
+                    const _EmptyPanel(
                       icon: Icons.notes_outlined,
                       title: 'Заметок пока нет',
                       subtitle: 'Добавь заметку к выбранному помещению.',
@@ -343,10 +355,12 @@ class MasterLiveDocumentationScreen extends StatefulWidget {
   final FloorPlan floor;
 
   @override
-  State<MasterLiveDocumentationScreen> createState() => _MasterLiveDocumentationScreenState();
+  State<MasterLiveDocumentationScreen> createState() =>
+      _MasterLiveDocumentationScreenState();
 }
 
-class _MasterLiveDocumentationScreenState extends State<MasterLiveDocumentationScreen> {
+class _MasterLiveDocumentationScreenState
+    extends State<MasterLiveDocumentationScreen> {
   bool _working = false;
 
   Future<void> _share() async {
@@ -365,12 +379,10 @@ class _MasterLiveDocumentationScreenState extends State<MasterLiveDocumentationS
     }
   }
 
-  Future<void> _preview() async {
-    await Printing.layoutPdf(
-      name: 'Замер_${widget.project.name}_${widget.floor.name}.pdf',
-      onLayout: (_) => ReportService.buildFloorPdf(widget.project, widget.floor),
-    );
-  }
+  Future<void> _preview() => Printing.layoutPdf(
+        name: 'Замер_${widget.project.name}_${widget.floor.name}.pdf',
+        onLayout: (_) => ReportService.buildFloorPdf(widget.project, widget.floor),
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -378,7 +390,10 @@ class _MasterLiveDocumentationScreenState extends State<MasterLiveDocumentationS
     final faces = GeometryService.roomFaces(widget.floor);
     final area = faces.fold<double>(0, (sum, face) => sum + face.areaM2);
     final issues = MeasurementReviewService.review(widget.floor);
-    final elevationCount = GeometryService.elevationRuns(widget.floor).length;
+    final elevationCount = faces.fold<int>(
+      0,
+      (sum, face) => sum + GeometryService.elevationRuns(widget.floor, face).length,
+    );
 
     return Scaffold(
       backgroundColor: ZamerColors.background,
@@ -400,28 +415,29 @@ class _MasterLiveDocumentationScreenState extends State<MasterLiveDocumentationS
                     style: ZamerTypography.bodySmall,
                   ),
                   const SizedBox(height: 14),
-                  _LiveDocumentCard(
+                  _DocumentCard(
                     icon: Icons.architecture_outlined,
                     title: 'План 2D',
-                    subtitle: '${widget.floor.walls.length} стен • ${widget.floor.measures.length} контрольных размеров',
+                    subtitle:
+                        '${widget.floor.walls.length} стен • ${widget.floor.measures.length} контрольных размеров',
                     status: widget.floor.walls.isEmpty ? 'Пусто' : 'Готов',
                   ),
                   const SizedBox(height: 8),
-                  _LiveDocumentCard(
+                  _DocumentCard(
                     icon: Icons.view_in_ar_outlined,
                     title: '3D виды',
                     subtitle: '${widget.floor.planObjects.length} объектов • PBR-сцена',
                     status: widget.floor.walls.isEmpty ? 'Пусто' : 'Готово',
                   ),
                   const SizedBox(height: 8),
-                  _LiveDocumentCard(
+                  _DocumentCard(
                     icon: Icons.view_carousel_outlined,
                     title: 'Развёртки',
                     subtitle: 'Автоматически по внутреннему периметру',
                     status: '$elevationCount шт.',
                   ),
                   const SizedBox(height: 8),
-                  _LiveDocumentCard(
+                  const _DocumentCard(
                     icon: Icons.table_chart_outlined,
                     title: 'Спецификация',
                     subtitle: 'Материалы, электрика, инженерия и объекты',
@@ -473,7 +489,8 @@ class MasterLiveControlScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final issues = MeasurementReviewService.review(floor);
-    int count(MeasurementIssueKind kind) => issues.where((issue) => issue.kind == kind).length;
+    int count(MeasurementIssueKind kind) =>
+        issues.where((issue) => issue.kind == kind).length;
     final critical = count(MeasurementIssueKind.openContour) +
         count(MeasurementIssueKind.intersection) +
         count(MeasurementIssueKind.discrepancy);
@@ -497,72 +514,36 @@ class MasterLiveControlScreen extends StatelessWidget {
                 children: [
                   Text(project.name, style: ZamerTypography.h4),
                   const SizedBox(height: 14),
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: (critical == 0 ? ZamerColors.success : ZamerColors.warning)
-                          .withValues(alpha: .14),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: critical == 0 ? ZamerColors.success : ZamerColors.warning,
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 24,
-                          backgroundColor: critical == 0 ? ZamerColors.success : ZamerColors.warning,
-                          child: Icon(
-                            critical == 0 ? Icons.check_rounded : Icons.priority_high_rounded,
-                            color: ZamerColors.accentInk,
-                            size: 30,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                issues.isEmpty ? 'Проект проверен' : 'Нужна проверка',
-                                style: ZamerTypography.h4,
-                              ),
-                              const SizedBox(height: 3),
-                              Text(
-                                '${issues.length} замечаний • $critical критичных',
-                                style: ZamerTypography.caption,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                  _ControlSummary(total: issues.length, critical: critical),
                   const SizedBox(height: 18),
                   Text('Проверки проекта', style: ZamerTypography.h4),
                   const SizedBox(height: 8),
-                  _LiveCheckRow(
+                  _CheckRow(
                     ok: count(MeasurementIssueKind.openContour) == 0,
                     icon: Icons.crop_free_rounded,
                     title: 'Контуры помещений',
-                    subtitle: '$rooms помещений • ${count(MeasurementIssueKind.openContour)} незамкнутых узлов',
+                    subtitle:
+                        '$rooms помещений • ${count(MeasurementIssueKind.openContour)} незамкнутых узлов',
                   ),
                   const SizedBox(height: 8),
-                  _LiveCheckRow(
+                  _CheckRow(
                     ok: count(MeasurementIssueKind.discrepancy) == 0,
                     icon: Icons.functions_rounded,
                     title: 'Суммы размеров',
-                    subtitle: '${count(MeasurementIssueKind.discrepancy)} расхождений от 5 мм',
+                    subtitle:
+                        '${count(MeasurementIssueKind.discrepancy)} расхождений от 5 мм',
                   ),
                   const SizedBox(height: 8),
-                  _LiveCheckRow(
-                    ok: count(MeasurementIssueKind.intersection) == 0,
+                  _CheckRow(
+                    ok: count(MeasurementIssueKind.intersection) == 0 &&
+                        count(MeasurementIssueKind.acuteAngle) == 0,
                     icon: Icons.polyline_outlined,
                     title: 'Геометрия стен',
-                    subtitle: '${count(MeasurementIssueKind.intersection)} пересечений • ${count(MeasurementIssueKind.acuteAngle)} острых углов',
+                    subtitle:
+                        '${count(MeasurementIssueKind.intersection)} пересечений • ${count(MeasurementIssueKind.acuteAngle)} острых углов',
                   ),
                   const SizedBox(height: 8),
-                  _LiveCheckRow(
+                  _CheckRow(
                     ok: missing == 0,
                     icon: Icons.storage_outlined,
                     title: 'Источники размеров',
@@ -574,7 +555,9 @@ class MasterLiveControlScreen extends StatelessWidget {
                     child: FilledButton.icon(
                       onPressed: () => Navigator.push<void>(
                         context,
-                        MaterialPageRoute(builder: (_) => MeasurementReviewScreen(floor: floor)),
+                        MaterialPageRoute(
+                          builder: (_) => MeasurementReviewScreen(floor: floor),
+                        ),
                       ),
                       icon: const Icon(Icons.map_outlined),
                       label: const Text('Показать замечания на плане'),
@@ -591,11 +574,7 @@ class MasterLiveControlScreen extends StatelessWidget {
 }
 
 class MasterLiveProfileScreen extends StatefulWidget {
-  const MasterLiveProfileScreen({
-    super.key,
-    required this.projectCount,
-  });
-
+  const MasterLiveProfileScreen({super.key, required this.projectCount});
   final int projectCount;
 
   @override
@@ -636,13 +615,22 @@ class _MasterLiveProfileScreenState extends State<MasterLiveProfileScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(controller: name, decoration: const InputDecoration(labelText: 'Имя')),
+            TextField(
+              controller: name,
+              decoration: const InputDecoration(labelText: 'Имя'),
+            ),
             const SizedBox(height: 10),
-            TextField(controller: role, decoration: const InputDecoration(labelText: 'Роль')),
+            TextField(
+              controller: role,
+              decoration: const InputDecoration(labelText: 'Роль'),
+            ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Отмена')),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Отмена'),
+          ),
           FilledButton(
             onPressed: () => Navigator.pop(
               dialogContext,
@@ -657,8 +645,14 @@ class _MasterLiveProfileScreenState extends State<MasterLiveProfileScreen> {
     role.dispose();
     if (result == null) return;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_nameKey, result.name.isEmpty ? 'Пользователь' : result.name);
-    await prefs.setString(_roleKey, result.role.isEmpty ? 'Строитель' : result.role);
+    await prefs.setString(
+      _nameKey,
+      result.name.isEmpty ? 'Пользователь' : result.name,
+    );
+    await prefs.setString(
+      _roleKey,
+      result.role.isEmpty ? 'Строитель' : result.role,
+    );
     await _load();
   }
 
@@ -673,7 +667,7 @@ class _MasterLiveProfileScreenState extends State<MasterLiveProfileScreen> {
       context: context,
       backgroundColor: ZamerColors.background,
       showDragHandle: true,
-      builder: (sheetContext) => const SafeArea(
+      builder: (_) => const SafeArea(
         top: false,
         child: Padding(
           padding: EdgeInsets.fromLTRB(18, 0, 18, 22),
@@ -684,7 +678,7 @@ class _MasterLiveProfileScreenState extends State<MasterLiveProfileScreen> {
               Text('ZAMER PRO', style: ZamerTypography.h2),
               SizedBox(height: 8),
               Text(
-                'Платёжный контур ещё не подключён к этой тестовой сборке. '
+                'Платёжный контур ещё не подключён к этой сборке. '
                 'Функции приложения не блокируются искусственной подпиской.',
                 style: ZamerTypography.bodySmall,
               ),
@@ -697,7 +691,8 @@ class _MasterLiveProfileScreenState extends State<MasterLiveProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final initial = _name.trim().isEmpty ? 'П' : _name.trim().characters.first.toUpperCase();
+    final trimmed = _name.trim();
+    final initial = trimmed.isEmpty ? 'П' : trimmed.substring(0, 1).toUpperCase();
     return Scaffold(
       backgroundColor: ZamerColors.background,
       body: SafeArea(
@@ -738,7 +733,10 @@ class _MasterLiveProfileScreenState extends State<MasterLiveProfileScreen> {
                                 const SizedBox(height: 2),
                                 Text(_role, style: ZamerTypography.bodySmall),
                                 const SizedBox(height: 5),
-                                Text('${widget.projectCount} проектов', style: ZamerTypography.caption),
+                                Text(
+                                  '${widget.projectCount} проектов',
+                                  style: ZamerTypography.caption,
+                                ),
                               ],
                             ),
                           ),
@@ -757,19 +755,34 @@ class _MasterLiveProfileScreenState extends State<MasterLiveProfileScreen> {
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.workspace_premium_rounded, color: ZamerColors.accent, size: 34),
+                        const Icon(
+                          Icons.workspace_premium_rounded,
+                          color: ZamerColors.accent,
+                          size: 34,
+                        ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('PRO', style: ZamerTypography.h3.copyWith(color: ZamerColors.accent)),
+                              Text(
+                                'PRO',
+                                style: ZamerTypography.h3.copyWith(
+                                  color: ZamerColors.accent,
+                                ),
+                              ),
                               const SizedBox(height: 3),
-                              const Text('Подготовлено к подключению оплаты', style: ZamerTypography.caption),
+                              const Text(
+                                'Подготовлено к подключению оплаты',
+                                style: ZamerTypography.caption,
+                              ),
                             ],
                           ),
                         ),
-                        FilledButton(onPressed: _aboutPro, child: const Text('Подробнее')),
+                        FilledButton(
+                          onPressed: _aboutPro,
+                          child: const Text('Подробнее'),
+                        ),
                       ],
                     ),
                   ),
@@ -782,23 +795,25 @@ class _MasterLiveProfileScreenState extends State<MasterLiveProfileScreen> {
                       onChanged: _toggleQuality,
                       secondary: const Icon(Icons.high_quality_outlined),
                       title: const Text('Высокое качество 3D'),
-                      subtitle: const Text('Использовать Quality как основной realtime-режим'),
+                      subtitle: const Text(
+                        'Использовать Quality как основной realtime-режим',
+                      ),
                     ),
                   ),
                   const SizedBox(height: 8),
-                  const _LiveProfileRow(
+                  const _ProfileRow(
                     icon: Icons.cloud_done_outlined,
                     title: 'Хранилище проектов',
                     subtitle: 'Локальное сохранение и резервная запись включены',
                   ),
                   const SizedBox(height: 8),
-                  const _LiveProfileRow(
+                  const _ProfileRow(
                     icon: Icons.devices_outlined,
                     title: 'Устройство',
                     subtitle: 'Текущий Android-профиль',
                   ),
                   const SizedBox(height: 8),
-                  const _LiveProfileRow(
+                  const _ProfileRow(
                     icon: Icons.headset_mic_outlined,
                     title: 'Поддержка',
                     subtitle: 'Диагностика доступна из рабочих экранов',
@@ -813,8 +828,36 @@ class _MasterLiveProfileScreenState extends State<MasterLiveProfileScreen> {
   }
 }
 
-class _LiveRoomPreview extends StatelessWidget {
-  const _LiveRoomPreview({required this.path});
+class _FilterButton extends StatelessWidget {
+  const _FilterButton({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Expanded(
+        child: selected
+            ? FilledButton.icon(
+                onPressed: onTap,
+                icon: Icon(icon, size: 17),
+                label: Text(label),
+              )
+            : OutlinedButton.icon(
+                onPressed: onTap,
+                icon: Icon(icon, size: 17),
+                label: Text(label),
+              ),
+      );
+}
+
+class _RoomPreview extends StatelessWidget {
+  const _RoomPreview({required this.path});
   final String? path;
 
   @override
@@ -840,8 +883,12 @@ class _LiveRoomPreview extends StatelessWidget {
       );
 }
 
-class _LivePhotoTile extends StatelessWidget {
-  const _LivePhotoTile({required this.path, required this.roomName, required this.onDelete});
+class _PhotoTile extends StatelessWidget {
+  const _PhotoTile({
+    required this.path,
+    required this.roomName,
+    required this.onDelete,
+  });
   final String path;
   final String roomName;
   final VoidCallback onDelete;
@@ -870,7 +917,10 @@ class _LivePhotoTile extends StatelessWidget {
                   color: Colors.black.withValues(alpha: .56),
                   borderRadius: BorderRadius.circular(7),
                 ),
-                child: Text(roomName, style: ZamerTypography.caption.copyWith(color: Colors.white)),
+                child: Text(
+                  roomName,
+                  style: ZamerTypography.caption.copyWith(color: Colors.white),
+                ),
               ),
             ),
             Positioned(
@@ -887,8 +937,8 @@ class _LivePhotoTile extends StatelessWidget {
       );
 }
 
-class _LiveDocumentCard extends StatelessWidget {
-  const _LiveDocumentCard({
+class _DocumentCard extends StatelessWidget {
+  const _DocumentCard({
     required this.icon,
     required this.title,
     required this.subtitle,
@@ -931,7 +981,12 @@ class _LiveDocumentCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(99),
                       border: Border.all(color: ZamerColors.accent),
                     ),
-                    child: Text(status, style: ZamerTypography.caption.copyWith(color: ZamerColors.accent)),
+                    child: Text(
+                      status,
+                      style: ZamerTypography.caption.copyWith(
+                        color: ZamerColors.accent,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -941,8 +996,57 @@ class _LiveDocumentCard extends StatelessWidget {
       );
 }
 
-class _LiveCheckRow extends StatelessWidget {
-  const _LiveCheckRow({required this.ok, required this.icon, required this.title, required this.subtitle});
+class _ControlSummary extends StatelessWidget {
+  const _ControlSummary({required this.total, required this.critical});
+  final int total;
+  final int critical;
+
+  @override
+  Widget build(BuildContext context) {
+    final ok = critical == 0;
+    final color = ok ? ZamerColors.success : ZamerColors.warning;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .14),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 24,
+            backgroundColor: color,
+            child: Icon(
+              ok ? Icons.check_rounded : Icons.priority_high_rounded,
+              color: ZamerColors.accentInk,
+              size: 30,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(ok && total == 0 ? 'Проект проверен' : 'Нужна проверка', style: ZamerTypography.h4),
+                const SizedBox(height: 3),
+                Text('$total замечаний • $critical критичных', style: ZamerTypography.caption),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CheckRow extends StatelessWidget {
+  const _CheckRow({
+    required this.ok,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
   final bool ok;
   final IconData icon;
   final String title;
@@ -958,7 +1062,11 @@ class _LiveCheckRow extends StatelessWidget {
           CircleAvatar(
             radius: 16,
             backgroundColor: color,
-            child: Icon(ok ? Icons.check_rounded : Icons.priority_high_rounded, color: ZamerColors.accentInk, size: 19),
+            child: Icon(
+              ok ? Icons.check_rounded : Icons.priority_high_rounded,
+              color: ZamerColors.accentInk,
+              size: 19,
+            ),
           ),
           const SizedBox(width: 10),
           Container(
@@ -977,7 +1085,13 @@ class _LiveCheckRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: ZamerTypography.bodySmall.copyWith(color: ZamerColors.textPrimary, fontWeight: FontWeight.w700)),
+                Text(
+                  title,
+                  style: ZamerTypography.bodySmall.copyWith(
+                    color: ZamerColors.textPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
                 const SizedBox(height: 2),
                 Text(subtitle, style: ZamerTypography.caption),
               ],
@@ -989,8 +1103,12 @@ class _LiveCheckRow extends StatelessWidget {
   }
 }
 
-class _LiveProfileRow extends StatelessWidget {
-  const _LiveProfileRow({required this.icon, required this.title, required this.subtitle});
+class _ProfileRow extends StatelessWidget {
+  const _ProfileRow({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
   final IconData icon;
   final String title;
   final String subtitle;
@@ -1016,7 +1134,13 @@ class _LiveProfileRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: ZamerTypography.bodySmall.copyWith(color: ZamerColors.textPrimary, fontWeight: FontWeight.w700)),
+                  Text(
+                    title,
+                    style: ZamerTypography.bodySmall.copyWith(
+                      color: ZamerColors.textPrimary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                   const SizedBox(height: 2),
                   Text(subtitle, style: ZamerTypography.caption),
                 ],
@@ -1027,8 +1151,12 @@ class _LiveProfileRow extends StatelessWidget {
       );
 }
 
-class _MasterEmpty extends StatelessWidget {
-  const _MasterEmpty({required this.icon, required this.title, required this.subtitle});
+class _EmptyPanel extends StatelessWidget {
+  const _EmptyPanel({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
   final IconData icon;
   final String title;
   final String subtitle;
@@ -1043,7 +1171,11 @@ class _MasterEmpty extends StatelessWidget {
               const SizedBox(height: 8),
               Text(title, style: ZamerTypography.h4),
               const SizedBox(height: 4),
-              Text(subtitle, textAlign: TextAlign.center, style: ZamerTypography.caption),
+              Text(
+                subtitle,
+                textAlign: TextAlign.center,
+                style: ZamerTypography.caption,
+              ),
             ],
           ),
         ),
