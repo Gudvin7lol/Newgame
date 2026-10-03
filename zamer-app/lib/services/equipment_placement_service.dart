@@ -4,7 +4,7 @@ import '../models/models.dart';
 import 'geometry_service.dart';
 import 'object_catalog.dart';
 
-/// Creates real project objects from catalog items.
+/// Creates and edits real project objects from catalog items.
 ///
 /// The master catalog UI must never be a visual-only picker: every press on
 /// `+` goes through this service so the exact catalog id, dimensions and
@@ -37,6 +37,53 @@ class EquipmentPlacementService {
 
     floor.planObjects.add(object);
     return object;
+  }
+
+  static PlanObject duplicateObject({
+    required FloorPlan floor,
+    required PlanObject source,
+    String? objectId,
+    double offsetMm = 160,
+  }) {
+    final duplicate = PlanObject(
+      id: objectId ?? 'obj-${DateTime.now().microsecondsSinceEpoch}',
+      type: source.type,
+      xMm: source.xMm + offsetMm,
+      yMm: source.yMm + offsetMm,
+      widthMm: source.widthMm,
+      depthMm: source.depthMm,
+      heightMm: source.heightMm,
+      elevationMm: source.elevationMm,
+      rotationDeg: source.rotationDeg,
+      label: source.label,
+      layer: source.layer,
+      slopePct: source.slopePct,
+      catalogId: source.catalogId,
+    );
+    floor.planObjects.add(duplicate);
+    return duplicate;
+  }
+
+  static void rotateBy(PlanObject object, double deltaDeg) {
+    final raw = object.rotationDeg + deltaDeg;
+    object.rotationDeg = ((raw % 360) + 360) % 360;
+  }
+
+  static void moveBy(PlanObject object, {double dxMm = 0, double dyMm = 0}) {
+    object.xMm += dxMm;
+    object.yMm += dyMm;
+  }
+
+  static bool removeObject({
+    required FloorPlan floor,
+    required PlanObject object,
+  }) {
+    final before = floor.planObjects.length;
+    floor.planObjects.removeWhere((candidate) => candidate.id == object.id);
+    floor.electricalPoints.removeWhere(
+      (point) => point.id == 'fixture:${object.id}',
+    );
+    return floor.planObjects.length != before;
   }
 
   static math.Point<double> _defaultAnchor(FloorPlan floor) {
