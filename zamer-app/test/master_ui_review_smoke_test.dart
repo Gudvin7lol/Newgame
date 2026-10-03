@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:zamer/design_system/zamer_master_theme.dart';
-import 'package:zamer/models/models.dart';
-import 'package:zamer/screens/master_control_screen.dart';
-import 'package:zamer/screens/master_documentation_screen.dart';
-import 'package:zamer/screens/master_elevations_screen.dart';
-import 'package:zamer/screens/master_equipment_screen.dart';
-import 'package:zamer/screens/master_photo_screen.dart';
-import 'package:zamer/screens/master_profile_screen.dart';
-import 'package:zamer/screens/master_ui_preview_screen.dart';
+import 'package:zamer_app/design_system/zamer_master_theme.dart';
+import 'package:zamer_app/models/models.dart';
+import 'package:zamer_app/screens/master_control_screen.dart';
+import 'package:zamer_app/screens/master_documentation_screen.dart';
+import 'package:zamer_app/screens/master_elevations_screen.dart';
+import 'package:zamer_app/screens/master_equipment_screen.dart';
+import 'package:zamer_app/screens/master_photo_screen.dart';
+import 'package:zamer_app/screens/master_profile_screen.dart';
+import 'package:zamer_app/screens/master_ui_preview_screen.dart';
 
 Future<void> _pumpPhone(WidgetTester tester, Widget child) async {
   await tester.binding.setSurfaceSize(const Size(390, 844));
@@ -25,10 +25,6 @@ Future<void> _pumpPhone(WidgetTester tester, Widget child) async {
 }
 
 void main() {
-  tearDown(() async {
-    TestWidgetsFlutterBinding.instance.platformDispatcher.clearAllTestValues();
-  });
-
   testWidgets('master UI review launcher fits reference phone', (tester) async {
     await _pumpPhone(tester, const MasterUiPreviewScreen());
     expect(find.text('MASTER UI REVIEW'), findsOneWidget);
