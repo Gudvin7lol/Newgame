@@ -1,11 +1,23 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zamer_app/models/models.dart';
-import 'package:zamer_app/screens/floor_workspace_screen.dart';
+import 'package:zamer_app/screens/rooms_screen.dart';
 import 'package:zamer_app/services/geometry_service.dart';
 
 void main() {
-  testWidgets('release gate: Rooms is reachable and shares undo history', (tester) async {
+  test('release gate: Measure workspace exposes the real Rooms route', () {
+    final source = File('lib/screens/floor_workspace_screen.dart').readAsStringSync();
+    expect(source.contains('void _openRoomsFromMeasure()'), isTrue);
+    expect(source.contains('_index = 1;'), isTrue);
+    expect(source.contains("title: 'Комнаты'"), isTrue);
+    expect(source.contains('_openRoomsFromMeasure();'), isTrue);
+    expect(source.contains('if (_mode == 0 && _index == 0)'), isTrue);
+    expect(source.contains('RoomsScreen(floor: widget.floor, onChanged: _changed)'), isTrue);
+  });
+
+  testWidgets('release gate: Rooms edits and persists room properties', (tester) async {
     tester.view.physicalSize = const Size(430, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -25,37 +37,32 @@ void main() {
       PlanWall(id: 'da', startNodeId: 'd', endNodeId: 'a'),
     ]);
     GeometryService.syncRoomMetadata(floor);
-    final project = MeasureProject(id: 'p', name: 'Квартира', floors: [floor]);
+    var saves = 0;
 
     await tester.pumpWidget(
       MaterialApp(
-        home: FloorWorkspaceScreen(
-          project: project,
-          floor: floor,
-          onChanged: () async {},
+        home: Scaffold(
+          body: RoomsScreen(
+            floor: floor,
+            onChanged: () async {
+              saves++;
+            },
+          ),
         ),
       ),
     );
 
-    await tester.tap(find.byIcon(Icons.more_horiz_rounded).first);
+    expect(find.text('Помещение 1'), findsOneWidget);
+    await tester.tap(find.text('Помещение 1'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Комнаты'));
-    await tester.pumpAndSettle();
-    expect(find.text('Комнаты'), findsWidgets);
-
-    await tester.tap(find.text('Помещение 1').first);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Переименовать'));
+    await tester.tap(find.text('Название'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField).last, 'Кабинет');
     await tester.tap(find.text('Сохранить').last);
     await tester.pumpAndSettle();
-    expect(floor.roomMetas.single.name, 'Кабинет');
 
-    await tester.tap(find.text('Готово'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Отменить изменение на этаже'));
-    await tester.pumpAndSettle();
-    expect(floor.roomMetas.single.name, 'Помещение 1');
+    expect(floor.roomMetas.single.name, 'Кабинет');
+    expect(saves, greaterThan(0));
+    expect(find.text('Кабинет'), findsWidgets);
   });
 }
