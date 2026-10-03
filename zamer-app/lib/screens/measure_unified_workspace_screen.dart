@@ -93,7 +93,7 @@ class _MeasureUnifiedWorkspaceScreenState
   void _selectLayer(int value) {
     setState(() {
       _view = ZMeasureViewMode.twoD;
-      _layer = value.clamp(0, _layers.length - 1);
+      _layer = value.clamp(0, _layers.length - 1).toInt();
     });
   }
 
