@@ -8,16 +8,20 @@ import 'package:zamer_app/services/geometry_service.dart';
 
 void main() {
   test('release gate: Measure workspace exposes the real Rooms route', () {
-    final source = File('lib/screens/floor_workspace_screen.dart').readAsStringSync();
-    expect(source.contains('void _openRoomsFromMeasure()'), isTrue);
-    expect(source.contains('_index = 1;'), isTrue);
-    expect(source.contains("title: 'Комнаты'"), isTrue);
-    expect(source.contains('_openRoomsFromMeasure();'), isTrue);
-    expect(source.contains('if (_mode == 0 && _index == 0)'), isTrue);
-    expect(source.contains('RoomsScreen(floor: widget.floor, onChanged: _changed)'), isTrue);
+    final source =
+        File('lib/screens/floor_workspace_screen.dart').readAsStringSync();
+    expect(source.contains('Future<void> _openRooms()'), isTrue);
+    expect(source.contains("title: 'Помещения'"), isTrue);
+    expect(source.contains('_openRooms();'), isTrue);
+    expect(
+      source.contains('RoomsScreen(floor: widget.floor, onChanged: _changed)'),
+      isTrue,
+    );
   });
 
-  testWidgets('release gate: Rooms edits and persists room properties', (tester) async {
+  testWidgets('release gate: Rooms edits and persists room properties', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(430, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
