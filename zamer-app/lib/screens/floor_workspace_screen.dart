@@ -13,20 +13,15 @@ import '../services/report_service.dart';
 import '../widgets/workspace_master_header.dart';
 import '../widgets/workspace_mode_context.dart';
 import '../widgets/workspace_navigation.dart';
-import 'elevations_screen.dart';
-import 'electrical_screen.dart';
-import 'engineering_screen.dart';
 import 'floor_3d_screen.dart';
-import 'layouts_screen.dart';
+import 'layered_elevations_screen.dart';
 import 'master_equipment_screen.dart';
-import 'materials_screen.dart';
-import 'measure_concept_workspace_screen.dart';
+import 'master_profile_screen.dart';
+import 'measure_unified_workspace_screen.dart';
 import 'measurement_review_screen.dart';
 import 'photo_studio_screen.dart';
-import 'plan_editor_production_screen.dart';
 import 'plan_editor_screen.dart';
 import 'plan_geometry_tools_screen.dart';
-import 'planning_objects_screen.dart';
 import 'projects_screen.dart';
 import 'rooms_screen.dart';
 import 'scan_plan_screen.dart';
@@ -44,7 +39,8 @@ class FloorWorkspaceScreen extends StatefulWidget {
   final FloorPlan floor;
   final Future<void> Function() onChanged;
 
-  /// Master-mode index: 0 = Measure, 1 = 3D, 2 = Equipment, 3 = Elevations.
+  /// 0 = Measure, 1 = 3D, 2 = Elevations.
+  /// Legacy values above 2 are normalized to Elevations.
   final int initialMode;
 
   @override
@@ -52,35 +48,14 @@ class FloorWorkspaceScreen extends StatefulWidget {
 }
 
 class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
-  int _index = 0;
-
-  final _lastByMode = [0, 8, 9, 2];
-  static const _modeTabs = <List<int>>[
-    [0, 1],
-    [8],
-    [9, 5, 4, 6],
-    [2, 3, 7],
-  ];
-
-  int get _mode => _modeTabs.indexWhere((group) => group.contains(_index));
-
-  String get _modeLabel => switch (_mode) {
-        0 => 'ЗАМЕР 2D',
-        1 => '3D',
-        2 => 'ОСНАЩЕНИЕ',
-        _ => 'РАЗВЁРТКИ',
-      };
-
+  int _mode = 0;
   final _history = <String>[];
   int _historyIndex = 0;
 
   @override
   void initState() {
     super.initState();
-    final mode = widget.initialMode < 0
-        ? 0
-        : (widget.initialMode > 3 ? 3 : widget.initialMode);
-    _index = _lastByMode[mode];
+    _mode = widget.initialMode.clamp(0, 2);
     _history.add(jsonEncode(widget.floor.toJson()));
   }
 
@@ -113,7 +88,7 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
     if (mounted) setState(() {});
   }
 
-  Future<void> _addEquipment(ObjectCatalogItem item) async {
+  Future<PlanObject?> _addEquipment(ObjectCatalogItem item) async {
     final object = EquipmentPlacementService.addCatalogItem(
       floor: widget.floor,
       item: item,
@@ -122,69 +97,59 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
       GeometryService.syncRoomMetadata(widget.floor);
       await widget.onChanged();
       _recordHistory();
-      if (!mounted) return;
+      if (!mounted) return object;
       setState(() {});
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${item.name} добавлен и сохранён'),
-          action: SnackBarAction(
-            label: 'РАЗМЕСТИТЬ',
-            onPressed: () => setState(() {
-              _index = 5;
-              _lastByMode[2] = 5;
-            }),
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            duration: const Duration(milliseconds: 1200),
+            content: Text('${item.name} добавлен на план'),
           ),
-        ),
-      );
+        );
+      return object;
     } catch (error) {
       EquipmentPlacementService.removeObject(
         floor: widget.floor,
         object: object,
       );
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Не удалось сохранить объект: $error')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Не удалось сохранить объект: $error')),
+        );
+      }
+      return null;
     }
   }
 
   void _selectPrimaryMode(int mode) {
-    setState(() => _index = _lastByMode[mode]);
+    if (mode == _mode) return;
+    setState(() => _mode = mode.clamp(0, 2));
   }
 
-  void _selectSubpage(List<int> modeTabs, int localIndex) {
-    final page = modeTabs[localIndex];
-    setState(() {
-      _index = page;
-      _lastByMode[_mode] = page;
-    });
-  }
-
-  void _openRoomsFromMeasure() {
-    setState(() {
-      _index = 1;
-      _lastByMode[0] = 1;
-    });
-  }
-
-  void _openObjectsFromMeasure() {
-    setState(() {
-      _index = 5;
-      _lastByMode[2] = 5;
-    });
-  }
-
-  void _openCatalogFromMeasure() {
-    setState(() {
-      _index = 9;
-      _lastByMode[2] = 9;
-    });
+  Future<void> _openCatalogFromMeasure() async {
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute<void>(
+        builder: (catalogContext) => MasterEquipmentScreen(
+          projectTitle: widget.project.name,
+          onBack: () => Navigator.pop(catalogContext),
+          onAdd: (item) async {
+            final added = await _addEquipment(item);
+            if (added != null && catalogContext.mounted) {
+              Navigator.pop(catalogContext);
+            }
+          },
+        ),
+      ),
+    );
+    if (mounted) setState(() {});
   }
 
   Future<void> _openGeometryTools({
     PlanGeometryTool initialTool = PlanGeometryTool.radius,
   }) async {
-    await Navigator.push(
+    await Navigator.push<void>(
       context,
       MaterialPageRoute<void>(
         builder: (_) => PlanGeometryToolsScreen(
@@ -198,7 +163,7 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
   }
 
   Future<void> _openAdvancedEditor() async {
-    await Navigator.push(
+    await Navigator.push<void>(
       context,
       MaterialPageRoute<void>(
         builder: (_) => Scaffold(
@@ -210,51 +175,31 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
     if (mounted) setState(() {});
   }
 
-  Future<void> _selectMeasureView(ZMeasureViewMode view) async {
-    switch (view) {
-      case ZMeasureViewMode.twoD:
-        if (!_modeTabs[0].contains(_index)) {
-          setState(() => _index = _lastByMode[0]);
-        }
-      case ZMeasureViewMode.threeD:
-        await Navigator.push(
-          context,
-          MaterialPageRoute<void>(
-            builder: (_) => Scaffold(
-              appBar: AppBar(
-                title: Text('${widget.project.name} • ${widget.floor.name}'),
-              ),
-              body: Floor3DScreen(floor: widget.floor),
-            ),
-          ),
-        );
-      case ZMeasureViewMode.photo:
-        await Navigator.push(
-          context,
-          MaterialPageRoute<void>(
-            builder: (_) => PhotoStudioScreen(
-              floor: widget.floor,
-              rotation: -.65,
-              tilt: .82,
-              zoom: .92,
-              pan: Offset.zero,
-            ),
-          ),
-        );
-    }
+  Future<void> _openPhoto() async {
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => PhotoStudioScreen(
+          floor: widget.floor,
+          rotation: -.65,
+          tilt: .82,
+          zoom: .92,
+          pan: Offset.zero,
+        ),
+      ),
+    );
   }
 
   Future<void> _switchFloor(FloorPlan floor) async {
     if (floor.id == widget.floor.id || !mounted) return;
-    final mode = _mode < 0 ? 0 : _mode;
-    await Navigator.pushReplacement(
+    await Navigator.pushReplacement<void, void>(
       context,
       MaterialPageRoute<void>(
         builder: (_) => FloorWorkspaceScreen(
           project: widget.project,
           floor: floor,
           onChanged: widget.onChanged,
-          initialMode: mode,
+          initialMode: _mode,
         ),
       ),
     );
@@ -285,7 +230,7 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('Этажи', style: ZamerTypography.h3),
+              Text('Этажи проекта', style: ZamerTypography.h3),
               const SizedBox(height: 8),
               for (final floor in widget.project.floors)
                 ZActionTile(
@@ -322,25 +267,38 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
   }
 
   void _openProjects() {
-    Navigator.push(
+    Navigator.push<void>(
       context,
       MaterialPageRoute<void>(builder: (_) => const ProjectsScreen()),
     );
   }
 
-  void _openMeasurementReview() {
-    Navigator.push(
+  Future<void> _openRooms() async {
+    await Navigator.push<void>(
       context,
-      MaterialPageRoute(
+      MaterialPageRoute<void>(
+        builder: (_) => Scaffold(
+          appBar: AppBar(title: const Text('Помещения')),
+          body: RoomsScreen(floor: widget.floor, onChanged: _changed),
+        ),
+      ),
+    );
+    if (mounted) setState(() {});
+  }
+
+  void _openMeasurementReview() {
+    Navigator.push<void>(
+      context,
+      MaterialPageRoute<void>(
         builder: (_) => MeasurementReviewScreen(floor: widget.floor),
       ),
     );
   }
 
   Future<void> _scanOrImport() async {
-    await Navigator.push(
+    await Navigator.push<void>(
       context,
-      MaterialPageRoute(
+      MaterialPageRoute<void>(
         builder: (_) => ScanPlanScreen(
           floor: widget.floor,
           onChanged: _changed,
@@ -350,17 +308,24 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
     if (mounted) setState(() {});
   }
 
-  Widget _roomRequiredState(String title) {
-    return ZEmptyState(
-      icon: Icons.grid_off_outlined,
-      title: '$title пока недоступны',
-      subtitle:
-          'Сначала замкни контур помещения в «Замере». После этого рабочая область сформируется автоматически.',
-      actionLabel: 'Перейти в Замер',
-      onAction: () => setState(() {
-        _index = 0;
-        _lastByMode[0] = 0;
-      }),
+  Future<void> _openProfile() async {
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute<void>(
+        builder: (profileContext) => MasterProfileScreen(
+          project: widget.project,
+          projectCount: 1,
+          onBack: () => Navigator.pop(profileContext),
+          onOpenMeasure: () {
+            Navigator.pop(profileContext);
+            _selectPrimaryMode(0);
+          },
+          onOpenPhoto: () {
+            Navigator.pop(profileContext);
+            _openPhoto();
+          },
+        ),
+      ),
     );
   }
 
@@ -386,26 +351,35 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
             children: [
               ZActionTile(
                 icon: Icons.grid_view_outlined,
-                title: 'Комнаты',
-                subtitle: 'Названия, высоты и параметры помещений',
+                title: 'Помещения',
+                subtitle: 'Названия, высоты и параметры',
                 onTap: () {
                   Navigator.pop(sheetContext);
-                  _openRoomsFromMeasure();
+                  _openRooms();
                 },
               ),
               ZActionTile(
                 icon: Icons.layers_outlined,
-                title: 'Этажи',
-                subtitle: 'Переключить или добавить этаж',
+                title: 'Этаж',
+                subtitle: 'Переключить или добавить этаж внутри замера',
                 onTap: () {
                   Navigator.pop(sheetContext);
                   _showFloorPicker();
                 },
               ),
               ZActionTile(
+                icon: Icons.category_outlined,
+                title: 'Каталог объектов',
+                subtitle: 'Добавить модель и расставить её на плане',
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _openCatalogFromMeasure();
+                },
+              ),
+              ZActionTile(
                 icon: Icons.architecture_outlined,
                 title: 'Радиусы и узлы',
-                subtitle: 'Production-инструменты точной геометрии',
+                subtitle: 'Точная геометрия стен',
                 onTap: () {
                   Navigator.pop(sheetContext);
                   _openGeometryTools();
@@ -414,7 +388,7 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
               ZActionTile(
                 icon: Icons.tune_rounded,
                 title: 'Расширенный редактор',
-                subtitle: 'Старые дополнительные режимы до полного переноса',
+                subtitle: 'Дополнительные операции геометрии',
                 onTap: () {
                   Navigator.pop(sheetContext);
                   _openAdvancedEditor();
@@ -432,7 +406,7 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
               ZActionTile(
                 icon: Icons.picture_as_pdf_outlined,
                 title: 'PDF-отчёт',
-                subtitle: 'Рабочая документация текущего этажа',
+                subtitle: 'Документация текущего этажа',
                 onTap: () {
                   Navigator.pop(sheetContext);
                   ReportService.shareFloorPdf(widget.project, widget.floor);
@@ -447,6 +421,15 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
                   _openMeasurementReview();
                 },
               ),
+              ZActionTile(
+                icon: Icons.person_outline_rounded,
+                title: 'Профиль',
+                subtitle: 'Локальный профиль, резервная копия и настройки',
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _openProfile();
+                },
+              ),
             ],
           ),
         ),
@@ -454,152 +437,20 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _secondaryMode({
+    required String label,
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required Widget child,
+  }) {
     final roomCount = GeometryService.roomFaces(widget.floor).length;
-    final hasRooms = roomCount > 0;
-
-    if (_mode == 0 && _index == 0) {
-      return MeasureConceptWorkspaceScreen(
-        project: widget.project,
-        floor: widget.floor,
-        onChanged: _changed,
-        onUndo: _historyIndex > 0 ? () => _travel(-1) : null,
-        onRedo: _historyIndex < _history.length - 1 ? () => _travel(1) : null,
-        canUndo: _historyIndex > 0,
-        canRedo: _historyIndex < _history.length - 1,
-        onMore: _showProjectActions,
-        onOpen3D: () => _selectMeasureView(ZMeasureViewMode.threeD),
-        onOpenPhoto: () => _selectMeasureView(ZMeasureViewMode.photo),
-        onOpenObjects: _openObjectsFromMeasure,
-        onOpenReview: _openMeasurementReview,
-        onOpenGeometry: _openGeometryTools,
-        onOpenFloors: _showFloorPicker,
-        onOpenSettings: _showProjectActions,
-        onHome: _goHome,
-        onProjects: _openProjects,
-        onCatalog: _openCatalogFromMeasure,
-      );
-    }
-
-    final screens = [
-      PlanEditorProductionScreen(
-        floor: widget.floor,
-        onChanged: _changed,
-        onOpenObjects: _openObjectsFromMeasure,
-        onOpenReview: _openMeasurementReview,
-        onOpenAdvanced: _openGeometryTools,
-      ),
-      RoomsScreen(floor: widget.floor, onChanged: _changed),
-      hasRooms
-          ? ElevationsScreen(floor: widget.floor, onChanged: _changed)
-          : _roomRequiredState('Развёртки стен'),
-      hasRooms
-          ? LayoutsScreen(floor: widget.floor, onChanged: _changed)
-          : _roomRequiredState('Раскладки пола'),
-      ElectricalScreen(floor: widget.floor, onChanged: _changed),
-      PlanningObjectsScreen(floor: widget.floor, onChanged: _changed),
-      EngineeringScreen(floor: widget.floor, onChanged: _changed),
-      hasRooms
-          ? MaterialsScreen(
-              floor: widget.floor,
-              project: widget.project,
-              onChanged: _changed,
-            )
-          : _roomRequiredState('Материалы и отделка'),
-      _index == 8
-          ? Floor3DScreen(
-              key: ValueKey(
-                '3d-${widget.floor.nodes.length}-${widget.floor.walls.length}-'
-                '${widget.floor.planObjects.length}-${widget.floor.electricalPoints.length}',
-              ),
-              floor: widget.floor,
-            )
-          : const SizedBox.shrink(),
-      MasterEquipmentScreen(
-        projectTitle: widget.project.name,
-        embedded: true,
-        onAdd: _addEquipment,
-      ),
-    ];
-
-    const tabs = <(String, IconData)>[
-      ('План', Icons.architecture_outlined),
-      ('Комнаты', Icons.grid_view_outlined),
-      ('Стены', Icons.view_carousel_outlined),
-      ('Полы', Icons.grid_4x4_outlined),
-      ('Электрика', Icons.electrical_services_outlined),
-      ('Объекты', Icons.chair_alt_outlined),
-      ('Инженерия', Icons.plumbing_outlined),
-      ('Материалы', Icons.inventory_2_outlined),
-      ('3D', Icons.view_in_ar_outlined),
-      ('Каталог', Icons.category_outlined),
-    ];
-
-    final modeTabs = _modeTabs[_mode];
-    final subItems = [for (final i in modeTabs) tabs[i]];
-    final contextTitle = switch (_mode) {
-      0 => 'План и помещения',
-      1 => 'Пространственная модель',
-      2 => 'Комплектация объекта',
-      _ => 'Рабочая документация',
-    };
-    final contextSubtitle = switch (_mode) {
-      0 => 'Геометрия, параметры и состав помещений',
-      1 => 'Realtime-сцена, прогулка и фоторендер',
-      2 => 'Каталог, размещение, электрика и инженерия',
-      _ => 'Развёртки стен, раскладки пола и материалы',
-    };
-    final contextIcon = switch (_mode) {
-      0 => Icons.architecture_outlined,
-      1 => Icons.view_in_ar_outlined,
-      2 => Icons.chair_alt_outlined,
-      _ => Icons.view_carousel_outlined,
-    };
-
-    final contextMetrics = <ZWorkspaceMetric>[
-      ZWorkspaceMetric(
-        icon: tabs[_index].$2,
-        value: tabs[_index].$1,
-        emphasized: true,
-      ),
-      if (_mode == 0)
-        ZWorkspaceMetric(
-          icon: Icons.grid_view_outlined,
-          value: '$roomCount',
-          label: 'пом.',
-        ),
-      if (_mode == 1 || _mode == 3)
-        ZWorkspaceMetric(
-          icon: Icons.square_foot_outlined,
-          value: '${widget.floor.walls.length}',
-          label: 'стен',
-        ),
-      if (_mode == 3)
-        ZWorkspaceMetric(
-          icon: Icons.grid_view_outlined,
-          value: '$roomCount',
-          label: 'пом.',
-        ),
-      if (_mode == 1 || _mode == 2)
-        ZWorkspaceMetric(
-          icon: Icons.chair_alt_outlined,
-          value: '${widget.floor.planObjects.length}',
-          label: 'объектов',
-        ),
-      if (_mode == 2)
-        ZWorkspaceMetric(
-          icon: Icons.electrical_services_outlined,
-          value: '${widget.floor.electricalPoints.length}',
-          label: 'точек',
-        ),
-    ];
-
     return Scaffold(
+      backgroundColor: ZamerColors.background,
       appBar: ZWorkspaceHeader(
         projectName: widget.project.name,
         floorName: widget.floor.name,
-        modeLabel: _modeLabel,
+        modeLabel: label,
         onCheck: _openMeasurementReview,
         onUndo: _historyIndex > 0 ? () => _travel(-1) : null,
         onRedo: _historyIndex < _history.length - 1 ? () => _travel(1) : null,
@@ -610,23 +461,88 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
       body: Column(
         children: [
           ZWorkspaceContextStrip(
-            icon: contextIcon,
-            title: contextTitle,
-            subtitle: contextSubtitle,
-            metrics: contextMetrics,
+            icon: icon,
+            title: title,
+            subtitle: subtitle,
+            metrics: [
+              ZWorkspaceMetric(
+                icon: Icons.square_foot_outlined,
+                value: '${widget.floor.walls.length}',
+                label: 'стен',
+              ),
+              ZWorkspaceMetric(
+                icon: Icons.grid_view_outlined,
+                value: '$roomCount',
+                label: 'пом.',
+              ),
+              ZWorkspaceMetric(
+                icon: Icons.chair_alt_outlined,
+                value: '${widget.floor.planObjects.length}',
+                label: 'объектов',
+              ),
+            ],
           ),
-          Expanded(child: IndexedStack(index: _index, children: screens)),
-          ZWorkspaceSubnav(
-            items: subItems,
-            selectedIndex: modeTabs.indexOf(_index),
-            onSelected: (localIndex) => _selectSubpage(modeTabs, localIndex),
-          ),
+          Expanded(child: child),
           ZWorkspacePrimaryNav(
             selectedIndex: _mode,
             onSelected: _selectPrimaryMode,
             onHome: _goHome,
+            onProfile: _openProfile,
           ),
         ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_mode == 0) {
+      return MeasureUnifiedWorkspaceScreen(
+        project: widget.project,
+        floor: widget.floor,
+        onChanged: _changed,
+        onUndo: _historyIndex > 0 ? () => _travel(-1) : null,
+        onRedo: _historyIndex < _history.length - 1 ? () => _travel(1) : null,
+        canUndo: _historyIndex > 0,
+        canRedo: _historyIndex < _history.length - 1,
+        onMore: _showProjectActions,
+        onOpen3D: () => _selectPrimaryMode(1),
+        onOpenPhoto: _openPhoto,
+        onOpenReview: _openMeasurementReview,
+        onOpenGeometry: _openGeometryTools,
+        onOpenFloors: _showFloorPicker,
+        onHome: _goHome,
+        onCatalog: _openCatalogFromMeasure,
+        onProfile: _openProfile,
+        onPrimaryMode: _selectPrimaryMode,
+      );
+    }
+
+    if (_mode == 1) {
+      return _secondaryMode(
+        label: '3D',
+        title: 'Пространственная модель',
+        subtitle: 'Realtime-сцена, прогулка, разрезы и фоторендер',
+        icon: Icons.view_in_ar_outlined,
+        child: Floor3DScreen(
+          key: ValueKey(
+            '3d-${widget.floor.nodes.length}-${widget.floor.walls.length}-'
+            '${widget.floor.planObjects.length}-${widget.floor.electricalPoints.length}',
+          ),
+          floor: widget.floor,
+        ),
+      );
+    }
+
+    return _secondaryMode(
+      label: 'РАЗВЁРТКИ',
+      title: 'Рабочие развёртки',
+      subtitle: 'Проёмы, электрика, объекты, материалы и размеры по стенам',
+      icon: Icons.view_carousel_outlined,
+      child: LayeredElevationsScreen(
+        project: widget.project,
+        floor: widget.floor,
+        onChanged: _changed,
       ),
     );
   }
