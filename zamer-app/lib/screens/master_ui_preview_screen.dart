@@ -13,6 +13,7 @@ import 'master_elevations_screen.dart';
 import 'master_equipment_screen.dart';
 import 'master_photo_screen.dart';
 import 'master_profile_screen.dart';
+import 'planning_objects_screen.dart';
 
 /// Master UI connected to the same persisted project model as production.
 ///
@@ -99,7 +100,13 @@ class _MasterUiPreviewScreenState extends State<MasterUiPreviewScreen> {
       await _save();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${item.name} добавлен и сохранён')),
+        SnackBar(
+          content: Text('${item.name} добавлен и сохранён'),
+          action: SnackBarAction(
+            label: 'РАЗМЕСТИТЬ',
+            onPressed: _openPlacement,
+          ),
+        ),
       );
     } catch (error) {
       floor.planObjects.removeWhere((candidate) => candidate.id == object.id);
@@ -114,6 +121,37 @@ class _MasterUiPreviewScreenState extends State<MasterUiPreviewScreen> {
     Navigator.push<void>(
       context,
       MaterialPageRoute(builder: (_) => screen),
+    );
+  }
+
+  void _openPlacement() {
+    final project = _project;
+    if (project == null || project.floors.isEmpty || !mounted) return;
+    final floor = project.floors.first;
+    _open(
+      Scaffold(
+        backgroundColor: ZamerColors.background,
+        appBar: AppBar(
+          title: Text('${project.name} • размещение'),
+          actions: [
+            IconButton(
+              tooltip: 'Открыть 3D',
+              onPressed: () => _open(
+                Master3DScreen(
+                  floor: floor,
+                  projectTitle: project.name,
+                  onOpen2D: () => Navigator.pop(context),
+                ),
+              ),
+              icon: const Icon(Icons.view_in_ar_outlined),
+            ),
+          ],
+        ),
+        body: PlanningObjectsScreen(
+          floor: floor,
+          onChanged: _save,
+        ),
+      ),
     );
   }
 
@@ -202,7 +240,7 @@ class _MasterUiPreviewScreenState extends State<MasterUiPreviewScreen> {
             const SizedBox(height: 10),
             _PreviewTile(
               title: 'ОСНАЩЕНИЕ',
-              subtitle: 'Поиск, фильтры, добавление и сохранение в проект',
+              subtitle: 'Каталог, поиск, фильтры и сохранение объектов',
               icon: Icons.chair_alt_outlined,
               onTap: () => _open(
                 MasterEquipmentScreen(
@@ -210,6 +248,13 @@ class _MasterUiPreviewScreenState extends State<MasterUiPreviewScreen> {
                   onAdd: (item) => _addEquipment(item),
                 ),
               ),
+            ),
+            const SizedBox(height: 10),
+            _PreviewTile(
+              title: 'РАЗМЕЩЕНИЕ ОБЪЕКТОВ',
+              subtitle: 'Выбор, перетаскивание, поворот и удаление на плане',
+              icon: Icons.open_with_rounded,
+              onTap: _openPlacement,
             ),
             const SizedBox(height: 10),
             _PreviewTile(
