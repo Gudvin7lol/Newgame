@@ -18,14 +18,7 @@ class MasterEquipmentScreen extends StatefulWidget {
   final String projectTitle;
   final VoidCallback? onBack;
   final ValueChanged<ObjectCatalogItem>? onAdd;
-
-  /// Production keeps the real GLB thumbnails. Headless widget tests can turn
-  /// them off because flutter_gpu requires Impeller, which is not available in
-  /// the normal test runner.
   final bool renderModelPreviews;
-
-  /// When true the page becomes a workspace pane instead of nesting a second
-  /// Scaffold/TopBar inside the production workspace chrome.
   final bool embedded;
 
   @override
@@ -37,6 +30,7 @@ class _MasterEquipmentScreenState extends State<MasterEquipmentScreen> {
   String _category = 'Мягкая мебель';
   String _filter = 'Все';
   final Set<String> _favorites = <String>{};
+  bool _favoritesOnly = false;
 
   static const _filters = ['Все', 'Мебель', 'Сантехника', 'Освещение', 'Электрика'];
   static const _categories = <(String, IconData)>[
@@ -74,18 +68,18 @@ class _MasterEquipmentScreenState extends State<MasterEquipmentScreen> {
   bool _matchesTopFilter(ObjectCatalogItem item) {
     if (_filter == 'Все') return true;
     if (_filter == 'Мебель') {
-      return item.group != 'Сантехника' &&
-          item.group != 'Освещение' &&
-          item.group != 'Электрика';
+      return !item.group.contains('Сантех') &&
+          !item.group.contains('Освещ') &&
+          !item.group.contains('Электр');
     }
-    return item.group.contains(_filter);
+    return item.group.toLowerCase().contains(_filter.toLowerCase());
   }
 
   bool _matchesCategory(ObjectCatalogItem item) {
     if (_category == 'Разное') {
       return !_categories.take(_categories.length - 1).any(
-        (entry) => item.group == entry.$1 || item.group.contains(entry.$1),
-      );
+            (entry) => item.group == entry.$1 || item.group.contains(entry.$1),
+          );
     }
     if (_category == 'Двери и окна') {
       return item.group.contains('Двер') || item.group.contains('Окн');
@@ -98,18 +92,19 @@ class _MasterEquipmentScreenState extends State<MasterEquipmentScreen> {
 
   List<ObjectCatalogItem> get _items {
     final query = _search.text.trim().toLowerCase();
-    final categoryItems = ObjectCatalog.items.where(
-      (item) =>
-          _matchesTopFilter(item) &&
-          _matchesCategory(item) &&
-          (query.isEmpty ||
-              item.name.toLowerCase().contains(query) ||
-              item.group.toLowerCase().contains(query)),
-    );
-    final result = categoryItems.toList();
-    if (result.isNotEmpty || query.isNotEmpty) return result;
+    final items = ObjectCatalog.items.where((item) {
+      if (!_matchesTopFilter(item) || !_matchesCategory(item)) return false;
+      if (_favoritesOnly && !_favorites.contains(item.id)) return false;
+      return query.isEmpty ||
+          item.name.toLowerCase().contains(query) ||
+          item.group.toLowerCase().contains(query);
+    }).toList();
+    if (items.isNotEmpty || query.isNotEmpty || _favoritesOnly) return items;
 
-    return ObjectCatalog.items.where(_matchesTopFilter).take(12).toList();
+    return ObjectCatalog.items.where((item) {
+      if (!_matchesTopFilter(item)) return false;
+      return query.isEmpty || item.name.toLowerCase().contains(query);
+    }).take(12).toList();
   }
 
   void _add(ObjectCatalogItem item) {
@@ -119,7 +114,69 @@ class _MasterEquipmentScreenState extends State<MasterEquipmentScreen> {
       return;
     }
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('${item.name} добавлен в проект')),
+      SnackBar(content: Text('${item.name}: открой каталог из рабочего проекта для добавления')),
+    );
+  }
+
+  Future<void> _showFilters() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: ZamerColors.surface,
+      showDragHandle: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) => SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text('Фильтры каталога', style: ZamerTypography.h3),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 7,
+                  runSpacing: 7,
+                  children: [
+                    for (final label in _filters)
+                      ChoiceChip(
+                        selected: _filter == label,
+                        label: Text(label),
+                        onSelected: (_) {
+                          setState(() => _filter = label);
+                          setSheetState(() {});
+                        },
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Только избранное'),
+                  value: _favoritesOnly,
+                  onChanged: (value) {
+                    setState(() => _favoritesOnly = value);
+                    setSheetState(() {});
+                  },
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      _filter = 'Все';
+                      _favoritesOnly = false;
+                      _search.clear();
+                    });
+                    Navigator.pop(sheetContext);
+                  },
+                  icon: const Icon(Icons.restart_alt_rounded),
+                  label: const Text('Сбросить фильтры'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -129,22 +186,15 @@ class _MasterEquipmentScreenState extends State<MasterEquipmentScreen> {
             ZMasterTopBar(
               title: widget.projectTitle,
               onBack: widget.onBack ?? () => Navigator.maybePop(context),
-              onSettings: () {},
+              onSettings: _showFilters,
             ),
           Padding(
             padding: EdgeInsets.fromLTRB(16, widget.embedded ? 10 : 0, 16, 8),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Row(
-                children: [
-                  Expanded(child: Text('Оснащение', style: ZamerTypography.h2)),
-                  if (widget.embedded)
-                    Text(
-                      '${ObjectCatalog.items.length} моделей',
-                      style: ZamerTypography.caption,
-                    ),
-                ],
-              ),
+            child: Row(
+              children: [
+                Expanded(child: Text('Оснащение', style: ZamerTypography.h2)),
+                Text('${items.length} моделей', style: ZamerTypography.caption),
+              ],
             ),
           ),
           Padding(
@@ -156,9 +206,16 @@ class _MasterEquipmentScreenState extends State<MasterEquipmentScreen> {
                     height: 46,
                     child: TextField(
                       controller: _search,
-                      decoration: const InputDecoration(
-                        hintText: 'Поиск (например: диван, унитаз, дверь...)',
-                        prefixIcon: Icon(Icons.search_rounded),
+                      decoration: InputDecoration(
+                        hintText: 'Поиск (диван, унитаз, дверь...)',
+                        prefixIcon: const Icon(Icons.search_rounded),
+                        suffixIcon: _search.text.isEmpty
+                            ? null
+                            : IconButton(
+                                tooltip: 'Очистить',
+                                onPressed: _search.clear,
+                                icon: const Icon(Icons.close_rounded),
+                              ),
                       ),
                     ),
                   ),
@@ -168,9 +225,12 @@ class _MasterEquipmentScreenState extends State<MasterEquipmentScreen> {
                   width: 46,
                   height: 46,
                   child: OutlinedButton(
-                    onPressed: () {},
+                    onPressed: _showFilters,
                     style: OutlinedButton.styleFrom(padding: EdgeInsets.zero),
-                    child: const Icon(Icons.tune_rounded, size: 21),
+                    child: Badge(
+                      isLabelVisible: _favoritesOnly || _filter != 'Все',
+                      child: const Icon(Icons.tune_rounded, size: 21),
+                    ),
                   ),
                 ),
               ],
@@ -183,12 +243,11 @@ class _MasterEquipmentScreenState extends State<MasterEquipmentScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               scrollDirection: Axis.horizontal,
               itemCount: _filters.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 6),
+              separatorBuilder: (_, _) => const SizedBox(width: 6),
               itemBuilder: (_, index) {
                 final label = _filters[index];
-                final selected = label == _filter;
                 return ChoiceChip(
-                  selected: selected,
+                  selected: label == _filter,
                   label: Text(label),
                   onSelected: (_) => setState(() => _filter = label),
                 );
@@ -205,7 +264,7 @@ class _MasterEquipmentScreenState extends State<MasterEquipmentScreen> {
                   child: ListView.separated(
                     padding: const EdgeInsets.fromLTRB(10, 0, 6, 12),
                     itemCount: _categories.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 3),
+                    separatorBuilder: (_, _) => const SizedBox(height: 3),
                     itemBuilder: (_, index) {
                       final entry = _categories[index];
                       return ZMasterCategoryTile(
@@ -218,28 +277,37 @@ class _MasterEquipmentScreenState extends State<MasterEquipmentScreen> {
                   ),
                 ),
                 Expanded(
-                  child: GridView.builder(
-                    padding: const EdgeInsets.fromLTRB(2, 0, 10, 12),
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      childAspectRatio: .78,
-                      crossAxisSpacing: 7,
-                      mainAxisSpacing: 7,
-                    ),
-                    itemCount: items.length,
-                    itemBuilder: (_, index) => _EquipmentCard(
-                      item: items[index],
-                      favorite: _favorites.contains(items[index].id),
-                      renderModelPreview: widget.renderModelPreviews,
-                      onFavorite: () => setState(() {
-                        if (!_favorites.add(items[index].id)) {
-                          _favorites.remove(items[index].id);
-                        }
-                      }),
-                      onAdd: () => _add(items[index]),
-                    ),
-                  ),
+                  child: items.isEmpty
+                      ? const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(20),
+                            child: Text(
+                              'По этим фильтрам ничего не найдено',
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        )
+                      : GridView.builder(
+                          padding: const EdgeInsets.fromLTRB(2, 0, 10, 12),
+                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            childAspectRatio: .78,
+                            crossAxisSpacing: 7,
+                            mainAxisSpacing: 7,
+                          ),
+                          itemCount: items.length,
+                          itemBuilder: (_, index) => _EquipmentCard(
+                            item: items[index],
+                            favorite: _favorites.contains(items[index].id),
+                            renderModelPreview: widget.renderModelPreviews,
+                            onFavorite: () => setState(() {
+                              if (!_favorites.add(items[index].id)) {
+                                _favorites.remove(items[index].id);
+                              }
+                            }),
+                            onAdd: () => _add(items[index]),
+                          ),
+                        ),
                 ),
               ],
             ),
@@ -304,14 +372,11 @@ class _EquipmentCard extends StatelessWidget {
                       top: 2,
                       right: 2,
                       child: IconButton(
+                        tooltip: favorite ? 'Убрать из избранного' : 'В избранное',
                         onPressed: onFavorite,
                         icon: Icon(
-                          favorite
-                              ? Icons.favorite_rounded
-                              : Icons.favorite_border_rounded,
-                          color: favorite
-                              ? ZamerColors.accent
-                              : ZamerColors.textPrimary,
+                          favorite ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                          color: favorite ? ZamerColors.accent : ZamerColors.textPrimary,
                           size: 19,
                         ),
                       ),
@@ -366,17 +431,12 @@ class _EquipmentCard extends StatelessWidget {
 
 class _FallbackPreview extends StatelessWidget {
   const _FallbackPreview({required this.item});
-
   final ObjectCatalogItem item;
 
   @override
   Widget build(BuildContext context) => ColoredBox(
         color: ZamerColors.surfaceHigh,
-        child: Icon(
-          _fallbackIcon(item),
-          size: 42,
-          color: ZamerColors.textFaint,
-        ),
+        child: Icon(_fallbackIcon(item), size: 42, color: ZamerColors.textFaint),
       );
 }
 
