@@ -318,13 +318,21 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
           project: widget.project,
           projectCount: 1,
           onBack: () => Navigator.pop(profileContext),
+          onHome: () {
+            Navigator.pop(profileContext);
+            _goHome();
+          },
           onOpenMeasure: () {
             Navigator.pop(profileContext);
             _selectPrimaryMode(0);
           },
-          onOpenPhoto: () {
+          onOpen3D: () {
             Navigator.pop(profileContext);
-            _openPhoto();
+            _selectPrimaryMode(1);
+          },
+          onOpenElevations: () {
+            Navigator.pop(profileContext);
+            _selectPrimaryMode(2);
           },
         ),
       ),
