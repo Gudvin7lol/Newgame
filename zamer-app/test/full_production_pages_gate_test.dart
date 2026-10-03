@@ -5,98 +5,106 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   String source(String path) => File(path).readAsStringSync();
 
-  test('production app starts from the real Home page', () {
+  test('production app starts from the field-first Home page', () {
     final main = source('lib/main.dart');
-    expect(main.contains("import 'screens/ready_home_screen.dart';"), isTrue);
-    expect(main.contains('home: const ReadyHomeScreen()'), isTrue);
+    expect(main.contains("import 'screens/production_home_screen.dart';"), isTrue);
+    expect(main.contains('home: const ProductionHomeScreen()'), isTrue);
   });
 
-  test('Home opens every production workspace mode', () {
-    final home = source('lib/screens/ready_home_screen.dart');
+  test('Home opens Measure 3D Elevations and Profile without Floors screen', () {
+    final home = source('lib/screens/production_home_screen.dart');
     for (final route in const [
       '_openWorkspace(0)',
       '_openWorkspace(1)',
       '_openWorkspace(2)',
-      '_openWorkspace(3)',
+      '_openProfile()',
     ]) {
       expect(home.contains(route), isTrue, reason: 'Missing Home route: $route');
     }
+    expect(home.contains('FloorsScreen('), isFalse);
+    expect(home.contains("import 'floors_screen.dart';"), isFalse);
+    expect(home.contains('FloorWorkspaceScreen('), isTrue);
     for (final operation in const [
       '_createProject',
-      '_renameProject',
-      '_duplicateProject',
-      '_deleteProject',
+      '_rename(',
+      '_duplicate(',
+      '_delete(',
       '_importPlan',
       '_importBackup',
-      '_shareCurrentPdf',
+      '_sharePdf',
     ]) {
       expect(home.contains(operation), isTrue, reason: 'Missing Home operation: $operation');
     }
   });
 
-  test('workspace binds all five master pages to production screens', () {
-    final workspace = source('lib/screens/floor_workspace_screen.dart');
+  test('primary navigation is Home Measure 3D Elevations Profile', () {
     final navigation = source('lib/widgets/workspace_navigation.dart');
-
     for (final label in const [
       'Главная',
       'Замер',
       '3D',
-      'Оснащение',
       'Развёртки',
+      'Профиль',
     ]) {
       expect(
         navigation.contains("'$label'"),
         isTrue,
-        reason: 'Missing master navigation page: $label',
+        reason: 'Missing primary navigation page: $label',
       );
     }
+    expect(
+      navigation.contains("(Icons.chair_alt_outlined, 'Оснащение')"),
+      isFalse,
+      reason: 'Equipment must be a Measure layer, not a primary page',
+    );
+  });
 
+  test('Measure owns floor objects electrical engineering and materials layers', () {
+    final workspace = source('lib/screens/floor_workspace_screen.dart');
+    final measure = source('lib/screens/measure_unified_workspace_screen.dart');
+
+    expect(workspace.contains('MeasureUnifiedWorkspaceScreen('), isTrue);
+    expect(workspace.contains('MasterEquipmentScreen('), isTrue);
+    expect(workspace.contains('RoomsScreen('), isTrue);
+    expect(workspace.contains('LayeredElevationsScreen('), isTrue);
+
+    for (final label in const [
+      "('План'",
+      "('Пол'",
+      "('Объекты'",
+      "('Электрика'",
+      "('Инженерия'",
+      "('Материалы'",
+    ]) {
+      expect(measure.contains(label), isTrue, reason: 'Missing Measure layer: $label');
+    }
     for (final screen in const [
-      'MeasureConceptWorkspaceScreen(',
-      'Floor3DScreen(',
-      'MasterEquipmentScreen(',
-      'ElevationsScreen(',
-      'LayoutsScreen(',
-      'MaterialsScreen(',
+      'PlanEditorProductionScreen(',
+      'MeasureFloorPlanLayerScreen(',
       'PlanningObjectsScreen(',
       'ElectricalScreen(',
       'EngineeringScreen(',
-      'RoomsScreen(',
+      'MaterialsScreen(',
     ]) {
-      expect(
-        workspace.contains(screen),
-        isTrue,
-        reason: 'Production workspace is not wired to $screen',
-      );
+      expect(measure.contains(screen), isTrue, reason: 'Measure is not wired to $screen');
     }
+    expect(measure.contains('onPressed: widget.onCatalog'), isTrue);
   });
 
-  test('Measure exposes only working view modes and real project actions', () {
-    final measure = source('lib/screens/measure_concept_workspace_screen.dart');
+  test('Measure exposes only real view modes and project actions', () {
+    final measure = source('lib/screens/measure_unified_workspace_screen.dart');
     expect(measure.contains('ZMeasureViewMode.twoD'), isTrue);
     expect(measure.contains('ZMeasureViewMode.threeD'), isTrue);
     expect(measure.contains('ZMeasureViewMode.photo'), isTrue);
-    expect(
-      measure.contains('enabledModes: const [\n                  ZMeasureViewMode.twoD,\n                  ZMeasureViewMode.threeD,\n                  ZMeasureViewMode.photo,'),
-      isTrue,
-      reason: 'A non-working Measure view must not be enabled in release',
-    );
-    for (final action in const [
-      '_saveNow',
-      '_renameProject',
-      '_showMeasureSettings',
-      '_openMaterials',
-      'widget.onOpenObjects',
-      'widget.onOpenReview',
-      'widget.onOpenGeometry',
-      'widget.onOpenFloors',
-    ]) {
-      expect(measure.contains(action), isTrue, reason: 'Missing Measure action: $action');
-    }
+    expect(measure.contains('ZMeasureViewMode.ar'), isFalse);
+    expect(measure.contains('enabledModes: const ['), isTrue);
+    expect(measure.contains('widget.onOpenReview'), isTrue);
+    expect(measure.contains('widget.onOpenGeometry'), isTrue);
+    expect(measure.contains('widget.onOpenFloors'), isTrue);
+    expect(measure.contains('ZWorkspacePrimaryNav('), isTrue);
   });
 
-  test('3D page keeps real navigation, cutaway, walk and render controls', () {
+  test('3D keeps navigation cutaway walk and render controls', () {
     final threeD = source('lib/screens/floor_3d_screen.dart');
     for (final action in const [
       '_toggleWalk',
@@ -111,7 +119,7 @@ void main() {
     }
   });
 
-  test('Equipment page searches, filters and adds real catalog objects', () {
+  test('catalog remains a real object source for the Measure Objects layer', () {
     final equipment = source('lib/screens/master_equipment_screen.dart');
     for (final action in const [
       'ObjectCatalog.items',
@@ -121,23 +129,22 @@ void main() {
       'onAdd',
       '_add(',
     ]) {
-      expect(equipment.contains(action), isTrue, reason: 'Missing Equipment action: $action');
+      expect(equipment.contains(action), isTrue, reason: 'Missing catalog action: $action');
     }
   });
 
-  test('Elevations page edits real wall layouts and persists changes', () {
-    final elevations = source('lib/screens/elevations_screen.dart');
-    for (final action in const [
-      'GeometryService.elevationRuns',
-      '_openLargeElevation',
-      '_tileOptions',
-      'wallTileRunEnabled',
-      'wallTileRunRotated',
-      'wallTileRunMirrored',
-      'LayoutService.balanceWallTiles',
-      'widget.onChanged()',
-    ]) {
-      expect(elevations.contains(action), isTrue, reason: 'Missing Elevations action: $action');
-    }
+  test('Elevations are layered working drawings from project geometry', () {
+    final elevations = source('lib/screens/layered_elevations_screen.dart');
+    final painter = source('lib/widgets/elevation_painter.dart');
+    expect(elevations.contains('GeometryService.elevationRuns'), isTrue);
+    expect(elevations.contains("label: 'Проёмы'"), isTrue);
+    expect(elevations.contains("label: 'Электрика'"), isTrue);
+    expect(elevations.contains("label: 'Объекты'"), isTrue);
+    expect(elevations.contains("label: 'Материалы'"), isTrue);
+    expect(elevations.contains('InteractiveViewer('), isTrue);
+    expect(elevations.contains('ElevationPainter('), isTrue);
+    expect(painter.contains('_drawElectricalForEdge('), isTrue);
+    expect(painter.contains('_drawMountedObjectsForEdge('), isTrue);
+    expect(painter.contains('_drawDimensionChain('), isTrue);
   });
 }
