@@ -1,100 +1,205 @@
 import 'package:flutter/material.dart';
+import 'package:printing/printing.dart';
 
 import '../design_system/zamer_master_components.dart';
 import '../design_system/zamer_tokens.dart';
+import '../models/models.dart';
+import '../services/geometry_service.dart';
+import '../services/measurement_review_service.dart';
+import '../services/report_service.dart';
 
 class MasterDocumentationScreen extends StatefulWidget {
-  const MasterDocumentationScreen({super.key, required this.projectTitle, this.onBack});
+  const MasterDocumentationScreen({
+    super.key,
+    required this.project,
+    required this.floor,
+    this.onBack,
+    this.onOpenMeasure,
+    this.onOpenProfile,
+  });
 
-  final String projectTitle;
+  final MeasureProject project;
+  final FloorPlan floor;
   final VoidCallback? onBack;
+  final VoidCallback? onOpenMeasure;
+  final VoidCallback? onOpenProfile;
 
   @override
   State<MasterDocumentationScreen> createState() => _MasterDocumentationScreenState();
 }
 
 class _MasterDocumentationScreenState extends State<MasterDocumentationScreen> {
-  int _bottom = 2;
+  bool _building = false;
+  String? _lastError;
+
+  Future<void> _share() async {
+    if (_building) return;
+    setState(() {
+      _building = true;
+      _lastError = null;
+    });
+    try {
+      await ReportService.shareFloorPdf(widget.project, widget.floor);
+    } catch (error) {
+      if (mounted) setState(() => _lastError = '$error');
+    } finally {
+      if (mounted) setState(() => _building = false);
+    }
+  }
+
+  Future<void> _preview() async {
+    if (_building) return;
+    setState(() {
+      _building = true;
+      _lastError = null;
+    });
+    try {
+      final bytes = await ReportService.buildFloorPdf(widget.project, widget.floor);
+      if (!mounted) return;
+      final safe = '${widget.project.name}_${widget.floor.name}'.replaceAll(
+        RegExp(r'[^a-zA-Zа-яА-Я0-9_-]+'),
+        '_',
+      );
+      await Printing.layoutPdf(
+        name: 'Замер_$safe.pdf',
+        onLayout: (_) async => bytes,
+      );
+    } catch (error) {
+      if (mounted) setState(() => _lastError = '$error');
+    } finally {
+      if (mounted) setState(() => _building = false);
+    }
+  }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-        backgroundColor: ZamerColors.background,
-        body: SafeArea(
-          child: Column(
-            children: [
-              ZMasterTopBar(
-                title: 'Документация',
-                onBack: widget.onBack ?? () => Navigator.maybePop(context),
-                trailing: IconButton(onPressed: () {}, icon: const Icon(Icons.more_horiz_rounded)),
-              ),
-              Expanded(
-                child: ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 18),
-                  children: [
-                    Text(widget.projectTitle, style: ZamerTypography.h2),
-                    const SizedBox(height: 5),
-                    Text('3 комнаты  •  82.6 м²  •  Обновлено 12.03.2024', style: ZamerTypography.bodySmall),
-                    const SizedBox(height: 14),
-                    const _DocumentCard(
-                      icon: Icons.architecture_outlined,
-                      title: 'План 2D',
-                      subtitle: 'Обмерный план\nс размерами',
-                      status: 'Готов',
-                      tone: 0,
-                    ),
-                    const SizedBox(height: 8),
-                    const _DocumentCard(
-                      icon: Icons.view_in_ar_outlined,
-                      title: '3D виды',
-                      subtitle: 'Визуализации\nпомещений',
-                      status: 'Готово',
-                      tone: 1,
-                    ),
-                    const SizedBox(height: 8),
-                    const _DocumentCard(
-                      icon: Icons.view_carousel_outlined,
-                      title: 'Развёртки',
-                      subtitle: 'Развёртки стен\nвсех помещений',
-                      status: '6 / 6',
-                      tone: 2,
-                    ),
-                    const SizedBox(height: 8),
-                    const _DocumentCard(
-                      icon: Icons.table_chart_outlined,
-                      title: 'Спецификация',
-                      subtitle: 'Ведомость материалов\nи оборудования',
-                      status: 'Готово',
-                      tone: 3,
-                    ),
-                    const SizedBox(height: 14),
-                    SizedBox(
-                      height: 54,
-                      child: FilledButton.icon(
-                        onPressed: () {},
-                        icon: const Icon(Icons.description_outlined),
-                        label: const Text('Собрать PDF-комплект'),
+  Widget build(BuildContext context) {
+    GeometryService.syncRoomMetadata(widget.floor);
+    final faces = GeometryService.roomFaces(widget.floor);
+    final totalArea = faces.fold<double>(0, (sum, face) => sum + face.areaM2);
+    final issues = MeasurementReviewService.review(widget.floor);
+    final hasPlan = widget.floor.walls.isNotEmpty;
+    final has3D = widget.floor.walls.isNotEmpty || widget.floor.planObjects.isNotEmpty;
+    final hasElevations = faces.isNotEmpty;
+    final hasSpecification = widget.floor.planObjects.isNotEmpty || faces.isNotEmpty;
+
+    return Scaffold(
+      backgroundColor: ZamerColors.background,
+      body: SafeArea(
+        child: Column(
+          children: [
+            ZMasterTopBar(
+              title: 'Документация',
+              onBack: widget.onBack ?? () => Navigator.maybePop(context),
+              trailing: _building
+                  ? const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2),
                       ),
-                    ),
-                    const SizedBox(height: 10),
-                    SizedBox(
-                      height: 52,
-                      child: OutlinedButton.icon(
-                        onPressed: () {},
-                        icon: const Icon(Icons.visibility_outlined),
-                        label: const Text('Предпросмотр'),
+                    )
+                  : null,
+            ),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 18),
+                children: [
+                  Text(widget.project.name, style: ZamerTypography.h2),
+                  const SizedBox(height: 5),
+                  Text(
+                    '${faces.length} помещ.  •  ${totalArea.toStringAsFixed(1)} м²  •  ${widget.floor.name}',
+                    style: ZamerTypography.bodySmall,
+                  ),
+                  if (issues.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: ZamerColors.warning.withValues(alpha: .12),
+                        borderRadius: BorderRadius.circular(9),
+                        border: Border.all(color: ZamerColors.warning.withValues(alpha: .45)),
+                      ),
+                      child: Text(
+                        'В контроль попадут ${issues.length} замечаний по обмеру',
+                        style: ZamerTypography.caption.copyWith(color: ZamerColors.warning),
                       ),
                     ),
                   ],
-                ),
+                  if (_lastError != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      'Ошибка PDF: $_lastError',
+                      style: ZamerTypography.caption.copyWith(color: ZamerColors.danger),
+                    ),
+                  ],
+                  const SizedBox(height: 14),
+                  _DocumentCard(
+                    icon: Icons.architecture_outlined,
+                    title: 'План 2D',
+                    subtitle: 'Обмерный план\nс размерами',
+                    ready: hasPlan,
+                    status: hasPlan ? '${widget.floor.walls.length} стен' : 'Нет плана',
+                    tone: 0,
+                  ),
+                  const SizedBox(height: 8),
+                  _DocumentCard(
+                    icon: Icons.view_in_ar_outlined,
+                    title: '3D данные',
+                    subtitle: 'Геометрия и\nоснащение',
+                    ready: has3D,
+                    status: has3D ? '${widget.floor.planObjects.length} объектов' : 'Нет данных',
+                    tone: 1,
+                  ),
+                  const SizedBox(height: 8),
+                  _DocumentCard(
+                    icon: Icons.view_carousel_outlined,
+                    title: 'Развёртки',
+                    subtitle: 'Развёртки стен\nвсех помещений',
+                    ready: hasElevations,
+                    status: hasElevations ? '${faces.length} помещ.' : 'Нет помещений',
+                    tone: 2,
+                  ),
+                  const SizedBox(height: 8),
+                  _DocumentCard(
+                    icon: Icons.table_chart_outlined,
+                    title: 'Спецификация',
+                    subtitle: 'Материалы и\nоборудование',
+                    ready: hasSpecification,
+                    status: hasSpecification ? 'Рассчитывается из проекта' : 'Нет данных',
+                    tone: 3,
+                  ),
+                  const SizedBox(height: 14),
+                  SizedBox(
+                    height: 54,
+                    child: FilledButton.icon(
+                      onPressed: _building || !hasPlan ? null : _share,
+                      icon: const Icon(Icons.description_outlined),
+                      label: Text(_building ? 'Собираю комплект…' : 'Собрать PDF-комплект'),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    height: 52,
+                    child: OutlinedButton.icon(
+                      onPressed: _building || !hasPlan ? null : _preview,
+                      icon: const Icon(Icons.visibility_outlined),
+                      label: const Text('Предпросмотр'),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
-        bottomNavigationBar: _BottomNav(
-          selected: _bottom,
-          onSelected: (index) => setState(() => _bottom = index),
-        ),
-      );
+      ),
+      bottomNavigationBar: _BottomNav(
+        onProject: widget.onBack ?? () => Navigator.maybePop(context),
+        onMeasure: widget.onOpenMeasure,
+        onProfile: widget.onOpenProfile,
+      ),
+    );
+  }
 }
 
 class _DocumentCard extends StatelessWidget {
@@ -102,6 +207,7 @@ class _DocumentCard extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.subtitle,
+    required this.ready,
     required this.status,
     required this.tone,
   });
@@ -109,6 +215,7 @@ class _DocumentCard extends StatelessWidget {
   final IconData icon;
   final String title;
   final String subtitle;
+  final bool ready;
   final String status;
   final int tone;
 
@@ -128,9 +235,7 @@ class _DocumentCard extends StatelessWidget {
               child: Stack(
                 children: [
                   Center(child: Icon(icon, size: 42, color: ZamerColors.textMuted)),
-                  Positioned.fill(
-                    child: CustomPaint(painter: _PreviewLines(tone: tone)),
-                  ),
+                  Positioned.fill(child: CustomPaint(painter: _PreviewLines(tone: tone))),
                 ],
               ),
             ),
@@ -146,18 +251,14 @@ class _DocumentCard extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: status.contains('/')
-                          ? ZamerColors.accent.withValues(alpha: .14)
-                          : ZamerColors.success.withValues(alpha: .16),
+                      color: (ready ? ZamerColors.success : ZamerColors.warning).withValues(alpha: .14),
                       borderRadius: BorderRadius.circular(99),
-                      border: Border.all(
-                        color: status.contains('/') ? ZamerColors.accent : ZamerColors.success,
-                      ),
+                      border: Border.all(color: ready ? ZamerColors.success : ZamerColors.warning),
                     ),
                     child: Text(
                       status,
                       style: ZamerTypography.caption.copyWith(
-                        color: status.contains('/') ? ZamerColors.accent : ZamerColors.success,
+                        color: ready ? ZamerColors.success : ZamerColors.warning,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -172,9 +273,11 @@ class _DocumentCard extends StatelessWidget {
 }
 
 class _BottomNav extends StatelessWidget {
-  const _BottomNav({required this.selected, required this.onSelected});
-  final int selected;
-  final ValueChanged<int> onSelected;
+  const _BottomNav({this.onProject, this.onMeasure, this.onProfile});
+
+  final VoidCallback? onProject;
+  final VoidCallback? onMeasure;
+  final VoidCallback? onProfile;
 
   @override
   Widget build(BuildContext context) => SafeArea(
@@ -187,10 +290,10 @@ class _BottomNav extends StatelessWidget {
           ),
           child: Row(
             children: [
-              _NavItem(icon: Icons.home_outlined, label: 'Проект', selected: selected == 0, onTap: () => onSelected(0)),
-              _NavItem(icon: Icons.straighten_outlined, label: 'Замер', selected: selected == 1, onTap: () => onSelected(1)),
-              _NavItem(icon: Icons.description_outlined, label: 'Документы', selected: selected == 2, onTap: () => onSelected(2)),
-              _NavItem(icon: Icons.person_outline_rounded, label: 'Профиль', selected: selected == 3, onTap: () => onSelected(3)),
+              _NavItem(icon: Icons.home_outlined, label: 'Проект', selected: false, onTap: onProject),
+              _NavItem(icon: Icons.straighten_outlined, label: 'Замер', selected: false, onTap: onMeasure),
+              const _NavItem(icon: Icons.description_outlined, label: 'Документы', selected: true),
+              _NavItem(icon: Icons.person_outline_rounded, label: 'Профиль', selected: false, onTap: onProfile),
             ],
           ),
         ),
@@ -198,29 +301,43 @@ class _BottomNav extends StatelessWidget {
 }
 
 class _NavItem extends StatelessWidget {
-  const _NavItem({required this.icon, required this.label, required this.selected, required this.onTap});
+  const _NavItem({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    this.onTap,
+  });
+
   final IconData icon;
   final String label;
   final bool selected;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) => Expanded(
         child: InkWell(
           onTap: onTap,
-          child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 7),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(10),
-              border: selected ? Border.all(color: ZamerColors.accent) : null,
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon, size: 22, color: selected ? ZamerColors.accent : ZamerColors.textPrimary),
-                const SizedBox(height: 3),
-                Text(label, style: ZamerTypography.caption.copyWith(color: selected ? ZamerColors.accent : ZamerColors.textSecondary)),
-              ],
+          child: Opacity(
+            opacity: onTap == null && !selected ? .45 : 1,
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 7),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(10),
+                border: selected ? Border.all(color: ZamerColors.accent) : null,
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(icon, size: 22, color: selected ? ZamerColors.accent : ZamerColors.textPrimary),
+                  const SizedBox(height: 3),
+                  Text(
+                    label,
+                    style: ZamerTypography.caption.copyWith(
+                      color: selected ? ZamerColors.accent : ZamerColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -233,16 +350,14 @@ class _PreviewLines extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final p = Paint()
-      ..color = (tone.isEven ? ZamerColors.textMuted : ZamerColors.accent).withValues(alpha: .32)
+    final paint = Paint()
+      ..color = tone.isEven
+          ? ZamerColors.textFaint.withValues(alpha: .22)
+          : ZamerColors.accent.withValues(alpha: .18)
       ..strokeWidth = 1;
     for (var i = 1; i < 5; i++) {
       final y = size.height * i / 6;
-      canvas.drawLine(Offset(10, y), Offset(size.width - 10, y), p);
-    }
-    for (var i = 1; i < 4; i++) {
-      final x = size.width * i / 4;
-      canvas.drawLine(Offset(x, 10), Offset(x, size.height - 10), p);
+      canvas.drawLine(Offset(12, y), Offset(size.width - 12, y), paint);
     }
   }
 
