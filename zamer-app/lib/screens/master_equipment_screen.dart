@@ -11,11 +11,17 @@ class MasterEquipmentScreen extends StatefulWidget {
     required this.projectTitle,
     this.onBack,
     this.onAdd,
+    this.renderModelPreviews = true,
   });
 
   final String projectTitle;
   final VoidCallback? onBack;
   final ValueChanged<ObjectCatalogItem>? onAdd;
+
+  /// Production keeps the real GLB thumbnails. Headless widget tests can turn
+  /// them off because flutter_gpu requires Impeller, which is not available in
+  /// the normal test runner.
+  final bool renderModelPreviews;
 
   @override
   State<MasterEquipmentScreen> createState() => _MasterEquipmentScreenState();
@@ -87,18 +93,17 @@ class _MasterEquipmentScreenState extends State<MasterEquipmentScreen> {
 
   List<ObjectCatalogItem> get _items {
     final query = _search.text.trim().toLowerCase();
-    final categoryItems = ObjectCatalog.items.where((item) =>
-        _matchesTopFilter(item) &&
-        _matchesCategory(item) &&
-        (query.isEmpty ||
-            item.name.toLowerCase().contains(query) ||
-            item.group.toLowerCase().contains(query)));
+    final categoryItems = ObjectCatalog.items.where(
+      (item) =>
+          _matchesTopFilter(item) &&
+          _matchesCategory(item) &&
+          (query.isEmpty ||
+              item.name.toLowerCase().contains(query) ||
+              item.group.toLowerCase().contains(query)),
+    );
     final result = categoryItems.toList();
     if (result.isNotEmpty || query.isNotEmpty) return result;
 
-    // The master board always keeps the catalogue visually populated. When a
-    // legacy group name differs, show the closest filtered items instead of an
-    // empty black rectangle.
     return ObjectCatalog.items.where(_matchesTopFilter).take(12).toList();
   }
 
@@ -206,7 +211,8 @@ class _MasterEquipmentScreenState extends State<MasterEquipmentScreen> {
                   Expanded(
                     child: GridView.builder(
                       padding: const EdgeInsets.fromLTRB(2, 0, 10, 12),
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: 2,
                         childAspectRatio: .78,
                         crossAxisSpacing: 7,
@@ -216,6 +222,7 @@ class _MasterEquipmentScreenState extends State<MasterEquipmentScreen> {
                       itemBuilder: (_, index) => _EquipmentCard(
                         item: items[index],
                         favorite: _favorites.contains(items[index].id),
+                        renderModelPreview: widget.renderModelPreviews,
                         onFavorite: () => setState(() {
                           if (!_favorites.add(items[index].id)) {
                             _favorites.remove(items[index].id);
@@ -239,12 +246,14 @@ class _EquipmentCard extends StatelessWidget {
   const _EquipmentCard({
     required this.item,
     required this.favorite,
+    required this.renderModelPreview,
     required this.onFavorite,
     required this.onAdd,
   });
 
   final ObjectCatalogItem item;
   final bool favorite;
+  final bool renderModelPreview;
   final VoidCallback onFavorite;
   final VoidCallback onAdd;
 
@@ -265,18 +274,14 @@ class _EquipmentCard extends StatelessWidget {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    ZamerModelThumbnail(
-                      catalogId: item.id,
-                      size: 180,
-                      fallback: ColoredBox(
-                        color: ZamerColors.surfaceHigh,
-                        child: Icon(
-                          _fallbackIcon(item),
-                          size: 42,
-                          color: ZamerColors.textFaint,
-                        ),
-                      ),
-                    ),
+                    if (renderModelPreview)
+                      ZamerModelThumbnail(
+                        catalogId: item.id,
+                        size: 180,
+                        fallback: _FallbackPreview(item: item),
+                      )
+                    else
+                      _FallbackPreview(item: item),
                     Positioned(
                       top: 2,
                       right: 2,
@@ -339,14 +344,30 @@ class _EquipmentCard extends StatelessWidget {
           ),
         ),
       );
+}
 
-  IconData _fallbackIcon(ObjectCatalogItem item) {
-    final group = item.group.toLowerCase();
-    if (group.contains('сантех')) return Icons.plumbing_outlined;
-    if (group.contains('кух')) return Icons.kitchen_outlined;
-    if (group.contains('кров')) return Icons.bed_outlined;
-    if (group.contains('освещ')) return Icons.lightbulb_outline_rounded;
-    if (group.contains('двер')) return Icons.door_front_door_outlined;
-    return Icons.chair_alt_outlined;
-  }
+class _FallbackPreview extends StatelessWidget {
+  const _FallbackPreview({required this.item});
+
+  final ObjectCatalogItem item;
+
+  @override
+  Widget build(BuildContext context) => ColoredBox(
+        color: ZamerColors.surfaceHigh,
+        child: Icon(
+          _fallbackIcon(item),
+          size: 42,
+          color: ZamerColors.textFaint,
+        ),
+      );
+}
+
+IconData _fallbackIcon(ObjectCatalogItem item) {
+  final group = item.group.toLowerCase();
+  if (group.contains('сантех')) return Icons.plumbing_outlined;
+  if (group.contains('кух')) return Icons.kitchen_outlined;
+  if (group.contains('кров')) return Icons.bed_outlined;
+  if (group.contains('освещ')) return Icons.lightbulb_outline_rounded;
+  if (group.contains('двер')) return Icons.door_front_door_outlined;
+  return Icons.chair_alt_outlined;
 }
