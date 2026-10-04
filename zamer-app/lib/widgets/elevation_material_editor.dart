@@ -65,7 +65,8 @@ class ElevationMaterialEditor extends StatelessWidget {
                       _MaterialList(
                         presets: wallPresets,
                         selectedId: settings.wallMaterialId,
-                        note: 'Базовая отделка применяется ко всем неплиточным стенам помещения.',
+                        note:
+                            'Базовая отделка применяется ко всем неплиточным стенам помещения.',
                         onPick: (preset) async {
                           settings.wallMaterialId = preset.id;
                           settings.wallTileRunEnabled[run.id] = false;
@@ -76,12 +77,14 @@ class ElevationMaterialEditor extends StatelessWidget {
                       _MaterialList(
                         presets: tilePresets,
                         selectedId: settings.wallTileMaterialId,
-                        note: 'Плитка включается только на выбранной стене. Размер и раскладка настраиваются отдельно.',
+                        note:
+                            'Плитка включается только на выбранной стене. Размер и раскладка настраиваются отдельно.',
                         onPick: (preset) async {
                           settings.wallTileMaterialId = preset.id;
                           settings.wallTileRunEnabled[run.id] = true;
-                          settings.wallTileToMm =
-                              settings.wallTileToMm.clamp(0.0, heightMm).toDouble();
+                          settings.wallTileToMm = settings.wallTileToMm
+                              .clamp(0.0, heightMm)
+                              .toDouble();
                           await onChanged();
                           if (sheetContext.mounted) Navigator.pop(sheetContext);
                         },
@@ -149,23 +152,17 @@ class ElevationMaterialEditor extends StatelessWidget {
       builder: (sheetContext) => StatefulBuilder(
         builder: (context, setSheetState) {
           Future<void> edit(String field) async {
-            double current;
-            String title;
-            switch (field) {
-              case 'w':
-                current = settings.wallTileWidthMm;
-                title = 'Ширина плитки';
-              case 'h':
-                current = settings.wallTileHeightMm;
-                title = 'Высота плитки';
-              case 'from':
-                current = settings.wallTileFromMm;
-                title = 'Плитка от пола';
-              default:
-                current = settings.wallTileToMm;
-                title = 'Плитка до высоты';
-            }
-            final value = await _number(context, title, current);
+            final descriptor = switch (field) {
+              'w' => (settings.wallTileWidthMm, 'Ширина плитки'),
+              'h' => (settings.wallTileHeightMm, 'Высота плитки'),
+              'from' => (settings.wallTileFromMm, 'Плитка от пола'),
+              _ => (settings.wallTileToMm, 'Плитка до высоты'),
+            };
+            final value = await _number(
+              context,
+              descriptor.$2,
+              descriptor.$1,
+            );
             if (value == null || !value.isFinite) return;
             if ((field == 'w' || field == 'h') &&
                 (value < 20 || value > 10000)) {
