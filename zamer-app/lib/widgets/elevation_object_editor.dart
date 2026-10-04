@@ -5,7 +5,7 @@ import '../models/models.dart';
 import '../services/equipment_placement_service.dart';
 import '../services/object_catalog.dart';
 
-/// Edits real wall-mounted project objects from the selected elevation.
+/// Edits real wall-bound project objects from the selected elevation.
 ///
 /// The object remains the same [PlanObject] used by Measure and 3D. Exact wall
 /// placement is delegated to [EquipmentPlacementService], which also keeps a
@@ -31,7 +31,9 @@ class ElevationObjectEditor extends StatelessWidget {
         continue;
       }
       final item = ObjectCatalog.byId(object.catalogId);
-      if (item.mount != CatalogMount.wall) continue;
+      final wallBound =
+          item.mount == CatalogMount.wall || object.type == PlanObjectType.radiator;
+      if (!wallBound) continue;
       final mount = EquipmentPlacementService.wallMountForObject(
         floor: floor,
         object: object,
@@ -198,7 +200,9 @@ class ElevationObjectEditor extends StatelessWidget {
             avatar: Icon(
               object.type == PlanObjectType.lighting
                   ? Icons.light_outlined
-                  : Icons.inventory_2_outlined,
+                  : object.type == PlanObjectType.radiator
+                      ? Icons.heat_pump_outlined
+                      : Icons.inventory_2_outlined,
               size: 16,
             ),
             label: Text(
