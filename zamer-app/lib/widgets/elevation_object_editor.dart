@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../design_system/zamer_tokens.dart';
 import '../models/models.dart';
 import '../services/equipment_placement_service.dart';
+import '../services/geometry_service.dart';
 import '../services/object_catalog.dart';
 
 /// Edits real wall-bound project objects from the selected elevation.
