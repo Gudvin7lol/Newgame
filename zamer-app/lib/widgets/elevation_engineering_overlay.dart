@@ -102,6 +102,7 @@ class ElevationEngineeringOverlayPainter extends CustomPainter {
     );
     return _ProjectedServicePoint(
       x: rect.left + totalOffset * scale,
+      offsetMm: totalOffset.clamp(0.0, run.lengthMm).toDouble(),
       rect: rect,
       scale: scale,
     );
@@ -150,7 +151,7 @@ class ElevationEngineeringOverlayPainter extends CustomPainter {
         _badge(
           canvas,
           Offset(center.dx, center.dy - 17),
-          '${_short(service.type)} +${level.round()}',
+          '${_short(service.type)} ${projected.offsetMm.round()} / +${level.round()}',
           color,
         );
         previous = projected;
@@ -200,11 +201,13 @@ class ElevationEngineeringOverlayPainter extends CustomPainter {
 class _ProjectedServicePoint {
   const _ProjectedServicePoint({
     required this.x,
+    required this.offsetMm,
     required this.rect,
     required this.scale,
   });
 
   final double x;
+  final double offsetMm;
   final Rect rect;
   final double scale;
 }
