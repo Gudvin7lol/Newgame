@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 import '../design_system/zamer_measure_chrome.dart';
 import '../design_system/zamer_tokens.dart';
 import '../models/models.dart';
+import '../services/equipment_placement_service.dart';
 import '../widgets/workspace_master_header.dart';
 import '../widgets/workspace_mode_context.dart';
 import '../widgets/workspace_navigation.dart';
 import 'electrical_screen.dart';
 import 'engineering_screen.dart';
+import 'master_equipment_screen.dart';
 import 'materials_screen.dart';
 import 'measure_floor_plan_layer_screen.dart';
 import 'plan_editor_production_screen.dart';
@@ -95,6 +97,61 @@ class _MeasureUnifiedWorkspaceScreenState
       _view = ZMeasureViewMode.twoD;
       _layer = value.clamp(0, _layers.length - 1).toInt();
     });
+  }
+
+  Future<void> _openCatalogSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: ZamerColors.background,
+      barrierColor: Colors.black.withValues(alpha: .72),
+      builder: (sheetContext) => FractionallySizedBox(
+        heightFactor: .88,
+        child: MasterEquipmentScreen(
+          projectTitle: widget.project.name,
+          embedded: true,
+          onAdd: (item) {
+            () async {
+              final object = EquipmentPlacementService.addCatalogItem(
+                floor: widget.floor,
+                item: item,
+              );
+              try {
+                await widget.onChanged();
+                if (!mounted) return;
+                setState(() {
+                  _view = ZMeasureViewMode.twoD;
+                  _layer = 2;
+                });
+                if (sheetContext.mounted) Navigator.pop(sheetContext);
+                ScaffoldMessenger.of(context)
+                  ..hideCurrentSnackBar()
+                  ..showSnackBar(
+                    SnackBar(
+                      duration: const Duration(milliseconds: 1200),
+                      content: Text(
+                        '${item.name} добавлен. Перемещай и вращай его прямо на плане.',
+                      ),
+                    ),
+                  );
+              } catch (error) {
+                EquipmentPlacementService.removeObject(
+                  floor: widget.floor,
+                  object: object,
+                );
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Не удалось добавить объект: $error')),
+                  );
+                }
+              }
+            }();
+          },
+        ),
+      ),
+    );
+    if (mounted) setState(() {});
   }
 
   @override
@@ -191,7 +248,7 @@ class _MeasureUnifiedWorkspaceScreenState
                 if (_layer == 2) ...[
                   const SizedBox(width: 8),
                   FilledButton.tonalIcon(
-                    onPressed: widget.onCatalog,
+                    onPressed: _openCatalogSheet,
                     icon: const Icon(Icons.add_rounded, size: 18),
                     label: const Text('Каталог'),
                   ),
