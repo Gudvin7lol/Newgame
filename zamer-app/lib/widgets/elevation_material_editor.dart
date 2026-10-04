@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../design_system/zamer_tokens.dart';
 import '../models/models.dart';
+import '../services/geometry_service.dart';
 import '../services/material_catalog.dart';
 
 /// Edits the finish visible on one elevation without leaving the drawing.
