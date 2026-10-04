@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../design_system/zamer_tokens.dart';
 import '../models/models.dart';
 import '../services/equipment_placement_service.dart';
+import '../services/geometry_service.dart';
 import 'cad_plan_painter.dart';
 
 enum MeasureSharedLayer { objects, electrical, engineering }
@@ -72,6 +73,8 @@ class _MeasureSharedLayerCanvasState extends State<MeasureSharedLayerCanvas> {
     return null;
   }
 
+  bool _isFixture(ElectricalPoint point) => point.id.startsWith('fixture:');
+
   @override
   void dispose() {
     _transform.dispose();
@@ -123,12 +126,12 @@ class _MeasureSharedLayerCanvasState extends State<MeasureSharedLayerCanvas> {
 
   PlanObject? _objectNear(math.Point<double> p) {
     PlanObject? best;
-    var bestDistance = 340.0;
+    var bestScore = double.infinity;
     for (final object in widget.floor.planObjects.reversed) {
       final dx = object.xMm - p.x;
       final dy = object.yMm - p.y;
       final distance = math.sqrt(dx * dx + dy * dy);
-      final hitRadius = math.max(
+      final radius = math.max(
         180.0,
         math.sqrt(
               object.widthMm * object.widthMm +
@@ -136,9 +139,9 @@ class _MeasureSharedLayerCanvasState extends State<MeasureSharedLayerCanvas> {
             ) /
             2,
       );
-      if (distance <= hitRadius + 100 && distance < bestDistance + hitRadius) {
+      if (distance <= radius + 100 && distance < bestScore) {
+        bestScore = distance;
         best = object;
-        bestDistance = distance;
       }
     }
     return best;
@@ -180,22 +183,42 @@ class _MeasureSharedLayerCanvasState extends State<MeasureSharedLayerCanvas> {
   void _tap(TapUpDetails details) {
     final mm = _toMm(details.localPosition);
     setState(() {
-      switch (widget.layer) {
-        case MeasureSharedLayer.objects:
-          _selectedObjectId = _objectNear(mm)?.id;
-        case MeasureSharedLayer.electrical:
-          _selectedElectricalId = _electricalNear(mm)?.id;
-        case MeasureSharedLayer.engineering:
-          final hit = _serviceVertexNear(mm);
-          _selectedRunId = hit?.run.id;
-          _selectedRunVertex = hit?.index;
+      if (widget.layer == MeasureSharedLayer.objects) {
+        _selectedObjectId = _objectNear(mm)?.id;
+      } else if (widget.layer == MeasureSharedLayer.electrical) {
+        _selectedElectricalId = _electricalNear(mm)?.id;
+      } else {
+        final hit = _serviceVertexNear(mm);
+        _selectedRunId = hit?.run.id;
+        _selectedRunVertex = hit?.index;
       }
+    });
+  }
+
+  void _clearSelection() {
+    setState(() {
+      _selectedObjectId = null;
+      _selectedElectricalId = null;
+      _selectedRunId = null;
+      _selectedRunVertex = null;
+      _lastDragMm = null;
     });
   }
 
   void _dragStart(DragStartDetails details) {
     _dragDirty = false;
-    _lastDragMm = _toMm(details.localPosition);
+    final current = _toMm(details.localPosition);
+    final canGrab = switch (widget.layer) {
+      MeasureSharedLayer.objects => _objectNear(current)?.id == _selectedObjectId,
+      MeasureSharedLayer.electrical =>
+        _selectedElectrical != null &&
+            !_isFixture(_selectedElectrical!) &&
+            _electricalNear(current)?.id == _selectedElectricalId,
+      MeasureSharedLayer.engineering =>
+        _serviceVertexNear(current)?.run.id == _selectedRunId &&
+            _serviceVertexNear(current)?.index == _selectedRunVertex,
+    };
+    _lastDragMm = canGrab ? current : null;
   }
 
   void _dragUpdate(DragUpdateDetails details) {
@@ -222,11 +245,8 @@ class _MeasureSharedLayerCanvasState extends State<MeasureSharedLayerCanvas> {
 
     if (widget.layer == MeasureSharedLayer.electrical) {
       final point = _selectedElectrical;
-      if (point == null) return;
-      point.xMm += dx;
-      point.yMm += dy;
-      point.wallId = null;
-      point.wallOffsetMm = null;
+      if (point == null || _isFixture(point)) return;
+      _moveElectricalPoint(point, current);
       _dragDirty = true;
       setState(() {});
       return;
@@ -241,6 +261,98 @@ class _MeasureSharedLayerCanvasState extends State<MeasureSharedLayerCanvas> {
     run.points[index].yMm += dy;
     _dragDirty = true;
     setState(() {});
+  }
+
+  void _moveElectricalPoint(
+    ElectricalPoint point,
+    math.Point<double> raw,
+  ) {
+    if (!point.isWallDevice) {
+      point.xMm = (raw.x / 10).round() * 10.0;
+      point.yMm = (raw.y / 10).round() * 10.0;
+      point.wallId = null;
+      point.wallOffsetMm = null;
+      return;
+    }
+
+    final hit = GeometryService.nearestWallProjection(
+      widget.floor,
+      raw,
+      thresholdMm: 700,
+    );
+    if (hit == null) return;
+    final wall = hit.wall;
+    final a = widget.floor.nodeById(wall.startNodeId);
+    final b = widget.floor.nodeById(wall.endNodeId);
+    if (a == null || b == null) return;
+    final wallLength = widget.floor.wallLengthMm(wall);
+    var offset = wallLength * hit.t;
+    offset = _safeSwitchOffset(point, wall, offset, wallLength);
+    final t = wallLength <= 0 ? 0.0 : (offset / wallLength).clamp(0.0, 1.0);
+    point
+      ..xMm = a.xMm + (b.xMm - a.xMm) * t
+      ..yMm = a.yMm + (b.yMm - a.yMm) * t
+      ..wallId = wall.id
+      ..wallOffsetMm = offset
+      ..wallSide = _wallSide(wall, raw, point.wallSide);
+  }
+
+  double _safeSwitchOffset(
+    ElectricalPoint point,
+    PlanWall wall,
+    double offset,
+    double wallLength,
+  ) {
+    final hasSwitch = point.type == ElectricalPointType.switchPoint ||
+        point.modules.any(
+          (module) =>
+              module == ElectricalModuleType.switch1 ||
+              module == ElectricalModuleType.switch2,
+        );
+    if (!hasSwitch) return offset.clamp(0.0, wallLength).toDouble();
+
+    const clearance = 120.0;
+    var safe = offset;
+    for (final opening in wall.openings.where((o) => o.type == OpeningType.door)) {
+      final before = opening.offsetFromStartMm - clearance;
+      final after = opening.offsetFromStartMm + opening.widthMm + clearance;
+      if (safe >= before && safe <= after) {
+        final candidates = <double>[before - 1, after + 1]
+            .where((v) => v >= clearance && v <= wallLength - clearance)
+            .toList();
+        if (candidates.isNotEmpty) {
+          candidates.sort(
+            (x, y) => (x - safe).abs().compareTo((y - safe).abs()),
+          );
+          safe = candidates.first;
+        }
+      }
+    }
+    return safe.clamp(0.0, wallLength).toDouble();
+  }
+
+  int _wallSide(
+    PlanWall wall,
+    math.Point<double> raw,
+    int fallback,
+  ) {
+    final roomEdges = GeometryService.roomFaces(widget.floor)
+        .expand((room) => room.edges)
+        .where((edge) => edge.wallId == wall.id)
+        .toList();
+    if (roomEdges.length == 1) {
+      return roomEdges.single.fromNodeId == wall.startNodeId ? 1 : -1;
+    }
+    final a = widget.floor.nodeById(wall.startNodeId);
+    final b = widget.floor.nodeById(wall.endNodeId);
+    if (a == null || b == null) return fallback;
+    final dx = b.xMm - a.xMm;
+    final dy = b.yMm - a.yMm;
+    final cross = dx * (raw.y - a.yMm) - dy * (raw.x - a.xMm);
+    final length = math.sqrt(dx * dx + dy * dy);
+    return cross.abs() < wall.thicknessMm * length * .6
+        ? fallback
+        : (cross > 0 ? 1 : -1);
   }
 
   void _dragEnd(DragEndDetails details) {
@@ -279,7 +391,8 @@ class _MeasureSharedLayerCanvasState extends State<MeasureSharedLayerCanvas> {
 
   bool get _editingSelection => switch (widget.layer) {
         MeasureSharedLayer.objects => _selectedObject != null,
-        MeasureSharedLayer.electrical => _selectedElectrical != null,
+        MeasureSharedLayer.electrical =>
+          _selectedElectrical != null && !_isFixture(_selectedElectrical!),
         MeasureSharedLayer.engineering =>
           _selectedRun != null && _selectedRunVertex != null,
       };
@@ -360,11 +473,26 @@ class _MeasureSharedLayerCanvasState extends State<MeasureSharedLayerCanvas> {
           borderRadius: BorderRadius.circular(ZamerRadius.lg),
           border: Border.all(color: ZamerColors.outline),
         ),
-        child: switch (widget.layer) {
-          MeasureSharedLayer.objects => _objectActions(),
-          MeasureSharedLayer.electrical => _electricalActions(),
-          MeasureSharedLayer.engineering => _engineeringActions(),
-        },
+        child: Row(
+          children: [
+            Expanded(
+              child: switch (widget.layer) {
+                MeasureSharedLayer.objects => _objectActions(),
+                MeasureSharedLayer.electrical => _electricalActions(),
+                MeasureSharedLayer.engineering => _engineeringActions(),
+              },
+            ),
+            if (_editingSelection ||
+                _selectedObject != null ||
+                _selectedElectrical != null ||
+                _selectedRun != null)
+              IconButton(
+                tooltip: 'Снять выделение',
+                onPressed: _clearSelection,
+                icon: const Icon(Icons.close_rounded, size: 18),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -390,8 +518,14 @@ class _MeasureSharedLayerCanvasState extends State<MeasureSharedLayerCanvas> {
           ),
         ),
         if (object != null) ...[
-          _IconAction(icon: Icons.rotate_left_rounded, onTap: () => _rotateObject(-15)),
-          _IconAction(icon: Icons.rotate_right_rounded, onTap: () => _rotateObject(15)),
+          _IconAction(
+            icon: Icons.rotate_left_rounded,
+            onTap: () => _rotateObject(-15),
+          ),
+          _IconAction(
+            icon: Icons.rotate_right_rounded,
+            onTap: () => _rotateObject(15),
+          ),
           _IconAction(icon: Icons.copy_rounded, onTap: _duplicateObject),
           _IconAction(icon: Icons.delete_outline_rounded, onTap: _deleteObject),
         ],
@@ -407,13 +541,16 @@ class _MeasureSharedLayerCanvasState extends State<MeasureSharedLayerCanvas> {
 
   Widget _electricalActions() {
     final point = _selectedElectrical;
+    final fixture = point != null && _isFixture(point);
     return Row(
       children: [
         Expanded(
           child: Text(
             point == null
                 ? '${widget.floor.electricalPoints.length} точек • выбери точку на плане'
-                : '${point.type.label} • ${point.heightMm.round()} мм • ${point.circuit}',
+                : fixture
+                    ? '${point.type.label} • связан со светильником, двигай в «Объектах»'
+                    : '${point.type.label} • ${point.heightMm.round()} мм • ${point.circuit}',
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: ZamerTypography.caption.copyWith(
@@ -552,13 +689,12 @@ class _MeasureSharedLayerPainter extends CustomPainter {
       showDimensions: layer == MeasureSharedLayer.objects,
     ).paint(canvas, size);
 
-    switch (layer) {
-      case MeasureSharedLayer.objects:
-        _drawObjectSelection(canvas);
-      case MeasureSharedLayer.electrical:
-        _drawElectrical(canvas);
-      case MeasureSharedLayer.engineering:
-        _drawEngineering(canvas);
+    if (layer == MeasureSharedLayer.objects) {
+      _drawObjectSelection(canvas);
+    } else if (layer == MeasureSharedLayer.electrical) {
+      _drawElectrical(canvas);
+    } else {
+      _drawEngineering(canvas);
     }
   }
 
