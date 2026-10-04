@@ -4,25 +4,38 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('release gate: elevations expose engineering as a project layer', () {
-    final source =
+    final screen =
         File('lib/screens/layered_elevations_screen.dart').readAsStringSync();
+    final overlay =
+        File('lib/widgets/elevation_engineering_overlay.dart').readAsStringSync();
 
     for (final required in const [
       '_showEngineering',
       "label: 'Инженерия'",
       'copy.serviceRuns.clear()',
-      '_ElevationEngineeringOverlayPainter(',
+      'ElevationEngineeringOverlayPainter(',
       'widget.floor.serviceRuns.length',
+    ]) {
+      expect(
+        screen.contains(required),
+        isTrue,
+        reason: 'Missing engineering elevation screen contract: $required',
+      );
+    }
+
+    for (final required in const [
       'GeometryService.nearestWallProjection(',
       'ServiceRunType.coldWater',
       'ServiceRunType.hotWater',
       'ServiceRunType.drain',
       'ServiceRunType.heating',
+      "ServiceRunType.coldWater => 'ХВС'",
+      "ServiceRunType.hotWater => 'ГВС'",
     ]) {
       expect(
-        source.contains(required),
+        overlay.contains(required),
         isTrue,
-        reason: 'Missing engineering elevation contract: $required',
+        reason: 'Missing engineering projection contract: $required',
       );
     }
   });
