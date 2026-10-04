@@ -98,6 +98,93 @@ class EquipmentPlacementService {
     _syncFixedLighting(floor, object, item, mount);
   }
 
+  /// Returns the wall, offset and side currently occupied by a catalog object.
+  ///
+  /// Wall-mounted objects intentionally do not duplicate wall metadata in the
+  /// project model. Their mount is derived from the same XY geometry used by
+  /// the plan and 3D scene, keeping a single source of truth.
+  static ({String wallId, double wallOffsetMm, int wallSide})? wallMountForObject({
+    required FloorPlan floor,
+    required PlanObject object,
+    double thresholdMm = 1200,
+  }) {
+    if (object.catalogId.isEmpty) return null;
+    final item = ObjectCatalog.byId(object.catalogId);
+    if (item.mount != CatalogMount.wall) return null;
+    final hit = GeometryService.nearestWallProjection(
+      floor,
+      math.Point<double>(object.xMm, object.yMm),
+      thresholdMm: thresholdMm,
+    );
+    if (hit == null) return null;
+    final wall = hit.wall;
+    final a = floor.nodeById(wall.startNodeId);
+    final b = floor.nodeById(wall.endNodeId);
+    if (a == null || b == null) return null;
+    final dx = b.xMm - a.xMm;
+    final dy = b.yMm - a.yMm;
+    final length = math.sqrt(dx * dx + dy * dy);
+    if (length < 1) return null;
+    final nx = -dy / length;
+    final ny = dx / length;
+    final sideValue =
+        (object.xMm - hit.point.x) * nx + (object.yMm - hit.point.y) * ny;
+    return (
+      wallId: wall.id,
+      wallOffsetMm: (length * hit.t).clamp(0.0, length).toDouble(),
+      wallSide: sideValue >= 0 ? 1 : -1,
+    );
+  }
+
+  /// Places a wall-mounted catalog object at an exact measured wall offset.
+  ///
+  /// Elevation editors use this instead of mutating XY directly so plan, 3D
+  /// and linked lighting points stay synchronized after every edit.
+  static bool placeWallObjectAt({
+    required FloorPlan floor,
+    required PlanObject object,
+    required String wallId,
+    required double wallOffsetMm,
+    required int wallSide,
+    double? elevationMm,
+  }) {
+    if (object.catalogId.isEmpty) return false;
+    final item = ObjectCatalog.byId(object.catalogId);
+    if (item.mount != CatalogMount.wall) return false;
+    final wall = floor.wallById(wallId);
+    if (wall == null) return false;
+    final a = floor.nodeById(wall.startNodeId);
+    final b = floor.nodeById(wall.endNodeId);
+    if (a == null || b == null) return false;
+    final dx = b.xMm - a.xMm;
+    final dy = b.yMm - a.yMm;
+    final length = math.sqrt(dx * dx + dy * dy);
+    if (length < 1) return false;
+
+    final offset = wallOffsetMm.clamp(0.0, length).toDouble();
+    final t = offset / length;
+    final centerX = a.xMm + dx * t;
+    final centerY = a.yMm + dy * t;
+    final nx = -dy / length;
+    final ny = dx / length;
+    final side = wallSide >= 0 ? 1 : -1;
+    final clearance = wall.thicknessMm / 2 + object.depthMm / 2 + 6;
+    object.xMm = centerX + nx * side * clearance;
+    object.yMm = centerY + ny * side * clearance;
+    object.rotationDeg = math.atan2(dy, dx) * 180 / math.pi;
+    if (elevationMm != null && elevationMm.isFinite) {
+      object.elevationMm = math.max(0.0, elevationMm);
+    }
+
+    final mount = (
+      wallId: wall.id,
+      wallOffsetMm: offset,
+      wallSide: side,
+    );
+    _syncFixedLighting(floor, object, item, mount);
+    return true;
+  }
+
   static bool removeObject({
     required FloorPlan floor,
     required PlanObject object,
