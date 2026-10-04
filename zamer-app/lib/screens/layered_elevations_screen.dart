@@ -10,6 +10,7 @@ import '../widgets/elevation_engineering_overlay.dart';
 import '../widgets/elevation_material_editor.dart';
 import '../widgets/elevation_object_editor.dart';
 import '../widgets/elevation_painter.dart';
+import '../widgets/elevation_radiator_overlay.dart';
 
 /// Production wall elevations backed by the same project model as Measure/3D.
 ///
@@ -421,6 +422,17 @@ class _LayeredElevationsScreenState extends State<LayeredElevationsScreen> {
                             settings: settings,
                           ),
                         ),
+                        if (_showObjects)
+                          IgnorePointer(
+                            child: CustomPaint(
+                              painter: ElevationRadiatorOverlayPainter(
+                                floor: displayFloor,
+                                face: face,
+                                run: run,
+                                heightMm: height,
+                              ),
+                            ),
+                          ),
                         if (_showEngineering)
                           IgnorePointer(
                             child: CustomPaint(
