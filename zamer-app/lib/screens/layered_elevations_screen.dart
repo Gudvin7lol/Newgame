@@ -10,14 +10,15 @@ import '../widgets/elevation_electrical_editor.dart';
 import '../widgets/elevation_engineering_overlay.dart';
 import '../widgets/elevation_material_editor.dart';
 import '../widgets/elevation_object_editor.dart';
+import '../widgets/elevation_opening_editor.dart';
 import '../widgets/elevation_painter.dart';
 import '../widgets/elevation_radiator_overlay.dart';
 
 /// Production wall elevations backed by the same project model as Measure/3D.
 ///
-/// Layers are not exported snapshots. Electrical points, mounted objects,
-/// engineering routes and finishes remain live project data and can be edited
-/// without leaving the selected elevation.
+/// Layers are not exported snapshots. Openings, electrical points, mounted
+/// objects, engineering routes and finishes remain live project data and can
+/// be edited without leaving the selected elevation.
 class LayeredElevationsScreen extends StatefulWidget {
   const LayeredElevationsScreen({
     super.key,
@@ -376,6 +377,13 @@ class _LayeredElevationsScreenState extends State<LayeredElevationsScreen> {
               ],
             ),
           ),
+          if (_showOpenings)
+            ElevationOpeningEditor(
+              floor: widget.floor,
+              face: sourceFace,
+              run: sourceRun,
+              onChanged: _changed,
+            ),
           if (_showElectrical)
             ElevationElectricalEditor(
               floor: widget.floor,
