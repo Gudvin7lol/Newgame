@@ -1,7 +1,7 @@
 name: zamer_app
 publish_to: 'none'
 description: Обмер, планировка, отделка и инженерная подготовка помещений
-version: 1.5.7+114
+version: 1.5.7+115
 
 environment:
   sdk: '>=3.10.0 <4.0.0'
@@ -28,9 +28,12 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
   assets:
-    - assets/models/zamer_catalog/
+    - assets/objects/
+    - assets/icons/
     - assets/textures/
-    - assets/textures/generated_v1/
-    - assets/textures/imported_2026_10_02/
+    - assets/topview/
     - assets/topview/imported_2026_10_02/
+    - assets/models/zamer_catalog/
+    - assets/textures/imported_2026_10_02/
