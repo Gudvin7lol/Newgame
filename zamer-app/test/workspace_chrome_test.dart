@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zamer_app/design_system/zamer_theme.dart';
+import 'package:zamer_app/design_system/zamer_tokens.dart';
 import 'package:zamer_app/widgets/workspace_mode_context.dart';
 import 'package:zamer_app/widgets/workspace_navigation.dart';
 
 Widget _host(Widget child) => MaterialApp(
-  theme: ZamerTheme.dark,
-  home: Scaffold(body: child),
-);
+      theme: ZamerTheme.dark,
+      home: Scaffold(body: child),
+    );
 
 void main() {
   testWidgets('master navigation keeps the five approved pages', (
@@ -45,6 +46,41 @@ void main() {
 
     await tester.tap(find.text('Профиль'));
     expect(profilePressed, isTrue);
+  });
+
+  testWidgets('primary app nav uses Master size and routes every destination', (
+    tester,
+  ) async {
+    var destination = -1;
+    await tester.pumpWidget(
+      _host(
+        Align(
+          alignment: Alignment.bottomCenter,
+          child: ZPrimaryAppNav(
+            selectedIndex: 3,
+            onHome: () => destination = 0,
+            onMeasure: () => destination = 1,
+            on3D: () => destination = 2,
+            onElevations: () => destination = 3,
+            onProfile: () => destination = 4,
+          ),
+        ),
+      ),
+    );
+
+    final navContainer = tester.widgetList<Container>(find.byType(Container)).where(
+      (widget) => widget.constraints == null && widget.child is Row,
+    );
+    expect(navContainer, isNotEmpty);
+    expect(find.text('Развёртки'), findsOneWidget);
+
+    await tester.tap(find.text('Профиль'));
+    expect(destination, 4);
+    await tester.tap(find.text('Главная'));
+    expect(destination, 0);
+
+    final navSize = tester.getSize(find.byType(ZPrimaryAppNav));
+    expect(navSize.height, greaterThanOrEqualTo(ZamerSize.bottomNavigation));
   });
 
   testWidgets('workspace subnavigation selects its working page', (
