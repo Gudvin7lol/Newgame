@@ -88,7 +88,14 @@ void main() {
     ]) {
       expect(measure.contains(screen), isTrue, reason: 'Measure is not wired to $screen');
     }
-    expect(measure.contains('onPressed: widget.onCatalog'), isTrue);
+
+    // +116 keeps the catalogue inside Measure as a working bottom sheet.
+    // Adding an item persists a real PlanObject and returns straight to the
+    // Objects layer so placement continues on the measured plan.
+    expect(measure.contains('Future<void> _openCatalogSheet()'), isTrue);
+    expect(measure.contains('MasterEquipmentScreen('), isTrue);
+    expect(measure.contains('EquipmentPlacementService.addCatalogItem('), isTrue);
+    expect(measure.contains('_layer = 2;'), isTrue);
   });
 
   test('Measure exposes only real view modes and project actions', () {
