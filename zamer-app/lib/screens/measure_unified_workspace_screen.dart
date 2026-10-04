@@ -4,6 +4,7 @@ import '../design_system/zamer_measure_chrome.dart';
 import '../design_system/zamer_tokens.dart';
 import '../models/models.dart';
 import '../services/equipment_placement_service.dart';
+import '../widgets/measure_shared_layer_canvas.dart';
 import '../widgets/workspace_master_header.dart';
 import '../widgets/workspace_mode_context.dart';
 import '../widgets/workspace_navigation.dart';
@@ -77,6 +78,14 @@ class _MeasureUnifiedWorkspaceScreenState
     ('Инженерия', Icons.plumbing_outlined),
     ('Материалы', Icons.inventory_2_outlined),
   ];
+
+  bool get _usesSharedCanvas => _layer >= 2 && _layer <= 4;
+
+  MeasureSharedLayer get _sharedLayer => switch (_layer) {
+        3 => MeasureSharedLayer.electrical,
+        4 => MeasureSharedLayer.engineering,
+        _ => MeasureSharedLayer.objects,
+      };
 
   void _selectView(ZMeasureViewMode value) {
     if (value == ZMeasureViewMode.twoD) {
@@ -154,38 +163,55 @@ class _MeasureUnifiedWorkspaceScreenState
     if (mounted) setState(() {});
   }
 
+  Future<void> _openSharedLayerEditor(MeasureSharedLayer layer) async {
+    final title = switch (layer) {
+      MeasureSharedLayer.objects => 'Объекты',
+      MeasureSharedLayer.electrical => 'Электрика',
+      MeasureSharedLayer.engineering => 'Инженерия',
+    };
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: ZamerColors.background,
+      barrierColor: Colors.black.withValues(alpha: .70),
+      builder: (sheetContext) => FractionallySizedBox(
+        heightFactor: .92,
+        child: Scaffold(
+          backgroundColor: ZamerColors.background,
+          appBar: AppBar(
+            automaticallyImplyLeading: false,
+            title: Text('$title • точный редактор'),
+            actions: [
+              IconButton(
+                tooltip: 'Закрыть',
+                onPressed: () => Navigator.pop(sheetContext),
+                icon: const Icon(Icons.close_rounded),
+              ),
+            ],
+          ),
+          body: switch (layer) {
+            MeasureSharedLayer.objects => PlanningObjectsScreen(
+                floor: widget.floor,
+                onChanged: widget.onChanged,
+              ),
+            MeasureSharedLayer.electrical => ElectricalScreen(
+                floor: widget.floor,
+                onChanged: widget.onChanged,
+              ),
+            MeasureSharedLayer.engineering => EngineeringScreen(
+                floor: widget.floor,
+                onChanged: widget.onChanged,
+              ),
+          },
+        ),
+      ),
+    );
+    if (mounted) setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
-    final pages = <Widget>[
-      PlanEditorProductionScreen(
-        floor: widget.floor,
-        onChanged: widget.onChanged,
-        onOpenObjects: () => _selectLayer(2),
-        onOpenReview: widget.onOpenReview,
-        onOpenAdvanced: widget.onOpenGeometry,
-        onOpen3D: widget.onOpen3D,
-        onOpenFloors: widget.onOpenFloors,
-        onOpenSettings: widget.onMore,
-        onOpenMaterials: () => _selectLayer(5),
-        onUndo: widget.onUndo,
-        onRedo: widget.onRedo,
-        canUndo: widget.canUndo,
-        canRedo: widget.canRedo,
-      ),
-      MeasureFloorPlanLayerScreen(
-        floor: widget.floor,
-        onChanged: widget.onChanged,
-      ),
-      PlanningObjectsScreen(floor: widget.floor, onChanged: widget.onChanged),
-      ElectricalScreen(floor: widget.floor, onChanged: widget.onChanged),
-      EngineeringScreen(floor: widget.floor, onChanged: widget.onChanged),
-      MaterialsScreen(
-        floor: widget.floor,
-        project: widget.project,
-        onChanged: widget.onChanged,
-      ),
-    ];
-
     return Scaffold(
       backgroundColor: ZamerColors.background,
       appBar: ZWorkspaceHeader(
@@ -207,9 +233,9 @@ class _MeasureUnifiedWorkspaceScreenState
             subtitle: switch (_layer) {
               0 => 'Геометрия, проёмы, размеры и помещения',
               1 => 'Раскладка покрытия прямо на измеренном плане',
-              2 => 'Добавление, перемещение и вращение объектов на плане',
-              3 => 'Розетки, выключатели, свет и группы',
-              4 => 'Вода, канализация, отопление и трассы',
+              2 => 'Один CAD: выбирай, двигай и вращай объекты на плане',
+              3 => 'Один CAD: точки и линии электрики поверх измеренного плана',
+              4 => 'Один CAD: вода, канализация и отопление поверх плана',
               _ => 'Отделка стен, пола и потолка',
             },
             metrics: [
@@ -232,28 +258,14 @@ class _MeasureUnifiedWorkspaceScreenState
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
-            child: Row(
-              children: [
-                Expanded(
-                  child: ZMeasureViewTabs(
-                    value: _view,
-                    enabledModes: const [
-                      ZMeasureViewMode.twoD,
-                      ZMeasureViewMode.threeD,
-                      ZMeasureViewMode.photo,
-                    ],
-                    onChanged: _selectView,
-                  ),
-                ),
-                if (_layer == 2) ...[
-                  const SizedBox(width: 8),
-                  FilledButton.tonalIcon(
-                    onPressed: _openCatalogSheet,
-                    icon: const Icon(Icons.add_rounded, size: 18),
-                    label: const Text('Каталог'),
-                  ),
-                ],
+            child: ZMeasureViewTabs(
+              value: _view,
+              enabledModes: const [
+                ZMeasureViewMode.twoD,
+                ZMeasureViewMode.threeD,
+                ZMeasureViewMode.photo,
               ],
+              onChanged: _selectView,
             ),
           ),
           ZWorkspaceSubnav(
@@ -262,7 +274,54 @@ class _MeasureUnifiedWorkspaceScreenState
             onSelected: _selectLayer,
           ),
           Expanded(
-            child: IndexedStack(index: _layer, children: pages),
+            child: Stack(
+              children: [
+                Offstage(
+                  offstage: _layer != 0,
+                  child: PlanEditorProductionScreen(
+                    floor: widget.floor,
+                    onChanged: widget.onChanged,
+                    onOpenObjects: () => _selectLayer(2),
+                    onOpenReview: widget.onOpenReview,
+                    onOpenAdvanced: widget.onOpenGeometry,
+                    onOpen3D: widget.onOpen3D,
+                    onOpenFloors: widget.onOpenFloors,
+                    onOpenSettings: widget.onMore,
+                    onOpenMaterials: () => _selectLayer(5),
+                    onUndo: widget.onUndo,
+                    onRedo: widget.onRedo,
+                    canUndo: widget.canUndo,
+                    canRedo: widget.canRedo,
+                  ),
+                ),
+                Offstage(
+                  offstage: _layer != 1,
+                  child: MeasureFloorPlanLayerScreen(
+                    floor: widget.floor,
+                    onChanged: widget.onChanged,
+                  ),
+                ),
+                Offstage(
+                  offstage: !_usesSharedCanvas,
+                  child: MeasureSharedLayerCanvas(
+                    floor: widget.floor,
+                    layer: _sharedLayer,
+                    onChanged: widget.onChanged,
+                    onOpenCatalog: _openCatalogSheet,
+                    onOpenAdvancedEditor: () =>
+                        _openSharedLayerEditor(_sharedLayer),
+                  ),
+                ),
+                Offstage(
+                  offstage: _layer != 5,
+                  child: MaterialsScreen(
+                    floor: widget.floor,
+                    project: widget.project,
+                    onChanged: widget.onChanged,
+                  ),
+                ),
+              ],
+            ),
           ),
           ZWorkspacePrimaryNav(
             selectedIndex: 0,
