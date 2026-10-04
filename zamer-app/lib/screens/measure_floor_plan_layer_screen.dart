@@ -284,20 +284,22 @@ class _MeasureFloorPlanLayerScreenState
                           fit: StackFit.expand,
                           children: [
                             CustomPaint(
-                              painter: FloorFinishPlanOverlayPainter(
-                                floor: widget.floor,
-                                mmToPx: _mmToPx,
-                                origin: _origin,
-                                selectedFaceKey: _selectedFaceKey,
-                              ),
-                            ),
-                            CustomPaint(
                               painter: CadPlanPainter(
                                 floor: widget.floor,
                                 mmToPx: _mmToPx,
                                 origin: _origin,
                                 showGrid: true,
                                 showDimensions: true,
+                              ),
+                            ),
+                            IgnorePointer(
+                              child: CustomPaint(
+                                painter: FloorFinishPlanOverlayPainter(
+                                  floor: widget.floor,
+                                  mmToPx: _mmToPx,
+                                  origin: _origin,
+                                  selectedFaceKey: _selectedFaceKey,
+                                ),
                               ),
                             ),
                           ],
