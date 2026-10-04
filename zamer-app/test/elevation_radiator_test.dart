@@ -59,6 +59,8 @@ void main() {
   test('release gate: radiator overlay uses same object placement model', () {
     final source =
         File('lib/widgets/elevation_radiator_overlay.dart').readAsStringSync();
+    final screen =
+        File('lib/screens/layered_elevations_screen.dart').readAsStringSync();
     for (final required in const [
       'PlanObjectType.radiator',
       'EquipmentPlacementService.wallMountForObject(',
@@ -67,5 +69,15 @@ void main() {
     ]) {
       expect(source.contains(required), isTrue, reason: 'Missing: $required');
     }
+    expect(
+      screen.contains('ElevationRadiatorOverlayPainter('),
+      isTrue,
+      reason: 'Production elevation must actually render radiator overlay',
+    );
+    expect(
+      screen.contains('if (_showObjects)'),
+      isTrue,
+      reason: 'Radiator overlay must follow the Objects layer visibility',
+    );
   });
 }
