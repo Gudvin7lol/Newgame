@@ -60,6 +60,7 @@ class ZamerSceneFingerprint {
         meta.faceKey,
         meta.ceilingHeightMm,
         m.floorMode,
+        m.floorTile,
         m.floorMaterialId,
         m.floorDirectionDeg,
         m.tileWidthMm,
@@ -81,8 +82,11 @@ class ZamerSceneFingerprint {
         m.wallTileTintArgb,
         m.wallTileWidthMm,
         m.wallTileHeightMm,
+        m.wallTilePattern,
         m.wallTileOffsetXMm,
         m.wallTileOffsetYMm,
+        m.wallTileFromMm,
+        m.wallTileToMm,
         m.wallTileGroutMm,
       ]);
       final runIds = <String>{
@@ -128,6 +132,7 @@ class ZamerSceneFingerprint {
         point.yMm,
         point.heightMm,
         point.wallId,
+        point.wallOffsetMm,
         point.wallSide,
         point.frameVertical,
         point.modules.length,
