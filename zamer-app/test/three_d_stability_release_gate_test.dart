@@ -9,8 +9,8 @@ void main() {
     final clip = source('lib/renderer3d/camera_clip_policy.dart');
     final cutaway = source('lib/renderer3d/cutaway_geometry.dart');
 
-    expect(clip.contains('walkNearM = 0.008'), isTrue);
-    expect(clip.contains('overviewNearM = 0.012'), isTrue);
+    expect(clip.contains('walkNearM = 0.018'), isTrue);
+    expect(clip.contains('overviewNearM = 0.030'), isTrue);
     expect(cutaway.contains('depthFraction'), isTrue);
     expect(cutaway.contains('perspectiveHalfWidth'), isTrue);
     expect(cutaway.contains('insidePerspectiveCorridor'), isTrue);

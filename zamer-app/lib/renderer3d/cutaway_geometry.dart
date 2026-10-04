@@ -3,11 +3,10 @@ import 'dart:math' as math;
 /// Returns whether a wall centre-line segment lies in the camera-side cutaway
 /// corridor between [target] and [camera].
 ///
-/// The corridor is perspective-shaped rather than a constant-width strip. A
-/// constant width based on the camera-side field of view made side walls near
-/// the orbit target disappear even though they did not actually block the
-/// target. The corridor now starts narrow at the target and expands towards
-/// the camera, matching what the user sees on screen much more closely.
+/// The corridor is perspective-shaped rather than a constant-width strip. It
+/// keeps a small focus zone around the orbit target, then widens towards the
+/// camera. This avoids hiding unrelated side walls while still cutting walls
+/// that genuinely enter the user's line of sight.
 bool zamerWallSegmentOccludesCutaway({
   required math.Point<double> start,
   required math.Point<double> end,
@@ -64,11 +63,13 @@ bool zamerWallSegmentOccludesCutaway({
     final axial = axialAt(t);
     if (axial <= minAxial || axial >= maxAxial) return false;
 
-    // corridorHalfWidth is the camera-side half width supplied by the viewport.
-    // Scale it by depth so a wall next to the orbit target is not treated as if
-    // it were standing right in front of the camera.
     final depthFraction = (axial / cameraDistance).clamp(0.0, 1.0).toDouble();
-    final perspectiveHalfWidth = math.max(0.08, corridorHalfWidth) * depthFraction;
+    final cameraSideHalfWidth = math.max(0.08, corridorHalfWidth);
+    final focusHalfWidth = math.min(math.max(0.0, corridorHalfWidth), 0.24);
+    final perspectiveHalfWidth = math.max(
+      focusHalfWidth,
+      cameraSideHalfWidth * depthFraction,
+    );
     final allowedLateral =
         perspectiveHalfWidth +
         math.max(0.0, lateralMargin) +
@@ -76,10 +77,9 @@ bool zamerWallSegmentOccludesCutaway({
     return lateralAt(t).abs() < allowedLateral;
   }
 
-  // For a linear segment, |lateral| is piecewise linear. Its minimum within
-  // [tMin, tMax] is therefore at an interval end or where it crosses zero.
-  // Checking those candidates is sufficient and avoids frame-dependent sampling
-  // that could otherwise make walls flicker while the camera rotates.
+  // |lateral| is piecewise linear. Check both clipped ends and an axis crossing.
+  // This is deterministic, so rotating the camera cannot make visibility depend
+  // on an arbitrary sampling step.
   if (insidePerspectiveCorridor(tMin) || insidePerspectiveCorridor(tMax)) {
     return true;
   }
