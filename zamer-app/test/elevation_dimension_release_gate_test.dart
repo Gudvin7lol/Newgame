@@ -20,7 +20,8 @@ void main() {
       'GeometryService.wallFaceStartShiftMm(',
       'point.heightMm',
       "label: _engineeringLabel(service.type)",
-      "label: 'РАД'",
+      'PlanObjectType.radiator',
+      "'РАД'",
     ]) {
       expect(
         overlay.contains(required),
