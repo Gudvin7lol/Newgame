@@ -68,10 +68,7 @@ void main() {
       ),
     );
 
-    final navContainer = tester.widgetList<Container>(find.byType(Container)).where(
-      (widget) => widget.constraints == null && widget.child is Row,
-    );
-    expect(navContainer, isNotEmpty);
+    expect(find.byType(ZPrimaryAppNav), findsOneWidget);
     expect(find.text('Развёртки'), findsOneWidget);
 
     await tester.tap(find.text('Профиль'));
