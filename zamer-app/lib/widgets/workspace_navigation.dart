@@ -54,21 +54,23 @@ class ZWorkspaceSubnav extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(
         ZamerSpace.sm,
-        6,
+        ZamerSpace.xs,
         ZamerSpace.sm,
-        6,
+        ZamerSpace.xs,
       ),
       decoration: const BoxDecoration(
         color: ZamerColors.surfaceLow,
-        border: Border(top: BorderSide(color: ZamerColors.outlineSoft)),
+        border: Border(
+          top: BorderSide(color: ZamerColors.outlineSoft),
+          bottom: BorderSide(color: ZamerColors.outlineSoft),
+        ),
       ),
       child: SizedBox(
-        height: 44,
+        height: ZamerSize.minTouch,
         child: ListView.separated(
           scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.all(3),
           itemCount: items.length,
-          separatorBuilder: (_, __) => const SizedBox(width: 4),
+          separatorBuilder: (_, _) => const SizedBox(width: ZamerSpace.xxs),
           itemBuilder: (_, i) => _SubnavItem(
             icon: items[i].$2,
             label: items[i].$1,
@@ -100,18 +102,19 @@ class _SubnavItem extends StatelessWidget {
         ? ZamerColors.accentInk
         : ZamerColors.textSecondary;
     return ZPressEffect(
-      scale: .96,
+      scale: .97,
       child: Material(
         color: selected ? ZamerColors.accent : ZamerColors.surface,
-        borderRadius: BorderRadius.circular(ZamerRadius.sm),
+        borderRadius: BorderRadius.circular(ZamerRadius.md),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
-          child: Container(
-            constraints: const BoxConstraints(minWidth: 92),
-            padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 160),
+            constraints: const BoxConstraints(minWidth: 96),
+            padding: const EdgeInsets.symmetric(horizontal: ZamerSpace.sm),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(ZamerRadius.sm),
+              borderRadius: BorderRadius.circular(ZamerRadius.md),
               border: Border.all(
                 color: selected ? ZamerColors.accent : ZamerColors.outlineSoft,
               ),
@@ -119,15 +122,14 @@ class _SubnavItem extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(icon, size: 16, color: foreground),
-                const SizedBox(width: 6),
+                Icon(icon, size: ZamerSize.iconSm, color: foreground),
+                const SizedBox(width: ZamerSpace.xxs),
                 Text(
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
+                  style: ZamerTypography.caption.copyWith(
                     color: foreground,
-                    fontSize: 10.5,
                     fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
                   ),
                 ),
@@ -140,12 +142,74 @@ class _SubnavItem extends StatelessWidget {
   }
 }
 
-/// Primary production navigation.
+/// One visual source of truth for the five production destinations.
 ///
-/// Equipment is intentionally not a top-level destination anymore. Furniture,
-/// electrical, engineering, floors and materials live as functional layers in
-/// Measure. This keeps the main navigation aligned with the actual field
-/// workflow: project -> measure -> 3D -> documentation -> profile.
+/// Home and Profile can use the same component as the workspace pages, so the
+/// application keeps one navigation geometry and one selected-state language.
+class ZPrimaryAppNav extends StatelessWidget {
+  const ZPrimaryAppNav({
+    super.key,
+    required this.selectedIndex,
+    required this.onHome,
+    required this.onMeasure,
+    required this.on3D,
+    required this.onElevations,
+    required this.onProfile,
+  });
+
+  final int selectedIndex;
+  final VoidCallback onHome;
+  final VoidCallback onMeasure;
+  final VoidCallback on3D;
+  final VoidCallback onElevations;
+  final VoidCallback onProfile;
+
+  static const items = <(IconData icon, String label)>[
+    (Icons.home_outlined, 'Главная'),
+    (Icons.architecture_outlined, 'Замер'),
+    (Icons.view_in_ar_outlined, '3D'),
+    (Icons.view_carousel_outlined, 'Развёртки'),
+    (Icons.person_outline_rounded, 'Профиль'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final callbacks = <VoidCallback>[
+      onHome,
+      onMeasure,
+      on3D,
+      onElevations,
+      onProfile,
+    ];
+    final active = selectedIndex.clamp(0, items.length - 1).toInt();
+    return SafeArea(
+      top: false,
+      child: Container(
+        height: ZamerSize.bottomNavigation,
+        decoration: const BoxDecoration(
+          color: ZamerColors.surfaceLow,
+          border: Border(top: BorderSide(color: ZamerColors.outlineSoft)),
+        ),
+        child: Row(
+          children: [
+            for (var i = 0; i < items.length; i++)
+              Expanded(
+                child: _PrimaryNavItem(
+                  icon: items[i].$1,
+                  label: items[i].$2,
+                  selected: i == active,
+                  onTap: callbacks[i],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Primary navigation for Measure/3D/Elevations workspace pages.
+/// Equipment remains a functional Measure layer, not a top-level destination.
 class ZWorkspacePrimaryNav extends StatelessWidget {
   const ZWorkspacePrimaryNav({
     super.key,
@@ -161,51 +225,18 @@ class ZWorkspacePrimaryNav extends StatelessWidget {
   final VoidCallback onHome;
   final VoidCallback onProfile;
 
-  static const _items = <(IconData icon, String label)>[
-    (Icons.home_outlined, 'Главная'),
-    (Icons.architecture_outlined, 'Замер'),
-    (Icons.view_in_ar_outlined, '3D'),
-    (Icons.view_carousel_outlined, 'Развёртки'),
-    (Icons.person_outline_rounded, 'Профиль'),
-  ];
-
   @override
-  Widget build(BuildContext context) {
-    final active = selectedIndex.clamp(0, 2) + 1;
-    return SafeArea(
-      top: false,
-      child: Container(
-        height: 62,
-        decoration: const BoxDecoration(
-          color: ZamerColors.surfaceLow,
-          border: Border(top: BorderSide(color: ZamerColors.outlineSoft)),
-        ),
-        child: Row(
-          children: [
-            for (var i = 0; i < _items.length; i++)
-              Expanded(
-                child: _PrimaryNavItem(
-                  icon: _items[i].$1,
-                  label: _items[i].$2,
-                  selected: i == active,
-                  onTap: switch (i) {
-                    0 => onHome,
-                    1 => () => onSelected(0),
-                    2 => () => onSelected(1),
-                    3 => () => onSelected(2),
-                    _ => onProfile,
-                  },
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => ZPrimaryAppNav(
+        selectedIndex: selectedIndex.clamp(0, 2).toInt() + 1,
+        onHome: onHome,
+        onMeasure: () => onSelected(0),
+        on3D: () => onSelected(1),
+        onElevations: () => onSelected(2),
+        onProfile: onProfile,
+      );
 }
 
-/// Preview/review navigation follows the same production information
-/// architecture as the live app.
+/// Preview/review navigation follows the production information architecture.
 class ZMasterBottomNav extends StatelessWidget {
   const ZMasterBottomNav({
     super.key,
@@ -216,37 +247,14 @@ class ZMasterBottomNav extends StatelessWidget {
   final int selectedIndex;
   final ValueChanged<int> onSelected;
 
-  static const _items = <(IconData icon, String label)>[
-    (Icons.home_outlined, 'Главная'),
-    (Icons.architecture_outlined, 'Замер'),
-    (Icons.view_in_ar_outlined, '3D'),
-    (Icons.view_carousel_outlined, 'Развёртки'),
-    (Icons.person_outline_rounded, 'Профиль'),
-  ];
-
   @override
-  Widget build(BuildContext context) => SafeArea(
-        top: false,
-        child: Container(
-          height: 62,
-          decoration: const BoxDecoration(
-            color: ZamerColors.surfaceLow,
-            border: Border(top: BorderSide(color: ZamerColors.outlineSoft)),
-          ),
-          child: Row(
-            children: [
-              for (var i = 0; i < _items.length; i++)
-                Expanded(
-                  child: _PrimaryNavItem(
-                    icon: _items[i].$1,
-                    label: _items[i].$2,
-                    selected: selectedIndex == i,
-                    onTap: () => onSelected(i),
-                  ),
-                ),
-            ],
-          ),
-        ),
+  Widget build(BuildContext context) => ZPrimaryAppNav(
+        selectedIndex: selectedIndex,
+        onHome: () => onSelected(0),
+        onMeasure: () => onSelected(1),
+        on3D: () => onSelected(2),
+        onElevations: () => onSelected(3),
+        onProfile: () => onSelected(4),
       );
 }
 
@@ -269,53 +277,54 @@ class _PrimaryNavItem extends StatelessWidget {
         ? ZamerColors.accent
         : ZamerColors.textSecondary;
     return ZPressEffect(
-      scale: .94,
+      scale: .95,
       child: InkWell(
         onTap: onTap,
         child: Stack(
           alignment: Alignment.topCenter,
           children: [
-            if (selected)
-              Positioned(
-                top: 0,
-                child: Container(
-                  width: 30,
-                  height: 2,
-                  decoration: BoxDecoration(
-                    color: ZamerColors.accent,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 160),
+              top: 0,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 160),
+                width: selected ? 36 : 0,
+                height: 3,
+                decoration: BoxDecoration(
+                  color: ZamerColors.accent,
+                  borderRadius: BorderRadius.circular(ZamerRadius.pill),
                 ),
               ),
+            ),
             Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  width: 40,
-                  height: 30,
+                  duration: const Duration(milliseconds: 160),
+                  width: 42,
+                  height: 32,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     color: selected
-                        ? ZamerColors.accent.withValues(alpha: .13)
+                        ? ZamerColors.accent.withValues(alpha: .14)
                         : Colors.transparent,
-                    borderRadius: BorderRadius.circular(ZamerRadius.sm),
+                    borderRadius: BorderRadius.circular(ZamerRadius.md),
                     border: selected
                         ? Border.all(
-                            color: ZamerColors.accent.withValues(alpha: .55),
+                            color: ZamerColors.accent.withValues(alpha: .52),
                           )
                         : null,
                   ),
-                  child: Icon(icon, size: 19, color: foreground),
+                  child: Icon(icon, size: 20, color: foreground),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 3),
                 Text(
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
+                  style: ZamerTypography.caption.copyWith(
                     color: foreground,
-                    fontSize: 8.8,
+                    fontSize: 9.2,
                     fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
                   ),
                 ),
