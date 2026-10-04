@@ -6,6 +6,7 @@ import '../design_system/zamer_master_components.dart';
 import '../design_system/zamer_tokens.dart';
 import '../models/models.dart';
 import '../services/project_backup_service.dart';
+import '../widgets/workspace_navigation.dart';
 
 class MasterProfileScreen extends StatefulWidget {
   const MasterProfileScreen({
@@ -153,6 +154,10 @@ class _MasterProfileScreenState extends State<MasterProfileScreen> {
       return;
     }
     Navigator.maybePop(context);
+  }
+
+  void _openOrBack(VoidCallback? callback) {
+    (callback ?? _goBack).call();
   }
 
   @override
@@ -312,11 +317,13 @@ class _MasterProfileScreenState extends State<MasterProfileScreen> {
           ],
         ),
       ),
-      bottomNavigationBar: _ProfilePrimaryNav(
+      bottomNavigationBar: ZPrimaryAppNav(
+        selectedIndex: 4,
         onHome: widget.onHome ?? _goBack,
-        onMeasure: widget.onOpenMeasure ?? _goBack,
-        on3D: widget.onOpen3D,
-        onElevations: widget.onOpenElevations,
+        onMeasure: () => _openOrBack(widget.onOpenMeasure),
+        on3D: () => _openOrBack(widget.onOpen3D),
+        onElevations: () => _openOrBack(widget.onOpenElevations),
+        onProfile: () {},
       ),
     );
   }
@@ -390,96 +397,4 @@ class _ProfileRow extends StatelessWidget {
           ),
         ),
       );
-}
-
-class _ProfilePrimaryNav extends StatelessWidget {
-  const _ProfilePrimaryNav({
-    required this.onHome,
-    required this.onMeasure,
-    this.on3D,
-    this.onElevations,
-  });
-
-  final VoidCallback onHome;
-  final VoidCallback onMeasure;
-  final VoidCallback? on3D;
-  final VoidCallback? onElevations;
-
-  @override
-  Widget build(BuildContext context) {
-    final items = <(IconData, String, VoidCallback?)>[
-      (Icons.home_outlined, 'Главная', onHome),
-      (Icons.architecture_outlined, 'Замер', onMeasure),
-      (Icons.view_in_ar_outlined, '3D', on3D),
-      (Icons.view_carousel_outlined, 'Развёртки', onElevations),
-      (Icons.person_rounded, 'Профиль', null),
-    ];
-
-    return SafeArea(
-      top: false,
-      child: Container(
-        height: 62,
-        decoration: const BoxDecoration(
-          color: ZamerColors.surfaceLow,
-          border: Border(top: BorderSide(color: ZamerColors.outlineSoft)),
-        ),
-        child: Row(
-          children: [
-            for (var i = 0; i < items.length; i++)
-              Expanded(
-                child: InkWell(
-                  onTap: items[i].$3,
-                  child: Opacity(
-                    opacity: items[i].$3 == null && i != 4 ? .4 : 1,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          width: 40,
-                          height: 30,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: i == 4
-                                ? ZamerColors.accent.withValues(alpha: .13)
-                                : Colors.transparent,
-                            borderRadius: BorderRadius.circular(9),
-                            border: i == 4
-                                ? Border.all(
-                                    color: ZamerColors.accent.withValues(alpha: .55),
-                                  )
-                                : null,
-                          ),
-                          child: Icon(
-                            items[i].$1,
-                            size: 19,
-                            color: i == 4
-                                ? ZamerColors.accent
-                                : ZamerColors.textSecondary,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          items[i].$2,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: i == 4
-                                ? ZamerColors.accent
-                                : ZamerColors.textSecondary,
-                            fontSize: 8.8,
-                            fontWeight: i == 4
-                                ? FontWeight.w800
-                                : FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
 }
