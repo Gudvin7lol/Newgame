@@ -7,6 +7,7 @@ import '../design_system/zamer_tokens.dart';
 import '../models/models.dart';
 import '../services/geometry_service.dart';
 import '../services/material_catalog.dart';
+import '../widgets/elevation_electrical_editor.dart';
 import '../widgets/elevation_painter.dart';
 
 /// Production elevation view backed by the same room model as Measure and 3D.
@@ -35,6 +36,11 @@ class _LayeredElevationsScreenState extends State<LayeredElevationsScreen> {
   bool _showEngineering = true;
   bool _showObjects = true;
   bool _showMaterials = true;
+
+  Future<void> _changed() async {
+    await widget.onChanged();
+    if (mounted) setState(() {});
+  }
 
   FloorPlan _displayFloor() {
     final copy = FloorPlan.fromJson(widget.floor.toJson());
@@ -157,8 +163,7 @@ class _LayeredElevationsScreenState extends State<LayeredElevationsScreen> {
       old.revise(value, DimensionSource.manual, 'Не указан');
     }
     meta.ceilingHeightMm = value;
-    await widget.onChanged();
-    if (mounted) setState(() {});
+    await _changed();
   }
 
   Widget _layerChip({
@@ -200,6 +205,7 @@ class _LayeredElevationsScreenState extends State<LayeredElevationsScreen> {
     if (_roomIndex >= sourceFaces.length) _roomIndex = 0;
     final sourceFace = sourceFaces[_roomIndex];
     final sourceMeta = widget.floor.roomMetaByKey(sourceFace.key);
+    final sourceRuns = GeometryService.elevationRuns(widget.floor, sourceFace);
 
     final displayFloor = _displayFloor();
     final displayFaces = GeometryService.roomFaces(displayFloor);
@@ -207,15 +213,18 @@ class _LayeredElevationsScreenState extends State<LayeredElevationsScreen> {
     final face = displayFaces[_roomIndex];
     final meta = displayFloor.roomMetaByKey(face.key)!;
     final runs = GeometryService.elevationRuns(displayFloor, face);
-    if (runs.isEmpty) {
+    if (runs.isEmpty || sourceRuns.isEmpty) {
       return const ZEmptyState(
         icon: Icons.view_carousel_outlined,
         title: 'Для помещения нет стен развёртки',
         subtitle: 'Проверь геометрию помещения в «Замере».',
       );
     }
-    if (_wallIndex >= runs.length) _wallIndex = 0;
+    if (_wallIndex >= runs.length || _wallIndex >= sourceRuns.length) {
+      _wallIndex = 0;
+    }
     final run = runs[_wallIndex];
+    final sourceRun = sourceRuns[_wallIndex];
     final height = GeometryService.roomHeightMm(displayFloor, face);
     final settings = meta.materials;
     final finish = MaterialCatalog.byId(
@@ -354,6 +363,12 @@ class _LayeredElevationsScreenState extends State<LayeredElevationsScreen> {
               ],
             ),
           ),
+          if (_showElectrical)
+            ElevationElectricalEditor(
+              floor: widget.floor,
+              run: sourceRun,
+              onChanged: _changed,
+            ),
           const Divider(height: 1, color: ZamerColors.outlineSoft),
           Expanded(
             child: Padding(
