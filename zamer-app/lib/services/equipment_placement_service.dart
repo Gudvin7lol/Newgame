@@ -12,6 +12,9 @@ import 'object_catalog.dart';
 class EquipmentPlacementService {
   const EquipmentPlacementService._();
 
+  static bool _usesWallMount(PlanObject object, ObjectCatalogItem item) =>
+      item.mount == CatalogMount.wall || object.type == PlanObjectType.radiator;
+
   static PlanObject addCatalogItem({
     required FloorPlan floor,
     required ObjectCatalogItem item,
@@ -76,9 +79,9 @@ class EquipmentPlacementService {
   }
 
   static void rotateBy(PlanObject object, double deltaDeg) {
-    if (object.catalogId.isNotEmpty &&
-        ObjectCatalog.byId(object.catalogId).mount == CatalogMount.wall) {
-      return;
+    if (object.catalogId.isNotEmpty) {
+      final item = ObjectCatalog.byId(object.catalogId);
+      if (_usesWallMount(object, item)) return;
     }
     final raw = object.rotationDeg + deltaDeg;
     object.rotationDeg = ((raw % 360) + 360) % 360;
@@ -98,11 +101,9 @@ class EquipmentPlacementService {
     _syncFixedLighting(floor, object, item, mount);
   }
 
-  /// Returns the wall, offset and side currently occupied by a catalog object.
-  ///
-  /// Wall-mounted objects intentionally do not duplicate wall metadata in the
-  /// project model. Their mount is derived from the same XY geometry used by
-  /// the plan and 3D scene, keeping a single source of truth.
+  /// Returns the wall, offset and side currently occupied by a wall-bound
+  /// catalog object. Radiators are wall-bound too, even though older catalog
+  /// data represented them as floor-mounted objects.
   static ({String wallId, double wallOffsetMm, int wallSide})? wallMountForObject({
     required FloorPlan floor,
     required PlanObject object,
@@ -110,7 +111,7 @@ class EquipmentPlacementService {
   }) {
     if (object.catalogId.isEmpty) return null;
     final item = ObjectCatalog.byId(object.catalogId);
-    if (item.mount != CatalogMount.wall) return null;
+    if (!_usesWallMount(object, item)) return null;
     final hit = GeometryService.nearestWallProjection(
       floor,
       math.Point<double>(object.xMm, object.yMm),
@@ -136,7 +137,7 @@ class EquipmentPlacementService {
     );
   }
 
-  /// Places a wall-mounted catalog object at an exact measured wall offset.
+  /// Places a wall-bound catalog object at an exact measured wall offset.
   ///
   /// Elevation editors use this instead of mutating XY directly so plan, 3D
   /// and linked lighting points stay synchronized after every edit.
@@ -150,7 +151,7 @@ class EquipmentPlacementService {
   }) {
     if (object.catalogId.isEmpty) return false;
     final item = ObjectCatalog.byId(object.catalogId);
-    if (item.mount != CatalogMount.wall) return false;
+    if (!_usesWallMount(object, item)) return false;
     final wall = floor.wallById(wallId);
     if (wall == null) return false;
     final a = floor.nodeById(wall.startNodeId);
@@ -176,7 +177,7 @@ class EquipmentPlacementService {
       object.elevationMm = math.max(0.0, elevationMm);
     }
 
-    final mount = (
+    final ({String? wallId, double? wallOffsetMm, int wallSide}) mount = (
       wallId: wall.id,
       wallOffsetMm: offset,
       wallSide: side,
@@ -207,7 +208,7 @@ class EquipmentPlacementService {
       object.elevationMm = math.max(0.0, floor.defaultHeightMm - object.heightMm);
       return (wallId: null, wallOffsetMm: null, wallSide: 1);
     }
-    if (item.mount != CatalogMount.wall || floor.walls.isEmpty) {
+    if (!_usesWallMount(object, item) || floor.walls.isEmpty) {
       return (wallId: null, wallOffsetMm: null, wallSide: 1);
     }
 
