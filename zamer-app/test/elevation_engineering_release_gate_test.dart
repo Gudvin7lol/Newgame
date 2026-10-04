@@ -34,7 +34,11 @@ void main() {
     for (final required in const [
       '_editRoomHeight(',
       "title: const Text('Высота помещения')",
-      'heightOverrideMm = value',
+      'meta.ceilingHeightMm = value',
+      "final key = 'room:\${meta.id}:height'",
+      'DimensionRecord(',
+      'DimensionSource.manual',
+      'old.revise(',
       'await widget.onChanged()',
       "suffixText: 'мм'",
       'value < 1800',
