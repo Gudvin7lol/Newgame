@@ -1,18 +1,20 @@
 /// Camera clipping distances in metres.
 ///
-/// Walk Mode needs a closer near plane than the orbit overview because the
-/// camera can approach thin geometry such as door leaves, frames, switches
-/// and furniture. Keeping this policy separate makes the trade-off explicit
-/// and testable instead of scattering magic numbers through the renderer.
+/// Walk Mode needs a very close near plane because the camera can approach thin
+/// geometry such as door leaves, frames, switches and furniture. Orbit mode also
+/// needs a close plane when the user zooms into a room. Keeping the policy here
+/// makes the precision trade-off explicit and testable.
 class ZamerCameraClipPolicy {
   const ZamerCameraClipPolicy._();
 
-  static const double walkNearM = 0.018;
+  // 18 mm was still enough to cut handles, wall lights and thin furniture when
+  // walking very close to them. 8 mm keeps those details visible without making
+  // the 160 m far plane unusable on mobile depth buffers.
+  static const double walkNearM = 0.008;
 
-  // 45 mm clipped small fixture details and door/furniture edges in close orbit
-  // views. 30 mm still keeps a healthy far/near ratio while letting Quality
-  // mode inspect thin geometry without pieces vanishing at the camera plane.
-  static const double overviewNearM = 0.030;
+  // The previous 30 mm overview plane made object edges disappear while orbiting
+  // close to furniture. 12 mm is a better compromise for interior-scale scenes.
+  static const double overviewNearM = 0.012;
   static const double walkFarM = 160.0;
 
   static double near({required bool walkMode}) =>
