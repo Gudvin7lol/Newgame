@@ -5,6 +5,7 @@ import '../design_system/zamer_tokens.dart';
 import '../models/models.dart';
 import '../services/geometry_service.dart';
 import '../services/material_catalog.dart';
+import '../widgets/elevation_dimension_overlay.dart';
 import '../widgets/elevation_electrical_editor.dart';
 import '../widgets/elevation_engineering_overlay.dart';
 import '../widgets/elevation_material_editor.dart';
@@ -444,6 +445,16 @@ class _LayeredElevationsScreenState extends State<LayeredElevationsScreen> {
                               ),
                             ),
                           ),
+                        IgnorePointer(
+                          child: CustomPaint(
+                            painter: ElevationDimensionOverlayPainter(
+                              floor: displayFloor,
+                              face: face,
+                              run: run,
+                              heightMm: height,
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ),
