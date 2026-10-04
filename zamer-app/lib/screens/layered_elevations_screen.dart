@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
 import '../design_system/zamer_components.dart';
@@ -8,9 +6,16 @@ import '../models/models.dart';
 import '../services/geometry_service.dart';
 import '../services/material_catalog.dart';
 import '../widgets/elevation_electrical_editor.dart';
+import '../widgets/elevation_engineering_overlay.dart';
+import '../widgets/elevation_material_editor.dart';
+import '../widgets/elevation_object_editor.dart';
 import '../widgets/elevation_painter.dart';
 
-/// Production elevation view backed by the same room model as Measure and 3D.
+/// Production wall elevations backed by the same project model as Measure/3D.
+///
+/// Layers are not exported snapshots. Electrical points, mounted objects,
+/// engineering routes and finishes remain live project data and can be edited
+/// without leaving the selected elevation.
 class LayeredElevationsScreen extends StatefulWidget {
   const LayeredElevationsScreen({
     super.key,
@@ -38,6 +43,7 @@ class _LayeredElevationsScreenState extends State<LayeredElevationsScreen> {
   bool _showMaterials = true;
 
   Future<void> _changed() async {
+    GeometryService.syncRoomMetadata(widget.floor);
     await widget.onChanged();
     if (mounted) setState(() {});
   }
@@ -59,6 +65,7 @@ class _LayeredElevationsScreenState extends State<LayeredElevationsScreen> {
       for (final room in copy.roomMetas) {
         room.materials
           ..wallTile = false
+          ..wallTileRunEnabled.clear()
           ..wallMaterialId = 'paint-warm-white'
           ..wallTileMaterialId = 'paint-warm-white';
       }
@@ -82,12 +89,13 @@ class _LayeredElevationsScreenState extends State<LayeredElevationsScreen> {
           separatorBuilder: (_, __) => const Divider(height: 1),
           itemBuilder: (_, index) {
             final meta = widget.floor.roomMetaByKey(faces[index].key);
+            final selected = index == _roomIndex;
             return ListTile(
               leading: Icon(
-                index == _roomIndex
+                selected
                     ? Icons.radio_button_checked_rounded
                     : Icons.radio_button_unchecked_rounded,
-                color: index == _roomIndex ? ZamerColors.accent : null,
+                color: selected ? ZamerColors.accent : null,
               ),
               title: Text(meta?.name ?? 'Помещение ${index + 1}'),
               subtitle: Text('${faces[index].areaM2.toStringAsFixed(2)} м²'),
@@ -105,7 +113,7 @@ class _LayeredElevationsScreenState extends State<LayeredElevationsScreen> {
     );
   }
 
-  Future<void> _editRoomHeight(double currentHeight) async {
+  Future<void> _editRoomHeight(RoomFace face, double currentHeight) async {
     var raw = currentHeight.round().toString();
     final value = await showDialog<double>(
       context: context,
@@ -144,12 +152,8 @@ class _LayeredElevationsScreenState extends State<LayeredElevationsScreen> {
       return;
     }
 
-    final faces = GeometryService.roomFaces(widget.floor);
-    if (faces.isEmpty) return;
-    final index = _roomIndex.clamp(0, faces.length - 1).toInt();
-    final meta = widget.floor.roomMetaByKey(faces[index].key);
+    final meta = widget.floor.roomMetaByKey(face.key);
     if (meta == null) return;
-
     final key = 'room:${meta.id}:height';
     final old = widget.floor.dimensionRecords[key];
     if (old == null) {
@@ -206,25 +210,32 @@ class _LayeredElevationsScreenState extends State<LayeredElevationsScreen> {
     final sourceFace = sourceFaces[_roomIndex];
     final sourceMeta = widget.floor.roomMetaByKey(sourceFace.key);
     final sourceRuns = GeometryService.elevationRuns(widget.floor, sourceFace);
-
-    final displayFloor = _displayFloor();
-    final displayFaces = GeometryService.roomFaces(displayFloor);
-    if (_roomIndex >= displayFaces.length) _roomIndex = 0;
-    final face = displayFaces[_roomIndex];
-    final meta = displayFloor.roomMetaByKey(face.key)!;
-    final runs = GeometryService.elevationRuns(displayFloor, face);
-    if (runs.isEmpty || sourceRuns.isEmpty) {
+    if (sourceMeta == null || sourceRuns.isEmpty) {
       return const ZEmptyState(
         icon: Icons.view_carousel_outlined,
         title: 'Для помещения нет стен развёртки',
         subtitle: 'Проверь геометрию помещения в «Замере».',
       );
     }
-    if (_wallIndex >= runs.length || _wallIndex >= sourceRuns.length) {
-      _wallIndex = 0;
-    }
-    final run = runs[_wallIndex];
+    if (_wallIndex >= sourceRuns.length) _wallIndex = 0;
     final sourceRun = sourceRuns[_wallIndex];
+    final sourceHeight = GeometryService.roomHeightMm(widget.floor, sourceFace);
+
+    final displayFloor = _displayFloor();
+    final displayFaces = GeometryService.roomFaces(displayFloor);
+    if (_roomIndex >= displayFaces.length) _roomIndex = 0;
+    final face = displayFaces[_roomIndex];
+    final meta = displayFloor.roomMetaByKey(face.key);
+    final runs = GeometryService.elevationRuns(displayFloor, face);
+    if (meta == null || runs.isEmpty) {
+      return const ZEmptyState(
+        icon: Icons.view_carousel_outlined,
+        title: 'Развёртка не построена',
+        subtitle: 'Обнови геометрию помещения в «Замере».',
+      );
+    }
+    if (_wallIndex >= runs.length) _wallIndex = 0;
+    final run = runs[_wallIndex];
     final height = GeometryService.roomHeightMm(displayFloor, face);
     final settings = meta.materials;
     final finish = MaterialCatalog.byId(
@@ -262,7 +273,7 @@ class _LayeredElevationsScreenState extends State<LayeredElevationsScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            sourceMeta?.name ?? 'Помещение ${_roomIndex + 1}',
+                            sourceMeta.name,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: ZamerTypography.bodySmall.copyWith(
@@ -271,7 +282,7 @@ class _LayeredElevationsScreenState extends State<LayeredElevationsScreen> {
                             ),
                           ),
                           Text(
-                            '${sourceFace.areaM2.toStringAsFixed(2)} м² • ${runs.length} стен',
+                            '${sourceFace.areaM2.toStringAsFixed(2)} м² • ${sourceRuns.length} стен',
                             style: ZamerTypography.caption,
                           ),
                         ],
@@ -279,9 +290,9 @@ class _LayeredElevationsScreenState extends State<LayeredElevationsScreen> {
                     ),
                   ),
                   TextButton.icon(
-                    onPressed: () => _editRoomHeight(height),
+                    onPressed: () => _editRoomHeight(sourceFace, sourceHeight),
                     icon: const Icon(Icons.height_rounded, size: 17),
-                    label: Text('${height.round()} мм'),
+                    label: Text('${sourceHeight.round()} мм'),
                   ),
                   IconButton(
                     tooltip: 'Выбрать помещение',
@@ -297,7 +308,7 @@ class _LayeredElevationsScreenState extends State<LayeredElevationsScreen> {
             child: ListView.separated(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               scrollDirection: Axis.horizontal,
-              itemCount: runs.length,
+              itemCount: sourceRuns.length,
               separatorBuilder: (_, __) => const SizedBox(width: 6),
               itemBuilder: (_, index) {
                 final selected = index == _wallIndex;
@@ -306,7 +317,7 @@ class _LayeredElevationsScreenState extends State<LayeredElevationsScreen> {
                   onSelected: (_) => setState(() => _wallIndex = index),
                   showCheckmark: false,
                   label: Text(
-                    '${String.fromCharCode(65 + index)}  ${runs[index].lengthMm.round()} мм',
+                    '${String.fromCharCode(65 + index)}  ${sourceRuns[index].lengthMm.round()} мм',
                   ),
                   selectedColor: ZamerColors.accent,
                   backgroundColor: ZamerColors.surface,
@@ -369,10 +380,23 @@ class _LayeredElevationsScreenState extends State<LayeredElevationsScreen> {
               run: sourceRun,
               onChanged: _changed,
             ),
+          if (_showObjects)
+            ElevationObjectEditor(
+              floor: widget.floor,
+              run: sourceRun,
+              onChanged: _changed,
+            ),
+          if (_showMaterials)
+            ElevationMaterialEditor(
+              settings: sourceMeta.materials,
+              run: sourceRun,
+              heightMm: sourceHeight,
+              onChanged: _changed,
+            ),
           const Divider(height: 1, color: ZamerColors.outlineSoft),
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
               child: Container(
                 decoration: BoxDecoration(
                   color: ZamerColors.surfaceLow,
@@ -400,7 +424,7 @@ class _LayeredElevationsScreenState extends State<LayeredElevationsScreen> {
                         if (_showEngineering)
                           IgnorePointer(
                             child: CustomPaint(
-                              painter: _ElevationEngineeringOverlayPainter(
+                              painter: ElevationEngineeringOverlayPainter(
                                 floor: displayFloor,
                                 face: face,
                                 run: run,
@@ -423,8 +447,7 @@ class _LayeredElevationsScreenState extends State<LayeredElevationsScreen> {
                   child: _InfoCard(
                     icon: Icons.inventory_2_outlined,
                     title: _showMaterials ? finish.name : 'Материал скрыт',
-                    subtitle:
-                        '${run.lengthMm.round()} × ${height.round()} мм',
+                    subtitle: '${run.lengthMm.round()} × ${height.round()} мм',
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -434,7 +457,7 @@ class _LayeredElevationsScreenState extends State<LayeredElevationsScreen> {
                     title:
                         '${widget.floor.electricalPoints.length} электр. • ${widget.floor.serviceRuns.length} трасс',
                     subtitle:
-                        '${widget.floor.planObjects.length} объектов • слои проекта',
+                        '${widget.floor.planObjects.length} объектов • живые слои',
                   ),
                 ),
               ],
@@ -444,207 +467,6 @@ class _LayeredElevationsScreenState extends State<LayeredElevationsScreen> {
       ),
     );
   }
-}
-
-/// Projects plan-based engineering vertices onto the selected wall elevation.
-/// Route XY remains the source of truth; standard installation levels are used
-/// until per-vertex Z is introduced into the engineering model.
-class _ElevationEngineeringOverlayPainter extends CustomPainter {
-  const _ElevationEngineeringOverlayPainter({
-    required this.floor,
-    required this.face,
-    required this.run,
-    required this.heightMm,
-  });
-
-  final FloorPlan floor;
-  final RoomFace face;
-  final ElevationRun run;
-  final double heightMm;
-
-  double _level(ServiceRunType type) => switch (type) {
-        ServiceRunType.drain => 180,
-        ServiceRunType.coldWater => 350,
-        ServiceRunType.hotWater => 450,
-        ServiceRunType.heating => 550,
-      };
-
-  Color _color(ServiceRunType type) => switch (type) {
-        ServiceRunType.coldWater => Colors.lightBlueAccent,
-        ServiceRunType.hotWater => Colors.redAccent,
-        ServiceRunType.drain => Colors.brown.shade300,
-        ServiceRunType.heating => Colors.orangeAccent,
-      };
-
-  String _short(ServiceRunType type) => switch (type) {
-        ServiceRunType.coldWater => 'ХВС',
-        ServiceRunType.hotWater => 'ГВС',
-        ServiceRunType.drain => 'КАН',
-        ServiceRunType.heating => 'ОТ',
-      };
-
-  _ProjectedServicePoint? _project(ServiceVertex vertex, Size size) {
-    if (run.lengthMm <= 0 || heightMm <= 0) return null;
-    final hit = GeometryService.nearestWallProjection(
-      floor,
-      math.Point<double>(vertex.xMm, vertex.yMm),
-      thresholdMm: 320,
-    );
-    if (hit == null) return null;
-
-    FaceEdge? edge;
-    var accumulated = 0.0;
-    for (final candidate in run.edges) {
-      if (candidate.wallId == hit.wall.id) {
-        edge = candidate;
-        break;
-      }
-      accumulated += GeometryService.wallFaceLengthMm(face, candidate);
-    }
-    if (edge == null) return null;
-
-    final wall = floor.wallById(edge.wallId);
-    if (wall == null) return null;
-    final a = floor.nodeById(wall.startNodeId);
-    final b = floor.nodeById(wall.endNodeId);
-    if (a == null || b == null) return null;
-    final dx = b.xMm - a.xMm;
-    final dy = b.yMm - a.yMm;
-    final wallLength = math.sqrt(dx * dx + dy * dy);
-    if (wallLength < 1) return null;
-
-    final t = (((hit.point.x - a.xMm) * dx +
-                (hit.point.y - a.yMm) * dy) /
-            (wallLength * wallLength))
-        .clamp(0.0, 1.0)
-        .toDouble();
-    var offset = t * wallLength;
-    if (edge.fromNodeId != wall.startNodeId) offset = wallLength - offset;
-    offset -= GeometryService.wallFaceStartShiftMm(floor, face, edge);
-    final totalOffset = accumulated + offset;
-    if (totalOffset < -20 || totalOffset > run.lengthMm + 20) return null;
-
-    final horizontalMargin = math.min(38.0, size.width * .09);
-    final verticalMargin = math.min(34.0, size.height * .12);
-    final scale = math.min(
-      (size.width - horizontalMargin * 2) / run.lengthMm,
-      (size.height - verticalMargin * 2) / heightMm,
-    );
-    final drawW = run.lengthMm * scale;
-    final drawH = heightMm * scale;
-    final rect = Rect.fromLTWH(
-      (size.width - drawW) / 2,
-      (size.height - drawH) / 2,
-      drawW,
-      drawH,
-    );
-    return _ProjectedServicePoint(
-      x: rect.left + totalOffset * scale,
-      rect: rect,
-      scale: scale,
-    );
-  }
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    for (final service in floor.serviceRuns) {
-      final level = _level(service.type).clamp(0, heightMm).toDouble();
-      final color = _color(service.type);
-      _ProjectedServicePoint? previous;
-      for (final vertex in service.points) {
-        final projected = _project(vertex, size);
-        if (projected == null) {
-          previous = null;
-          continue;
-        }
-        final y = projected.rect.bottom - level * projected.scale;
-        final center = Offset(projected.x, y);
-        if (previous != null) {
-          final previousY = previous.rect.bottom - level * previous.scale;
-          canvas.drawLine(
-            Offset(previous.x, previousY),
-            center,
-            Paint()
-              ..color = color.withValues(alpha: .72)
-              ..strokeWidth = 2.4,
-          );
-        }
-        canvas.drawLine(
-          Offset(center.dx, projected.rect.bottom),
-          center,
-          Paint()
-            ..color = color.withValues(alpha: .26)
-            ..strokeWidth = 1,
-        );
-        canvas.drawCircle(center, 6, Paint()..color = ZamerColors.surfaceLow);
-        canvas.drawCircle(
-          center,
-          5,
-          Paint()
-            ..color = color
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 2,
-        );
-        _badge(
-          canvas,
-          Offset(center.dx, center.dy - 17),
-          '${_short(service.type)} +${level.round()}',
-          color,
-        );
-        previous = projected;
-      }
-    }
-  }
-
-  void _badge(Canvas canvas, Offset center, String text, Color color) {
-    final painter = TextPainter(
-      text: TextSpan(
-        text: text,
-        style: TextStyle(
-          color: color,
-          fontSize: 8,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    final rect = Rect.fromCenter(
-      center: center,
-      width: painter.width + 8,
-      height: painter.height + 5,
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(rect, const Radius.circular(4)),
-      Paint()..color = ZamerColors.surfaceLow.withValues(alpha: .94),
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(rect, const Radius.circular(4)),
-      Paint()
-        ..color = color.withValues(alpha: .7)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = .7,
-    );
-    painter.paint(
-      canvas,
-      Offset(center.dx - painter.width / 2, center.dy - painter.height / 2),
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _ElevationEngineeringOverlayPainter oldDelegate) =>
-      true;
-}
-
-class _ProjectedServicePoint {
-  const _ProjectedServicePoint({
-    required this.x,
-    required this.rect,
-    required this.scale,
-  });
-
-  final double x;
-  final Rect rect;
-  final double scale;
 }
 
 class _InfoCard extends StatelessWidget {
