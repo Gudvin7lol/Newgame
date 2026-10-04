@@ -299,3 +299,105 @@ class ZSystemStateBanner extends StatelessWidget {
     );
   }
 }
+
+/// Master concept preset for a project with no measured rooms yet.
+class ZEmptyProjectState extends StatelessWidget {
+  const ZEmptyProjectState({
+    super.key,
+    required this.onCreateRoom,
+    required this.onImportPlan,
+  });
+
+  final VoidCallback onCreateRoom;
+  final VoidCallback onImportPlan;
+
+  @override
+  Widget build(BuildContext context) => ZSystemStateView(
+        kind: ZSystemStateKind.empty,
+        icon: Icons.home_work_outlined,
+        title: 'Начните с первого помещения',
+        message:
+            'Добавьте помещение вручную или импортируйте план, чтобы начать замеры.',
+        primaryLabel: 'Создать помещение',
+        onPrimary: onCreateRoom,
+        secondaryLabel: 'Импортировать план',
+        onSecondary: onImportPlan,
+      );
+}
+
+/// Master concept preset shown while the GPU scene is being prepared.
+class ZThreeDLoadingState extends StatelessWidget {
+  const ZThreeDLoadingState({
+    super.key,
+    this.progress,
+    this.remainingLabel,
+  });
+
+  final double? progress;
+  final String? remainingLabel;
+
+  @override
+  Widget build(BuildContext context) => ZSystemStateView(
+        kind: ZSystemStateKind.loading,
+        icon: Icons.layers_outlined,
+        title: 'Строим сцену и материалы',
+        message:
+            'Подготавливаем геометрию, текстуры и освещение. Это займет немного времени.',
+        progress: progress,
+        remainingLabel: remainingLabel ?? 'Подготовка 3D-сцены',
+      );
+}
+
+/// Save/sync failure with one recovery action and one safe local fallback.
+class ZSyncErrorState extends StatelessWidget {
+  const ZSyncErrorState({
+    super.key,
+    required this.onRetry,
+    required this.onSaveLocal,
+    this.message = 'Проверьте подключение и попробуйте снова.',
+  });
+
+  final VoidCallback onRetry;
+  final VoidCallback onSaveLocal;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) => ZSystemStateView(
+        kind: ZSystemStateKind.error,
+        icon: Icons.cloud_off_outlined,
+        title: 'Не удалось сохранить изменения',
+        message: message,
+        primaryLabel: 'Повторить',
+        onPrimary: onRetry,
+        secondaryLabel: 'Сохранить локально',
+        onSecondary: onSaveLocal,
+      );
+}
+
+/// Final state after a project/documentation build completed successfully.
+class ZProjectReadyState extends StatelessWidget {
+  const ZProjectReadyState({
+    super.key,
+    required this.onOpenProject,
+    required this.onBuildPdf,
+    this.preview,
+  });
+
+  final VoidCallback onOpenProject;
+  final VoidCallback onBuildPdf;
+  final Widget? preview;
+
+  @override
+  Widget build(BuildContext context) => ZSystemStateView(
+        kind: ZSystemStateKind.success,
+        icon: Icons.check_rounded,
+        title: 'Проект готов',
+        message:
+            '3D-модель и чертежи собраны. Проект можно открыть или экспортировать документацию.',
+        preview: preview,
+        primaryLabel: 'Открыть проект',
+        onPrimary: onOpenProject,
+        secondaryLabel: 'Собрать PDF',
+        onSecondary: onBuildPdf,
+      );
+}
