@@ -3,9 +3,11 @@ import 'dart:math' as math;
 /// Returns whether a wall centre-line segment lies in the camera-side cutaway
 /// corridor between [target] and [camera].
 ///
-/// Testing the whole segment matters for long walls: their centre can be well
-/// outside the view corridor while one end still crosses directly in front of
-/// the current orbit target.
+/// The corridor is perspective-shaped rather than a constant-width strip. A
+/// constant width based on the camera-side field of view made side walls near
+/// the orbit target disappear even though they did not actually block the
+/// target. The corridor now starts narrow at the target and expands towards
+/// the camera, matching what the user sees on screen much more closely.
 bool zamerWallSegmentOccludesCutaway({
   required math.Point<double> start,
   required math.Point<double> end,
@@ -55,16 +57,37 @@ bool zamerWallSegmentOccludesCutaway({
   }
 
   final lateralDelta = b.$2 - a.$2;
+  double axialAt(double t) => a.$1 + axialDelta * t;
   double lateralAt(double t) => a.$2 + lateralDelta * t;
-  var minimumLateral = math.min(lateralAt(tMin).abs(), lateralAt(tMax).abs());
-  if (lateralDelta.abs() >= 1e-9) {
-    final zeroT = -a.$2 / lateralDelta;
-    if (zeroT >= tMin && zeroT <= tMax) minimumLateral = 0.0;
+
+  bool insidePerspectiveCorridor(double t) {
+    final axial = axialAt(t);
+    if (axial <= minAxial || axial >= maxAxial) return false;
+
+    // corridorHalfWidth is the camera-side half width supplied by the viewport.
+    // Scale it by depth so a wall next to the orbit target is not treated as if
+    // it were standing right in front of the camera.
+    final depthFraction = (axial / cameraDistance).clamp(0.0, 1.0).toDouble();
+    final perspectiveHalfWidth = math.max(0.08, corridorHalfWidth) * depthFraction;
+    final allowedLateral =
+        perspectiveHalfWidth +
+        math.max(0.0, lateralMargin) +
+        math.max(0.0, wallHalfThickness);
+    return lateralAt(t).abs() < allowedLateral;
   }
 
-  final allowedLateral =
-      math.max(0.0, corridorHalfWidth) +
-      math.max(0.0, lateralMargin) +
-      math.max(0.0, wallHalfThickness);
-  return minimumLateral < allowedLateral;
+  // For a linear segment, |lateral| is piecewise linear. Its minimum within
+  // [tMin, tMax] is therefore at an interval end or where it crosses zero.
+  // Checking those candidates is sufficient and avoids frame-dependent sampling
+  // that could otherwise make walls flicker while the camera rotates.
+  if (insidePerspectiveCorridor(tMin) || insidePerspectiveCorridor(tMax)) {
+    return true;
+  }
+  if (lateralDelta.abs() >= 1e-9) {
+    final zeroT = -a.$2 / lateralDelta;
+    if (zeroT >= tMin && zeroT <= tMax && insidePerspectiveCorridor(zeroT)) {
+      return true;
+    }
+  }
+  return false;
 }
