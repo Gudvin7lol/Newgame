@@ -6,6 +6,7 @@ import '../design_system/zamer_tokens.dart';
 import '../models/models.dart';
 import '../services/geometry_service.dart';
 import '../widgets/cad_plan_painter.dart';
+import '../widgets/floor_finish_plan_overlay.dart';
 import 'layouts_screen.dart';
 
 /// Floor layout editor presented on the same measured plan used by Measure.
@@ -109,9 +110,15 @@ class _MeasureFloorPlanLayerScreenState
     final height = math.max(1.0, (maxY - minY) * _mmToPx);
     final usableW = math.max(160.0, _viewport.width - 48);
     final usableH = math.max(180.0, _viewport.height - 48);
-    final scale = math.min(3.2, math.max(.28, math.min(usableW / width, usableH / height) * .92));
+    final scale = math.min(
+      3.2,
+      math.max(.28, math.min(usableW / width, usableH / height) * .92),
+    );
     final center = _origin +
-        Offset((minX + maxX) * .5 * _mmToPx, (minY + maxY) * .5 * _mmToPx);
+        Offset(
+          (minX + maxX) * .5 * _mmToPx,
+          (minY + maxY) * .5 * _mmToPx,
+        );
     final target = Offset(_viewport.width / 2, _viewport.height / 2);
     _transform.value = Matrix4.identity()
       ..translate(target.dx - center.dx * scale, target.dy - center.dy * scale)
@@ -190,7 +197,9 @@ class _MeasureFloorPlanLayerScreenState
                   tooltip: 'Вписать план',
                   onPressed: _fit,
                   icon: Icon(
-                    _centered ? Icons.center_focus_strong : Icons.center_focus_weak,
+                    _centered
+                        ? Icons.center_focus_strong
+                        : Icons.center_focus_weak,
                     size: 19,
                   ),
                 ),
@@ -212,7 +221,8 @@ class _MeasureFloorPlanLayerScreenState
                 ChoiceChip(
                   label: const Text('Ламинат'),
                   selected: settings?.floorMode != 'tile',
-                  onSelected: meta == null ? null : (_) => _setFloorMode('laminate'),
+                  onSelected:
+                      meta == null ? null : (_) => _setFloorMode('laminate'),
                 ),
                 const SizedBox(width: 6),
                 ChoiceChip(
@@ -236,13 +246,15 @@ class _MeasureFloorPlanLayerScreenState
                 ChoiceChip(
                   label: const Text('Обычная'),
                   selected: settings?.laminatePattern != 'herringbone',
-                  onSelected: meta == null ? null : (_) => _setPattern('straight'),
+                  onSelected:
+                      meta == null ? null : (_) => _setPattern('straight'),
                 ),
                 const SizedBox(width: 6),
                 ChoiceChip(
                   label: const Text('Ёлочка'),
                   selected: settings?.laminatePattern == 'herringbone',
-                  onSelected: meta == null ? null : (_) => _setPattern('herringbone'),
+                  onSelected:
+                      meta == null ? null : (_) => _setPattern('herringbone'),
                 ),
               ],
             ),
@@ -265,14 +277,30 @@ class _MeasureFloorPlanLayerScreenState
                     child: GestureDetector(
                       behavior: HitTestBehavior.opaque,
                       onTapUp: (details) => _selectAt(details.localPosition),
-                      child: CustomPaint(
-                        size: _canvasSize,
-                        painter: CadPlanPainter(
-                          floor: widget.floor,
-                          mmToPx: _mmToPx,
-                          origin: _origin,
-                          showGrid: true,
-                          showDimensions: true,
+                      child: SizedBox(
+                        width: _canvasSize.width,
+                        height: _canvasSize.height,
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            CustomPaint(
+                              painter: FloorFinishPlanOverlayPainter(
+                                floor: widget.floor,
+                                mmToPx: _mmToPx,
+                                origin: _origin,
+                                selectedFaceKey: _selectedFaceKey,
+                              ),
+                            ),
+                            CustomPaint(
+                              painter: CadPlanPainter(
+                                floor: widget.floor,
+                                mmToPx: _mmToPx,
+                                origin: _origin,
+                                showGrid: true,
+                                showDimensions: true,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
