@@ -1,4 +1,4 @@
-/// IDs for the generated ZAMER material pack bundled by +79.
+/// IDs for the generated ZAMER material packs bundled with the app.
 abstract final class GeneratedMaterialIds {
   static const darkOak = 'zamer-dark-oak';
   static const whiteOak = 'zamer-white-oak';
@@ -19,6 +19,11 @@ abstract final class GeneratedMaterialIds {
   static const plasterMineralPbr = 'zamer-plaster-mineral-pbr';
   static const graphiteTilePbr = 'zamer-graphite-tile-pbr';
 
+  /// Runtime 2K material introduced by the optimized v2 material pack. It is
+  /// intentionally separate from wallMicrocement so existing wall finishes do
+  /// not inherit the porcelain-tile normal/roughness response.
+  static const runtimeTileConcreteLight = 'zamer-runtime-tile-concrete-light';
+
   static const all = <String>{
     darkOak,
     whiteOak,
@@ -38,5 +43,6 @@ abstract final class GeneratedMaterialIds {
     concreteWarmPbr,
     plasterMineralPbr,
     graphiteTilePbr,
+    runtimeTileConcreteLight,
   };
 }
