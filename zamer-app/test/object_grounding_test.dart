@@ -36,16 +36,29 @@ void main() {
     });
 
     test('invalid persisted dimensions cannot poison GPU transforms', () {
-      for (final invalidHeight in <double>[double.nan, double.infinity, -100]) {
+      for (final invalidDimension in <double>[
+        double.nan,
+        double.infinity,
+        double.negativeInfinity,
+        -100,
+      ]) {
         expect(
-          zamerFallbackObjectRenderedHeightM(heightMm: invalidHeight),
+          zamerFallbackObjectDimensionM(dimensionMm: invalidDimension),
           closeTo(0.05, 0.000001),
         );
         expect(
-          zamerFallbackObjectLocalCenterYM(heightMm: invalidHeight),
+          zamerFallbackObjectRenderedHeightM(heightMm: invalidDimension),
+          closeTo(0.05, 0.000001),
+        );
+        expect(
+          zamerFallbackObjectLocalCenterYM(heightMm: invalidDimension),
           closeTo(0.025, 0.000001),
         );
       }
+      expect(
+        zamerFallbackObjectDimensionM(dimensionMm: 1200),
+        closeTo(1.2, 0.000001),
+      );
       expect(
         zamerFallbackObjectCenterYM(
           heightMm: 600,
