@@ -1,7 +1,6 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:vector_math/vector_math.dart' show Matrix4;
 
 import '../design_system/zamer_tokens.dart';
 import '../models/models.dart';
