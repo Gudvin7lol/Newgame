@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zamer/renderer3d/gpu_loading_policy.dart';
+import 'package:zamer_app/renderer3d/gpu_loading_policy.dart';
 
 void main() {
   test('first load is a preparing state without manual retry', () {
