@@ -7,6 +7,9 @@ import '../design_system/zamer_tokens.dart';
 import '../models/models.dart';
 import '../services/geometry_service.dart';
 import '../services/material_catalog.dart';
+import '../services/object_catalog.dart';
+import '../services/plan_direct_interaction.dart';
+import '../services/space_check_service.dart';
 import '../widgets/cad_plan_painter.dart';
 
 /// UI KIT 02 production editor rebuilt around the approved portrait concept.
@@ -60,6 +63,9 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   String? _selectedRoomFaceKey;
   String? _wallStartNodeId;
   String? _dimensionStartNodeId;
+  String? _dragObjectId;
+  bool _dragObjectDirty = false;
+  bool _layoutDragDirty = false;
   String _materialCategory = 'Пол';
   bool _materialPickMode = true;
   bool _grid = true;
@@ -102,14 +108,20 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   @override
   void initState() {
     super.initState();
+    _transform.addListener(_handleTransformChanged);
     GeometryService.syncRoomMetadata(floor);
     if (floor.walls.isNotEmpty) _selectedWallId = floor.walls.first.id;
   }
 
   @override
   void dispose() {
+    _transform.removeListener(_handleTransformChanged);
     _transform.dispose();
     super.dispose();
+  }
+
+  void _handleTransformChanged() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _changed() async {
@@ -261,6 +273,169 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       }
     }
     return result;
+  }
+
+
+  Offset _canvasToViewport(Offset point) {
+    final m = _transform.value.storage;
+    return Offset(
+      m[0] * point.dx + m[4] * point.dy + m[12],
+      m[1] * point.dx + m[5] * point.dy + m[13],
+    );
+  }
+
+  void _movePlanObject(PlanObject object, DragUpdateDetails details) {
+    if (_dragObjectId != object.id) return;
+    final oldX = object.xMm;
+    final oldY = object.yMm;
+    final viewScale = math.max(.1, _scale);
+    PlanDirectInteraction.moveObjectByMm(
+      object,
+      dxMm: details.delta.dx / (_mmToPx * viewScale),
+      dyMm: details.delta.dy / (_mmToPx * viewScale),
+      snapMm: _snapping ? 10 : 0,
+    );
+    if (SpaceCheckService.intersectsWall(floor, object)) {
+      object.xMm = oldX;
+      object.yMm = oldY;
+    } else if (object.xMm != oldX || object.yMm != oldY) {
+      _dragObjectDirty = true;
+    }
+    setState(() {});
+  }
+
+  Future<void> _finishObjectDrag() async {
+    if (_dragObjectId == null) return;
+    final changed = _dragObjectDirty;
+    setState(() {
+      _dragObjectId = null;
+      _dragObjectDirty = false;
+    });
+    if (changed) await _changed();
+  }
+
+  Iterable<Widget> _objectDragRegions() sync* {
+    final viewScale = math.max(.1, _scale);
+    for (final object in floor.planObjects) {
+      if (!_visibleLayers.contains(object.layer)) continue;
+      final catalog = ObjectCatalog.byId(object.catalogId);
+      final mount = catalog.id == object.catalogId
+          ? catalog.mount
+          : CatalogMount.floor;
+      if (mount != CatalogMount.floor) continue;
+
+      final width = math.max(
+        34.0,
+        object.widthMm * _mmToPx * viewScale + 16,
+      );
+      final depth = math.max(
+        34.0,
+        object.depthMm * _mmToPx * viewScale + 16,
+      );
+      final center = _canvasToViewport(
+        _origin + Offset(object.xMm * _mmToPx, object.yMm * _mmToPx),
+      );
+      yield Positioned(
+        key: ValueKey('direct-object:${object.id}'),
+        left: center.dx - width / 2,
+        top: center.dy - depth / 2,
+        width: width,
+        height: depth,
+        child: Transform.rotate(
+          angle: object.rotationDeg * math.pi / 180,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onPanStart: (_) => setState(() {
+              _dragObjectId = object.id;
+              _dragObjectDirty = false;
+            }),
+            onPanUpdate: (details) => _movePlanObject(object, details),
+            onPanEnd: (_) => _finishObjectDrag(),
+            onPanCancel: _finishObjectDrag,
+            child: const SizedBox.expand(),
+          ),
+        ),
+      );
+    }
+  }
+
+  void _syncGroupedFloorOffsets(RoomMaterialSettings source) {
+    if (floor.carpetRoomIds.isEmpty) return;
+    for (final meta in floor.roomMetas) {
+      if (!floor.carpetRoomIds.contains(meta.id) ||
+          identical(meta.materials, source)) {
+        continue;
+      }
+      final target = meta.materials;
+      target.laminateOffsetXMm = source.laminateOffsetXMm;
+      target.laminateOffsetYMm = source.laminateOffsetYMm;
+      target.tileOffsetXMm = source.tileOffsetXMm;
+      target.tileOffsetYMm = source.tileOffsetYMm;
+    }
+  }
+
+  void _moveFloorLayout(
+    RoomMaterialSettings settings,
+    DragUpdateDetails details,
+  ) {
+    PlanDirectInteraction.shiftFloorLayout(
+      settings,
+      worldDxMm: details.delta.dx / (_mmToPx * math.max(.1, _scale)),
+      worldDyMm: details.delta.dy / (_mmToPx * math.max(.1, _scale)),
+    );
+    _syncGroupedFloorOffsets(settings);
+    _layoutDragDirty = true;
+    setState(() {});
+  }
+
+  Future<void> _finishLayoutDrag() async {
+    if (!_layoutDragDirty) return;
+    _layoutDragDirty = false;
+    await _changed();
+  }
+
+  Widget? _layoutDragRegion() {
+    if (!_materialPickMode || _materialCategory != 'Пол') return null;
+    final face = _selectedRoomFace;
+    final meta = _selectedRoomMeta;
+    if (face == null || meta == null || face.innerPolygon.length < 3) return null;
+
+    final points = face.innerPolygon
+        .map(
+          (point) => _canvasToViewport(
+            _origin + Offset(
+              point.x * _mmToPx,
+              point.y * _mmToPx,
+            ),
+          ),
+        )
+        .toList(growable: false);
+    final minX = points.map((p) => p.dx).reduce(math.min);
+    final maxX = points.map((p) => p.dx).reduce(math.max);
+    final minY = points.map((p) => p.dy).reduce(math.min);
+    final maxY = points.map((p) => p.dy).reduce(math.max);
+    final local = points
+        .map((point) => point - Offset(minX, minY))
+        .toList(growable: false);
+
+    return Positioned(
+      key: ValueKey('direct-layout:${meta.id}'),
+      left: minX,
+      top: minY,
+      width: math.max(1.0, maxX - minX),
+      height: math.max(1.0, maxY - minY),
+      child: ClipPath(
+        clipper: _RoomDragClipper(local),
+        child: GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onPanStart: (_) => _layoutDragDirty = false,
+          onPanUpdate: (details) => _moveFloorLayout(meta.materials, details),
+          onPanEnd: (_) => _finishLayoutDrag(),
+          onPanCancel: _finishLayoutDrag,
+          child: const SizedBox.expand(),
+        ),
+      ),
+    );
   }
 
   void _fit() {
@@ -659,6 +834,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                   ),
                 ),
               ),
+              if (_layoutDragRegion() case final region?) region,
+              ..._objectDragRegions(),
               Positioned(
                 left: 8,
                 top: 8,
@@ -705,6 +882,28 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
           );
         },
       );
+}
+
+
+class _RoomDragClipper extends CustomClipper<Path> {
+  const _RoomDragClipper(this.points);
+  final List<Offset> points;
+
+  @override
+  Path getClip(Size size) {
+    final path = Path();
+    if (points.isEmpty) return path;
+    path.moveTo(points.first.dx, points.first.dy);
+    for (final point in points.skip(1)) {
+      path.lineTo(point.dx, point.dy);
+    }
+    path.close();
+    return path;
+  }
+
+  @override
+  bool shouldReclip(covariant _RoomDragClipper oldClipper) =>
+      oldClipper.points != points;
 }
 
 class _ToolRail extends StatelessWidget {
