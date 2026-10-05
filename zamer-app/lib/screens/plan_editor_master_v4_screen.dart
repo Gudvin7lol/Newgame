@@ -108,14 +108,20 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   @override
   void initState() {
     super.initState();
+    _transform.addListener(_handleTransformChanged);
     GeometryService.syncRoomMetadata(floor);
     if (floor.walls.isNotEmpty) _selectedWallId = floor.walls.first.id;
   }
 
   @override
   void dispose() {
+    _transform.removeListener(_handleTransformChanged);
     _transform.dispose();
     super.dispose();
+  }
+
+  void _handleTransformChanged() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _changed() async {
@@ -270,14 +276,23 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   }
 
 
+  Offset _canvasToViewport(Offset point) {
+    final m = _transform.value.storage;
+    return Offset(
+      m[0] * point.dx + m[4] * point.dy + m[12],
+      m[1] * point.dx + m[5] * point.dy + m[13],
+    );
+  }
+
   void _movePlanObject(PlanObject object, DragUpdateDetails details) {
     if (_dragObjectId != object.id) return;
     final oldX = object.xMm;
     final oldY = object.yMm;
+    final viewScale = math.max(.1, _scale);
     PlanDirectInteraction.moveObjectByMm(
       object,
-      dxMm: details.delta.dx / _mmToPx,
-      dyMm: details.delta.dy / _mmToPx,
+      dxMm: details.delta.dx / (_mmToPx * viewScale),
+      dyMm: details.delta.dy / (_mmToPx * viewScale),
       snapMm: _snapping ? 10 : 0,
     );
     if (SpaceCheckService.intersectsWall(floor, object)) {
@@ -300,21 +315,25 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   }
 
   Iterable<Widget> _objectDragRegions() sync* {
+    final viewScale = math.max(.1, _scale);
     for (final object in floor.planObjects) {
       if (!_visibleLayers.contains(object.layer)) continue;
       final catalog = ObjectCatalog.byId(object.catalogId);
       final mount = catalog.id == object.catalogId
           ? catalog.mount
           : CatalogMount.floor;
-      // Fixed wall and ceiling fixtures stay hosted. Their dedicated editors
-      // manage mounting height and wall-side placement.
       if (mount != CatalogMount.floor) continue;
 
-      final width = math.max(28.0, object.widthMm * _mmToPx + 14);
-      final depth = math.max(28.0, object.depthMm * _mmToPx + 14);
-      final center = _origin + Offset(
-        object.xMm * _mmToPx,
-        object.yMm * _mmToPx,
+      final width = math.max(
+        34.0,
+        object.widthMm * _mmToPx * viewScale + 16,
+      );
+      final depth = math.max(
+        34.0,
+        object.depthMm * _mmToPx * viewScale + 16,
+      );
+      final center = _canvasToViewport(
+        _origin + Offset(object.xMm * _mmToPx, object.yMm * _mmToPx),
       );
       yield Positioned(
         key: ValueKey('direct-object:${object.id}'),
@@ -325,7 +344,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
         child: Transform.rotate(
           angle: object.rotationDeg * math.pi / 180,
           child: GestureDetector(
-            behavior: HitTestBehavior.translucent,
+            behavior: HitTestBehavior.opaque,
             onPanStart: (_) => setState(() {
               _dragObjectId = object.id;
               _dragObjectDirty = false;
@@ -361,8 +380,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   ) {
     PlanDirectInteraction.shiftFloorLayout(
       settings,
-      worldDxMm: details.delta.dx / _mmToPx,
-      worldDyMm: details.delta.dy / _mmToPx,
+      worldDxMm: details.delta.dx / (_mmToPx * math.max(.1, _scale)),
+      worldDyMm: details.delta.dy / (_mmToPx * math.max(.1, _scale)),
     );
     _syncGroupedFloorOffsets(settings);
     _layoutDragDirty = true;
@@ -383,9 +402,11 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
 
     final points = face.innerPolygon
         .map(
-          (point) => _origin + Offset(
-            point.x * _mmToPx,
-            point.y * _mmToPx,
+          (point) => _canvasToViewport(
+            _origin + Offset(
+              point.x * _mmToPx,
+              point.y * _mmToPx,
+            ),
           ),
         )
         .toList(growable: false);
@@ -398,6 +419,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
         .toList(growable: false);
 
     return Positioned(
+      key: ValueKey('direct-layout:${meta.id}'),
       left: minX,
       top: minY,
       width: math.max(1.0, maxX - minX),
@@ -795,29 +817,25 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                   maxScale: 6,
                   boundaryMargin: const EdgeInsets.all(2200),
                   constrained: false,
-                  child: Stack(
-                    children: [
-                      GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTapUp: _tapCanvas,
-                        child: CustomPaint(
-                          size: _canvasSize,
-                          painter: CadPlanPainter(
-                            floor: floor,
-                            mmToPx: _mmToPx,
-                            origin: _origin,
-                            selectedWallId: _selectedWallId,
-                            showGrid: _grid,
-                            visibleLayers: _visibleLayers,
-                          ),
-                        ),
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTapUp: _tapCanvas,
+                    child: CustomPaint(
+                      size: _canvasSize,
+                      painter: CadPlanPainter(
+                        floor: floor,
+                        mmToPx: _mmToPx,
+                        origin: _origin,
+                        selectedWallId: _selectedWallId,
+                        showGrid: _grid,
+                        visibleLayers: _visibleLayers,
                       ),
-                      if (_layoutDragRegion() case final region?) region,
-                      ..._objectDragRegions(),
-                    ],
+                    ),
                   ),
                 ),
               ),
+              if (_layoutDragRegion() case final region?) region,
+              ..._objectDragRegions(),
               Positioned(
                 left: 8,
                 top: 8,

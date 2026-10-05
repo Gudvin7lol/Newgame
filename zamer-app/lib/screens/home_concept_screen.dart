@@ -15,7 +15,6 @@ import '../services/geometry_service.dart';
 import '../services/project_backup_service.dart';
 import '../services/project_store.dart';
 import 'floor_workspace_screen.dart';
-import 'floors_screen.dart';
 import 'scan_plan_screen.dart';
 
 const _homeBackground = Color(0xFF050B10);
@@ -152,11 +151,20 @@ class _HomeConceptScreenState extends State<HomeConceptScreen> {
 
   Future<void> _openProject(MeasureProject project) async {
     await _rememberOpened(project);
+    if (project.floors.isEmpty) {
+      project.floors.add(FloorPlan(id: _id('f'), name: 'Этаж 1'));
+      await _save();
+    }
     if (!mounted) return;
     await Navigator.push(
       context,
       MaterialPageRoute<void>(
-        builder: (_) => FloorsScreen(project: project, onChanged: _save),
+        builder: (_) => FloorWorkspaceScreen(
+          project: project,
+          floor: project.floors.first,
+          onChanged: _save,
+          initialMode: 0,
+        ),
       ),
     );
     if (mounted) setState(() {});

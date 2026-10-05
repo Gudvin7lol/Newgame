@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../design_system/zamer_measure_chrome.dart';
 import '../design_system/zamer_tokens.dart';
 import '../models/models.dart';
+import '../widgets/workspace_navigation.dart';
 import 'plan_editor_production_screen.dart';
 
 /// Production shell for the approved UI KIT 02 «Замер» concept.
@@ -29,6 +30,7 @@ class MeasureConceptWorkspaceScreen extends StatefulWidget {
     required this.onHome,
     required this.onProjects,
     required this.onCatalog,
+    required this.onPrimaryModeSelected,
   });
 
   final MeasureProject project;
@@ -51,6 +53,7 @@ class MeasureConceptWorkspaceScreen extends StatefulWidget {
   final VoidCallback onHome;
   final VoidCallback onProjects;
   final VoidCallback onCatalog;
+  final ValueChanged<int> onPrimaryModeSelected;
 
   @override
   State<MeasureConceptWorkspaceScreen> createState() =>
@@ -73,43 +76,6 @@ class _MeasureConceptWorkspaceScreenState
       case ZMeasureViewMode.photo:
         widget.onOpenPhoto();
     }
-  }
-
-  Future<void> _showTutorial() async {
-    await showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: ZamerColors.surface,
-      showDragHandle: true,
-      builder: (context) => const SafeArea(
-        top: false,
-        child: Padding(
-          padding: EdgeInsets.fromLTRB(16, 0, 16, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Обучение', style: ZamerTypography.h3),
-              SizedBox(height: 12),
-              _TutorialRow(
-                number: '1',
-                title: 'Стены',
-                text: 'Поставь первую точку и задай геометрию стены.',
-              ),
-              _TutorialRow(
-                number: '2',
-                title: 'Проёмы',
-                text: 'Выбери стену и добавь дверь или окно.',
-              ),
-              _TutorialRow(
-                number: '3',
-                title: 'Проверка',
-                text: 'Проверь размеры и диагонали перед экспортом.',
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 
   @override
@@ -152,11 +118,7 @@ class _MeasureConceptWorkspaceScreenState
             ),
             _ConceptBottomNav(
               onHome: widget.onHome,
-              onProjects: widget.onProjects,
-              onAdd: widget.onOpenObjects,
-              onCatalog: widget.onCatalog,
-              onTutorial: _showTutorial,
-              onMore: widget.onMore,
+              onModeSelected: widget.onPrimaryModeSelected,
             ),
           ],
         ),
@@ -300,166 +262,16 @@ class _HeaderSquare extends StatelessWidget {
 class _ConceptBottomNav extends StatelessWidget {
   const _ConceptBottomNav({
     required this.onHome,
-    required this.onProjects,
-    required this.onAdd,
-    required this.onCatalog,
-    required this.onTutorial,
-    required this.onMore,
+    required this.onModeSelected,
   });
+
   final VoidCallback onHome;
-  final VoidCallback onProjects;
-  final VoidCallback onAdd;
-  final VoidCallback onCatalog;
-  final VoidCallback onTutorial;
-  final VoidCallback onMore;
+  final ValueChanged<int> onModeSelected;
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 68,
-      decoration: const BoxDecoration(
-        color: Color(0xFF031119),
-        border: Border(top: BorderSide(color: ZamerColors.outlineSoft)),
-      ),
-      child: Row(
-        children: [
-          _BottomItem(
-            icon: Icons.home_rounded,
-            label: 'Главная',
-            active: true,
-            onTap: onHome,
-          ),
-          _BottomItem(
-            icon: Icons.folder_outlined,
-            label: 'Проекты',
-            onTap: onProjects,
-          ),
-          Expanded(
-            child: InkWell(
-              onTap: onAdd,
-              child: Center(
-                child: Container(
-                  width: 46,
-                  height: 46,
-                  decoration: const BoxDecoration(
-                    color: ZamerColors.accent,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.add_rounded,
-                    size: 29,
-                    color: ZamerColors.accentInk,
-                  ),
-                ),
-              ),
-            ),
-          ),
-          _BottomItem(
-            icon: Icons.shopping_bag_outlined,
-            label: 'Каталог',
-            onTap: onCatalog,
-          ),
-          _BottomItem(
-            icon: Icons.school_outlined,
-            label: 'Обучение',
-            onTap: onTutorial,
-          ),
-          _BottomItem(
-            icon: Icons.grid_view_rounded,
-            label: 'Ещё',
-            onTap: onMore,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _BottomItem extends StatelessWidget {
-  const _BottomItem({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-    this.active = false,
-  });
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-  final bool active;
-
-  @override
-  Widget build(BuildContext context) => Expanded(
-        child: InkWell(
-          onTap: onTap,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                icon,
-                size: 21,
-                color: active ? ZamerColors.accent : ZamerColors.textSecondary,
-              ),
-              const SizedBox(height: 3),
-              Text(
-                label,
-                maxLines: 1,
-                style: TextStyle(
-                  color:
-                      active ? ZamerColors.accent : ZamerColors.textSecondary,
-                  fontSize: 7.7,
-                  fontWeight: active ? FontWeight.w700 : FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-}
-
-class _TutorialRow extends StatelessWidget {
-  const _TutorialRow({
-    required this.number,
-    required this.title,
-    required this.text,
-  });
-  final String number;
-  final String title;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(bottom: 12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 28,
-              height: 28,
-              alignment: Alignment.center,
-              decoration: const BoxDecoration(
-                color: ZamerColors.accent,
-                shape: BoxShape.circle,
-              ),
-              child: Text(
-                number,
-                style: const TextStyle(
-                  color: ZamerColors.accentInk,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: ZamerTypography.bodySmall),
-                  const SizedBox(height: 2),
-                  Text(text, style: ZamerTypography.caption),
-                ],
-              ),
-            ),
-          ],
-        ),
+  Widget build(BuildContext context) => ZWorkspacePrimaryNav(
+        selectedIndex: 0,
+        onSelected: onModeSelected,
+        onHome: onHome,
       );
 }

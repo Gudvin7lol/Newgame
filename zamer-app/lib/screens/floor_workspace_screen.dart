@@ -418,6 +418,7 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
         onHome: _goHome,
         onProjects: _openProjects,
         onCatalog: _openObjectsFromMeasure,
+        onPrimaryModeSelected: _selectPrimaryMode,
       );
     }
 
