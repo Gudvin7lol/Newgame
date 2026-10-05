@@ -10,19 +10,25 @@ import 'package:vector_math/vector_math.dart' as vm;
 import '../models/models.dart';
 import '../services/generated_pbr_finish_catalog.dart';
 import '../services/material_catalog.dart';
+import '../services/object_catalog.dart';
 import '../widgets/floor_3d_painter.dart';
 import 'camera_clip_policy.dart';
 import 'ceiling_visibility_policy.dart';
 import 'floor_grout_geometry.dart';
+import 'cutaway_corridor_policy.dart';
 import 'cutaway_geometry.dart';
+import 'door_floor_bridge.dart';
 import 'host_wall_visibility.dart';
 import 'model_asset_catalog.dart';
+import 'material_pbr_uv_policy.dart';
 import 'model_lod_policy.dart';
+import 'model_visibility_policy.dart';
+import 'opening_render_policy.dart';
 import 'photo_render_quality_policy.dart';
 import 'photo_export_policy.dart';
-import 'photo_render_quality_policy.dart';
 import 'scene_fingerprint.dart';
 import 'scene_mesh_winding.dart';
+import 'surface_stability_policy.dart';
 import 'zamer_scene_geometry.dart';
 import 'wall_device_mount.dart';
 
@@ -515,6 +521,12 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     }
 
     for (final opening in geometry.openings) {
+      final threshold = _buildDoorFloorBridgeNode(
+        opening,
+        geometry,
+        floorMaterialCache,
+      );
+      if (threshold != null) nextNodes.add(threshold);
       final node = _buildOpeningNode(opening, geometry.bounds);
       nextNodes.add(node);
       nextHostedWallVisuals.add(
@@ -629,10 +641,10 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     }
 
     final key =
-        '${surface.materialMode}:${surface.materialId}:${surface.laminatePattern}:${surface.laminateOffsetMode}:${surface.tilePattern}';
+        '${surface.materialMode}:${surface.materialId}:${surface.laminatePattern}:${surface.laminateOffsetMode}:${surface.tilePattern}:${uvScale.$1}:${uvScale.$2}';
     final material = materialCache.putIfAbsent(
       key,
-      () => _floorMaterial(surface),
+      () => _floorMaterial(surface, uvScale),
     );
     final root = Node(name: 'floor-root:${surface.roomKey}');
     root.add(
@@ -643,6 +655,10 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
         ..castsShadows = false
         ..shadowStatic = true,
     );
+    if (surface.laminatePattern == 'herringbone') {
+      final seams = _buildFloorHerringboneSeamNode(surface, bounds);
+      if (seams != null) root.add(seams);
+    }
     if (isTile && surface.groutMm > 0) {
       final grout = _buildFloorGroutNode(surface, bounds, effectiveDirection);
       if (grout != null) root.add(grout);
@@ -703,7 +719,60 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       ..shadowStatic = true;
   }
 
-  PhysicallyBasedMaterial _floorMaterial(ZamerFloorSurface surface) {
+  Node? _buildFloorHerringboneSeamNode(
+    ZamerFloorSurface surface,
+    ZamerSceneBounds bounds,
+  ) {
+    final quads = buildFloorHerringboneSeamQuads(
+      polygonMm: surface.polygonMm,
+      anchorXMm: surface.anchorXMm,
+      anchorYMm: surface.anchorYMm,
+      directionDeg: surface.directionDeg,
+      plankLengthMm: surface.plankLengthMm,
+      plankWidthMm: surface.plankWidthMm,
+      offsetXMm: surface.laminateOffsetXMm,
+      offsetYMm: surface.laminateOffsetYMm,
+    );
+    if (quads.isEmpty) return null;
+
+    final builder = GeometryBuilder(deduplicate: false)
+      ..normal(vm.Vector3(0, 1, 0));
+    var vertex = 0;
+    for (final quad in quads) {
+      if (quad.pointsMm.length != 4) continue;
+      for (final point in quad.pointsMm) {
+        builder
+          ..texCoord(vm.Vector2.zero())
+          ..addVertex(
+            vm.Vector3(
+              _mx(point.x, bounds),
+              zamerFloorGroutYM,
+              _mz(point.y, bounds),
+            ),
+          );
+      }
+      builder
+        ..addTriangle(vertex, vertex + 2, vertex + 1)
+        ..addTriangle(vertex, vertex + 3, vertex + 2);
+      vertex += 4;
+    }
+    if (vertex == 0) return null;
+    final material = _pbr(
+      vm.Vector4(0.23, 0.18, 0.13, 1),
+      roughness: 0.82,
+    )..doubleSided = false;
+    return Node(
+        name: 'floor-herringbone-seams:${surface.roomKey}',
+        mesh: Mesh(builder.build(), material),
+      )
+      ..castsShadows = false
+      ..shadowStatic = true;
+  }
+
+  PhysicallyBasedMaterial _floorMaterial(
+    ZamerFloorSurface surface,
+    (double, double) uvScale,
+  ) {
     final preset = MaterialCatalog.byId(surface.materialId);
     final mode = surface.materialMode.toLowerCase();
     final texture = _textureForFloorSurface(surface, preset);
@@ -727,7 +796,19 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
           );
     final material = _pbr(tint, roughness: roughness, texture: texture)
       ..doubleSided = false;
-    _applyGeneratedPbr(material, preset);
+    final generatedPbr = GeneratedPbrFinishCatalog.byId(preset.id);
+    TextureTransform? pbrTransform;
+    if (generatedPbr != null) {
+      final physical = ZamerMaterialPbrUvPolicy.forFloor(
+        geometryUvWidthMm: uvScale.$1,
+        geometryUvHeightMm: uvScale.$2,
+        realWorldTileMm: generatedPbr.realWorldTileMm,
+      );
+      pbrTransform = TextureTransform(
+        scale: vm.Vector2(physical.scaleX, physical.scaleY),
+      );
+    }
+    _applyGeneratedPbr(material, preset, pbrTransform: pbrTransform);
     return material;
   }
 
@@ -775,10 +856,11 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       return (repeatMm, repeatMm);
     }
     if (surface.laminatePattern == 'herringbone') {
-      return (
-        math.max(240.0, surface.plankLengthMm),
-        math.max(80.0, surface.plankWidthMm),
+      final repeatMm = math.max(
+        600.0,
+        generatedPbr?.realWorldTileMm ?? surface.plankLengthMm,
       );
+      return (repeatMm, repeatMm);
     }
     final repeatX = surface.laminateOffsetMode == 'third'
         ? 3.0
@@ -842,7 +924,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
               : (preset.pattern == 'concrete' ? 0.90 : 0.82)),
       texture: texture,
     )..doubleSided = false;
-    TextureTransform? textureTransform;
+    TextureTransform? baseTextureTransform;
     if (finish.tileEnabled && texture != null) {
       final sourceTileW = math.max(20.0, finish.tileWidthMm);
       final sourceTileH = math.max(20.0, finish.tileHeightMm);
@@ -852,7 +934,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       final repeatY = math.max(0.001, wall.heightMm / tileH);
       final wallU = (wall.textureStartMm + finish.tileOffsetXMm) / tileW;
       final wallV = (wall.bottomMm - finish.tileOffsetYMm) / tileH;
-      textureTransform = TextureTransform(
+      baseTextureTransform = TextureTransform(
         scale: vm.Vector2(
           (finish.tileMirrored ? -1.0 : 1.0) * repeatX,
           repeatY,
@@ -864,7 +946,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       final generatedPbr = GeneratedPbrFinishCatalog.byId(preset.id);
       if (generatedPbr != null) {
         final repeatMm = math.max(50.0, generatedPbr.realWorldTileMm);
-        textureTransform = TextureTransform(
+        baseTextureTransform = TextureTransform(
           scale: vm.Vector2(
             math.max(0.001, wall.lengthMm / repeatMm),
             math.max(0.001, wall.heightMm / repeatMm),
@@ -876,35 +958,67 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
         );
       }
     }
-    _applyGeneratedPbr(material, preset, transform: textureTransform);
+    final generatedPbr = GeneratedPbrFinishCatalog.byId(preset.id);
+    TextureTransform? pbrTextureTransform;
+    if (generatedPbr != null) {
+      final physical = ZamerMaterialPbrUvPolicy.forWall(
+        wallLengthMm: wall.lengthMm,
+        wallHeightMm: wall.heightMm,
+        textureStartMm: wall.textureStartMm,
+        bottomMm: wall.bottomMm,
+        realWorldTileMm: generatedPbr.realWorldTileMm,
+      );
+      final mirrored = finish.tileEnabled && finish.tileMirrored;
+      pbrTextureTransform = TextureTransform(
+        scale: vm.Vector2(
+          (mirrored ? -1.0 : 1.0) * physical.scaleX,
+          physical.scaleY,
+        ),
+        offset: vm.Vector2(
+          mirrored ? 1.0 - physical.offsetX : physical.offsetX,
+          physical.offsetY,
+        ),
+        rotation: finish.tileEnabled && finish.tileRotated ? math.pi / 2 : 0,
+      );
+    }
+    _applyGeneratedPbr(
+      material,
+      preset,
+      baseTransform: baseTextureTransform,
+      pbrTransform: pbrTextureTransform,
+    );
     return material;
   }
 
   void _applyGeneratedPbr(
     PhysicallyBasedMaterial material,
     VisualMaterialPreset preset, {
-    TextureTransform? transform,
+    TextureTransform? baseTransform,
+    TextureTransform? pbrTransform,
   }) {
-    if (transform != null) {
-      material.baseColorTextureTransform = transform;
+    if (baseTransform != null) {
+      material.baseColorTextureTransform = baseTransform;
     }
     final generatedPbr = GeneratedPbrFinishCatalog.byId(preset.id);
     if (generatedPbr == null) return;
+    final physicalTransform = pbrTransform ?? baseTransform;
 
     final normal = _finishTextures[generatedPbr.normalAsset];
     if (normal != null) {
       material
         ..normalTexture = normal
         ..normalScale = generatedPbr.normalScale;
-      if (transform != null) material.normalTextureTransform = transform;
+      if (physicalTransform != null) {
+        material.normalTextureTransform = physicalTransform;
+      }
     }
 
     final metallicRoughness =
         _finishTextures[generatedPbr.metallicRoughnessAsset];
     if (metallicRoughness != null) {
       material.metallicRoughnessTexture = metallicRoughness;
-      if (transform != null) {
-        material.metallicRoughnessTextureTransform = transform;
+      if (physicalTransform != null) {
+        material.metallicRoughnessTextureTransform = physicalTransform;
       }
     }
   }
@@ -960,60 +1074,150 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       ..visible = widget.walkMode;
   }
 
-  Node? _buildUnderWallFloorNode(
-    ZamerWallPiece wall,
+  Node? _buildDoorFloorBridgeNode(
+    ZamerOpeningPlacement opening,
     ZamerSceneGeometry geometry,
     Map<String, PhysicallyBasedMaterial> materialCache,
   ) {
-    if (geometry.floors.isEmpty) return null;
-    ZamerFloorSurface nearest = geometry.floors.first;
-    var best = double.infinity;
-    for (final surface in geometry.floors) {
-      if (surface.polygonMm.isEmpty) continue;
-      var cx = 0.0, cy = 0.0;
-      for (final p in surface.polygonMm) {
-        cx += p.x;
-        cy += p.y;
+    final segments = buildDoorFloorBridgeSegments(
+      opening: opening,
+      floors: geometry.floors,
+    );
+    if (segments.isEmpty) return null;
+
+    final root = Node(name: 'door-floor-bridge:${opening.id}');
+
+    void addOverlay({
+      required List<FloorGroutQuad> quads,
+      required String name,
+      required PhysicallyBasedMaterial material,
+    }) {
+      if (quads.isEmpty) return;
+      final builder = GeometryBuilder(deduplicate: false)
+        ..normal(vm.Vector3(0, 1, 0));
+      var vertex = 0;
+      for (final quad in quads) {
+        if (quad.pointsMm.length != 4) continue;
+        for (final point in quad.pointsMm) {
+          builder
+            ..texCoord(vm.Vector2.zero())
+            ..addVertex(
+              vm.Vector3(
+                _mx(point.x, geometry.bounds),
+                zamerFloorGroutYM,
+                _mz(point.y, geometry.bounds),
+              ),
+            );
+        }
+        builder
+          ..addTriangle(vertex, vertex + 2, vertex + 1)
+          ..addTriangle(vertex, vertex + 3, vertex + 2);
+        vertex += 4;
       }
-      cx /= surface.polygonMm.length;
-      cy /= surface.polygonMm.length;
-      final dx = cx - wall.centerXMm;
-      final dy = cy - wall.centerYMm;
-      final d2 = dx * dx + dy * dy;
-      if (d2 < best) {
-        best = d2;
-        nearest = surface;
+      if (vertex == 0) return;
+      root.add(
+        Node(name: name, mesh: Mesh(builder.build(), material))
+          ..castsShadows = false
+          ..shadowStatic = true,
+      );
+    }
+
+    for (var segmentIndex = 0; segmentIndex < segments.length; segmentIndex++) {
+      final segment = segments[segmentIndex];
+      final surface = segment.surface;
+      final uvScale = _floorUvScaleMm(surface);
+      final preset = MaterialCatalog.byId(surface.materialId);
+      final isTile =
+          surface.materialMode.toLowerCase().contains('tile') ||
+          preset.pattern == 'tile';
+      final effectiveDirection = isTile
+          ? surface.directionDeg + (surface.tilePattern == 'diagonal' ? 45 : 0)
+          : surface.directionDeg;
+      final angle = effectiveDirection * math.pi / 180;
+      final ca = math.cos(angle), sa = math.sin(angle);
+      final offX = isTile ? surface.tileOffsetXMm : surface.laminateOffsetXMm;
+      final offY = isTile ? surface.tileOffsetYMm : surface.laminateOffsetYMm;
+
+      final builder = GeometryBuilder(deduplicate: false)
+        ..normal(vm.Vector3(0, 1, 0));
+      for (final point in segment.pointsMm) {
+        final dx = point.x - surface.anchorXMm;
+        final dy = point.y - surface.anchorYMm;
+        final rx = dx * ca + dy * sa - offX;
+        final ry = -dx * sa + dy * ca - offY;
+        builder
+          ..texCoord(vm.Vector2(rx / uvScale.$1, ry / uvScale.$2))
+          ..addVertex(
+            vm.Vector3(
+              _mx(point.x, geometry.bounds),
+              zamerFloorSurfaceYM,
+              _mz(point.y, geometry.bounds),
+            ),
+          );
+      }
+      builder
+        ..addTriangle(0, 2, 1)
+        ..addTriangle(0, 3, 2);
+
+      final materialKey =
+          '${surface.materialMode}:${surface.materialId}:${surface.laminatePattern}:${surface.laminateOffsetMode}:${surface.tilePattern}:${uvScale.$1}:${uvScale.$2}';
+      final material = materialCache.putIfAbsent(
+        materialKey,
+        () => _floorMaterial(surface, uvScale),
+      );
+      root.add(
+        Node(
+            name: 'door-floor-bridge:${opening.id}:$segmentIndex',
+            mesh: Mesh(builder.build(), material),
+          )
+          ..castsShadows = false
+          ..shadowStatic = true,
+      );
+
+      if (surface.laminatePattern == 'herringbone') {
+        final seams = buildFloorHerringboneSeamQuads(
+          polygonMm: segment.pointsMm,
+          anchorXMm: surface.anchorXMm,
+          anchorYMm: surface.anchorYMm,
+          directionDeg: surface.directionDeg,
+          plankLengthMm: surface.plankLengthMm,
+          plankWidthMm: surface.plankWidthMm,
+          offsetXMm: surface.laminateOffsetXMm,
+          offsetYMm: surface.laminateOffsetYMm,
+        );
+        addOverlay(
+          quads: seams,
+          name: 'door-floor-herringbone:${opening.id}:$segmentIndex',
+          material: _pbr(
+            vm.Vector4(0.23, 0.18, 0.13, 1),
+            roughness: 0.82,
+          )..doubleSided = false,
+        );
+      } else if (isTile && surface.groutMm > 0) {
+        final grout = buildFloorTileGroutQuads(
+          polygonMm: segment.pointsMm,
+          anchorXMm: surface.anchorXMm,
+          anchorYMm: surface.anchorYMm,
+          directionDeg: effectiveDirection,
+          tileWidthMm: surface.tileWidthMm,
+          tileHeightMm: surface.tileHeightMm,
+          offsetXMm: surface.tileOffsetXMm,
+          offsetYMm: surface.tileOffsetYMm,
+          groutMm: surface.groutMm,
+          pattern: surface.tilePattern,
+        );
+        addOverlay(
+          quads: grout,
+          name: 'door-floor-grout:${opening.id}:$segmentIndex',
+          material: _pbr(
+            vm.Vector4(0.68, 0.69, 0.68, 1),
+            roughness: 0.94,
+          )..doubleSided = false,
+        );
       }
     }
-    final key =
-        '${nearest.materialMode}:${nearest.materialId}:${nearest.laminatePattern}:${nearest.laminateOffsetMode}:${nearest.tilePattern}:under-wall';
-    final material = materialCache.putIfAbsent(
-      key,
-      () => _floorMaterial(nearest),
-    );
-    final node = Node(
-      name: 'floor-under-wall:${wall.wallId}',
-      mesh: Mesh(
-        CuboidGeometry(
-          vm.Vector3(
-            math.max(0.01, (wall.lengthMm + 8) / 1000),
-            0.012,
-            math.max(0.01, (wall.thicknessMm + 18) / 1000),
-          ),
-        ),
-        material,
-      ),
-    );
-    node
-      ..position = vm.Vector3(
-        _mx(wall.centerXMm, geometry.bounds),
-        -0.002,
-        _mz(wall.centerYMm, geometry.bounds),
-      )
-      ..rotation = vm.Quaternion.axisAngle(vm.Vector3(0, 1, 0), -wall.angleRad)
-      ..castsShadows = false
-      ..shadowStatic = true;
-    return node;
+
+    return root;
   }
 
   Node _buildWallNode(ZamerWallPiece wall, ZamerSceneBounds bounds) {
@@ -1071,7 +1275,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
             ..position = vm.Vector3(
               0,
               (wall.bottomMm + wall.heightMm / 2) / 1000,
-              finish.sideSign * (wall.thicknessMm / 2000 + thin / 2 + 0.0005),
+              finish.sideSign * (wall.thicknessMm / 2000 + thin / 2 + ZamerSurfaceStabilityPolicy.wallFinishGapM),
             )
             ..castsShadows = finish.tileEnabled
             ..shadowStatic = true;
@@ -1107,10 +1311,15 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     final frame = opening.type == OpeningType.window
         ? whiteFrameMaterial
         : frameMaterial;
-    final depthM = math.max(0.055, (opening.wallThicknessMm + 14) / 1000);
-    final widthM = math.max(0.20, opening.widthMm / 1000);
-    final heightM = math.max(0.20, opening.heightMm / 1000);
-    const frameBarM = 0.045;
+    final metrics = ZamerOpeningRenderMetrics.fromMillimetres(
+      widthMm: opening.widthMm,
+      heightMm: opening.heightMm,
+      wallThicknessMm: opening.wallThicknessMm,
+    );
+    final depthM = metrics.frameDepthM;
+    final widthM = metrics.widthM;
+    final heightM = metrics.heightM;
+    final frameBarM = metrics.frameBarM;
 
     Node bar({
       required String name,
@@ -1119,6 +1328,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       required double width,
       required double height,
       double depth = 0,
+      double z = 0,
       PhysicallyBasedMaterial? material,
       bool castsShadows = true,
     }) {
@@ -1136,7 +1346,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
                 material ?? frame,
               ),
             )
-            ..position = vm.Vector3(x, y, 0)
+            ..position = vm.Vector3(x, y, z)
             ..castsShadows = castsShadows
             ..shadowStatic = castsShadows;
       return node;
@@ -1173,6 +1383,73 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
         ),
       );
 
+    // Proper casings on both wall faces make the opening read as a finished
+    // door/window instead of a frame floating inside a hole. The casing is
+    // kept just outside the frame depth so it cannot z-fight with wall finish.
+    void addCasing(double faceSign) {
+      final z = faceSign *
+          (depthM / 2 + metrics.casingDepthM / 2 + 0.0015);
+      final casingWidth = metrics.casingWidthM;
+      root
+        ..add(
+          bar(
+            name: faceSign > 0
+                ? 'opening-casing-left-front'
+                : 'opening-casing-left-back',
+            x: -widthM / 2 + casingWidth / 2,
+            y: bottomM + heightM / 2,
+            width: casingWidth,
+            height: heightM + casingWidth,
+            depth: metrics.casingDepthM,
+            z: z,
+          ),
+        )
+        ..add(
+          bar(
+            name: faceSign > 0
+                ? 'opening-casing-right-front'
+                : 'opening-casing-right-back',
+            x: widthM / 2 - casingWidth / 2,
+            y: bottomM + heightM / 2,
+            width: casingWidth,
+            height: heightM + casingWidth,
+            depth: metrics.casingDepthM,
+            z: z,
+          ),
+        )
+        ..add(
+          bar(
+            name: faceSign > 0
+                ? 'opening-casing-top-front'
+                : 'opening-casing-top-back',
+            x: 0,
+            y: topM - casingWidth / 2,
+            width: widthM,
+            height: casingWidth,
+            depth: metrics.casingDepthM,
+            z: z,
+          ),
+        );
+      if (opening.type == OpeningType.window) {
+        root.add(
+          bar(
+            name: faceSign > 0
+                ? 'opening-casing-bottom-front'
+                : 'opening-casing-bottom-back',
+            x: 0,
+            y: bottomM + casingWidth / 2,
+            width: widthM,
+            height: casingWidth,
+            depth: metrics.casingDepthM,
+            z: z,
+          ),
+        );
+      }
+    }
+
+    addCasing(-1);
+    addCasing(1);
+
     if (opening.type == OpeningType.window) {
       root.add(
         bar(
@@ -1185,10 +1462,21 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       );
       root.add(
         bar(
+          name: 'window-sill-board',
+          x: 0,
+          y: bottomM + metrics.sillBoardThicknessM / 2,
+          width: widthM + 0.10,
+          height: metrics.sillBoardThicknessM,
+          depth: metrics.sillBoardDepthM,
+          material: whiteFrameMaterial,
+        ),
+      );
+      root.add(
+        bar(
           name: 'window-mullion',
           x: 0,
           y: bottomM + heightM / 2,
-          width: 0.032,
+          width: metrics.mullionWidthM,
           height: math.max(0.05, heightM - frameBarM * 2),
           depth: math.max(0.035, depthM * 0.62),
         ),
@@ -1201,8 +1489,8 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
           name: 'window-glass',
           x: 0,
           y: bottomM + heightM / 2,
-          width: math.max(0.08, widthM - frameBarM * 2.2),
-          height: math.max(0.08, heightM - frameBarM * 2.2),
+          width: math.max(0.08, widthM - frameBarM * 2.4),
+          height: math.max(0.08, heightM - frameBarM * 2.4),
           depth: 0.008,
           material: glass,
           castsShadows: false,
@@ -1217,13 +1505,13 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
           opening.doorSwing == DoorSwing.rightIn;
       final hingeSign = leftHinge ? -1.0 : 1.0;
       final swingSign = (opensIn ? 1.0 : -1.0) * hingeSign;
-      final leafWidth = math.max(0.12, widthM - frameBarM * 1.5);
-      final leafHeight = math.max(0.18, heightM - frameBarM);
+      final leafWidth = metrics.leafWidthM;
+      final leafHeight = metrics.leafHeightM;
       final hinge = Node(name: 'door-hinge')
         ..position = vm.Vector3(hingeSign * (widthM / 2 - frameBarM), 0, 0)
         ..rotation = vm.Quaternion.axisAngle(
           vm.Vector3(0, 1, 0),
-          swingSign * 32 * math.pi / 180,
+          swingSign * 42 * math.pi / 180,
         );
       final leafMaterial = _pbr(
         vm.Vector4(0.63, 0.43, 0.26, 1),
@@ -1243,7 +1531,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
         Node(
           name: 'door-leaf',
           mesh: Mesh(
-            CuboidGeometry(vm.Vector3(leafWidth, leafHeight, 0.042)),
+            CuboidGeometry(vm.Vector3(leafWidth, leafHeight, metrics.leafThicknessM)),
             leafMaterial,
           ),
         )..shadowStatic = true,
@@ -1419,7 +1707,12 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     required Set<String> activeModelPaths,
   }) async {
     final asset = ZamerModelAssetCatalog.byId(object.catalogId);
-    final root = Node(name: 'object:${object.id}:${object.catalogId}');
+    final root = Node(name: 'object:${object.id}:${object.catalogId}')
+      ..frustumCulled = ZamerModelVisibilityPolicy.frustumCulled(
+        performanceMode: widget.performanceMode,
+        photoQuality: photoQuality,
+        visibleObjectCount: visibleObjectCount,
+      );
     var importedModel = false;
 
     if (asset == null) {
@@ -1457,6 +1750,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
             -localBounds.center.z * sz,
           );
         }
+        model.markBoundsDirty();
         root.add(model);
       } catch (_) {
         // A single bad optional model must never take the complete room down.
@@ -1464,10 +1758,17 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       }
     }
 
+    final catalogItem = ObjectCatalog.byId(object.catalogId);
+    final mount = catalogItem.id == object.catalogId
+        ? catalogItem.mount
+        : CatalogMount.floor;
     root
       ..position = vm.Vector3(
         _mx(object.xMm, bounds),
-        object.elevationMm / 1000,
+        ZamerSurfaceStabilityPolicy.objectBaseYM(
+          mount: mount,
+          elevationMm: object.elevationMm,
+        ),
         _mz(object.yMm, bounds),
       )
       ..rotation = vm.Quaternion.axisAngle(
@@ -1483,6 +1784,10 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       );
     }
     _markStatic(root);
+    // Light emitters and imported GLB transforms are attached after the root is
+    // created. Refresh the subtree bounds once so the renderer never reuses a
+    // stale box when frustum culling is enabled for dense/performance scenes.
+    root.markBoundsDirty();
     return root;
   }
 
@@ -1748,11 +2053,9 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     if (cameraFromTarget.length2 < 0.0001) return;
 
     final cameraDistance = cameraFromTarget.length;
-    final halfFov =
-        widget.cameraFovDegrees.clamp(18.0, 90.0).toDouble() * math.pi / 360;
-    final corridorHalfWidth = math.max(
-      0.75,
-      math.tan(halfFov) * cameraDistance * 1.15,
+    final corridorHalfWidth = ZamerCutawayCorridorPolicy.halfWidth(
+      cameraDistanceM: cameraDistance,
+      fovDegrees: widget.cameraFovDegrees,
     );
 
     final targetPoint = math.Point<double>(target2.x, target2.y);
