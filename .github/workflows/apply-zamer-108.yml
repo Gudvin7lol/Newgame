@@ -1,0 +1,43 @@
+name: Apply Zamer +108 patch
+
+on:
+  push:
+    branches:
+      - codex/zamer-1.5.6-3d-stability
+    paths:
+      - zamer-app/tool/apply_108_herringbone.py
+      - .github/workflows/apply-zamer-108.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/zamer-1.5.6-3d-stability
+          fetch-depth: 0
+
+      - name: Apply +108 source patch
+        run: |
+          python3 zamer-app/tool/apply_108_herringbone.py
+          if ! grep -q "^import 'dart:io';" zamer-app/test/render_quality_contract_test.dart; then
+            sed -i "1i import 'dart:io';" zamer-app/test/render_quality_contract_test.dart
+          fi
+          git diff --check
+
+      - name: Commit +108
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            zamer-app/lib/renderer3d/floor_grout_geometry.dart \
+            zamer-app/lib/renderer3d/zamer_gpu_viewport.dart \
+            zamer-app/test/floor_grout_geometry_test.dart \
+            zamer-app/test/render_quality_contract_test.dart \
+            zamer-app/pubspec.yaml
+          git commit -m "Zamer 1.5.6+108: render herringbone seams in GPU 3D"
+          git push origin HEAD:codex/zamer-1.5.6-3d-stability
