@@ -15,7 +15,7 @@ import '../services/project_backup_service.dart';
 import '../services/project_store.dart';
 import '../widgets/projects_home_widgets.dart';
 import 'device_diagnostics_screen.dart';
-import 'floors_screen.dart';
+import 'floor_workspace_screen.dart';
 import 'scan_plan_screen.dart';
 
 class ProjectsScreen extends StatefulWidget {
@@ -331,10 +331,19 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   }
 
   Future<void> _open(MeasureProject project) async {
+    if (project.floors.isEmpty) {
+      project.floors.add(FloorPlan(id: _id('f'), name: 'Этаж 1'));
+      await _save();
+    }
+    if (!mounted) return;
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => FloorsScreen(project: project, onChanged: _save),
+        builder: (_) => FloorWorkspaceScreen(
+          project: project,
+          floor: project.floors.first,
+          onChanged: _save,
+        ),
       ),
     );
     if (mounted) setState(() {});
@@ -383,7 +392,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
             ZActionTile(
               icon: Icons.arrow_forward_rounded,
               title: 'Продолжить работу',
-              subtitle: 'Открыть этажи и рабочее пространство',
+              subtitle: 'Открыть рабочее пространство',
               onTap: () {
                 Navigator.pop(sheetContext);
                 _open(project);
