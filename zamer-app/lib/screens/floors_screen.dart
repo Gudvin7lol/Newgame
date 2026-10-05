@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../models/models.dart';
-import 'floor_workspace_screen.dart';
+import 'recovered_project_workspace_screen.dart';
 
 /// Compatibility entry point kept for older Home/project routes.
 ///
-/// Floors are no longer a separate user-facing page. Opening a project goes
-/// directly into Measure; floor switching and creation live inside Measure.
+/// Floors are not a separate user-facing page. Opening a project goes directly
+/// into the recovered four-mode workspace; floor switching lives inside it.
 class FloorsScreen extends StatefulWidget {
   const FloorsScreen({
     super.key,
@@ -46,7 +46,7 @@ class _FloorsScreenState extends State<FloorsScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => FloorWorkspaceScreen(
+  Widget build(BuildContext context) => RecoveredProjectWorkspaceScreen(
         project: widget.project,
         floor: _floor,
         onChanged: widget.onChanged,
