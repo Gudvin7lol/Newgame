@@ -1,0 +1,32 @@
+name: Apply wall UV runtime integration
+
+on:
+  push:
+    branches:
+      - codex/zamer-master-ui-final
+    paths:
+      - .github/workflows/apply-wall-uv-runtime.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/zamer-master-ui-final
+      - name: Apply continuous UV transform
+        shell: bash
+        run: |
+          python3 -c "from pathlib import Path; p=Path('zamer-app/lib/renderer3d/zamer_gpu_viewport.dart'); s=p.read_text(); marker=\"import 'wall_device_mount.dart';\"; s=s if \"import 'wall_texture_transform_policy.dart';\" in s else s.replace(marker, marker+\"\\nimport 'wall_texture_transform_policy.dart';\"); old=\"\"\"    } else if (texture != null) {\n      final generatedPbr = GeneratedPbrFinishCatalog.byId(preset.id);\n      if (generatedPbr != null) {\n        final repeatMm = math.max(50.0, generatedPbr.realWorldTileMm);\n        textureTransform = TextureTransform(\n          scale: vm.Vector2(\n            math.max(0.001, wall.lengthMm / repeatMm),\n            math.max(0.001, wall.heightMm / repeatMm),\n          ),\n          offset: vm.Vector2(\n            wall.textureStartMm / repeatMm,\n            wall.bottomMm / repeatMm,\n          ),\n        );\n      }\n    }\n\"\"\"; new=\"\"\"    } else if (texture != null) {\n      final generatedPbr = GeneratedPbrFinishCatalog.byId(preset.id);\n      final transform = zamerWallTextureTransform(\n        textureStartMm: wall.textureStartMm,\n        bottomMm: wall.bottomMm,\n        lengthMm: wall.lengthMm,\n        heightMm: wall.heightMm,\n        realWorldTileMm: generatedPbr?.realWorldTileMm ?? 1000.0,\n      );\n      textureTransform = TextureTransform(\n        scale: vm.Vector2(transform.repeatU, transform.repeatV),\n        offset: vm.Vector2(transform.offsetU, transform.offsetV),\n      );\n    }\n\"\"\"; assert old in s, 'expected wall texture block not found'; p.write_text(s.replace(old,new))"
+      - name: Commit runtime integration
+        shell: bash
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add zamer-app/lib/renderer3d/zamer_gpu_viewport.dart
+          git diff --cached --check
+          git commit -m "Apply continuous wall UVs in GPU renderer"
+          git push origin HEAD:codex/zamer-master-ui-final
