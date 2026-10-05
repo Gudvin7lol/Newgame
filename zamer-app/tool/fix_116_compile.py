@@ -17,3 +17,4 @@ text = text.replace(unused, '', 1)
 text = text.replace('width: math.max(1, maxX - minX),', 'width: math.max(1.0, maxX - minX),', 1)
 text = text.replace('height: math.max(1, maxY - minY),', 'height: math.max(1.0, maxY - minY),', 1)
 path.write_text(text, encoding='utf-8')
+# trigger after workflow creation
