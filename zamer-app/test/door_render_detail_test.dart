@@ -17,6 +17,12 @@ void main() {
     expect(source, contains('door-hinge-plate'));
     expect(source, contains('metallicFactor = 0.86'));
     expect(source, isNot(contains('..metallic = 0.86')));
-    expect(source, contains('swingSign * 32 * math.pi / 180'));
+
+    // +111 opens the preview wider so the leaf and passage are readable in 3D.
+    expect(source, contains('swingSign * 42 * math.pi / 180'));
+    expect(source, contains('ZamerOpeningRenderMetrics.fromMillimetres'));
+    expect(source, contains('opening-casing-left-front'));
+    expect(source, contains('opening-casing-right-back'));
+    expect(source, contains('window-sill-board'));
   });
 }
