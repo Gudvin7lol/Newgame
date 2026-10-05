@@ -1,0 +1,87 @@
+name: Apply object grounding runtime
+
+on:
+  push:
+    branches:
+      - codex/zamer-master-ui-final
+    paths:
+      - .github/workflows/apply-object-grounding-runtime.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/zamer-master-ui-final
+          fetch-depth: 0
+      - name: Patch GPU object grounding
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('zamer-app/lib/renderer3d/zamer_gpu_viewport.dart')
+          text = path.read_text()
+
+          if "import 'object_grounding.dart';" not in text:
+              marker = "import 'model_lod_policy.dart';\n"
+              assert marker in text
+              text = text.replace(marker, marker + "import 'object_grounding.dart';\n", 1)
+
+          old_elevation = "        object.elevationMm / 1000,\n"
+          new_elevation = "        zamerObjectElevationM(elevationMm: object.elevationMm),\n"
+          if old_elevation in text:
+              text = text.replace(old_elevation, new_elevation, 1)
+          else:
+              assert new_elevation in text
+
+          old_dimensions = """          vm.Vector3(
+            math.max(0.05, object.widthMm / 1000),
+            math.max(0.05, object.heightMm / 1000),
+            math.max(0.05, object.depthMm / 1000),
+          ),"""
+          new_dimensions = """          vm.Vector3(
+            zamerFallbackObjectRenderedWidthM(widthMm: object.widthMm),
+            zamerFallbackObjectRenderedHeightM(heightMm: object.heightMm),
+            zamerFallbackObjectRenderedDepthM(depthMm: object.depthMm),
+          ),"""
+          if old_dimensions in text:
+              text = text.replace(old_dimensions, new_dimensions, 1)
+          else:
+              assert new_dimensions in text
+
+          old_return = """    );
+    return node;
+  }
+
+  static void _markStatic"""
+          new_return = """    )..position = vm.Vector3(
+        0,
+        zamerFallbackObjectLocalCenterYM(heightMm: object.heightMm),
+        0,
+      );
+    return node;
+  }
+
+  static void _markStatic"""
+          if old_return in text:
+              text = text.replace(old_return, new_return, 1)
+          else:
+              assert new_return in text
+
+          path.write_text(text)
+      - name: Commit runtime integration
+        run: |
+          if git diff --quiet; then
+            echo "Grounding already integrated"
+            exit 0
+          fi
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add zamer-app/lib/renderer3d/zamer_gpu_viewport.dart
+          git commit -m "Integrate fallback grounding into GPU viewport"
+          git push origin HEAD:codex/zamer-master-ui-final
