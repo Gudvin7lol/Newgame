@@ -16,6 +16,7 @@ import 'camera_clip_policy.dart';
 import 'ceiling_visibility_policy.dart';
 import 'floor_grout_geometry.dart';
 import 'cutaway_geometry.dart';
+import 'door_floor_bridge.dart';
 import 'host_wall_visibility.dart';
 import 'model_asset_catalog.dart';
 import 'material_pbr_uv_policy.dart';
@@ -518,6 +519,12 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     }
 
     for (final opening in geometry.openings) {
+      final threshold = _buildDoorFloorBridgeNode(
+        opening,
+        geometry,
+        floorMaterialCache,
+      );
+      if (threshold != null) nextNodes.add(threshold);
       final node = _buildOpeningNode(opening, geometry.bounds);
       nextNodes.add(node);
       nextHostedWallVisuals.add(
@@ -1065,61 +1072,150 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       ..visible = widget.walkMode;
   }
 
-  Node? _buildUnderWallFloorNode(
-    ZamerWallPiece wall,
+  Node? _buildDoorFloorBridgeNode(
+    ZamerOpeningPlacement opening,
     ZamerSceneGeometry geometry,
     Map<String, PhysicallyBasedMaterial> materialCache,
   ) {
-    if (geometry.floors.isEmpty) return null;
-    ZamerFloorSurface nearest = geometry.floors.first;
-    var best = double.infinity;
-    for (final surface in geometry.floors) {
-      if (surface.polygonMm.isEmpty) continue;
-      var cx = 0.0, cy = 0.0;
-      for (final p in surface.polygonMm) {
-        cx += p.x;
-        cy += p.y;
+    final segments = buildDoorFloorBridgeSegments(
+      opening: opening,
+      floors: geometry.floors,
+    );
+    if (segments.isEmpty) return null;
+
+    final root = Node(name: 'door-floor-bridge:${opening.id}');
+
+    void addOverlay({
+      required List<FloorGroutQuad> quads,
+      required String name,
+      required PhysicallyBasedMaterial material,
+    }) {
+      if (quads.isEmpty) return;
+      final builder = GeometryBuilder(deduplicate: false)
+        ..normal(vm.Vector3(0, 1, 0));
+      var vertex = 0;
+      for (final quad in quads) {
+        if (quad.pointsMm.length != 4) continue;
+        for (final point in quad.pointsMm) {
+          builder
+            ..texCoord(vm.Vector2.zero())
+            ..addVertex(
+              vm.Vector3(
+                _mx(point.x, geometry.bounds),
+                zamerFloorGroutYM,
+                _mz(point.y, geometry.bounds),
+              ),
+            );
+        }
+        builder
+          ..addTriangle(vertex, vertex + 2, vertex + 1)
+          ..addTriangle(vertex, vertex + 3, vertex + 2);
+        vertex += 4;
       }
-      cx /= surface.polygonMm.length;
-      cy /= surface.polygonMm.length;
-      final dx = cx - wall.centerXMm;
-      final dy = cy - wall.centerYMm;
-      final d2 = dx * dx + dy * dy;
-      if (d2 < best) {
-        best = d2;
-        nearest = surface;
+      if (vertex == 0) return;
+      root.add(
+        Node(name: name, mesh: Mesh(builder.build(), material))
+          ..castsShadows = false
+          ..shadowStatic = true,
+      );
+    }
+
+    for (var segmentIndex = 0; segmentIndex < segments.length; segmentIndex++) {
+      final segment = segments[segmentIndex];
+      final surface = segment.surface;
+      final uvScale = _floorUvScaleMm(surface);
+      final preset = MaterialCatalog.byId(surface.materialId);
+      final isTile =
+          surface.materialMode.toLowerCase().contains('tile') ||
+          preset.pattern == 'tile';
+      final effectiveDirection = isTile
+          ? surface.directionDeg + (surface.tilePattern == 'diagonal' ? 45 : 0)
+          : surface.directionDeg;
+      final angle = effectiveDirection * math.pi / 180;
+      final ca = math.cos(angle), sa = math.sin(angle);
+      final offX = isTile ? surface.tileOffsetXMm : surface.laminateOffsetXMm;
+      final offY = isTile ? surface.tileOffsetYMm : surface.laminateOffsetYMm;
+
+      final builder = GeometryBuilder(deduplicate: false)
+        ..normal(vm.Vector3(0, 1, 0));
+      for (final point in segment.pointsMm) {
+        final dx = point.x - surface.anchorXMm;
+        final dy = point.y - surface.anchorYMm;
+        final rx = dx * ca + dy * sa - offX;
+        final ry = -dx * sa + dy * ca - offY;
+        builder
+          ..texCoord(vm.Vector2(rx / uvScale.$1, ry / uvScale.$2))
+          ..addVertex(
+            vm.Vector3(
+              _mx(point.x, geometry.bounds),
+              zamerFloorSurfaceYM,
+              _mz(point.y, geometry.bounds),
+            ),
+          );
+      }
+      builder
+        ..addTriangle(0, 2, 1)
+        ..addTriangle(0, 3, 2);
+
+      final materialKey =
+          '${surface.materialMode}:${surface.materialId}:${surface.laminatePattern}:${surface.laminateOffsetMode}:${surface.tilePattern}:${uvScale.$1}:${uvScale.$2}';
+      final material = materialCache.putIfAbsent(
+        materialKey,
+        () => _floorMaterial(surface, uvScale),
+      );
+      root.add(
+        Node(
+            name: 'door-floor-bridge:${opening.id}:$segmentIndex',
+            mesh: Mesh(builder.build(), material),
+          )
+          ..castsShadows = false
+          ..shadowStatic = true,
+      );
+
+      if (surface.laminatePattern == 'herringbone') {
+        final seams = buildFloorHerringboneSeamQuads(
+          polygonMm: segment.pointsMm,
+          anchorXMm: surface.anchorXMm,
+          anchorYMm: surface.anchorYMm,
+          directionDeg: surface.directionDeg,
+          plankLengthMm: surface.plankLengthMm,
+          plankWidthMm: surface.plankWidthMm,
+          offsetXMm: surface.laminateOffsetXMm,
+          offsetYMm: surface.laminateOffsetYMm,
+        );
+        addOverlay(
+          quads: seams,
+          name: 'door-floor-herringbone:${opening.id}:$segmentIndex',
+          material: _pbr(
+            vm.Vector4(0.23, 0.18, 0.13, 1),
+            roughness: 0.82,
+          )..doubleSided = false,
+        );
+      } else if (isTile && surface.groutMm > 0) {
+        final grout = buildFloorTileGroutQuads(
+          polygonMm: segment.pointsMm,
+          anchorXMm: surface.anchorXMm,
+          anchorYMm: surface.anchorYMm,
+          directionDeg: effectiveDirection,
+          tileWidthMm: surface.tileWidthMm,
+          tileHeightMm: surface.tileHeightMm,
+          offsetXMm: surface.tileOffsetXMm,
+          offsetYMm: surface.tileOffsetYMm,
+          groutMm: surface.groutMm,
+          pattern: surface.tilePattern,
+        );
+        addOverlay(
+          quads: grout,
+          name: 'door-floor-grout:${opening.id}:$segmentIndex',
+          material: _pbr(
+            vm.Vector4(0.68, 0.69, 0.68, 1),
+            roughness: 0.94,
+          )..doubleSided = false,
+        );
       }
     }
-    final key =
-        '${nearest.materialMode}:${nearest.materialId}:${nearest.laminatePattern}:${nearest.laminateOffsetMode}:${nearest.tilePattern}:under-wall';
-    final nearestUvScale = _floorUvScaleMm(nearest);
-    final material = materialCache.putIfAbsent(
-      '$key:${nearestUvScale.$1}:${nearestUvScale.$2}',
-      () => _floorMaterial(nearest, nearestUvScale),
-    );
-    final node = Node(
-      name: 'floor-under-wall:${wall.wallId}',
-      mesh: Mesh(
-        CuboidGeometry(
-          vm.Vector3(
-            math.max(0.01, (wall.lengthMm + 8) / 1000),
-            0.012,
-            math.max(0.01, (wall.thicknessMm + 18) / 1000),
-          ),
-        ),
-        material,
-      ),
-    );
-    node
-      ..position = vm.Vector3(
-        _mx(wall.centerXMm, geometry.bounds),
-        -0.002,
-        _mz(wall.centerYMm, geometry.bounds),
-      )
-      ..rotation = vm.Quaternion.axisAngle(vm.Vector3(0, 1, 0), -wall.angleRad)
-      ..castsShadows = false
-      ..shadowStatic = true;
-    return node;
+
+    return root;
   }
 
   Node _buildWallNode(ZamerWallPiece wall, ZamerSceneBounds bounds) {
