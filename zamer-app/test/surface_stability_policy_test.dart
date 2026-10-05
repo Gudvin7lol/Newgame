@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zamer/renderer3d/floor_grout_geometry.dart';
-import 'package:zamer/renderer3d/surface_stability_policy.dart';
-import 'package:zamer/services/object_catalog.dart';
+import 'package:zamer_app/renderer3d/floor_grout_geometry.dart';
+import 'package:zamer_app/renderer3d/surface_stability_policy.dart';
+import 'package:zamer_app/services/object_catalog.dart';
 
 void main() {
   test('floor objects sit above the rendered finish instead of sinking', () {
@@ -64,6 +64,9 @@ void main() {
   });
 
   test('wall finish gap is large enough to avoid coplanar depth fighting', () {
-    expect(ZamerSurfaceStabilityPolicy.wallFinishGapM, greaterThanOrEqualTo(0.002));
+    expect(
+      ZamerSurfaceStabilityPolicy.wallFinishGapM,
+      greaterThanOrEqualTo(0.002),
+    );
   });
 }
