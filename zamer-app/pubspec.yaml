@@ -32,5 +32,6 @@ flutter:
     - assets/models/zamer_catalog/
     - assets/textures/
     - assets/textures/generated_v1/
+    - assets/textures/runtime_v2/
     - assets/textures/imported_2026_10_02/
     - assets/topview/imported_2026_10_02/
