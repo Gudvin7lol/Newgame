@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'generated_material_ids.dart';
+import 'source_pack_v3_material_ids.dart';
 
 class VisualMaterialPreset {
   const VisualMaterialPreset({
@@ -26,18 +27,18 @@ class MaterialCatalog {
   static const generatedV1 = <VisualMaterialPreset>[
     VisualMaterialPreset(
       id: GeneratedMaterialIds.darkOak,
-      name: 'Тёмный дуб',
+      name: 'Дымчатый дуб · v3',
       category: 'Пол',
-      color: Color(0xFF5B4030),
+      color: Color(0xFF978A79),
       pattern: 'wood',
       textureAsset: 'assets/textures/generated_v1/dark_oak.jpg',
-      roughness: .54,
+      roughness: .56,
     ),
     VisualMaterialPreset(
       id: GeneratedMaterialIds.whiteOak,
-      name: 'Выбеленный дуб',
+      name: 'Светлый дуб · v3',
       category: 'Пол',
-      color: Color(0xFFC7B79F),
+      color: Color(0xFFD6C5A8),
       pattern: 'wood',
       textureAsset: 'assets/textures/generated_v1/white_oak.jpg',
       roughness: .56,
@@ -53,12 +54,12 @@ class MaterialCatalog {
     ),
     VisualMaterialPreset(
       id: GeneratedMaterialIds.terrazzo,
-      name: 'Терраццо',
+      name: 'Терраццо светлый · v3',
       category: 'Плитка',
-      color: Color(0xFFD3D0C7),
+      color: Color(0xFFD7D4CB),
       pattern: 'tile',
       textureAsset: 'assets/textures/generated_v1/terrazzo.jpg',
-      roughness: .43,
+      roughness: .48,
     ),
     VisualMaterialPreset(
       id: GeneratedMaterialIds.slate,
@@ -79,10 +80,19 @@ class MaterialCatalog {
       roughness: .68,
     ),
     VisualMaterialPreset(
+      id: GeneratedMaterialIds.runtimeTileConcreteLight,
+      name: 'Бетон светлый · v3',
+      category: 'Плитка',
+      color: Color(0xFFC9C8C4),
+      pattern: 'tile',
+      textureAsset: 'assets/textures/tile_concrete.png',
+      roughness: .55,
+    ),
+    VisualMaterialPreset(
       id: GeneratedMaterialIds.wallPaint,
-      name: 'Матовая краска · тёплый белый',
+      name: 'Матовая краска · v3',
       category: 'Стены',
-      color: Color(0xFFECE7DE),
+      color: Color(0xFFF0EEE9),
       textureAsset: 'assets/textures/generated_v1/wall_paint.jpg',
       roughness: .86,
     ),
@@ -106,12 +116,12 @@ class MaterialCatalog {
     ),
     VisualMaterialPreset(
       id: GeneratedMaterialIds.wallRedClay,
-      name: 'Красный кирпич',
+      name: 'Красный кирпич · v3',
       category: 'Стены',
-      color: Color(0xFF9D5943),
+      color: Color(0xFFA65F49),
       pattern: 'brick',
       textureAsset: 'assets/textures/generated_v1/wall_red_clay.jpg',
-      roughness: .78,
+      roughness: .90,
     ),
     VisualMaterialPreset(
       id: GeneratedMaterialIds.wallWhiteClay,
@@ -141,16 +151,16 @@ class MaterialCatalog {
     ),
     VisualMaterialPreset(
       id: GeneratedMaterialIds.walnutPbr,
-      name: 'Орех натуральный · PBR',
+      name: 'Тёплый орех · v3',
       category: 'Пол',
-      color: Color(0xFF815A3D),
+      color: Color(0xFF8B6245),
       pattern: 'wood',
       textureAsset: 'assets/textures/floor_walnut.png',
       roughness: .50,
     ),
     VisualMaterialPreset(
       id: GeneratedMaterialIds.marbleBiancoPbr,
-      name: 'Мрамор Bianco · PBR',
+      name: 'Мрамор светлый · v3',
       category: 'Плитка',
       color: Color(0xFFE9E6E0),
       pattern: 'tile',
@@ -168,9 +178,9 @@ class MaterialCatalog {
     ),
     VisualMaterialPreset(
       id: GeneratedMaterialIds.plasterMineralPbr,
-      name: 'Минеральная штукатурка · PBR',
+      name: 'Гипсовая штукатурка · v3',
       category: 'Стены',
-      color: Color(0xFFD2C7B6),
+      color: Color(0xFFE4E0D8),
       pattern: 'concrete',
       textureAsset: 'assets/textures/plaster_warm.png',
       roughness: .88,
@@ -185,6 +195,13 @@ class MaterialCatalog {
       roughness: .43,
     ),
   ];
+
+  /// The user-supplied v3 package is a source-reference set. Its nine families
+  /// are exposed through stable production PBR IDs so saved projects upgrade in
+  /// place instead of accumulating duplicate IDs for the same physical finish.
+  static List<VisualMaterialPreset> get sourcePackV3 => generatedV1
+      .where((preset) => SourcePackV3MaterialIds.all.contains(preset.id))
+      .toList(growable: false);
 
   static const presets = <VisualMaterialPreset>[
     ...generatedV1,
