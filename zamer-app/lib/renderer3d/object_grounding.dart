@@ -17,13 +17,22 @@ double zamerFallbackObjectLocalCenterYM({required double heightMm}) {
   return zamerFallbackObjectRenderedHeightM(heightMm: heightMm) / 2;
 }
 
+/// Sanitised root elevation for GPU object nodes.
+///
+/// Persisted projects can contain malformed numeric values from older builds.
+/// Keeping this policy beside the grounding helpers prevents NaN/infinity from
+/// entering a scene transform and making otherwise valid geometry disappear.
+double zamerObjectElevationM({required double elevationMm}) {
+  if (!elevationMm.isFinite) return 0.0;
+  return elevationMm / 1000;
+}
+
 /// World-space centre used by compatibility renderers that do not keep object
 /// elevation on a separate root node.
 double zamerFallbackObjectCenterYM({
   required double heightMm,
   required double elevationMm,
 }) {
-  final safeElevationMm = elevationMm.isFinite ? elevationMm : 0.0;
-  return safeElevationMm / 1000 +
+  return zamerObjectElevationM(elevationMm: elevationMm) +
       zamerFallbackObjectLocalCenterYM(heightMm: heightMm);
 }
