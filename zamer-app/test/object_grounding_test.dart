@@ -35,6 +35,28 @@ void main() {
       );
     });
 
+    test('named GPU dimensions share the same sanitization contract', () {
+      expect(zamerFallbackObjectRenderedWidthM(widthMm: 1200), 1.2);
+      expect(zamerFallbackObjectRenderedHeightM(heightMm: 800), 0.8);
+      expect(zamerFallbackObjectRenderedDepthM(depthMm: 450), 0.45);
+      for (final invalidDimension in <double>[
+        double.nan,
+        double.infinity,
+        double.negativeInfinity,
+        -100,
+        0,
+      ]) {
+        expect(
+          zamerFallbackObjectRenderedWidthM(widthMm: invalidDimension),
+          closeTo(0.05, 0.000001),
+        );
+        expect(
+          zamerFallbackObjectRenderedDepthM(depthMm: invalidDimension),
+          closeTo(0.05, 0.000001),
+        );
+      }
+    });
+
     test('invalid persisted dimensions cannot poison GPU transforms', () {
       for (final invalidDimension in <double>[
         double.nan,
