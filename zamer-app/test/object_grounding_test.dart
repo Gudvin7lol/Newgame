@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zamer/renderer3d/object_grounding.dart';
+import 'package:zamer_app/renderer3d/object_grounding.dart';
 
 void main() {
   group('fallback object grounding', () {
