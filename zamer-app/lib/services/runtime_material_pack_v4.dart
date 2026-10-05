@@ -9,7 +9,7 @@ class RuntimeMaterialV4Descriptor {
     required this.id,
     required this.name,
     required this.category,
-    required this.assetRoot,
+    required this.assetPrefix,
     required this.kind,
     required this.widthPx,
     required this.heightPx,
@@ -25,7 +25,10 @@ class RuntimeMaterialV4Descriptor {
   final String id;
   final String name;
   final String category;
-  final String assetRoot;
+
+  /// Flat runtime prefix. Example:
+  /// assets/textures/runtime_v4/Wall_Brick_Red_01
+  final String assetPrefix;
   final RuntimeMaterialV4Kind kind;
   final int widthPx;
   final int heightPx;
@@ -40,7 +43,7 @@ class RuntimeMaterialV4Descriptor {
   bool get isPlankCollection => kind == RuntimeMaterialV4Kind.plankCollection;
   bool get isTile => kind == RuntimeMaterialV4Kind.proceduralTileSurface;
 
-  String mapAsset(String mapName) => '$assetRoot/$mapName';
+  String mapAsset(String mapName) => '${assetPrefix}_$mapName';
 
   String plankMapAsset(int plankIndex, String mapName) {
     if (!isPlankCollection) {
@@ -50,7 +53,7 @@ class RuntimeMaterialV4Descriptor {
       throw RangeError.range(plankIndex, 1, plankCount, 'plankIndex');
     }
     final plank = plankIndex.toString().padLeft(2, '0');
-    return '$assetRoot/planks/$plank/$mapName';
+    return '${assetPrefix}_plank_${plank}_$mapName';
   }
 }
 
@@ -61,7 +64,9 @@ class RuntimeMaterialV4Descriptor {
 /// - laminate: 16 separate 2048x286 planks per collection with the same maps;
 /// - normals use OpenGL Y+;
 /// - metallic is always zero;
-/// - tile grout and plank seams are procedural and must not be baked into maps.
+/// - tile grout and plank seams are procedural and must not be baked into maps;
+/// - imported assets are flattened into one runtime_v4 folder so Flutter can
+///   bundle the full pack with one pubspec directory entry.
 abstract final class RuntimeMaterialPackV4 {
   static const root = 'assets/textures/runtime_v4';
   static const metallic = 0.0;
@@ -72,6 +77,7 @@ abstract final class RuntimeMaterialPackV4 {
     'roughness.png',
     'height.png',
     'ao.png',
+    'metallic_roughness.png',
   ];
   static const laminatePatterns = <String>[
     'random_stagger',
@@ -87,7 +93,7 @@ abstract final class RuntimeMaterialPackV4 {
       id: 'Wall_Brick_Red_01',
       name: 'Красный кирпич',
       category: 'walls',
-      assetRoot: '$root/walls/Wall_Brick_Red_01',
+      assetPrefix: '$root/Wall_Brick_Red_01',
       kind: RuntimeMaterialV4Kind.seamlessSurface,
       widthPx: 2048,
       heightPx: 2048,
@@ -98,7 +104,7 @@ abstract final class RuntimeMaterialPackV4 {
       id: 'Wall_GypsumPlaster_White_01',
       name: 'Гипсовая штукатурка',
       category: 'walls',
-      assetRoot: '$root/walls/Wall_GypsumPlaster_White_01',
+      assetPrefix: '$root/Wall_GypsumPlaster_White_01',
       kind: RuntimeMaterialV4Kind.seamlessSurface,
       widthPx: 2048,
       heightPx: 2048,
@@ -109,7 +115,7 @@ abstract final class RuntimeMaterialPackV4 {
       id: 'Wall_Paint_MatteWhite_01',
       name: 'Матовая краска',
       category: 'walls',
-      assetRoot: '$root/walls/Wall_Paint_MatteWhite_01',
+      assetPrefix: '$root/Wall_Paint_MatteWhite_01',
       kind: RuntimeMaterialV4Kind.seamlessSurface,
       widthPx: 2048,
       heightPx: 2048,
@@ -120,7 +126,7 @@ abstract final class RuntimeMaterialPackV4 {
       id: 'Tile_ConcreteLight_01',
       name: 'Бетон светлый',
       category: 'tiles',
-      assetRoot: '$root/tiles/Tile_ConcreteLight_01',
+      assetPrefix: '$root/Tile_ConcreteLight_01',
       kind: RuntimeMaterialV4Kind.proceduralTileSurface,
       widthPx: 2048,
       heightPx: 2048,
@@ -134,7 +140,7 @@ abstract final class RuntimeMaterialPackV4 {
       id: 'Tile_MarbleLight_01',
       name: 'Мрамор светлый',
       category: 'tiles',
-      assetRoot: '$root/tiles/Tile_MarbleLight_01',
+      assetPrefix: '$root/Tile_MarbleLight_01',
       kind: RuntimeMaterialV4Kind.proceduralTileSurface,
       widthPx: 2048,
       heightPx: 2048,
@@ -147,7 +153,7 @@ abstract final class RuntimeMaterialPackV4 {
       id: 'Tile_TerrazzoLight_01',
       name: 'Терраццо светлый',
       category: 'tiles',
-      assetRoot: '$root/tiles/Tile_TerrazzoLight_01',
+      assetPrefix: '$root/Tile_TerrazzoLight_01',
       kind: RuntimeMaterialV4Kind.proceduralTileSurface,
       widthPx: 2048,
       heightPx: 2048,
@@ -161,7 +167,7 @@ abstract final class RuntimeMaterialPackV4 {
       id: 'Laminate_OakLight_01',
       name: 'Светлый дуб',
       category: 'laminate',
-      assetRoot: '$root/laminate/Laminate_OakLight_01',
+      assetPrefix: '$root/Laminate_OakLight_01',
       kind: RuntimeMaterialV4Kind.plankCollection,
       widthPx: 2048,
       heightPx: 286,
@@ -174,7 +180,7 @@ abstract final class RuntimeMaterialPackV4 {
       id: 'Laminate_OakSmoked_01',
       name: 'Дымчатый дуб',
       category: 'laminate',
-      assetRoot: '$root/laminate/Laminate_OakSmoked_01',
+      assetPrefix: '$root/Laminate_OakSmoked_01',
       kind: RuntimeMaterialV4Kind.plankCollection,
       widthPx: 2048,
       heightPx: 286,
@@ -187,7 +193,7 @@ abstract final class RuntimeMaterialPackV4 {
       id: 'Laminate_WalnutWarm_01',
       name: 'Тёплый орех',
       category: 'laminate',
-      assetRoot: '$root/laminate/Laminate_WalnutWarm_01',
+      assetPrefix: '$root/Laminate_WalnutWarm_01',
       kind: RuntimeMaterialV4Kind.plankCollection,
       widthPx: 2048,
       heightPx: 286,
