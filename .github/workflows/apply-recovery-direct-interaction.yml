@@ -1,0 +1,34 @@
+name: Apply Zamer +117 direct interaction recovery
+
+on:
+  push:
+    branches:
+      - codex/zamer-1.5.7-117-unified-recovery-final
+    paths:
+      - zamer-app/tool/apply_recovery_direct_interaction.py
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Apply direct interaction recovery
+        run: python3 zamer-app/tool/apply_recovery_direct_interaction.py
+      - name: Commit recovered interaction
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add zamer-app/lib/screens/plan_editor_master_v4_screen.dart
+          if git diff --cached --quiet; then
+            echo 'No changes to commit.'
+            exit 0
+          fi
+          git commit -m 'Zamer +117: restore direct plan manipulation'
+          git push
