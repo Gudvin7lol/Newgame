@@ -1,0 +1,73 @@
+name: Patch wall texture runtime
+
+on:
+  push:
+    paths:
+      - '.github/workflows/patch-wall-texture-runtime.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/zamer-master-ui-final
+      - name: Wire continuous wall texture transform
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('zamer-app/lib/renderer3d/zamer_gpu_viewport.dart')
+          s = p.read_text()
+          marker = "import 'wall_device_mount.dart';"
+          if "import 'wall_texture_transform_policy.dart';" not in s:
+              s = s.replace(marker, marker + "\nimport 'wall_texture_transform_policy.dart';")
+          old = '''    } else if (texture != null) {
+      final generatedPbr = GeneratedPbrFinishCatalog.byId(preset.id);
+      if (generatedPbr != null) {
+        final repeatMm = math.max(50.0, generatedPbr.realWorldTileMm);
+        textureTransform = TextureTransform(
+          scale: vm.Vector2(
+            math.max(0.001, wall.lengthMm / repeatMm),
+            math.max(0.001, wall.heightMm / repeatMm),
+          ),
+          offset: vm.Vector2(
+            wall.textureStartMm / repeatMm,
+            wall.bottomMm / repeatMm,
+          ),
+        );
+      }
+    }
+'''
+          new = '''    } else if (texture != null) {
+      final generatedPbr = GeneratedPbrFinishCatalog.byId(preset.id);
+      // Every textured wall fragment, including fallback brick/plaster assets,
+      // must use wall-space coordinates. Otherwise the fragment above a door
+      // or window restarts at UV (0, 0) and produces a visible seam.
+      final transform = zamerWallTextureTransform(
+        textureStartMm: wall.textureStartMm,
+        bottomMm: wall.bottomMm,
+        lengthMm: wall.lengthMm,
+        heightMm: wall.heightMm,
+        realWorldTileMm: generatedPbr?.realWorldTileMm ?? 1000.0,
+      );
+      textureTransform = TextureTransform(
+        scale: vm.Vector2(transform.repeatU, transform.repeatV),
+        offset: vm.Vector2(transform.offsetU, transform.offsetV),
+      );
+    }
+'''
+          if old not in s:
+              raise SystemExit('Expected wall texture block not found; refusing unsafe patch')
+          p.write_text(s.replace(old, new))
+          PY
+      - name: Commit runtime integration
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add zamer-app/lib/renderer3d/zamer_gpu_viewport.dart
+          git diff --cached --check
+          git commit -m 'Apply continuous wall UVs in GPU renderer'
+          git push origin HEAD:codex/zamer-master-ui-final
