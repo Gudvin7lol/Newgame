@@ -9,6 +9,10 @@ void main() {
     expect(RuntimeMaterialPackV4.laminate.length, 3);
     expect(RuntimeMaterialPackV4.normalConvention, 'OpenGL_Y+');
     expect(RuntimeMaterialPackV4.metallic, 0);
+    expect(
+      RuntimeMaterialPackV4.mapNames,
+      contains('metallic_roughness.png'),
+    );
   });
 
   test('walls use 2K maps at one metre physical scale', () {
@@ -17,7 +21,10 @@ void main() {
       expect(material.heightPx, 2048, reason: material.id);
       expect(material.physicalWidthMm, 1000, reason: material.id);
       expect(material.physicalHeightMm, 1000, reason: material.id);
-      expect(material.mapAsset('basecolor.webp'), contains('runtime_v4/walls/'));
+      expect(
+        material.mapAsset('basecolor.webp'),
+        'assets/textures/runtime_v4/${material.id}_basecolor.webp',
+      );
     }
   });
 
@@ -42,7 +49,7 @@ void main() {
       expect(material.bevelMm, 1, reason: material.id);
       expect(
         material.plankMapAsset(16, 'normal.png'),
-        contains('/planks/16/normal.png'),
+        'assets/textures/runtime_v4/${material.id}_plank_16_normal.png',
       );
     }
     expect(RuntimeMaterialPackV4.laminatePatterns, contains('herringbone_45'));
