@@ -4,10 +4,10 @@
 Usage:
     python tool/import_runtime_materials_v4.py /path/to/Zamer_Materials_v4_Runtime_2K.zip
 
-The importer validates the production contract, extracts only runtime material
-files, and generates glTF-style metallic-roughness textures where G=roughness
-and B=metallic (0 for this pack). Original Roughness, Height and AO maps are
-kept as well.
+The source ZIP keeps a human-friendly hierarchy. The runtime importer flattens
+all texture files into assets/textures/runtime_v4 so Flutter can bundle the
+whole pack with one pubspec directory entry. It also creates glTF-style
+metallic-roughness maps where G=roughness and B=metallic=0.
 """
 
 from __future__ import annotations
@@ -23,9 +23,7 @@ from pathlib import Path, PurePosixPath
 try:
     from PIL import Image
 except ImportError as exc:  # pragma: no cover - tool dependency guard
-    raise SystemExit(
-        "Pillow is required: python -m pip install Pillow"
-    ) from exc
+    raise SystemExit("Pillow is required: python -m pip install Pillow") from exc
 
 EXPECTED_PACKAGE = "Zamer Materials v4 Runtime 2K"
 EXPECTED_VERSION = "4.0"
@@ -40,8 +38,7 @@ EXPECTED_MATERIALS = {
     "Laminate_OakSmoked_01": ("laminate", "plank_collection"),
     "Laminate_WalnutWarm_01": ("laminate", "plank_collection"),
 }
-SURFACE_MAPS = ("basecolor.webp", "normal.png", "roughness.png", "height.png", "ao.png")
-PLANK_MAPS = SURFACE_MAPS
+SOURCE_MAPS = ("basecolor.webp", "normal.png", "roughness.png", "height.png", "ao.png")
 
 
 def _safe_member(name: str) -> PurePosixPath:
@@ -69,9 +66,9 @@ def _write_member(archive: zipfile.ZipFile, member: str, output: Path) -> None:
 
 def _write_metallic_roughness(archive: zipfile.ZipFile, roughness_member: str, output: Path) -> None:
     with Image.open(io.BytesIO(archive.read(roughness_member))).convert("L") as roughness:
-        zero = Image.new("L", roughness.size, 0)
         unused = Image.new("L", roughness.size, 255)
-        packed = Image.merge("RGB", (unused, roughness, zero))
+        metallic = Image.new("L", roughness.size, 0)
+        packed = Image.merge("RGB", (unused, roughness, metallic))
         output.parent.mkdir(parents=True, exist_ok=True)
         packed.save(output, format="PNG", optimize=True)
 
@@ -100,6 +97,14 @@ def _validate_manifest(manifest: dict) -> list[dict]:
     return materials
 
 
+def _flat_name(material_id: str, map_name: str) -> str:
+    return f"{material_id}_{map_name}"
+
+
+def _flat_plank_name(material_id: str, index: int, map_name: str) -> str:
+    return f"{material_id}_plank_{index:02d}_{map_name}"
+
+
 def import_pack(zip_path: Path, output_root: Path, clean: bool) -> None:
     if clean and output_root.exists():
         shutil.rmtree(output_root)
@@ -121,16 +126,18 @@ def import_pack(zip_path: Path, output_root: Path, clean: bool) -> None:
             if metadata_name not in members:
                 raise ValueError(f"Missing {metadata_name}")
             metadata = _read_json(archive, metadata_name)
-            target_root = output_root / source_root
-            target_root.mkdir(parents=True, exist_ok=True)
-            (target_root / "material.json").write_text(
+            (output_root / f"{material_id}_material.json").write_text(
                 json.dumps(metadata, ensure_ascii=False, indent=2) + "\n",
                 encoding="utf-8",
             )
 
             preview = f"{source_root}/preview.webp"
             if preview in members:
-                _write_member(archive, preview, target_root / "preview.webp")
+                _write_member(
+                    archive,
+                    preview,
+                    output_root / f"{material_id}_preview.webp",
+                )
 
             if expected_type == "plank_collection":
                 if metadata.get("plankCount") != 16:
@@ -141,41 +148,47 @@ def import_pack(zip_path: Path, output_root: Path, clean: bool) -> None:
                     raise ValueError(f"{material_id}: expected 1380x193 mm planks")
 
                 for index in range(1, 17):
-                    plank = f"{index:02d}"
-                    source_plank = f"{source_root}/planks/{plank}"
-                    target_plank = target_root / "planks" / plank
-                    for map_name in PLANK_MAPS:
+                    source_plank = f"{source_root}/planks/{index:02d}"
+                    for map_name in SOURCE_MAPS:
                         member = f"{source_plank}/{map_name}"
                         if member not in members:
                             raise ValueError(f"Missing {member}")
-                        expected_size = (2048, 286)
-                        if _image_size(archive, member) != expected_size:
-                            raise ValueError(f"{member}: expected {expected_size}")
-                        _write_member(archive, member, target_plank / map_name)
+                        if _image_size(archive, member) != (2048, 286):
+                            raise ValueError(f"{member}: expected 2048x286")
+                        _write_member(
+                            archive,
+                            member,
+                            output_root / _flat_plank_name(material_id, index, map_name),
+                        )
                     _write_metallic_roughness(
                         archive,
                         f"{source_plank}/roughness.png",
-                        target_plank / "metallic_roughness.png",
+                        output_root
+                        / _flat_plank_name(material_id, index, "metallic_roughness.png"),
                     )
             else:
                 if metadata.get("resolution") != [2048, 2048]:
                     raise ValueError(f"{material_id}: expected 2048x2048 maps")
-                for map_name in SURFACE_MAPS:
+                for map_name in SOURCE_MAPS:
                     member = f"{source_root}/{map_name}"
                     if member not in members:
                         raise ValueError(f"Missing {member}")
-                    expected_size = (2048, 2048)
-                    if _image_size(archive, member) != expected_size:
-                        raise ValueError(f"{member}: expected {expected_size}")
-                    _write_member(archive, member, target_root / map_name)
+                    if _image_size(archive, member) != (2048, 2048):
+                        raise ValueError(f"{member}: expected 2048x2048")
+                    _write_member(
+                        archive,
+                        member,
+                        output_root / _flat_name(material_id, map_name),
+                    )
                 _write_metallic_roughness(
                     archive,
                     f"{source_root}/roughness.png",
-                    target_root / "metallic_roughness.png",
+                    output_root / _flat_name(material_id, "metallic_roughness.png"),
                 )
 
         runtime_manifest = dict(manifest)
         runtime_manifest["importedAssetRoot"] = "assets/textures/runtime_v4"
+        runtime_manifest["flatRuntimeLayout"] = True
         runtime_manifest["packedMetallicRoughness"] = {
             "red": "unused_255",
             "green": "roughness",
