@@ -10,6 +10,7 @@ import '../services/layout_service.dart';
 import '../services/geometry_service.dart';
 import '../services/material_catalog.dart';
 import '../widgets/elevation_painter.dart';
+import '../widgets/large_elevation_viewer.dart';
 
 class ElevationsScreen extends StatefulWidget {
   const ElevationsScreen({
@@ -287,50 +288,17 @@ class _ElevationsScreenState extends State<ElevationsScreen> {
   ) async {
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
-        builder: (context) => Scaffold(
-          appBar: AppBar(title: Text('Развёртка • ${run.lengthMm.round()} мм')),
-          body: StatefulBuilder(
-            builder: (context, refresh) => LayoutBuilder(
-              builder: (context, constraints) {
-                final drawing = Size(
-                  math.max(constraints.maxWidth - 24, run.lengthMm * .25),
-                  math.max(constraints.maxHeight * .8, height * .25),
-                );
-                return InteractiveViewer(
-                  constrained: false,
-                  minScale: .35,
-                  maxScale: 6,
-                  boundaryMargin: const EdgeInsets.all(240),
-                  child: GestureDetector(
-                    onPanUpdate: settings.wallTileEnabledFor(run.id)
-                        ? (d) {
-                            _panRunTile(settings, run, height, drawing, d);
-                            refresh(() {});
-                          }
-                        : null,
-                    onPanEnd: settings.wallTileEnabledFor(run.id)
-                        ? (_) => widget.onChanged()
-                        : null,
-                    child: SizedBox.fromSize(
-                      size: drawing,
-                      child: CustomPaint(
-                        painter: ElevationPainter(
-                          floor: widget.floor,
-                          face: face,
-                          run: run,
-                          heightMm: height,
-                          settings: settings,
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
+        builder: (context) => LargeElevationViewer(
+          floor: widget.floor,
+          face: face,
+          run: run,
+          heightMm: height,
+          settings: settings,
+          onChanged: widget.onChanged,
         ),
       ),
     );
+    if (mounted) setState(() {});
   }
 
   @override
