@@ -54,5 +54,26 @@ void main() {
         closeTo(0.3, 0.000001),
       );
     });
+
+    test('invalid root elevation is sanitised before scene placement', () {
+      for (final invalidElevation in <double>[
+        double.nan,
+        double.infinity,
+        double.negativeInfinity,
+      ]) {
+        expect(zamerObjectElevationM(elevationMm: invalidElevation), 0.0);
+        expect(
+          zamerFallbackObjectCenterYM(
+            heightMm: 600,
+            elevationMm: invalidElevation,
+          ),
+          closeTo(0.3, 0.000001),
+        );
+      }
+      expect(
+        zamerObjectElevationM(elevationMm: 250),
+        closeTo(0.25, 0.000001),
+      );
+    });
   });
 }
