@@ -2,10 +2,8 @@ name: Apply object grounding runtime
 
 on:
   push:
-    branches:
-      - codex/zamer-master-ui-final
-    paths:
-      - .github/workflows/apply-object-grounding-runtime.yml
+    branches: ["codex/zamer-master-ui-final"]
+    paths: [".github/workflows/apply-object-grounding-runtime.yml"]
 
 permissions:
   contents: write
@@ -19,46 +17,41 @@ jobs:
           ref: codex/zamer-master-ui-final
           fetch-depth: 0
       - name: Patch GPU object grounding
-        shell: python
         run: |
+          python3 <<'PY'
           from pathlib import Path
-
           path = Path('zamer-app/lib/renderer3d/zamer_gpu_viewport.dart')
           text = path.read_text()
-
           if "import 'object_grounding.dart';" not in text:
               marker = "import 'model_lod_policy.dart';\n"
               assert marker in text
               text = text.replace(marker, marker + "import 'object_grounding.dart';\n", 1)
-
-          old_elevation = "        object.elevationMm / 1000,\n"
-          new_elevation = "        zamerObjectElevationM(elevationMm: object.elevationMm),\n"
-          if old_elevation in text:
-              text = text.replace(old_elevation, new_elevation, 1)
+          old = "        object.elevationMm / 1000,\n"
+          new = "        zamerObjectElevationM(elevationMm: object.elevationMm),\n"
+          if old in text:
+              text = text.replace(old, new, 1)
           else:
-              assert new_elevation in text
-
-          old_dimensions = """          vm.Vector3(
+              assert new in text
+          old = """          vm.Vector3(
             math.max(0.05, object.widthMm / 1000),
             math.max(0.05, object.heightMm / 1000),
             math.max(0.05, object.depthMm / 1000),
           ),"""
-          new_dimensions = """          vm.Vector3(
+          new = """          vm.Vector3(
             zamerFallbackObjectRenderedWidthM(widthMm: object.widthMm),
             zamerFallbackObjectRenderedHeightM(heightMm: object.heightMm),
             zamerFallbackObjectRenderedDepthM(depthMm: object.depthMm),
           ),"""
-          if old_dimensions in text:
-              text = text.replace(old_dimensions, new_dimensions, 1)
+          if old in text:
+              text = text.replace(old, new, 1)
           else:
-              assert new_dimensions in text
-
-          old_return = """    );
+              assert new in text
+          old = """    );
     return node;
   }
 
   static void _markStatic"""
-          new_return = """    )..position = vm.Vector3(
+          new = """    )..position = vm.Vector3(
         0,
         zamerFallbackObjectLocalCenterYM(heightMm: object.heightMm),
         0,
@@ -67,18 +60,15 @@ jobs:
   }
 
   static void _markStatic"""
-          if old_return in text:
-              text = text.replace(old_return, new_return, 1)
+          if old in text:
+              text = text.replace(old, new, 1)
           else:
-              assert new_return in text
-
+              assert new in text
           path.write_text(text)
+          PY
       - name: Commit runtime integration
         run: |
-          if git diff --quiet; then
-            echo "Grounding already integrated"
-            exit 0
-          fi
+          if git diff --quiet; then exit 0; fi
           git diff --check
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
