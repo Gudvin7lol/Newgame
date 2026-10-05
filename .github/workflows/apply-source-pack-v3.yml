@@ -1,0 +1,40 @@
+name: Apply Zamer +118 source pack v3
+
+on:
+  push:
+    branches:
+      - codex/zamer-1.5.7-117-unified-materials
+    paths:
+      - zamer-app/tool/apply_source_pack_v3.py
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Apply material source pack v3
+        run: python3 zamer-app/tool/apply_source_pack_v3.py
+      - name: Commit integrated material pack
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add zamer-app/lib/services/material_catalog.dart \
+                  zamer-app/lib/services/generated_pbr_finish_catalog.dart \
+                  zamer-app/lib/services/source_pack_v3_material_ids.dart \
+                  zamer-app/test/source_pack_v3_materials_test.dart \
+                  zamer-app/tool/material_source_pack_v3/README.md \
+                  zamer-app/tool/material_source_pack_v3/manifest.json \
+                  zamer-app/pubspec.yaml
+          if git diff --cached --quiet; then
+            echo 'No changes to commit.'
+            exit 0
+          fi
+          git commit -m 'Zamer 1.5.7+118: add material source pack v3'
+          git push
