@@ -1,0 +1,25 @@
+{
+  "package": "Zamer New Materials SourcePack",
+  "version": "3.0",
+  "material_count": 9,
+  "status": "source_reference",
+  "runtime_strategy": "stable production ids mapped to validated runtime_v2 PBR profiles",
+  "materials": [
+    {"source_id":"Wall_Brick_Red_01","runtime_id":"zamer-wall-red-clay","name":"Красный кирпич","category":"walls"},
+    {"source_id":"Wall_GypsumPlaster_White_01","runtime_id":"zamer-plaster-mineral-pbr","name":"Гипсовая штукатурка","category":"walls"},
+    {"source_id":"Wall_Paint_MatteWhite_01","runtime_id":"zamer-wall-paint","name":"Матовая краска","category":"walls"},
+    {"source_id":"Tile_ConcreteLight_01","runtime_id":"zamer-runtime-tile-concrete-light","name":"Бетон светлый","category":"tiles"},
+    {"source_id":"Tile_MarbleLight_01","runtime_id":"zamer-marble-bianco-pbr","name":"Мрамор светлый","category":"tiles"},
+    {"source_id":"Tile_TerrazzoLight_01","runtime_id":"zamer-terrazzo","name":"Терраццо светлый","category":"tiles"},
+    {"source_id":"Laminate_OakLight_01","runtime_id":"zamer-white-oak","name":"Светлый дуб","category":"laminate","plank_variants":16},
+    {"source_id":"Laminate_WalnutWarm_01","runtime_id":"zamer-walnut-pbr","name":"Тёплый орех","category":"laminate","plank_variants":16},
+    {"source_id":"Laminate_OakSmoked_01","runtime_id":"zamer-dark-oak","name":"Дымчатый дуб","category":"laminate","plank_variants":16}
+  ],
+  "runtime_target": {
+    "resolution": "2048x2048",
+    "maps": ["BaseColor", "Normal", "Roughness", "Height", "AO"],
+    "metallic": 0,
+    "tile_geometry": "procedural",
+    "laminate_geometry": "procedural, separate planks"
+  }
+}
