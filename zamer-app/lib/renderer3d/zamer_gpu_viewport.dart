@@ -10,6 +10,7 @@ import 'package:vector_math/vector_math.dart' as vm;
 import '../models/models.dart';
 import '../services/generated_pbr_finish_catalog.dart';
 import '../services/material_catalog.dart';
+import '../services/object_catalog.dart';
 import '../widgets/floor_3d_painter.dart';
 import 'camera_clip_policy.dart';
 import 'ceiling_visibility_policy.dart';
@@ -22,6 +23,7 @@ import 'photo_render_quality_policy.dart';
 import 'photo_export_policy.dart';
 import 'scene_fingerprint.dart';
 import 'scene_mesh_winding.dart';
+import 'surface_stability_policy.dart';
 import 'zamer_scene_geometry.dart';
 import 'wall_device_mount.dart';
 
@@ -1125,7 +1127,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
             ..position = vm.Vector3(
               0,
               (wall.bottomMm + wall.heightMm / 2) / 1000,
-              finish.sideSign * (wall.thicknessMm / 2000 + thin / 2 + 0.0005),
+              finish.sideSign * (wall.thicknessMm / 2000 + thin / 2 + ZamerSurfaceStabilityPolicy.wallFinishGapM),
             )
             ..castsShadows = finish.tileEnabled
             ..shadowStatic = true;
@@ -1518,10 +1520,17 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       }
     }
 
+    final catalogItem = ObjectCatalog.byId(object.catalogId);
+    final mount = catalogItem.id == object.catalogId
+        ? catalogItem.mount
+        : CatalogMount.floor;
     root
       ..position = vm.Vector3(
         _mx(object.xMm, bounds),
-        object.elevationMm / 1000,
+        ZamerSurfaceStabilityPolicy.objectBaseYM(
+          mount: mount,
+          elevationMm: object.elevationMm,
+        ),
         _mz(object.yMm, bounds),
       )
       ..rotation = vm.Quaternion.axisAngle(
