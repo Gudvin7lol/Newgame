@@ -1,0 +1,26 @@
+{
+  "package": "Zamer Materials v4 Runtime 2K",
+  "version": "4.0",
+  "status": "runtime",
+  "asset_root": "assets/textures/runtime_v4",
+  "materialCount": 9,
+  "runtime": {
+    "wallsAndTiles": [2048, 2048],
+    "laminatePlanks": [2048, 286],
+    "metallic": 0,
+    "normalConvention": "OpenGL_Y+",
+    "maps": ["basecolor.webp", "normal.png", "roughness.png", "height.png", "ao.png"]
+  },
+  "materials": [
+    {"id":"Wall_Brick_Red_01","name":"Красный кирпич","category":"walls","path":"walls/Wall_Brick_Red_01","type":"seamless_surface","physicalScaleMm":[1000,1000]},
+    {"id":"Wall_GypsumPlaster_White_01","name":"Гипсовая штукатурка","category":"walls","path":"walls/Wall_GypsumPlaster_White_01","type":"seamless_surface","physicalScaleMm":[1000,1000]},
+    {"id":"Wall_Paint_MatteWhite_01","name":"Матовая краска","category":"walls","path":"walls/Wall_Paint_MatteWhite_01","type":"seamless_surface","physicalScaleMm":[1000,1000]},
+    {"id":"Tile_ConcreteLight_01","name":"Бетон светлый","category":"tiles","path":"tiles/Tile_ConcreteLight_01","type":"procedural_tile_surface","tileMm":[600,600],"groutWidthMm":2,"randomUvOffset":true,"randomRotation":true},
+    {"id":"Tile_MarbleLight_01","name":"Мрамор светлый","category":"tiles","path":"tiles/Tile_MarbleLight_01","type":"procedural_tile_surface","tileMm":[600,600],"groutWidthMm":2,"randomUvOffset":true,"randomRotation":false},
+    {"id":"Tile_TerrazzoLight_01","name":"Терраццо светлый","category":"tiles","path":"tiles/Tile_TerrazzoLight_01","type":"procedural_tile_surface","tileMm":[600,600],"groutWidthMm":2,"randomUvOffset":true,"randomRotation":true},
+    {"id":"Laminate_OakLight_01","name":"Светлый дуб","category":"laminate","path":"laminate/Laminate_OakLight_01","type":"plank_collection","plankCount":16,"physicalPlankMm":[1380,193],"bevelMm":1},
+    {"id":"Laminate_OakSmoked_01","name":"Дымчатый дуб","category":"laminate","path":"laminate/Laminate_OakSmoked_01","type":"plank_collection","plankCount":16,"physicalPlankMm":[1380,193],"bevelMm":1},
+    {"id":"Laminate_WalnutWarm_01","name":"Тёплый орех","category":"laminate","path":"laminate/Laminate_WalnutWarm_01","type":"plank_collection","plankCount":16,"physicalPlankMm":[1380,193],"bevelMm":1}
+  ],
+  "laminatePatterns": ["random_stagger", "half", "third", "herringbone_90", "herringbone_45", "chevron"]
+}
