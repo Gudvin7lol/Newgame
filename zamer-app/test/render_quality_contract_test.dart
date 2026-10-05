@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zamer_app/renderer3d/photo_export_policy.dart';
 import 'package:zamer_app/renderer3d/render_quality.dart';
@@ -27,4 +28,12 @@ void main() {
       isFalse,
     );
   });
+
+  test('GPU renderer uses real herringbone seam geometry', () {
+    final renderer = File('lib/renderer3d/zamer_gpu_viewport.dart').readAsStringSync();
+    expect(renderer, contains('buildFloorHerringboneSeamQuads'));
+    expect(renderer, contains('floor-herringbone-seams:'));
+    expect(renderer, contains("surface.laminatePattern == 'herringbone'"));
+  });
+
 }

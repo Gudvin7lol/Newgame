@@ -20,7 +20,6 @@ import 'model_asset_catalog.dart';
 import 'model_lod_policy.dart';
 import 'photo_render_quality_policy.dart';
 import 'photo_export_policy.dart';
-import 'photo_render_quality_policy.dart';
 import 'scene_fingerprint.dart';
 import 'scene_mesh_winding.dart';
 import 'zamer_scene_geometry.dart';
@@ -643,6 +642,10 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
         ..castsShadows = false
         ..shadowStatic = true,
     );
+    if (surface.laminatePattern == 'herringbone') {
+      final seams = _buildFloorHerringboneSeamNode(surface, bounds);
+      if (seams != null) root.add(seams);
+    }
     if (isTile && surface.groutMm > 0) {
       final grout = _buildFloorGroutNode(surface, bounds, effectiveDirection);
       if (grout != null) root.add(grout);
@@ -697,6 +700,56 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       ..doubleSided = false;
     return Node(
         name: 'floor-grout:${surface.roomKey}',
+        mesh: Mesh(builder.build(), material),
+      )
+      ..castsShadows = false
+      ..shadowStatic = true;
+  }
+
+  Node? _buildFloorHerringboneSeamNode(
+    ZamerFloorSurface surface,
+    ZamerSceneBounds bounds,
+  ) {
+    final quads = buildFloorHerringboneSeamQuads(
+      polygonMm: surface.polygonMm,
+      anchorXMm: surface.anchorXMm,
+      anchorYMm: surface.anchorYMm,
+      directionDeg: surface.directionDeg,
+      plankLengthMm: surface.plankLengthMm,
+      plankWidthMm: surface.plankWidthMm,
+      offsetXMm: surface.laminateOffsetXMm,
+      offsetYMm: surface.laminateOffsetYMm,
+    );
+    if (quads.isEmpty) return null;
+
+    final builder = GeometryBuilder(deduplicate: false)
+      ..normal(vm.Vector3(0, 1, 0));
+    var vertex = 0;
+    for (final quad in quads) {
+      if (quad.pointsMm.length != 4) continue;
+      for (final point in quad.pointsMm) {
+        builder
+          ..texCoord(vm.Vector2.zero())
+          ..addVertex(
+            vm.Vector3(
+              _mx(point.x, bounds),
+              zamerFloorGroutYM,
+              _mz(point.y, bounds),
+            ),
+          );
+      }
+      builder
+        ..addTriangle(vertex, vertex + 2, vertex + 1)
+        ..addTriangle(vertex, vertex + 3, vertex + 2);
+      vertex += 4;
+    }
+    if (vertex == 0) return null;
+    final material = _pbr(
+      vm.Vector4(0.23, 0.18, 0.13, 1),
+      roughness: 0.82,
+    )..doubleSided = false;
+    return Node(
+        name: 'floor-herringbone-seams:${surface.roomKey}',
         mesh: Mesh(builder.build(), material),
       )
       ..castsShadows = false
@@ -775,10 +828,11 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       return (repeatMm, repeatMm);
     }
     if (surface.laminatePattern == 'herringbone') {
-      return (
-        math.max(240.0, surface.plankLengthMm),
-        math.max(80.0, surface.plankWidthMm),
+      final repeatMm = math.max(
+        600.0,
+        generatedPbr?.realWorldTileMm ?? surface.plankLengthMm,
       );
+      return (repeatMm, repeatMm);
     }
     final repeatX = surface.laminateOffsetMode == 'third'
         ? 3.0

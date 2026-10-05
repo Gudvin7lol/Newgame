@@ -65,4 +65,42 @@ void main() {
     expect(zamerFloorGroutSeparationM, greaterThanOrEqualTo(0.002));
     expect(zamerFloorGroutSeparationM, lessThanOrEqualTo(0.003));
   });
+
+  test('herringbone seam geometry follows real plank dimensions', () {
+    final quads = buildFloorHerringboneSeamQuads(
+      polygonMm: const [
+        math.Point(0, 0),
+        math.Point(3600, 0),
+        math.Point(3600, 2800),
+        math.Point(0, 2800),
+      ],
+      anchorXMm: 1800,
+      anchorYMm: 1400,
+      directionDeg: 17,
+      plankLengthMm: 1200,
+      plankWidthMm: 180,
+      offsetXMm: 125,
+      offsetYMm: -70,
+      seamMm: 2,
+    );
+
+    expect(quads, isNotEmpty);
+    expect(quads.length, lessThan(5000));
+    final hasDiagonal = quads.any((quad) {
+      final a = quad.pointsMm[0];
+      final b = quad.pointsMm[1];
+      return (a.x - b.x).abs() > 20 && (a.y - b.y).abs() > 20;
+    });
+    expect(hasDiagonal, isTrue);
+    final hasTwoMillimetreSeam = quads.any((quad) {
+      final a = quad.pointsMm[0];
+      final d = quad.pointsMm[3];
+      final width = math.sqrt(
+        math.pow(a.x - d.x, 2) + math.pow(a.y - d.y, 2),
+      );
+      return (width - 2).abs() < 0.001;
+    });
+    expect(hasTwoMillimetreSeam, isTrue);
+  });
+
 }
