@@ -33,5 +33,6 @@ flutter:
     - assets/textures/
     - assets/textures/generated_v1/
     - assets/textures/runtime_v2/
+    - assets/textures/runtime_v4/
     - assets/textures/imported_2026_10_02/
     - assets/topview/imported_2026_10_02/
