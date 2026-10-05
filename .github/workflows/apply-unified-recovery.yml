@@ -1,0 +1,59 @@
+name: Apply Zamer 1.5.7+117 unified recovery
+
+on:
+  push:
+    branches:
+      - codex/zamer-1.5.7+117-unified-recovery
+    paths:
+      - zamer-app/tool/unified_recovery.trigger
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/zamer-1.5.7+117-unified-recovery
+          fetch-depth: 0
+      - name: Fetch 3D stability source
+        run: git fetch origin codex/zamer-1.5.6-3d-stability
+      - name: Restore renderer stability package only
+        run: |
+          git checkout origin/codex/zamer-1.5.6-3d-stability -- \
+            zamer-app/lib/renderer3d/cutaway_corridor_policy.dart \
+            zamer-app/lib/renderer3d/door_floor_bridge.dart \
+            zamer-app/lib/renderer3d/floor_grout_geometry.dart \
+            zamer-app/lib/renderer3d/material_pbr_uv_policy.dart \
+            zamer-app/lib/renderer3d/model_visibility_policy.dart \
+            zamer-app/lib/renderer3d/opening_render_policy.dart \
+            zamer-app/lib/renderer3d/surface_stability_policy.dart \
+            zamer-app/lib/renderer3d/zamer_gpu_viewport.dart \
+            zamer-app/test/cutaway_corridor_policy_test.dart \
+            zamer-app/test/door_floor_bridge_test.dart \
+            zamer-app/test/door_render_detail_test.dart \
+            zamer-app/test/floor_grout_geometry_test.dart \
+            zamer-app/test/material_pbr_uv_policy_test.dart \
+            zamer-app/test/model_visibility_policy_test.dart \
+            zamer-app/test/opening_render_policy_test.dart \
+            zamer-app/test/render_quality_contract_test.dart \
+            zamer-app/test/surface_stability_policy_test.dart
+      - name: Bump unified build
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('zamer-app/pubspec.yaml')
+          s = p.read_text(encoding='utf-8')
+          s = s.replace('version: 1.5.7+116', 'version: 1.5.7+117', 1)
+          p.write_text(s, encoding='utf-8')
+          PY
+      - name: Commit unified recovery
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add zamer-app/lib/renderer3d zamer-app/test zamer-app/pubspec.yaml
+          git diff --cached --quiet && exit 0
+          git commit -m "Zamer 1.5.7+117: unify functional workspace with 3D stability"
+          git push
