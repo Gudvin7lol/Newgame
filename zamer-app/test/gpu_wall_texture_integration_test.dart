@@ -6,7 +6,7 @@ void main() {
   test('GPU wall materials use continuous wall-space texture transform', () {
     final source = File('lib/renderer3d/zamer_gpu_viewport.dart').readAsStringSync();
 
-    expect(source, contains("import 'wall_texture_transform.dart';"));
+    expect(source, contains("import 'wall_texture_transform_policy.dart';"));
     expect(source, contains('final transform = zamerWallTextureTransform('));
     expect(source, contains('textureStartMm: wall.textureStartMm'));
     expect(source, contains('bottomMm: wall.bottomMm'));
