@@ -21,6 +21,7 @@ import 'host_wall_visibility.dart';
 import 'model_asset_catalog.dart';
 import 'material_pbr_uv_policy.dart';
 import 'model_lod_policy.dart';
+import 'model_visibility_policy.dart';
 import 'opening_render_policy.dart';
 import 'photo_render_quality_policy.dart';
 import 'photo_export_policy.dart';
@@ -1705,7 +1706,12 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     required Set<String> activeModelPaths,
   }) async {
     final asset = ZamerModelAssetCatalog.byId(object.catalogId);
-    final root = Node(name: 'object:${object.id}:${object.catalogId}');
+    final root = Node(name: 'object:${object.id}:${object.catalogId}')
+      ..frustumCulled = ZamerModelVisibilityPolicy.frustumCulled(
+        performanceMode: widget.performanceMode,
+        photoQuality: photoQuality,
+        visibleObjectCount: visibleObjectCount,
+      );
     var importedModel = false;
 
     if (asset == null) {
@@ -1743,6 +1749,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
             -localBounds.center.z * sz,
           );
         }
+        model.markBoundsDirty();
         root.add(model);
       } catch (_) {
         // A single bad optional model must never take the complete room down.
@@ -1776,6 +1783,10 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       );
     }
     _markStatic(root);
+    // Light emitters and imported GLB transforms are attached after the root is
+    // created. Refresh the subtree bounds once so the renderer never reuses a
+    // stale box when frustum culling is enabled for dense/performance scenes.
+    root.markBoundsDirty();
     return root;
   }
 
