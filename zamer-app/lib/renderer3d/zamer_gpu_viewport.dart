@@ -19,6 +19,7 @@ import 'cutaway_geometry.dart';
 import 'host_wall_visibility.dart';
 import 'model_asset_catalog.dart';
 import 'model_lod_policy.dart';
+import 'opening_render_policy.dart';
 import 'photo_render_quality_policy.dart';
 import 'photo_export_policy.dart';
 import 'scene_fingerprint.dart';
@@ -1163,10 +1164,15 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     final frame = opening.type == OpeningType.window
         ? whiteFrameMaterial
         : frameMaterial;
-    final depthM = math.max(0.055, (opening.wallThicknessMm + 14) / 1000);
-    final widthM = math.max(0.20, opening.widthMm / 1000);
-    final heightM = math.max(0.20, opening.heightMm / 1000);
-    const frameBarM = 0.045;
+    final metrics = ZamerOpeningRenderMetrics.fromMillimetres(
+      widthMm: opening.widthMm,
+      heightMm: opening.heightMm,
+      wallThicknessMm: opening.wallThicknessMm,
+    );
+    final depthM = metrics.frameDepthM;
+    final widthM = metrics.widthM;
+    final heightM = metrics.heightM;
+    final frameBarM = metrics.frameBarM;
 
     Node bar({
       required String name,
@@ -1175,6 +1181,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       required double width,
       required double height,
       double depth = 0,
+      double z = 0,
       PhysicallyBasedMaterial? material,
       bool castsShadows = true,
     }) {
@@ -1192,7 +1199,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
                 material ?? frame,
               ),
             )
-            ..position = vm.Vector3(x, y, 0)
+            ..position = vm.Vector3(x, y, z)
             ..castsShadows = castsShadows
             ..shadowStatic = castsShadows;
       return node;
@@ -1229,6 +1236,73 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
         ),
       );
 
+    // Proper casings on both wall faces make the opening read as a finished
+    // door/window instead of a frame floating inside a hole. The casing is
+    // kept just outside the frame depth so it cannot z-fight with wall finish.
+    void addCasing(double faceSign) {
+      final z = faceSign *
+          (depthM / 2 + metrics.casingDepthM / 2 + 0.0015);
+      final casingWidth = metrics.casingWidthM;
+      root
+        ..add(
+          bar(
+            name: faceSign > 0
+                ? 'opening-casing-left-front'
+                : 'opening-casing-left-back',
+            x: -widthM / 2 + casingWidth / 2,
+            y: bottomM + heightM / 2,
+            width: casingWidth,
+            height: heightM + casingWidth,
+            depth: metrics.casingDepthM,
+            z: z,
+          ),
+        )
+        ..add(
+          bar(
+            name: faceSign > 0
+                ? 'opening-casing-right-front'
+                : 'opening-casing-right-back',
+            x: widthM / 2 - casingWidth / 2,
+            y: bottomM + heightM / 2,
+            width: casingWidth,
+            height: heightM + casingWidth,
+            depth: metrics.casingDepthM,
+            z: z,
+          ),
+        )
+        ..add(
+          bar(
+            name: faceSign > 0
+                ? 'opening-casing-top-front'
+                : 'opening-casing-top-back',
+            x: 0,
+            y: topM - casingWidth / 2,
+            width: widthM,
+            height: casingWidth,
+            depth: metrics.casingDepthM,
+            z: z,
+          ),
+        );
+      if (opening.type == OpeningType.window) {
+        root.add(
+          bar(
+            name: faceSign > 0
+                ? 'opening-casing-bottom-front'
+                : 'opening-casing-bottom-back',
+            x: 0,
+            y: bottomM + casingWidth / 2,
+            width: widthM,
+            height: casingWidth,
+            depth: metrics.casingDepthM,
+            z: z,
+          ),
+        );
+      }
+    }
+
+    addCasing(-1);
+    addCasing(1);
+
     if (opening.type == OpeningType.window) {
       root.add(
         bar(
@@ -1241,10 +1315,21 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       );
       root.add(
         bar(
+          name: 'window-sill-board',
+          x: 0,
+          y: bottomM + metrics.sillBoardThicknessM / 2,
+          width: widthM + 0.10,
+          height: metrics.sillBoardThicknessM,
+          depth: metrics.sillBoardDepthM,
+          material: whiteFrameMaterial,
+        ),
+      );
+      root.add(
+        bar(
           name: 'window-mullion',
           x: 0,
           y: bottomM + heightM / 2,
-          width: 0.032,
+          width: metrics.mullionWidthM,
           height: math.max(0.05, heightM - frameBarM * 2),
           depth: math.max(0.035, depthM * 0.62),
         ),
@@ -1257,8 +1342,8 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
           name: 'window-glass',
           x: 0,
           y: bottomM + heightM / 2,
-          width: math.max(0.08, widthM - frameBarM * 2.2),
-          height: math.max(0.08, heightM - frameBarM * 2.2),
+          width: math.max(0.08, widthM - frameBarM * 2.4),
+          height: math.max(0.08, heightM - frameBarM * 2.4),
           depth: 0.008,
           material: glass,
           castsShadows: false,
@@ -1273,13 +1358,13 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
           opening.doorSwing == DoorSwing.rightIn;
       final hingeSign = leftHinge ? -1.0 : 1.0;
       final swingSign = (opensIn ? 1.0 : -1.0) * hingeSign;
-      final leafWidth = math.max(0.12, widthM - frameBarM * 1.5);
-      final leafHeight = math.max(0.18, heightM - frameBarM);
+      final leafWidth = metrics.leafWidthM;
+      final leafHeight = metrics.leafHeightM;
       final hinge = Node(name: 'door-hinge')
         ..position = vm.Vector3(hingeSign * (widthM / 2 - frameBarM), 0, 0)
         ..rotation = vm.Quaternion.axisAngle(
           vm.Vector3(0, 1, 0),
-          swingSign * 32 * math.pi / 180,
+          swingSign * 42 * math.pi / 180,
         );
       final leafMaterial = _pbr(
         vm.Vector4(0.63, 0.43, 0.26, 1),
@@ -1299,7 +1384,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
         Node(
           name: 'door-leaf',
           mesh: Mesh(
-            CuboidGeometry(vm.Vector3(leafWidth, leafHeight, 0.042)),
+            CuboidGeometry(vm.Vector3(leafWidth, leafHeight, metrics.leafThicknessM)),
             leafMaterial,
           ),
         )..shadowStatic = true,
