@@ -12,8 +12,16 @@ double zamerFallbackObjectDimensionM({required double dimensionMm}) {
   return dimensionMm / 1000;
 }
 
+double zamerFallbackObjectRenderedWidthM({required double widthMm}) {
+  return zamerFallbackObjectDimensionM(dimensionMm: widthMm);
+}
+
 double zamerFallbackObjectRenderedHeightM({required double heightMm}) {
   return zamerFallbackObjectDimensionM(dimensionMm: heightMm);
+}
+
+double zamerFallbackObjectRenderedDepthM({required double depthMm}) {
+  return zamerFallbackObjectDimensionM(dimensionMm: depthMm);
 }
 
 double zamerFallbackObjectLocalCenterYM({required double heightMm}) {
