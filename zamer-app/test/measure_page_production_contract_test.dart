@@ -63,9 +63,9 @@ void main() {
     expect(painter.contains('TopViewObjectRenderer.draw('), isTrue);
 
     expect(measure.contains('_ConceptBottomNav('), isTrue);
-    expect(measure.contains("'Проекты'"), isTrue);
-    expect(measure.contains("'Каталог'"), isTrue);
-    expect(measure.contains("'Обучение'"), isTrue);
-    expect(measure.contains('ZWorkspacePrimaryNav('), isFalse);
+    expect(measure.contains('ZWorkspacePrimaryNav('), isTrue);
+    expect(measure.contains('onPrimaryModeSelected'), isTrue);
+    expect(workspace.contains('_modeTabs'), isTrue);
+    expect(workspace.contains('_selectPrimaryMode'), isTrue);
   });
 }
