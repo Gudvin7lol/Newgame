@@ -18,6 +18,7 @@ import 'floor_grout_geometry.dart';
 import 'cutaway_geometry.dart';
 import 'host_wall_visibility.dart';
 import 'model_asset_catalog.dart';
+import 'material_pbr_uv_policy.dart';
 import 'model_lod_policy.dart';
 import 'opening_render_policy.dart';
 import 'photo_render_quality_policy.dart';
@@ -631,10 +632,10 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     }
 
     final key =
-        '${surface.materialMode}:${surface.materialId}:${surface.laminatePattern}:${surface.laminateOffsetMode}:${surface.tilePattern}';
+        '${surface.materialMode}:${surface.materialId}:${surface.laminatePattern}:${surface.laminateOffsetMode}:${surface.tilePattern}:${uvScale.$1}:${uvScale.$2}';
     final material = materialCache.putIfAbsent(
       key,
-      () => _floorMaterial(surface),
+      () => _floorMaterial(surface, uvScale),
     );
     final root = Node(name: 'floor-root:${surface.roomKey}');
     root.add(
@@ -759,7 +760,10 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       ..shadowStatic = true;
   }
 
-  PhysicallyBasedMaterial _floorMaterial(ZamerFloorSurface surface) {
+  PhysicallyBasedMaterial _floorMaterial(
+    ZamerFloorSurface surface,
+    (double, double) uvScale,
+  ) {
     final preset = MaterialCatalog.byId(surface.materialId);
     final mode = surface.materialMode.toLowerCase();
     final texture = _textureForFloorSurface(surface, preset);
@@ -783,7 +787,19 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
           );
     final material = _pbr(tint, roughness: roughness, texture: texture)
       ..doubleSided = false;
-    _applyGeneratedPbr(material, preset);
+    final generatedPbr = GeneratedPbrFinishCatalog.byId(preset.id);
+    TextureTransform? pbrTransform;
+    if (generatedPbr != null) {
+      final physical = ZamerMaterialPbrUvPolicy.forFloor(
+        geometryUvWidthMm: uvScale.$1,
+        geometryUvHeightMm: uvScale.$2,
+        realWorldTileMm: generatedPbr.realWorldTileMm,
+      );
+      pbrTransform = TextureTransform(
+        scale: vm.Vector2(physical.scaleX, physical.scaleY),
+      );
+    }
+    _applyGeneratedPbr(material, preset, pbrTransform: pbrTransform);
     return material;
   }
 
@@ -899,7 +915,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
               : (preset.pattern == 'concrete' ? 0.90 : 0.82)),
       texture: texture,
     )..doubleSided = false;
-    TextureTransform? textureTransform;
+    TextureTransform? baseTextureTransform;
     if (finish.tileEnabled && texture != null) {
       final sourceTileW = math.max(20.0, finish.tileWidthMm);
       final sourceTileH = math.max(20.0, finish.tileHeightMm);
@@ -909,7 +925,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       final repeatY = math.max(0.001, wall.heightMm / tileH);
       final wallU = (wall.textureStartMm + finish.tileOffsetXMm) / tileW;
       final wallV = (wall.bottomMm - finish.tileOffsetYMm) / tileH;
-      textureTransform = TextureTransform(
+      baseTextureTransform = TextureTransform(
         scale: vm.Vector2(
           (finish.tileMirrored ? -1.0 : 1.0) * repeatX,
           repeatY,
@@ -921,7 +937,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       final generatedPbr = GeneratedPbrFinishCatalog.byId(preset.id);
       if (generatedPbr != null) {
         final repeatMm = math.max(50.0, generatedPbr.realWorldTileMm);
-        textureTransform = TextureTransform(
+        baseTextureTransform = TextureTransform(
           scale: vm.Vector2(
             math.max(0.001, wall.lengthMm / repeatMm),
             math.max(0.001, wall.heightMm / repeatMm),
@@ -933,35 +949,67 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
         );
       }
     }
-    _applyGeneratedPbr(material, preset, transform: textureTransform);
+    final generatedPbr = GeneratedPbrFinishCatalog.byId(preset.id);
+    TextureTransform? pbrTextureTransform;
+    if (generatedPbr != null) {
+      final physical = ZamerMaterialPbrUvPolicy.forWall(
+        wallLengthMm: wall.lengthMm,
+        wallHeightMm: wall.heightMm,
+        textureStartMm: wall.textureStartMm,
+        bottomMm: wall.bottomMm,
+        realWorldTileMm: generatedPbr.realWorldTileMm,
+      );
+      final mirrored = finish.tileEnabled && finish.tileMirrored;
+      pbrTextureTransform = TextureTransform(
+        scale: vm.Vector2(
+          (mirrored ? -1.0 : 1.0) * physical.scaleX,
+          physical.scaleY,
+        ),
+        offset: vm.Vector2(
+          mirrored ? 1.0 - physical.offsetX : physical.offsetX,
+          physical.offsetY,
+        ),
+        rotation: finish.tileEnabled && finish.tileRotated ? math.pi / 2 : 0,
+      );
+    }
+    _applyGeneratedPbr(
+      material,
+      preset,
+      baseTransform: baseTextureTransform,
+      pbrTransform: pbrTextureTransform,
+    );
     return material;
   }
 
   void _applyGeneratedPbr(
     PhysicallyBasedMaterial material,
     VisualMaterialPreset preset, {
-    TextureTransform? transform,
+    TextureTransform? baseTransform,
+    TextureTransform? pbrTransform,
   }) {
-    if (transform != null) {
-      material.baseColorTextureTransform = transform;
+    if (baseTransform != null) {
+      material.baseColorTextureTransform = baseTransform;
     }
     final generatedPbr = GeneratedPbrFinishCatalog.byId(preset.id);
     if (generatedPbr == null) return;
+    final physicalTransform = pbrTransform ?? baseTransform;
 
     final normal = _finishTextures[generatedPbr.normalAsset];
     if (normal != null) {
       material
         ..normalTexture = normal
         ..normalScale = generatedPbr.normalScale;
-      if (transform != null) material.normalTextureTransform = transform;
+      if (physicalTransform != null) {
+        material.normalTextureTransform = physicalTransform;
+      }
     }
 
     final metallicRoughness =
         _finishTextures[generatedPbr.metallicRoughnessAsset];
     if (metallicRoughness != null) {
       material.metallicRoughnessTexture = metallicRoughness;
-      if (transform != null) {
-        material.metallicRoughnessTextureTransform = transform;
+      if (physicalTransform != null) {
+        material.metallicRoughnessTextureTransform = physicalTransform;
       }
     }
   }
@@ -1044,9 +1092,10 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     }
     final key =
         '${nearest.materialMode}:${nearest.materialId}:${nearest.laminatePattern}:${nearest.laminateOffsetMode}:${nearest.tilePattern}:under-wall';
+    final nearestUvScale = _floorUvScaleMm(nearest);
     final material = materialCache.putIfAbsent(
-      key,
-      () => _floorMaterial(nearest),
+      '$key:${nearestUvScale.$1}:${nearestUvScale.$2}',
+      () => _floorMaterial(nearest, nearestUvScale),
     );
     final node = Node(
       name: 'floor-under-wall:${wall.wallId}',
