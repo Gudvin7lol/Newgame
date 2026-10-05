@@ -25,6 +25,7 @@ import 'scene_fingerprint.dart';
 import 'scene_mesh_winding.dart';
 import 'zamer_scene_geometry.dart';
 import 'wall_device_mount.dart';
+import 'wall_texture_transform_policy.dart';
 
 enum ZamerPhotoTime { day, sunset, evening, night }
 
@@ -862,19 +863,17 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       );
     } else if (texture != null) {
       final generatedPbr = GeneratedPbrFinishCatalog.byId(preset.id);
-      if (generatedPbr != null) {
-        final repeatMm = math.max(50.0, generatedPbr.realWorldTileMm);
-        textureTransform = TextureTransform(
-          scale: vm.Vector2(
-            math.max(0.001, wall.lengthMm / repeatMm),
-            math.max(0.001, wall.heightMm / repeatMm),
-          ),
-          offset: vm.Vector2(
-            wall.textureStartMm / repeatMm,
-            wall.bottomMm / repeatMm,
-          ),
-        );
-      }
+      final transform = zamerWallTextureTransform(
+        textureStartMm: wall.textureStartMm,
+        bottomMm: wall.bottomMm,
+        lengthMm: wall.lengthMm,
+        heightMm: wall.heightMm,
+        realWorldTileMm: generatedPbr?.realWorldTileMm ?? 1000.0,
+      );
+      textureTransform = TextureTransform(
+        scale: vm.Vector2(transform.repeatU, transform.repeatV),
+        offset: vm.Vector2(transform.offsetU, transform.offsetV),
+      );
     }
     _applyGeneratedPbr(material, preset, transform: textureTransform);
     return material;
