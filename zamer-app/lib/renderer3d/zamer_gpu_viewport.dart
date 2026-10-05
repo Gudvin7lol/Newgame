@@ -15,6 +15,7 @@ import '../widgets/floor_3d_painter.dart';
 import 'camera_clip_policy.dart';
 import 'ceiling_visibility_policy.dart';
 import 'floor_grout_geometry.dart';
+import 'cutaway_corridor_policy.dart';
 import 'cutaway_geometry.dart';
 import 'door_floor_bridge.dart';
 import 'host_wall_visibility.dart';
@@ -2052,11 +2053,9 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     if (cameraFromTarget.length2 < 0.0001) return;
 
     final cameraDistance = cameraFromTarget.length;
-    final halfFov =
-        widget.cameraFovDegrees.clamp(18.0, 90.0).toDouble() * math.pi / 360;
-    final corridorHalfWidth = math.max(
-      0.75,
-      math.tan(halfFov) * cameraDistance * 1.15,
+    final corridorHalfWidth = ZamerCutawayCorridorPolicy.halfWidth(
+      cameraDistanceM: cameraDistance,
+      fovDegrees: widget.cameraFovDegrees,
     );
 
     final targetPoint = math.Point<double>(target2.x, target2.y);
