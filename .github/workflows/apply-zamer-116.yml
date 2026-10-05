@@ -6,6 +6,7 @@ on:
       - codex/zamer-1.5.6-3d-stability
     paths:
       - zamer-app/tool/apply_116_interaction_regressions.py
+      - zamer-app/tool/apply_116.trigger
 
 permissions:
   contents: write
