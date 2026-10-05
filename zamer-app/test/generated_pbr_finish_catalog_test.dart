@@ -55,9 +55,12 @@ void main() {
       isTrue,
     );
     expect(source.contains('realWorldTileMm'), isTrue);
-    expect(source.contains('normalTextureTransform = transform'), isTrue);
+    expect(source.contains('baseColorTextureTransform = baseTransform'), isTrue);
+    expect(source.contains('normalTextureTransform = physicalTransform'), isTrue);
     expect(
-      source.contains('metallicRoughnessTextureTransform = transform'),
+      source.contains(
+        'metallicRoughnessTextureTransform = physicalTransform',
+      ),
       isTrue,
     );
   });
