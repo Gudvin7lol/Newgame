@@ -270,14 +270,6 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   }
 
 
-  PlanObject? _planObjectById(String? id) {
-    if (id == null) return null;
-    for (final object in floor.planObjects) {
-      if (object.id == id) return object;
-    }
-    return null;
-  }
-
   void _movePlanObject(PlanObject object, DragUpdateDetails details) {
     if (_dragObjectId != object.id) return;
     final oldX = object.xMm;
@@ -408,8 +400,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     return Positioned(
       left: minX,
       top: minY,
-      width: math.max(1, maxX - minX),
-      height: math.max(1, maxY - minY),
+      width: math.max(1.0, maxX - minX),
+      height: math.max(1.0, maxY - minY),
       child: ClipPath(
         clipper: _RoomDragClipper(local),
         child: GestureDetector(
