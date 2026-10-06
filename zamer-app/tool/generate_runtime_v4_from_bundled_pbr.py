@@ -39,10 +39,15 @@ SURFACE_SIZE = (2048, 2048)
 PLANK_COUNT = 16
 PLANK_ATLAS_COLUMNS = 4
 PLANK_ATLAS_ROWS = 4
+PLANK_LAYOUT_ROWS = 6
 PLANK_ATLAS_CELL_SIZE = (1024, 143)
 PLANK_ATLAS_SIZE = (
     PLANK_ATLAS_CELL_SIZE[0] * PLANK_ATLAS_COLUMNS,
     PLANK_ATLAS_CELL_SIZE[1] * PLANK_ATLAS_ROWS,
+)
+PLANK_LAYOUT_ATLAS_SIZE = (
+    PLANK_ATLAS_CELL_SIZE[0] * PLANK_ATLAS_COLUMNS,
+    PLANK_ATLAS_CELL_SIZE[1] * PLANK_LAYOUT_ROWS,
 )
 
 MATERIALS = {
@@ -184,6 +189,57 @@ def _generate_surface(material_id: str, spec: dict[str, object]) -> list[str]:
     return files
 
 
+def _plank_sample(
+    source: Image.Image,
+    variant_index: int,
+) -> Image.Image:
+    sample = (variant_index % PLANK_COUNT) + 1
+    x = (sample * 307) % SURFACE_SIZE[0]
+    y = (sample * 181) % SURFACE_SIZE[1]
+    return _wrapped_crop(
+        source,
+        x=x,
+        y=y,
+        width=PLANK_ATLAS_CELL_SIZE[0],
+        height=PLANK_ATLAS_CELL_SIZE[1],
+    )
+
+
+def _build_plank_atlas(
+    source: Image.Image,
+    *,
+    mode: str,
+) -> Image.Image:
+    if mode == "straight":
+        rows = PLANK_ATLAS_ROWS
+        atlas_size = PLANK_ATLAS_SIZE
+    else:
+        rows = PLANK_LAYOUT_ROWS
+        atlas_size = PLANK_LAYOUT_ATLAS_SIZE
+
+    atlas = Image.new("RGB", atlas_size)
+    cell_w, cell_h = PLANK_ATLAS_CELL_SIZE
+
+    for row in range(rows):
+        if mode == "half":
+            shift = cell_w / 2 if row % 2 else 0
+        elif mode == "third":
+            shift = (row % 3) * cell_w / 3
+        else:
+            shift = 0
+
+        # One extra cell on both sides supplies wrapped content for staggered
+        # rows at the atlas borders.
+        for col in range(-1, PLANK_ATLAS_COLUMNS + 1):
+            variant = (row * PLANK_ATLAS_COLUMNS + col) % PLANK_COUNT
+            plank = _plank_sample(source, variant)
+            atlas.paste(
+                plank,
+                (round(col * cell_w + shift), row * cell_h),
+            )
+    return atlas
+
+
 def _generate_planks(material_id: str, spec: dict[str, object]) -> list[str]:
     files = _generate_surface(material_id, spec)
 
@@ -197,38 +253,23 @@ def _generate_planks(material_id: str, spec: dict[str, object]) -> list[str]:
         "normal.png": normal,
         "metallic_roughness.png": packed,
     }
-    atlases = {
-        suffix: Image.new("RGB", PLANK_ATLAS_SIZE)
-        for suffix in sources
-    }
 
-    for index in range(PLANK_COUNT):
-        # Prime-ish offsets distribute samples over the source without random
-        # state, keeping builds byte-for-byte deterministic.
-        sample = index + 1
-        x = (sample * 307) % SURFACE_SIZE[0]
-        y = (sample * 181) % SURFACE_SIZE[1]
-        atlas_x = (index % PLANK_ATLAS_COLUMNS) * PLANK_ATLAS_CELL_SIZE[0]
-        atlas_y = (index // PLANK_ATLAS_COLUMNS) * PLANK_ATLAS_CELL_SIZE[1]
-
+    for mode in ("straight", "half", "third"):
+        expected = (
+            PLANK_ATLAS_SIZE
+            if mode == "straight"
+            else PLANK_LAYOUT_ATLAS_SIZE
+        )
         for suffix, source in sources.items():
-            plank = _wrapped_crop(
-                source,
-                x=x,
-                y=y,
-                width=PLANK_ATLAS_CELL_SIZE[0],
-                height=PLANK_ATLAS_CELL_SIZE[1],
-            )
-            atlases[suffix].paste(plank, (atlas_x, atlas_y))
-
-    for suffix, atlas in atlases.items():
-        name = f"{material_id}_plank_atlas_{suffix}"
-        if suffix.endswith(".webp"):
-            _save_webp(atlas, OUTPUT / name)
-        else:
-            _save_png(atlas, OUTPUT / name)
-        _validate_written_image(OUTPUT / name, PLANK_ATLAS_SIZE)
-        files.append(name)
+            atlas = _build_plank_atlas(source, mode=mode)
+            mode_token = "" if mode == "straight" else f"_{mode}"
+            name = f"{material_id}_plank_atlas{mode_token}_{suffix}"
+            if suffix.endswith(".webp"):
+                _save_webp(atlas, OUTPUT / name)
+            else:
+                _save_png(atlas, OUTPUT / name)
+            _validate_written_image(OUTPUT / name, expected)
+            files.append(name)
 
     return files
 
@@ -259,9 +300,12 @@ def generate(clean: bool = True) -> dict[str, object]:
         "plankCount": PLANK_COUNT,
         "plankAtlas": {
             "columns": PLANK_ATLAS_COLUMNS,
-            "rows": PLANK_ATLAS_ROWS,
+            "straightRows": PLANK_ATLAS_ROWS,
+            "staggerRows": PLANK_LAYOUT_ROWS,
             "cellResolution": list(PLANK_ATLAS_CELL_SIZE),
-            "atlasResolution": list(PLANK_ATLAS_SIZE),
+            "straightAtlasResolution": list(PLANK_ATLAS_SIZE),
+            "staggerAtlasResolution": list(PLANK_LAYOUT_ATLAS_SIZE),
+            "modes": ["straight", "half", "third"],
         },
         "runtimeChannels": [
             "basecolor.webp",
