@@ -8,15 +8,28 @@
 class ZamerModelVisibilityPolicy {
   const ZamerModelVisibilityPolicy._();
 
-  static const int qualityAlwaysVisibleObjectLimit = 120;
+  static const int qualityAlwaysVisibleObjectLimit = 240;
+  static const int performanceAlwaysVisibleObjectLimit = 80;
 
   static bool frustumCulled({
     required bool performanceMode,
     required bool photoQuality,
+    required bool walkMode,
     required int visibleObjectCount,
   }) {
     if (photoQuality) return false;
-    if (performanceMode) return true;
+
+    // Walk Mode is where stale imported-model bounds are most noticeable:
+    // furniture can appear to blink out while the camera turns. Keep normal
+    // interior scenes pinned there, even on Performance, and only re-enable
+    // culling once the scene is genuinely dense.
+    if (walkMode && visibleObjectCount <= qualityAlwaysVisibleObjectLimit) {
+      return false;
+    }
+
+    if (performanceMode) {
+      return visibleObjectCount > performanceAlwaysVisibleObjectLimit;
+    }
     return visibleObjectCount > qualityAlwaysVisibleObjectLimit;
   }
 }
