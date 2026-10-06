@@ -57,7 +57,7 @@ class RuntimeMaterialV4Descriptor {
       'third' => '_third',
       _ => '',
     };
-    return '${assetPrefix}_plank_atlas$mode' '_$mapName';
+    return '${assetPrefix}_plank_atlas${mode}_$mapName';
   }
 
   int plankAtlasRowsFor(String offsetMode) =>
@@ -91,8 +91,9 @@ class RuntimeMaterialV4Descriptor {
 ///
 /// Runtime maps bundled by the current renderer:
 /// - walls/tiles: 2048x2048 BaseColor, Normal and packed MetallicRoughness;
-/// - laminate: an aggregate 2048x2048 surface plus one 4x4 atlas per runtime
-///   channel containing 16 deterministic plank-face variants;
+/// - laminate: an aggregate 2048x2048 surface plus stagger-aware atlases per
+///   runtime channel. Straight uses 4x4 cells; 1/2 and 1/3 use six physical
+///   rows so their stagger phase repeats without a seam at the atlas boundary;
 /// - normals use OpenGL Y+;
 /// - metallic is always zero;
 /// - Height/AO remain source/offline channels until the renderer has dedicated
