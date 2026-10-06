@@ -26,7 +26,7 @@ class MaterialCatalog {
   static const generatedV1 = <VisualMaterialPreset>[
     VisualMaterialPreset(
       id: GeneratedMaterialIds.darkOak,
-      name: 'Тёмный дуб',
+      name: 'Дымчатый дуб · PBR',
       category: 'Пол',
       color: Color(0xFF5B4030),
       pattern: 'wood',
@@ -35,7 +35,7 @@ class MaterialCatalog {
     ),
     VisualMaterialPreset(
       id: GeneratedMaterialIds.whiteOak,
-      name: 'Выбеленный дуб',
+      name: 'Светлый дуб · PBR',
       category: 'Пол',
       color: Color(0xFFC7B79F),
       pattern: 'wood',
@@ -53,7 +53,7 @@ class MaterialCatalog {
     ),
     VisualMaterialPreset(
       id: GeneratedMaterialIds.terrazzo,
-      name: 'Терраццо',
+      name: 'Терраццо светлый · PBR',
       category: 'Плитка',
       color: Color(0xFFD3D0C7),
       pattern: 'tile',
@@ -80,7 +80,7 @@ class MaterialCatalog {
     ),
     VisualMaterialPreset(
       id: GeneratedMaterialIds.wallPaint,
-      name: 'Матовая краска · тёплый белый',
+      name: 'Матовая краска · PBR',
       category: 'Стены',
       color: Color(0xFFECE7DE),
       textureAsset: 'assets/textures/generated_v1/wall_paint.jpg',
@@ -106,7 +106,7 @@ class MaterialCatalog {
     ),
     VisualMaterialPreset(
       id: GeneratedMaterialIds.wallRedClay,
-      name: 'Красный кирпич',
+      name: 'Красный кирпич · PBR',
       category: 'Стены',
       color: Color(0xFF9D5943),
       pattern: 'brick',
@@ -141,7 +141,7 @@ class MaterialCatalog {
     ),
     VisualMaterialPreset(
       id: GeneratedMaterialIds.walnutPbr,
-      name: 'Орех натуральный · PBR',
+      name: 'Тёплый орех · PBR',
       category: 'Пол',
       color: Color(0xFF815A3D),
       pattern: 'wood',
@@ -150,7 +150,7 @@ class MaterialCatalog {
     ),
     VisualMaterialPreset(
       id: GeneratedMaterialIds.marbleBiancoPbr,
-      name: 'Мрамор Bianco · PBR',
+      name: 'Мрамор светлый · PBR',
       category: 'Плитка',
       color: Color(0xFFE9E6E0),
       pattern: 'tile',
@@ -168,7 +168,7 @@ class MaterialCatalog {
     ),
     VisualMaterialPreset(
       id: GeneratedMaterialIds.plasterMineralPbr,
-      name: 'Минеральная штукатурка · PBR',
+      name: 'Гипсовая штукатурка · PBR',
       category: 'Стены',
       color: Color(0xFFD2C7B6),
       pattern: 'concrete',
