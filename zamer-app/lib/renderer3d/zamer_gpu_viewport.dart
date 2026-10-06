@@ -32,6 +32,7 @@ class ZamerGpuViewport extends StatefulWidget {
     required this.walkMode,
     required this.walkX,
     required this.walkY,
+    this.walkFovDegrees = 76,
     this.quality = ZamerRenderQuality.quality,
   });
 
@@ -44,6 +45,7 @@ class ZamerGpuViewport extends StatefulWidget {
   final bool walkMode;
   final double walkX;
   final double walkY;
+  final double walkFovDegrees;
   final ZamerRenderQuality quality;
 
   @override
@@ -1407,7 +1409,8 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
         math.sin(widget.rotation) * cp,
       );
       return PerspectiveCamera(
-        fovRadiansY: 76 * math.pi / 180,
+        fovRadiansY:
+            widget.walkFovDegrees.clamp(55, 100).toDouble() * math.pi / 180,
         position: eye,
         target: eye + forward * 4,
         up: vm.Vector3(0, 1, 0),
