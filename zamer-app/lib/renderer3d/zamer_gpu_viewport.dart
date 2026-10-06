@@ -269,7 +269,16 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       vignetteEnabled: false,
       autoExposureEnabled: false,
     );
-    scene.antiAliasingMode = AntiAliasingMode.auto;
+    scene.antiAliasingMode =
+        isQuality ? AntiAliasingMode.taa : AntiAliasingMode.auto;
+    scene.temporalAntiAliasing
+      ..jitterSequenceLength = isQuality ? 8 : 6
+      ..jitterScale = isQuality ? 0.52 : 0.42
+      ..minimumCurrentWeight = isQuality ? 0.09 : 0.16
+      ..varianceGamma = 1.10
+      ..sharpness = isQuality ? 0.18 : 0.10
+      ..objectMotion = false
+      ..skinnedMotion = false;
     scene.environmentIntensity = isQuality ? 1.0 : 0.82;
     scene.directionalLight = DirectionalLight(
       direction: vm.Vector3(-0.45, -1.0, -0.32)..normalize(),
@@ -346,7 +355,15 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       autoExposureMinEv: -1.2,
       autoExposureMaxEv: 1.8,
     );
-    scene.antiAliasingMode = AntiAliasingMode.auto;
+    scene.antiAliasingMode = AntiAliasingMode.taa;
+    scene.temporalAntiAliasing
+      ..jitterSequenceLength = 16
+      ..jitterScale = 0.62
+      ..minimumCurrentWeight = 0.055
+      ..varianceGamma = 1.16
+      ..sharpness = 0.22
+      ..objectMotion = false
+      ..skinnedMotion = false;
     scene.environmentIntensity = 1.15;
     scene.directionalLight = DirectionalLight(
       direction: vm.Vector3(-0.38, -1.0, -0.28)..normalize(),
