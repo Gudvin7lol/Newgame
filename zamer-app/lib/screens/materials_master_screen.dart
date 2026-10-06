@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../design_system/zamer_components.dart';
 import '../design_system/zamer_tokens.dart';
 import '../models/models.dart';
+import '../services/generated_material_ids.dart';
 import '../services/geometry_service.dart';
 import '../services/material_catalog.dart';
 import '../widgets/material_finish_swatch.dart';
@@ -83,11 +84,18 @@ class _MaterialsMasterScreenState extends State<MaterialsMasterScreen> {
   }
 
   List<String> _categories() {
-    final values = <String>{'Все'};
-    for (final item in _sourceMaterials()) {
-      values.add(_categoryFor(item));
-    }
-    return values.toList(growable: false);
+    final supported = _sourceMaterials().map(_categoryFor).toSet();
+    const order = <String>[
+      'Все',
+      'Краска',
+      'Штукатурка',
+      'Бетон',
+      'Плитка',
+      'Дерево',
+    ];
+    return order
+        .where((item) => item == 'Все' || supported.contains(item))
+        .toList(growable: false);
   }
 
   List<VisualMaterialPreset> _visibleMaterials() {
@@ -366,8 +374,8 @@ class _MaterialsMasterScreenState extends State<MaterialsMasterScreen> {
                       alignment: Alignment.center,
                       child: MaterialFinishSwatch(
                         material: material,
-                        size: 58,
-                        borderRadius: 29,
+                        size: 66,
+                        borderRadius: 33,
                       ),
                     ),
                     Align(
@@ -441,8 +449,45 @@ class _MaterialsMasterScreenState extends State<MaterialsMasterScreen> {
     ),
   );
 
-  Widget _preview(VisualMaterialPreset material) {
-    final texture = material.textureAsset;
+  Widget _preview(
+    VisualMaterialPreset material,
+    RoomMaterialSettings settings,
+  ) {
+    final selectedColor = _activeColor(settings);
+    final wallFallback = MaterialCatalog.byId(
+      GeneratedMaterialIds.runtimeV4WallPaintMatteWhite,
+    );
+    final floorFallback = MaterialCatalog.byId(
+      GeneratedMaterialIds.runtimeV4LaminateOakSmoked,
+    );
+    final wallMaterial =
+        _surface == _MaterialSurface.walls ? material : wallFallback;
+    final floorMaterial =
+        _surface == _MaterialSurface.floor ? material : floorFallback;
+    final ceilingMaterial =
+        _surface == _MaterialSurface.ceiling ? material : wallFallback;
+
+    Widget texturePlane(
+      VisualMaterialPreset source, {
+      required Color fallback,
+      BoxFit fit = BoxFit.cover,
+    }) {
+      final asset = source.textureAsset;
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          ColoredBox(color: fallback),
+          if (asset != null)
+            Image.asset(
+              asset,
+              fit: fit,
+              filterQuality: FilterQuality.high,
+              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+            ),
+        ],
+      );
+    }
+
     return Container(
       height: 286,
       decoration: BoxDecoration(
@@ -454,25 +499,96 @@ class _MaterialsMasterScreenState extends State<MaterialsMasterScreen> {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          if (texture != null)
-            Image.asset(
-              texture,
-              fit: BoxFit.cover,
-              filterQuality: FilterQuality.high,
-              errorBuilder: (_, __, ___) => ColoredBox(color: material.color),
-            )
-          else
-            ColoredBox(color: material.color),
-          DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Colors.white.withValues(alpha: .20),
-                  Colors.transparent,
-                  Colors.black.withValues(alpha: .34),
+          texturePlane(
+            wallMaterial,
+            fallback: _surface == _MaterialSurface.walls
+                ? selectedColor
+                : const Color(0xFFE5DED2),
+          ),
+          if (_surface == _MaterialSurface.walls)
+            ColoredBox(color: selectedColor.withValues(alpha: .18)),
+          Positioned(
+            left: 0,
+            right: 0,
+            top: 0,
+            height: 44,
+            child: texturePlane(
+              ceilingMaterial,
+              fallback: _surface == _MaterialSurface.ceiling
+                  ? selectedColor
+                  : const Color(0xFFF0ECE4),
+            ),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: 106,
+            child: Transform(
+              alignment: Alignment.topCenter,
+              transform: Matrix4.identity()..setEntry(3, 2, .0012),
+              child: texturePlane(
+                floorMaterial,
+                fallback: _surface == _MaterialSurface.floor
+                    ? selectedColor
+                    : const Color(0xFF71513F),
+              ),
+            ),
+          ),
+          Positioned(
+            left: 14,
+            top: 42,
+            width: 48,
+            height: 168,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: const Color(0xFFF4F1EA),
+                borderRadius: BorderRadius.circular(2),
+                boxShadow: [
+                  BoxShadow(
+                    blurRadius: 28,
+                    spreadRadius: 8,
+                    color: const Color(0xFFFFE8C7).withValues(alpha: .34),
+                  ),
                 ],
+              ),
+              child: Container(
+                margin: const EdgeInsets.fromLTRB(7, 5, 5, 6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFDCE5E8),
+                  border: Border.all(color: const Color(0xFFBFC8C9)),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            right: 10,
+            bottom: 43,
+            width: 112,
+            height: 64,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: const Color(0xFFE5E0D8),
+                borderRadius: BorderRadius.circular(7),
+                boxShadow: const [
+                  BoxShadow(
+                    blurRadius: 15,
+                    offset: Offset(0, 8),
+                    color: Color(0x66000000),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Positioned(
+            right: 8,
+            bottom: 26,
+            width: 116,
+            height: 25,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: const Color(0xFF604233),
+                borderRadius: BorderRadius.circular(4),
               ),
             ),
           ),
@@ -482,7 +598,7 @@ class _MaterialsMasterScreenState extends State<MaterialsMasterScreen> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
               decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: .62),
+                color: Colors.black.withValues(alpha: .64),
                 borderRadius: BorderRadius.circular(ZamerRadius.md),
               ),
               child: const Row(
@@ -491,50 +607,35 @@ class _MaterialsMasterScreenState extends State<MaterialsMasterScreen> {
                   SizedBox(width: 6),
                   Text(
                     'Предпросмотр материала',
-                    style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700),
+                    style: TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ],
               ),
             ),
           ),
           Positioned(
-            left: 14,
-            right: 14,
-            bottom: 14,
+            left: 12,
+            bottom: 12,
             child: Container(
-              height: 54,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
               decoration: BoxDecoration(
-                color: ZamerColors.surface.withValues(alpha: .90),
+                color: ZamerColors.accent,
                 borderRadius: BorderRadius.circular(ZamerRadius.md),
-                border: Border.all(color: ZamerColors.outline),
               ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Center(
-                      child: Text(
-                        switch (_surface) {
-                          _MaterialSurface.walls => 'Стена',
-                          _MaterialSurface.floor => 'Пол',
-                          _MaterialSurface.ceiling => 'Потолок',
-                        },
-                        style: const TextStyle(
-                          color: ZamerColors.accent,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const VerticalDivider(width: 1),
-                  Expanded(
-                    child: Center(
-                      child: Text(
-                        _categoryFor(material),
-                        style: ZamerTypography.caption,
-                      ),
-                    ),
-                  ),
-                ],
+              child: Text(
+                switch (_surface) {
+                  _MaterialSurface.walls => 'Стена',
+                  _MaterialSurface.floor => 'Пол',
+                  _MaterialSurface.ceiling => 'Потолок',
+                },
+                style: const TextStyle(
+                  color: ZamerColors.accentInk,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 10.5,
+                ),
               ),
             ),
           ),
@@ -922,94 +1023,96 @@ class _MaterialsMasterScreenState extends State<MaterialsMasterScreen> {
     final materials = _visibleMaterials();
     final selectedMaterial = MaterialCatalog.byId(selectedId);
 
+    final pageTitle = Padding(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+      child: Row(
+        children: [
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: ZamerColors.surfaceHigh,
+              borderRadius: BorderRadius.circular(ZamerRadius.md),
+              border: Border.all(
+                color: ZamerColors.accent.withValues(alpha: .55),
+              ),
+            ),
+            child: const Icon(
+              Icons.layers_outlined,
+              color: ZamerColors.accent,
+            ),
+          ),
+          const SizedBox(width: 11),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Материалы', style: ZamerTypography.h2),
+                SizedBox(height: 2),
+                Text(
+                  'Отделочные материалы для стен, пола и потолка',
+                  style: ZamerTypography.bodySmall,
+                ),
+              ],
+            ),
+          ),
+          if (widget.onClose != null)
+            IconButton(
+              tooltip: 'Закрыть',
+              onPressed: widget.onClose,
+              icon: const Icon(Icons.close_rounded),
+            ),
+        ],
+      ),
+    );
+
     return ColoredBox(
       color: ZamerColors.background,
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 28),
+      child: Column(
         children: [
-          Row(
-            children: [
-              Container(
-                width: 46,
-                height: 46,
-                decoration: BoxDecoration(
-                  color: ZamerColors.surfaceHigh,
-                  borderRadius: BorderRadius.circular(ZamerRadius.md),
-                  border: Border.all(color: ZamerColors.accent.withValues(alpha: .55)),
+          pageTitle,
+          const SizedBox(height: 10),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 28),
+              children: [
+                _surfaceTabs(),
+                const SizedBox(height: 10),
+                _categoryChips(),
+                const SizedBox(height: 10),
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: materials.length,
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 4,
+                    crossAxisSpacing: 8,
+                    mainAxisSpacing: 8,
+                    childAspectRatio: .66,
+                  ),
+                  itemBuilder: (context, index) =>
+                      _materialCard(materials[index], selectedId, settings),
                 ),
-                child: const Icon(Icons.layers_outlined, color: ZamerColors.accent),
-              ),
-              const SizedBox(width: 11),
-              const Expanded(
-                child: Column(
+                const SizedBox(height: 12),
+                Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Материалы', style: ZamerTypography.h2),
-                    SizedBox(height: 2),
-                    Text(
-                      'Отделочные материалы для стен, пола и потолка',
-                      style: ZamerTypography.bodySmall,
+                    Expanded(
+                      flex: 50,
+                      child: _preview(selectedMaterial, settings),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      flex: 50,
+                      child: _editor(selectedMaterial, settings),
                     ),
                   ],
                 ),
-              ),
-              if (widget.onClose != null)
-                IconButton(
-                  tooltip: 'Закрыть',
-                  onPressed: widget.onClose,
-                  icon: const Icon(Icons.close_rounded),
-                ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          _surfaceTabs(),
-          const SizedBox(height: 10),
-          _categoryChips(),
-          const SizedBox(height: 10),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: materials.length,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 4,
-              crossAxisSpacing: 8,
-              mainAxisSpacing: 8,
-              childAspectRatio: .72,
+              ],
             ),
-            itemBuilder: (context, index) =>
-                _materialCard(materials[index], selectedId, settings),
-          ),
-          const SizedBox(height: 12),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final sideBySide = constraints.maxWidth >= 400;
-              if (!sideBySide) {
-                return Column(
-                  children: [
-                    _preview(selectedMaterial),
-                    const SizedBox(height: 10),
-                    _editor(selectedMaterial, settings),
-                  ],
-                );
-              }
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    flex: 48,
-                    child: _preview(selectedMaterial),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    flex: 52,
-                    child: _editor(selectedMaterial, settings),
-                  ),
-                ],
-              );
-            },
           ),
         ],
       ),
     );
-  }
+
 }
