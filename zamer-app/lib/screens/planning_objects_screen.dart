@@ -21,9 +21,14 @@ class PlanningObjectsScreen extends StatefulWidget {
     super.key,
     required this.floor,
     required this.onChanged,
+    this.embedded = false,
   });
   final FloorPlan floor;
   final Future<void> Function() onChanged;
+
+  /// In Measure the catalog lives in the parent workspace. Embedded mode keeps
+  /// this screen focused on direct placement, movement and rotation only.
+  final bool embedded;
 
   @override
   State<PlanningObjectsScreen> createState() => _PlanningObjectsScreenState();
@@ -520,6 +525,11 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
       await _edit(existing);
       return;
     }
+
+    // The unified Measure flow adds furniture through its Catalog sheet.
+    // Empty taps must not clone the last catalog selection behind the user's
+    // back. In embedded mode the canvas is manipulation-only.
+    if (widget.embedded) return;
 
     late PlanObject o;
     if (_source == _AddSource.catalog) {
@@ -1137,7 +1147,8 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
       _catalogId = groupItems.first.id;
     return Column(
       children: [
-        Padding(
+        if (!widget.embedded)
+          Padding(
           padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1337,7 +1348,9 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
           child: Text(
-            'Нажми на свободное место для установки. Потяни объект одним пальцем; двумя — поверни. Возле 0/90/180/270° включается магнитная привязка.',
+            widget.embedded
+                ? 'Потяни объект одним пальцем; двумя — поверни. Нажми на объект для точных параметров.'
+                : 'Нажми на свободное место для установки. Потяни объект одним пальцем; двумя — поверни. Возле 0/90/180/270° включается магнитная привязка.',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodySmall,
           ),
