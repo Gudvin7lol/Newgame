@@ -188,6 +188,26 @@ jobs:
             "$topview_dir"/featured_*.webp \
             "$topview_dir"/kitchen_*.webp
 
+      - name: Generate Runtime v4 material pack
+        working-directory: zamer-app
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tool/generate_runtime_v4_from_bundled_pbr.py
+
+          test -s assets/textures/runtime_v4/Wall_Brick_Red_01_basecolor.webp
+          test -s assets/textures/runtime_v4/Wall_GypsumPlaster_White_01_normal.png
+          test -s assets/textures/runtime_v4/Tile_MarbleLight_01_metallic_roughness.png
+          test -s assets/textures/runtime_v4/Laminate_OakLight_01_plank_16_basecolor.webp
+          test -s assets/textures/runtime_v4/Laminate_OakSmoked_01_plank_16_normal.png
+          test -s assets/textures/runtime_v4/Laminate_WalnutWarm_01_plank_16_metallic_roughness.png
+          test -s assets/textures/runtime_v4/manifest.json
+
+          generated_count="$(find assets/textures/runtime_v4 -maxdepth 1 -type f \
+            ! -name README.txt ! -name manifest.json | wc -l | tr -d ' ')"
+          test "$generated_count" -eq 171
+          echo "Runtime v4 material pack generated: $generated_count texture files."
+
       - name: Format changed UI sources
         run: >-
           dart format
