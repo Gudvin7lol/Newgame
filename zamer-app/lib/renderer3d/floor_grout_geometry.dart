@@ -1,5 +1,7 @@
 import 'dart:math' as math;
 
+import '../services/herringbone_layout.dart';
+
 /// Vertical placement for the rendered floor finish and its grout overlay.
 ///
 /// The grout is intentionally kept 2 mm above the zero-thickness floor mesh.
@@ -294,31 +296,20 @@ List<FloorGroutQuad> buildFloorHerringboneSeamQuads({
     }
   }
 
-  final run = plankLengthMm / math.sqrt2;
-  final pitch = plankWidthMm * math.sqrt2;
-  final ox = offsetXMm % run;
-  final oy = offsetYMm % pitch;
-  final firstRow = ((minY - run - oy) / pitch).floor();
-  final lastRow = ((maxY + run - oy) / pitch).ceil();
-  final firstCol = ((minX - run - ox) / run).floor();
-  final lastCol = ((maxX + run - ox) / run).ceil();
-
-  var boardCount = 0;
-  for (var row = firstRow; row <= lastRow && boardCount < 30000; row++) {
-    final y = row * pitch + oy;
-    for (var col = firstCol; col <= lastCol && boardCount < 30000; col++) {
-      final x = col * run + ox;
-      final y0 = y + (col.isOdd ? run : 0);
-      final y1 = y + (col.isOdd ? 0 : run);
-      final p0 = math.Point<double>(x, y0);
-      final p1 = math.Point<double>(x + run, y1);
-      final p2 = math.Point<double>(x + run, y1 + pitch);
-      final p3 = math.Point<double>(x, y0 + pitch);
-      addSegment(p0, p1);
-      addSegment(p1, p2);
-      addSegment(p2, p3);
-      addSegment(p3, p0);
-      boardCount++;
+  final boards = buildHerringboneBoards(
+    minX: minX,
+    minY: minY,
+    maxX: maxX,
+    maxY: maxY,
+    plankLength: plankLengthMm,
+    plankWidth: plankWidthMm,
+    offsetX: offsetXMm,
+    offsetY: offsetYMm,
+  );
+  for (final board in boards) {
+    if (board.points.length != 4) continue;
+    for (var edge = 0; edge < 4; edge++) {
+      addSegment(board.points[edge], board.points[(edge + 1) % 4]);
     }
   }
   return result;
