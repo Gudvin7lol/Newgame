@@ -10,7 +10,7 @@ import '../widgets/workspace_navigation.dart';
 import 'electrical_screen.dart';
 import 'engineering_screen.dart';
 import 'master_equipment_screen.dart';
-import 'materials_screen.dart';
+import 'materials_master_screen.dart';
 import 'measure_floor_plan_layer_screen.dart';
 import 'plan_editor_production_screen.dart';
 import 'planning_objects_screen.dart';
@@ -183,9 +183,8 @@ class _MeasureUnifiedWorkspaceScreenState
       ),
       ElectricalScreen(floor: widget.floor, onChanged: widget.onChanged),
       EngineeringScreen(floor: widget.floor, onChanged: widget.onChanged),
-      MaterialsScreen(
+      MaterialsMasterScreen(
         floor: widget.floor,
-        project: widget.project,
         onChanged: widget.onChanged,
       ),
     ];
