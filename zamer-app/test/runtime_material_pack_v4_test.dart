@@ -48,8 +48,13 @@ void main() {
       expect(material.plankCount, 16, reason: material.id);
       expect(material.bevelMm, 1, reason: material.id);
       expect(
-        material.plankMapAsset(16, 'normal.png'),
-        'assets/textures/runtime_v4/${material.id}_plank_16_normal.png',
+        material.plankAtlasMapAsset('normal.png'),
+        'assets/textures/runtime_v4/${material.id}_plank_atlas_normal.png',
+      );
+      expect(material.plankAtlasUv(1), (u0: 0.0, v0: 0.0, u1: .25, v1: .25));
+      expect(
+        material.plankAtlasUv(16),
+        (u0: .75, v0: .75, u1: 1.0, v1: 1.0),
       );
     }
     expect(RuntimeMaterialPackV4.laminatePatterns, contains('herringbone_45'));
