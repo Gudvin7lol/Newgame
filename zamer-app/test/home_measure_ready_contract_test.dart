@@ -44,7 +44,7 @@ void main() {
       'PlanningObjectsScreen(',
       'ElectricalScreen(',
       'EngineeringScreen(',
-      'MaterialsScreen(',
+      'MaterialsMasterScreen(',
       'ZMeasureViewTabs(',
       'ZWorkspacePrimaryNav(',
       'ZWorkspaceSubnav(',
