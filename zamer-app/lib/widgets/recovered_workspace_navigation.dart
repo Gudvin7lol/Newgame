@@ -4,7 +4,7 @@ import '../design_system/zamer_press_effect.dart';
 import '../design_system/zamer_tokens.dart';
 
 /// Recovery navigation for the approved project structure:
-/// Measure / 3D / Equipment / Elevations.
+/// Measure / 3D / Elevations. Equipment lives inside Measure.
 /// Home and Profile remain reachable without consuming a workspace mode.
 class ZRecoveredWorkspacePrimaryNav extends StatelessWidget {
   const ZRecoveredWorkspacePrimaryNav({
@@ -15,7 +15,7 @@ class ZRecoveredWorkspacePrimaryNav extends StatelessWidget {
     required this.onProfile,
   });
 
-  /// Workspace index: 0 = Measure, 1 = 3D, 2 = Equipment, 3 = Elevations.
+  /// Workspace index: 0 = Measure, 1 = 3D, 2 = Elevations.
   final int selectedIndex;
   final ValueChanged<int> onSelected;
   final VoidCallback onHome;
@@ -25,14 +25,13 @@ class ZRecoveredWorkspacePrimaryNav extends StatelessWidget {
     (Icons.home_outlined, 'Главная'),
     (Icons.architecture_outlined, 'Замер'),
     (Icons.view_in_ar_outlined, '3D'),
-    (Icons.chair_alt_outlined, 'Оснащение'),
     (Icons.view_carousel_outlined, 'Развёртки'),
     (Icons.person_outline_rounded, 'Профиль'),
   ];
 
   @override
   Widget build(BuildContext context) {
-    final active = selectedIndex.clamp(0, 3).toInt() + 1;
+    final active = selectedIndex.clamp(0, 2).toInt() + 1;
     return SafeArea(
       top: false,
       child: Container(
@@ -54,7 +53,6 @@ class ZRecoveredWorkspacePrimaryNav extends StatelessWidget {
                     1 => () => onSelected(0),
                     2 => () => onSelected(1),
                     3 => () => onSelected(2),
-                    4 => () => onSelected(3),
                     _ => onProfile,
                   },
                 ),
