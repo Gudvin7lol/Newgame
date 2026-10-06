@@ -693,6 +693,7 @@ class RoomMaterialSettings {
     this.wallTileFromMm = 0,
     this.wallTileToMm = 2700,
     this.floorMaterialId = 'oak-natural',
+    this.floorTintArgb = 0,
     this.wallMaterialId = 'paint-warm-white',
     this.ceilingMaterialId = 'paint-warm-white',
     this.ceilingPaintColorArgb = 0,
@@ -763,6 +764,7 @@ class RoomMaterialSettings {
   double wallTileFromMm;
   double wallTileToMm;
   String floorMaterialId;
+  int floorTintArgb;
   String wallMaterialId;
   String ceilingMaterialId;
   int ceilingPaintColorArgb;
@@ -884,6 +886,7 @@ class RoomMaterialSettings {
     'wallTileFromMm': wallTileFromMm,
     'wallTileToMm': wallTileToMm,
     'floorMaterialId': floorMaterialId,
+    'floorTintArgb': floorTintArgb,
     'wallMaterialId': wallMaterialId,
     'ceilingMaterialId': ceilingMaterialId,
     'ceilingPaintColorArgb': ceilingPaintColorArgb,
@@ -958,6 +961,7 @@ class RoomMaterialSettings {
     wallTileFromMm: (json['wallTileFromMm'] as num?)?.toDouble() ?? 0,
     wallTileToMm: (json['wallTileToMm'] as num?)?.toDouble() ?? 2700,
     floorMaterialId: json['floorMaterialId'] as String? ?? 'oak-natural',
+    floorTintArgb: (json['floorTintArgb'] as num?)?.toInt() ?? 0,
     wallMaterialId: json['wallMaterialId'] as String? ?? 'paint-warm-white',
     ceilingMaterialId:
         json['ceilingMaterialId'] as String? ?? 'paint-warm-white',
