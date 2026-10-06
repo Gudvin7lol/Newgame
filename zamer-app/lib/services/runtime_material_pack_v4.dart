@@ -59,14 +59,15 @@ class RuntimeMaterialV4Descriptor {
 
 /// Production material package supplied for ZAMER v4.
 ///
-/// Runtime maps:
-/// - walls/tiles: 2048x2048 BaseColor, Normal, Roughness, Height and AO;
-/// - laminate: 16 separate 2048x286 planks per collection with the same maps;
+/// Runtime maps bundled by the current renderer:
+/// - walls/tiles: 2048x2048 BaseColor, Normal and packed MetallicRoughness;
+/// - laminate: an aggregate 2048x2048 surface plus 16 separate 2048x286
+///   plank faces per collection using the same runtime channels;
 /// - normals use OpenGL Y+;
 /// - metallic is always zero;
-/// - tile grout and plank seams are procedural and must not be baked into maps;
-/// - imported assets are flattened into one runtime_v4 folder so Flutter can
-///   bundle the full pack with one pubspec directory entry.
+/// - Height/AO remain source/offline channels until the renderer has dedicated
+///   consumers for them, so the APK does not carry maps it cannot display;
+/// - tile grout and plank seams stay procedural and are not baked into maps.
 abstract final class RuntimeMaterialPackV4 {
   static const root = 'assets/textures/runtime_v4';
   static const metallic = 0.0;
@@ -74,9 +75,6 @@ abstract final class RuntimeMaterialPackV4 {
   static const mapNames = <String>[
     'basecolor.webp',
     'normal.png',
-    'roughness.png',
-    'height.png',
-    'ao.png',
     'metallic_roughness.png',
   ];
   static const laminatePatterns = <String>[
