@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../design_system/zamer_tokens.dart';
 import '../models/models.dart';
 import '../services/geometry_service.dart';
+import '../services/herringbone_layout.dart';
 import '../services/material_catalog.dart';
 import 'top_view_object_renderer.dart';
 
@@ -195,31 +196,47 @@ class CadPlanPainterV2 extends CustomPainter {
     RoomMaterialSettings settings,
     Color base,
   ) {
-    final short = math.max(7.0, settings.laminatePlankWidthMm * mmToPx);
-    final long = math.max(28.0, settings.laminatePlankLengthMm * mmToPx * .44);
-    final paint = Paint()
-      ..color = Color.lerp(base, Colors.black, .58)!.withValues(alpha: .42)
+    final plankLength = math.max(
+      28.0,
+      settings.laminatePlankLengthMm * mmToPx,
+    );
+    final plankWidth = math.max(
+      7.0,
+      settings.laminatePlankWidthMm * mmToPx,
+    );
+    final padding = plankLength + plankWidth * 2;
+    final boards = buildHerringboneBoards(
+      minX: bounds.left - padding,
+      minY: bounds.top - padding,
+      maxX: bounds.right + padding,
+      maxY: bounds.bottom + padding,
+      plankLength: plankLength,
+      plankWidth: plankWidth,
+      offsetX: settings.laminateOffsetXMm * mmToPx,
+      offsetY: settings.laminateOffsetYMm * mmToPx,
+    );
+    final joint = Paint()
+      ..color = Color.lerp(base, Colors.black, .60)!.withValues(alpha: .44)
       ..style = PaintingStyle.stroke
       ..strokeWidth = .55;
+    final shades = <Paint>[
+      Paint()..color = Color.lerp(base, Colors.white, .06)!,
+      Paint()..color = Color.lerp(base, Colors.black, .035)!,
+      Paint()..color = base,
+    ];
 
-    final stepX = long * .72;
-    final stepY = long * .72;
-    for (double y = bounds.top - long; y < bounds.bottom + long; y += stepY) {
-      for (double x = bounds.left - long; x < bounds.right + long; x += stepX) {
-        final alt = (((x / stepX).round() + (y / stepY).round()) & 1) == 0;
-        final a = alt ? math.pi / 4 : -math.pi / 4;
-        canvas.save();
-        canvas.translate(x, y);
-        canvas.rotate(a);
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(
-            Rect.fromCenter(center: Offset.zero, width: long, height: short),
-            Radius.circular(math.max(.4, short * .04)),
-          ),
-          paint,
-        );
-        canvas.restore();
-      }
+    var index = 0;
+    for (final board in boards) {
+      if (board.points.length != 4) continue;
+      final path = Path()
+        ..moveTo(board.points[0].x, board.points[0].y)
+        ..lineTo(board.points[1].x, board.points[1].y)
+        ..lineTo(board.points[2].x, board.points[2].y)
+        ..lineTo(board.points[3].x, board.points[3].y)
+        ..close();
+      canvas.drawPath(path, shades[index % shades.length]);
+      canvas.drawPath(path, joint);
+      index++;
     }
   }
 
