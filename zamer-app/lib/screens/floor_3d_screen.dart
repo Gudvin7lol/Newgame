@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../models/models.dart';
+import '../renderer3d/render_quality.dart';
 import '../renderer3d/zamer_gpu_viewport.dart';
 import '../services/walk_navigation_service.dart';
 
@@ -35,6 +36,7 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
   Offset _gestureFocal = Offset.zero;
   int _gesturePointers = 0;
   bool _rendering = false;
+  ZamerRenderQuality _renderQuality = ZamerRenderQuality.quality;
   final GlobalKey<ZamerGpuViewportState> _gpuKey =
       GlobalKey<ZamerGpuViewportState>();
 
@@ -132,7 +134,7 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
         final angle = _rotation + d.focalPointDelta.dx * 0.010;
         _rotation = math.atan2(math.sin(angle), math.cos(angle));
         _tilt = (_tilt - d.focalPointDelta.dy * 0.006)
-            .clamp(_walkMode ? -0.7 : 0.22, _walkMode ? 0.7 : 1.48)
+            .clamp(_walkMode ? -1.35 : 0.22, _walkMode ? 1.20 : 1.48)
             .toDouble();
       }
     });
@@ -321,6 +323,7 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
                 walkMode: _walkMode,
                 walkX: _walkX,
                 walkY: _walkY,
+                quality: _renderQuality,
               ),
             ),
           ),
@@ -393,10 +396,16 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
                                 ),
                               ],
                             ),
+                            _RealtimeQualitySelector(
+                              value: _renderQuality,
+                              onChanged: (value) =>
+                                  setState(() => _renderQuality = value),
+                            ),
+                            const SizedBox(height: 6),
                             FilledButton.tonalIcon(
                               onPressed: _rendering ? null : _showRenderSheet,
                               icon: const Icon(Icons.high_quality_outlined),
-                              label: const Text('Рендер'),
+                              label: const Text('Photo 4K / рендер'),
                             ),
                           ],
                         ),
@@ -458,6 +467,12 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
                           onPressed: _toggleWalk,
                           icon: const Icon(Icons.directions_walk),
                           label: const Text('Прогулка'),
+                        ),
+                        const SizedBox(width: 8),
+                        _RealtimeQualitySelector(
+                          value: _renderQuality,
+                          onChanged: (value) =>
+                              setState(() => _renderQuality = value),
                         ),
                       ],
                     ),
@@ -696,6 +711,38 @@ class _HoldMoveButtonState extends State<_HoldMoveButton> {
 }
 
 
+
+
+class _RealtimeQualitySelector extends StatelessWidget {
+  const _RealtimeQualitySelector({
+    required this.value,
+    required this.onChanged,
+  });
+
+  final ZamerRenderQuality value;
+  final ValueChanged<ZamerRenderQuality> onChanged;
+
+  @override
+  Widget build(BuildContext context) => SegmentedButton<ZamerRenderQuality>(
+        segments: const <ButtonSegment<ZamerRenderQuality>>[
+          ButtonSegment(
+            value: ZamerRenderQuality.performance,
+            label: Text('Performance'),
+            icon: Icon(Icons.speed),
+          ),
+          ButtonSegment(
+            value: ZamerRenderQuality.quality,
+            label: Text('Quality'),
+            icon: Icon(Icons.auto_awesome),
+          ),
+        ],
+        selected: <ZamerRenderQuality>{value},
+        showSelectedIcon: false,
+        onSelectionChanged: (selected) {
+          if (selected.isNotEmpty) onChanged(selected.first);
+        },
+      );
+}
 
 class _RenderPresetTile extends StatelessWidget {
   const _RenderPresetTile({
