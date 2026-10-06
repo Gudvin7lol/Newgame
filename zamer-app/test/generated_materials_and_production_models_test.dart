@@ -9,11 +9,15 @@ import 'package:zamer_app/services/object_catalog.dart';
 
 void main() {
   test('generated ZAMER materials are installable runtime assets', () {
-    expect(MaterialCatalog.generatedV1.length, GeneratedMaterialIds.all.length);
-    final ids = MaterialCatalog.generatedV1.map((e) => e.id).toSet();
+    final generated = <VisualMaterialPreset>[
+      ...MaterialCatalog.generatedV1,
+      ...MaterialCatalog.runtimeV4,
+    ];
+    expect(generated.length, GeneratedMaterialIds.all.length);
+    final ids = generated.map((e) => e.id).toSet();
     expect(ids, GeneratedMaterialIds.all);
 
-    for (final preset in MaterialCatalog.generatedV1) {
+    for (final preset in generated) {
       final asset = preset.textureAsset;
       expect(asset, isNotNull, reason: 'No texture for ${preset.id}');
       expect(
