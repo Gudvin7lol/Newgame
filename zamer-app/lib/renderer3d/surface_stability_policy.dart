@@ -15,10 +15,12 @@ class ZamerSurfaceStabilityPolicy {
   /// reliable separation between the wall core and its decorative finish.
   static const double wallFinishGapM = 0.002;
 
-  /// Keeps imported floor objects just above the zero-thickness finish mesh.
-  /// The object model is already rebased to its lowest local bound, so this is
-  /// a renderer-only anti-z-fighting offset, not a change to measured height.
-  static const double floorObjectClearanceM = 0.0005;
+  /// Keeps imported floor objects above both the zero-thickness finish mesh
+  /// and the 2 mm grout/seam overlay. The object model is already rebased to
+  /// its lowest local bound, so this is renderer-only anti-z-fighting space,
+  /// not a change to measured height. Three millimetres leaves the lowest
+  /// imported bound about 1 mm above the grout overlay on mobile depth buffers.
+  static const double floorObjectClearanceM = 0.003;
 
   static double objectBaseYM({
     required CatalogMount mount,
