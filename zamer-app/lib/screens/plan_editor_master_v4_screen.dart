@@ -66,6 +66,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   String? _dragObjectId;
   bool _dragObjectDirty = false;
   bool _layoutDragDirty = false;
+  bool _materialsExpanded = true;
   String _materialCategory = 'Пол';
   bool _materialPickMode = true;
   bool _grid = true;
@@ -751,22 +752,15 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
               floor: floor,
               onEdit: _editWall,
             ),
-          _ActionBar(
-            tool: _tool,
-            hasSelection: _selectedWall != null,
-            onWall: () => _selectTool(ZMeasureTool.walls),
-            onOpening: () => _selectTool(ZMeasureTool.openings),
-            onDimension: () => _selectTool(ZMeasureTool.dimensions),
-            onText: () => _selectTool(ZMeasureTool.text),
-            onGeometry: widget.onOpenGeometry,
-            onLayers: () => _selectTool(ZMeasureTool.layers),
-            onDelete: _selectedWall == null ? null : _deleteWall,
-          ),
           _MaterialPanel(
             category: _materialCategory,
             selectedRoomName: room?.name,
             selectedMaterialId: _selectedMaterialId,
             selectionMode: _materialPickMode,
+            expanded: _materialsExpanded,
+            onToggle: () => setState(
+              () => _materialsExpanded = !_materialsExpanded,
+            ),
             onCategory: _selectMaterialCategory,
             onApply: _applyMaterial,
             onOpenMaterials: widget.onOpenMaterials,
@@ -823,6 +817,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                   materialMode: _materialPickMode,
                   onRoomMode: _selectRoomMode,
                   onTool: _selectTool,
+                  onGeometry: widget.onOpenGeometry,
                   onReview: widget.onOpenReview,
                 ),
               ),
@@ -833,10 +828,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                   grid: _grid,
                   snapping: _snapping,
                   onGrid: () => setState(() => _grid = !_grid),
-                  on3D: widget.onOpen3D,
-                  onFloors: widget.onOpenFloors,
                   onSnap: () => setState(() => _snapping = !_snapping),
-                  onSettings: widget.onOpenSettings,
                 ),
               ),
               Positioned(
@@ -890,12 +882,14 @@ class _ToolRail extends StatelessWidget {
     required this.materialMode,
     required this.onRoomMode,
     required this.onTool,
+    required this.onGeometry,
     required this.onReview,
   });
   final ZMeasureTool tool;
   final bool materialMode;
   final VoidCallback onRoomMode;
   final ValueChanged<ZMeasureTool> onTool;
+  final VoidCallback onGeometry;
   final VoidCallback onReview;
 
   @override
@@ -919,6 +913,12 @@ class _ToolRail extends StatelessWidget {
               ),
             const Divider(height: 7, color: ZamerColors.outlineSoft),
             _RailItem(
+              icon: Icons.hexagon_outlined,
+              label: 'Геометрия',
+              selected: false,
+              onTap: onGeometry,
+            ),
+            _RailItem(
               icon: Icons.check_circle_outline_rounded,
               label: 'Проверка',
               selected: false,
@@ -934,18 +934,12 @@ class _ViewRail extends StatelessWidget {
     required this.grid,
     required this.snapping,
     required this.onGrid,
-    required this.on3D,
-    required this.onFloors,
     required this.onSnap,
-    required this.onSettings,
   });
   final bool grid;
   final bool snapping;
   final VoidCallback onGrid;
-  final VoidCallback on3D;
-  final VoidCallback onFloors;
   final VoidCallback onSnap;
-  final VoidCallback onSettings;
 
   @override
   Widget build(BuildContext context) => _RailFrame(
@@ -960,29 +954,11 @@ class _ViewRail extends StatelessWidget {
               onTap: onGrid,
             ),
             _RailItem(
-              icon: Icons.view_in_ar_outlined,
-              label: '3D вид',
-              selected: false,
-              onTap: on3D,
-            ),
-            _RailItem(
-              icon: Icons.layers_outlined,
-              label: 'Этажи',
-              selected: false,
-              onTap: onFloors,
-            ),
-            _RailItem(
               icon: Icons.link_rounded,
               label: 'Привязка',
               selected: false,
               activeDot: snapping,
               onTap: onSnap,
-            ),
-            _RailItem(
-              icon: Icons.settings_outlined,
-              label: 'Настройки',
-              selected: false,
-              onTap: onSettings,
             ),
           ],
         ),
@@ -1525,6 +1501,8 @@ class _MaterialPanel extends StatelessWidget {
     required this.selectedRoomName,
     required this.selectedMaterialId,
     required this.selectionMode,
+    required this.expanded,
+    required this.onToggle,
     required this.onCategory,
     required this.onApply,
     required this.onOpenMaterials,
@@ -1534,26 +1512,18 @@ class _MaterialPanel extends StatelessWidget {
   final String? selectedRoomName;
   final String? selectedMaterialId;
   final bool selectionMode;
+  final bool expanded;
+  final VoidCallback onToggle;
   final ValueChanged<String> onCategory;
   final ValueChanged<VisualMaterialPreset> onApply;
   final VoidCallback onOpenMaterials;
 
-  static const _categories = [
-    'Пол',
-    'Стены',
-    'Потолок',
-    'Двери',
-    'Окна',
-    'Освещение',
-  ];
+  static const _categories = ['Пол', 'Стены'];
 
-  List<VisualMaterialPreset> get _materials {
-    if (category == 'Пол') return MaterialCatalog.floorFinishes.take(8).toList();
-    if (category == 'Стены') {
-      return MaterialCatalog.forCategory('Стены').take(8).toList();
-    }
-    return MaterialCatalog.presets.take(8).toList();
-  }
+  List<VisualMaterialPreset> get _materials =>
+      category == 'Пол'
+          ? MaterialCatalog.floorFinishes
+          : MaterialCatalog.wallFinishes;
 
   @override
   Widget build(BuildContext context) {
@@ -1561,8 +1531,10 @@ class _MaterialPanel extends StatelessWidget {
     final roomLabel = selectedRoomName == null
         ? 'Нажмите на помещение на плане'
         : 'Помещение: $selectedRoomName';
-    return Container(
-      height: 120,
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOutCubic,
+      height: expanded ? 132 : 38,
       margin: const EdgeInsets.fromLTRB(8, 5, 8, 6),
       decoration: BoxDecoration(
         color: const Color(0xFF07171D),
@@ -1572,7 +1544,7 @@ class _MaterialPanel extends StatelessWidget {
       child: Column(
         children: [
           SizedBox(
-            height: 29,
+            height: 32,
             child: Row(
               children: [
                 for (final item in _categories)
@@ -1596,7 +1568,7 @@ class _MaterialPanel extends StatelessWidget {
                                 color: item == category
                                     ? ZamerColors.accentInk
                                     : ZamerColors.textSecondary,
-                                fontSize: 7.2,
+                                fontSize: 8.2,
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
@@ -1605,10 +1577,26 @@ class _MaterialPanel extends StatelessWidget {
                       ),
                     ),
                   ),
+                IconButton(
+                  tooltip: expanded ? 'Скрыть материалы' : 'Показать материалы',
+                  onPressed: onToggle,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints.tightFor(
+                    width: 34,
+                    height: 30,
+                  ),
+                  icon: Icon(
+                    expanded
+                        ? Icons.keyboard_arrow_down_rounded
+                        : Icons.keyboard_arrow_up_rounded,
+                    size: 18,
+                    color: ZamerColors.textSecondary,
+                  ),
+                ),
               ],
             ),
           ),
-          SizedBox(
+          if (expanded) SizedBox(
             height: 19,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 7),
@@ -1653,7 +1641,7 @@ class _MaterialPanel extends StatelessWidget {
               ),
             ),
           ),
-          Expanded(
+          if (expanded) Expanded(
             child: ListView.separated(
               padding: const EdgeInsets.fromLTRB(5, 1, 5, 5),
               scrollDirection: Axis.horizontal,
