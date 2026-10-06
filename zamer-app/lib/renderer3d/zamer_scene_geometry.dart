@@ -59,6 +59,8 @@ class ZamerSceneGeometry {
           polygonMm: polygon,
           materialMode: settings.floorMode,
           materialId: settings.floorMaterialId,
+          ceilingMaterialId: settings.ceilingMaterialId,
+          ceilingColorArgb: settings.ceilingPaintColorArgb,
           directionDeg: settings.floorDirectionDeg,
           tileWidthMm: settings.tileWidthMm,
           tileHeightMm: settings.tileHeightMm,
@@ -479,6 +481,8 @@ class ZamerFloorSurface {
     required this.polygonMm,
     required this.materialMode,
     required this.materialId,
+    required this.ceilingMaterialId,
+    required this.ceilingColorArgb,
     required this.directionDeg,
     required this.tileWidthMm,
     required this.tileHeightMm,
@@ -500,6 +504,8 @@ class ZamerFloorSurface {
   final List<math.Point<double>> polygonMm;
   final String materialMode;
   final String materialId;
+  final String ceilingMaterialId;
+  final int ceilingColorArgb;
   final double directionDeg;
   final double tileWidthMm, tileHeightMm, plankLengthMm, plankWidthMm;
   final String laminatePattern, laminateOffsetMode, tilePattern;
