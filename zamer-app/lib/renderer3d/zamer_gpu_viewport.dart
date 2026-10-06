@@ -784,7 +784,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     }
 
     final key =
-        '${surface.materialMode}:${surface.materialId}:${surface.laminatePattern}:${surface.laminateOffsetMode}:${surface.tilePattern}:${uvScale.$1}:${uvScale.$2}';
+        '${surface.materialMode}:${surface.materialId}:${surface.tintArgb}:${surface.laminatePattern}:${surface.laminateOffsetMode}:${surface.tilePattern}:${uvScale.$1}:${uvScale.$2}';
     final material = materialCache.putIfAbsent(
       key,
       () => _floorMaterial(surface, uvScale),
@@ -981,12 +981,16 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     if (vertex == 0) return null;
 
     final preset = MaterialCatalog.byId(surface.materialId);
-    final source = _vectorColor(preset.color);
+    final selectedColor =
+        surface.tintArgb == 0 ? preset.color : Color(surface.tintArgb);
+    final source = _vectorColor(selectedColor);
+    final tintBase = surface.tintArgb == 0 ? 0.52 : 0.34;
+    final tintMix = 1.0 - tintBase;
     final material = _pbr(
       vm.Vector4(
-        0.52 + source.x * 0.48,
-        0.52 + source.y * 0.48,
-        0.52 + source.z * 0.48,
+        tintBase + source.x * tintMix,
+        tintBase + source.y * tintMix,
+        tintBase + source.z * tintMix,
         1,
       ),
       roughness: preset.roughness ?? 0.54,
@@ -1083,13 +1087,17 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
             : preset.pattern == 'concrete'
             ? 0.86
             : 0.70);
-    final source = _vectorColor(preset.color);
+    final selectedColor =
+        surface.tintArgb == 0 ? preset.color : Color(surface.tintArgb);
+    final source = _vectorColor(selectedColor);
+    final tintBase = surface.tintArgb == 0 ? 0.52 : 0.34;
+    final tintMix = 1.0 - tintBase;
     final tint = texture == null
         ? source
         : vm.Vector4(
-            0.52 + source.x * 0.48,
-            0.52 + source.y * 0.48,
-            0.52 + source.z * 0.48,
+            tintBase + source.x * tintMix,
+            tintBase + source.y * tintMix,
+            tintBase + source.z * tintMix,
             1,
           );
     final material = _pbr(tint, roughness: roughness, texture: texture)
@@ -1524,7 +1532,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
         ..addTriangle(0, 3, 2);
 
       final materialKey =
-          '${surface.materialMode}:${surface.materialId}:${surface.laminatePattern}:${surface.laminateOffsetMode}:${surface.tilePattern}:${uvScale.$1}:${uvScale.$2}';
+          '${surface.materialMode}:${surface.materialId}:${surface.tintArgb}:${surface.laminatePattern}:${surface.laminateOffsetMode}:${surface.tilePattern}:${uvScale.$1}:${uvScale.$2}';
       final material = materialCache.putIfAbsent(
         materialKey,
         () => _floorMaterial(surface, uvScale),
