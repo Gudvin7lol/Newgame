@@ -78,6 +78,12 @@ void main() {
 
     expect(settings.laminateOffsetXMm, closeTo(40, 0.001));
     expect(settings.laminateOffsetYMm, closeTo(30, 0.001));
+
+    settings.laminateOffsetXMm = run + 12;
+    settings.laminateOffsetYMm = pitch + 18;
+    settings.normalizeFormats();
+    expect(settings.laminateOffsetXMm, closeTo(12, 0.001));
+    expect(settings.laminateOffsetYMm, closeTo(18, 0.001));
   });
 
 }
