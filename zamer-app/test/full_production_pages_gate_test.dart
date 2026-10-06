@@ -84,7 +84,7 @@ void main() {
       'PlanningObjectsScreen(',
       'ElectricalScreen(',
       'EngineeringScreen(',
-      'MaterialsScreen(',
+      'MaterialsMasterScreen(',
     ]) {
       expect(measure.contains(screen), isTrue, reason: 'Measure is not wired to $screen');
     }
