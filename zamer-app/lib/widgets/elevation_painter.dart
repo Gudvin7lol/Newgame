@@ -43,7 +43,12 @@ class ElevationPainter extends CustomPainter {
     final top = (size.height - drawH) / 2;
     final rect = Rect.fromLTWH(left, top, drawW, drawH);
 
-    canvas.drawRect(rect, Paint()..color = ZamerColors.surfaceHigh);
+    final wallFinish = MaterialCatalog.byId(
+      settings.wallTileEnabledFor(run.id)
+          ? settings.wallTileMaterialId
+          : settings.wallMaterialId,
+    );
+    _drawWallFinish(canvas, rect, scale, wallFinish);
     if (settings.wallTileEnabledFor(run.id)) {
       _drawWallTiles(canvas, rect, scale);
     }
@@ -119,11 +124,6 @@ class ElevationPainter extends CustomPainter {
       accumulated += segmentLen;
     }
 
-    final wallFinish = MaterialCatalog.byId(
-      settings.wallTileEnabledFor(run.id)
-          ? settings.wallTileMaterialId
-          : settings.wallMaterialId,
-    );
     _materialBadge(
       canvas,
       rect.topLeft + const Offset(8, 8),
@@ -145,6 +145,76 @@ class ElevationPainter extends CustomPainter {
       '${heightMm.round()} мм',
       vertical: true,
     );
+  }
+
+  void _drawWallFinish(
+    Canvas canvas,
+    Rect rect,
+    double scale,
+    VisualMaterialPreset preset,
+  ) {
+    final base = Color.lerp(
+      ZamerColors.surfaceHigh,
+      preset.color,
+      preset.textureAsset == null ? .58 : .78,
+    )!;
+    canvas.drawRect(rect, Paint()..color = base);
+    canvas.save();
+    canvas.clipRect(rect);
+
+    final line = Paint()
+      ..color = Color.lerp(base, const Color(0xFF263238), .42)!
+          .withValues(alpha: .34)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = .75;
+
+    if (preset.pattern == 'brick') {
+      final course = math.max(5.0, 75 * scale);
+      final brick = math.max(12.0, 250 * scale);
+      var row = 0;
+      for (double y = rect.top; y <= rect.bottom + course; y += course) {
+        canvas.drawLine(Offset(rect.left, y), Offset(rect.right, y), line);
+        final shift = row.isOdd ? brick / 2 : 0.0;
+        for (
+          double x = rect.left - brick + shift;
+          x <= rect.right + brick;
+          x += brick
+        ) {
+          canvas.drawLine(
+            Offset(x, y),
+            Offset(x, math.min(rect.bottom, y + course)),
+            line,
+          );
+        }
+        row++;
+      }
+    } else if (preset.pattern == 'concrete') {
+      final dot = Paint()
+        ..color = const Color(0xFF243038).withValues(alpha: .16);
+      const columns = 18;
+      const rows = 12;
+      for (var row = 0; row < rows; row++) {
+        for (var col = 0; col < columns; col++) {
+          final seed = row * 37 + col * 53;
+          final dx = ((seed * 17) % 83) / 83.0;
+          final dy = ((seed * 29) % 79) / 79.0;
+          canvas.drawCircle(
+            Offset(
+              rect.left + (col + dx) / columns * rect.width,
+              rect.top + (row + dy) / rows * rect.height,
+            ),
+            .55 + (seed % 3) * .22,
+            dot,
+          );
+        }
+      }
+    } else if (preset.pattern == 'wood') {
+      final spacing = math.max(6.0, 193 * scale);
+      for (double y = rect.top; y < rect.bottom; y += spacing) {
+        canvas.drawLine(Offset(rect.left, y), Offset(rect.right, y), line);
+      }
+    }
+    canvas.restore();
   }
 
   void _drawWallTiles(Canvas canvas, Rect rect, double scale) {
