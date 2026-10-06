@@ -5,6 +5,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../models/models.dart';
+import '../services/benchmark_project_factory.dart';
 import '../services/demo_project_factory.dart';
 import '../services/project_backup_service.dart';
 import '../services/project_store.dart';
@@ -37,20 +38,28 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     final result = await _store.loadWithStatus();
     final loaded = <MeasureProject>[...result.projects];
 
-    // Every build contains exactly one ready-made room for quick regression
-    // testing on the phone. When the build changes, the previous demo is
-    // replaced; real user projects are never touched.
+    // Internal reference projects are refreshed between builds while real
+    // user projects are never touched. The compact demo checks editor flows;
+    // the benchmark scene is dedicated to the new 3D render core.
     if (!result.unreadable) {
       var changed = false;
       final before = loaded.length;
       loaded.removeWhere(
         (project) =>
-            project.id.startsWith(DemoProjectFactory.demoPrefix) &&
-            project.id != DemoProjectFactory.projectId,
+            (project.id.startsWith(DemoProjectFactory.demoPrefix) &&
+                project.id != DemoProjectFactory.projectId) ||
+            (project.id.startsWith(BenchmarkProjectFactory.benchmarkPrefix) &&
+                project.id != BenchmarkProjectFactory.projectId),
       );
       changed = loaded.length != before;
       if (!loaded.any((project) => project.id == DemoProjectFactory.projectId)) {
         loaded.insert(0, DemoProjectFactory.create());
+        changed = true;
+      }
+      if (!loaded.any(
+        (project) => project.id == BenchmarkProjectFactory.projectId,
+      )) {
+        loaded.insert(0, BenchmarkProjectFactory.create());
         changed = true;
       }
       if (changed) {
