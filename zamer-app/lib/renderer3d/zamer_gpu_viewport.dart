@@ -2339,7 +2339,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
         1.65,
         _mz(photoOriginYMm, bounds),
       );
-      final pitch = widget.tilt.clamp(-0.7, 0.7).toDouble();
+      final pitch = widget.tilt.clamp(-1.25, 0.90).toDouble();
       final cp = math.cos(pitch);
       final forward = vm.Vector3(
         math.cos(widget.rotation) * cp,
@@ -2363,7 +2363,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
         1.65,
         _mz(widget.walkY, bounds),
       );
-      final pitch = widget.tilt.clamp(-0.7, 0.7).toDouble();
+      final pitch = widget.tilt.clamp(-1.25, 0.90).toDouble();
       final cp = math.cos(pitch);
       final forward = vm.Vector3(
         math.cos(widget.rotation) * cp,
@@ -2371,7 +2371,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
         math.sin(widget.rotation) * cp,
       );
       return PerspectiveCamera(
-        fovRadiansY: 64 * math.pi / 180,
+        fovRadiansY: 72 * math.pi / 180,
         position: eye,
         target: eye + forward * 4,
         up: vm.Vector3(0, 1, 0),
