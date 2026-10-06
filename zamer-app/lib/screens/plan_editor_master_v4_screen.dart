@@ -751,6 +751,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
               wall: _selectedWall!,
               floor: floor,
               onEdit: _editWall,
+              onDelete: _deleteWall,
             ),
           _MaterialPanel(
             category: _materialCategory,
@@ -1184,10 +1185,12 @@ class _WallInspector extends StatelessWidget {
     required this.wall,
     required this.floor,
     required this.onEdit,
+    required this.onDelete,
   });
   final PlanWall wall;
   final FloorPlan floor;
   final VoidCallback onEdit;
+  final VoidCallback onDelete;
 
   double get _angle {
     final a = floor.nodeById(wall.startNodeId);
@@ -1241,20 +1244,26 @@ class _WallInspector extends StatelessWidget {
                             fontWeight: FontWeight.w700,
                           ),
                         ),
-                        const SizedBox(width: 3),
-                        InkWell(
-                          onTap: onEdit,
-                          child: const Icon(
-                            Icons.edit_outlined,
-                            size: 13,
-                            color: ZamerColors.textSecondary,
-                          ),
-                        ),
                         const Spacer(),
-                        const Icon(
-                          Icons.more_vert_rounded,
-                          size: 16,
-                          color: ZamerColors.textSecondary,
+                        PopupMenuButton<String>(
+                          tooltip: 'Действия со стеной',
+                          padding: EdgeInsets.zero,
+                          iconSize: 17,
+                          iconColor: ZamerColors.textSecondary,
+                          onSelected: (value) {
+                            if (value == 'edit') onEdit();
+                            if (value == 'delete') onDelete();
+                          },
+                          itemBuilder: (context) => const [
+                            PopupMenuItem(
+                              value: 'edit',
+                              child: Text('Изменить стену'),
+                            ),
+                            PopupMenuItem(
+                              value: 'delete',
+                              child: Text('Удалить стену'),
+                            ),
+                          ],
                         ),
                       ],
                     ),
