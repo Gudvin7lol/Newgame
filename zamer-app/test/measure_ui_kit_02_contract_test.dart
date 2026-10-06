@@ -32,9 +32,6 @@ void main() {
       'ControlMeasure(',
       'DimensionRecord(',
       'WallOpening(',
-      'Стена',
-      'Проём',
-      'Размер',
       'Проверка',
       'Сетка',
       'Привязка',
@@ -61,6 +58,11 @@ void main() {
         reason: 'Duplicate Measure chrome returned: $removedDuplicate',
       );
     }
+
+    expect(source.contains('ZMeasureTool.values'), isTrue);
+    expect(source.contains('ZMeasureTool.openings'), isTrue);
+    expect(source.contains('ZMeasureTool.dimensions'), isTrue);
+    expect(source.contains('ZMeasureTool.walls'), isTrue);
 
     expect(adapter.contains('extends CadPlanPainterV3'), isTrue);
     expect(v3.contains('CadPlanPainterV2('), isTrue);
