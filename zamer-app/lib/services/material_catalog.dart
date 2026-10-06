@@ -23,6 +23,98 @@ class VisualMaterialPreset {
 }
 
 class MaterialCatalog {
+  static const runtimeV4 = <VisualMaterialPreset>[
+    VisualMaterialPreset(
+      id: GeneratedMaterialIds.runtimeV4WallBrickRed,
+      name: 'Красный кирпич · Runtime v4',
+      category: 'Стены',
+      color: Color(0xFF9D5943),
+      pattern: 'brick',
+      textureAsset:
+          'assets/textures/runtime_v4/Wall_Brick_Red_01_basecolor.webp',
+      roughness: .78,
+    ),
+    VisualMaterialPreset(
+      id: GeneratedMaterialIds.runtimeV4WallGypsumPlaster,
+      name: 'Гипсовая штукатурка · Runtime v4',
+      category: 'Стены',
+      color: Color(0xFFD2C7B6),
+      pattern: 'concrete',
+      textureAsset:
+          'assets/textures/runtime_v4/Wall_GypsumPlaster_White_01_basecolor.webp',
+      roughness: .88,
+    ),
+    VisualMaterialPreset(
+      id: GeneratedMaterialIds.runtimeV4WallPaintMatteWhite,
+      name: 'Матовая краска · Runtime v4',
+      category: 'Стены',
+      color: Color(0xFFECE7DE),
+      textureAsset:
+          'assets/textures/runtime_v4/Wall_Paint_MatteWhite_01_basecolor.webp',
+      roughness: .86,
+    ),
+    VisualMaterialPreset(
+      id: GeneratedMaterialIds.runtimeV4TileConcreteLight,
+      name: 'Бетон светлый · Runtime v4',
+      category: 'Плитка',
+      color: Color(0xFFB8B9B7),
+      pattern: 'tile',
+      textureAsset:
+          'assets/textures/runtime_v4/Tile_ConcreteLight_01_basecolor.webp',
+      roughness: .55,
+    ),
+    VisualMaterialPreset(
+      id: GeneratedMaterialIds.runtimeV4TileMarbleLight,
+      name: 'Мрамор светлый · Runtime v4',
+      category: 'Плитка',
+      color: Color(0xFFE9E6E0),
+      pattern: 'tile',
+      textureAsset:
+          'assets/textures/runtime_v4/Tile_MarbleLight_01_basecolor.webp',
+      roughness: .28,
+    ),
+    VisualMaterialPreset(
+      id: GeneratedMaterialIds.runtimeV4TileTerrazzoLight,
+      name: 'Терраццо светлый · Runtime v4',
+      category: 'Плитка',
+      color: Color(0xFFD3D0C7),
+      pattern: 'tile',
+      textureAsset:
+          'assets/textures/runtime_v4/Tile_TerrazzoLight_01_basecolor.webp',
+      roughness: .43,
+    ),
+    VisualMaterialPreset(
+      id: GeneratedMaterialIds.runtimeV4LaminateOakLight,
+      name: 'Светлый дуб · Runtime v4',
+      category: 'Пол',
+      color: Color(0xFFC7B79F),
+      pattern: 'wood',
+      textureAsset:
+          'assets/textures/runtime_v4/Laminate_OakLight_01_basecolor.webp',
+      roughness: .56,
+    ),
+    VisualMaterialPreset(
+      id: GeneratedMaterialIds.runtimeV4LaminateOakSmoked,
+      name: 'Дымчатый дуб · Runtime v4',
+      category: 'Пол',
+      color: Color(0xFF5B4030),
+      pattern: 'wood',
+      textureAsset:
+          'assets/textures/runtime_v4/Laminate_OakSmoked_01_basecolor.webp',
+      roughness: .54,
+    ),
+    VisualMaterialPreset(
+      id: GeneratedMaterialIds.runtimeV4LaminateWalnutWarm,
+      name: 'Тёплый орех · Runtime v4',
+      category: 'Пол',
+      color: Color(0xFF815A3D),
+      pattern: 'wood',
+      textureAsset:
+          'assets/textures/runtime_v4/Laminate_WalnutWarm_01_basecolor.webp',
+      roughness: .50,
+    ),
+  ];
+
   static const generatedV1 = <VisualMaterialPreset>[
     VisualMaterialPreset(
       id: GeneratedMaterialIds.darkOak,
@@ -196,6 +288,7 @@ class MaterialCatalog {
   ];
 
   static const presets = <VisualMaterialPreset>[
+    ...runtimeV4,
     ...generatedV1,
     VisualMaterialPreset(
       id: 'oak-natural',
