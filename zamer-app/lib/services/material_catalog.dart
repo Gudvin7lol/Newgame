@@ -540,4 +540,32 @@ class MaterialCatalog {
             e.id.startsWith('paint-') || e.id == GeneratedMaterialIds.wallPaint,
       )
       .toList(growable: false);
+
+  /// Curated catalog shown by the new phone Materials page.
+  ///
+  /// Legacy presets stay available through [byId] so old projects keep
+  /// rendering, but users no longer have to wade through near-identical
+  /// duplicate finishes that only differ by baked-in color.
+  static const masterUiIds = <String>[
+    GeneratedMaterialIds.runtimeV4WallPaintMatteWhite,
+    GeneratedMaterialIds.wallMicrocement,
+    GeneratedMaterialIds.runtimeV4WallGypsumPlaster,
+    GeneratedMaterialIds.concreteWarmPbr,
+    GeneratedMaterialIds.runtimeV4TileMarbleLight,
+    GeneratedMaterialIds.runtimeV4TileTerrazzoLight,
+    GeneratedMaterialIds.runtimeV4LaminateOakSmoked,
+    GeneratedMaterialIds.runtimeV4LaminateOakLight,
+  ];
+
+  static List<VisualMaterialPreset> get masterUiPresets => masterUiIds
+      .map(byId)
+      .toList(growable: false);
+
+  static List<VisualMaterialPreset> get masterWallFinishes => masterUiPresets
+      .where((e) => e.category == 'Стены' || e.category == 'Плитка')
+      .toList(growable: false);
+
+  static List<VisualMaterialPreset> get masterFloorFinishes => masterUiPresets
+      .where((e) => e.category == 'Пол' || e.category == 'Плитка')
+      .toList(growable: false);
 }
