@@ -410,13 +410,15 @@ class _PhotoStudioScreenState extends State<PhotoStudioScreen> {
   (int, int) _renderSize() {
     final portrait =
         MediaQuery.sizeOf(context).height >= MediaQuery.sizeOf(context).width;
-    final size = switch (_mode == '4K' ? 'Ультра' : _quality) {
-      'Черновой' => (1080, 1920),
-      'Стандарт' => (1440, 2560),
-      'Высокий' => (2160, 3840),
-      _ => (2160, 3840),
+    final landscape = switch (_mode == '4K' ? 'Ультра' : _quality) {
+      'Черновой' => (1280, 720),
+      'Стандарт' => (1920, 1080),
+      'Высокий' => (2560, 1440),
+      _ => (3840, 2160),
     };
-    return portrait ? size : (size.$2, size.$1);
+    return portrait
+        ? (landscape.$2, landscape.$1)
+        : landscape;
   }
 
   String get _resolutionLabel {
@@ -616,12 +618,12 @@ class _PhotoStudioScreenState extends State<PhotoStudioScreen> {
                     : Icons.high_quality_outlined,
                 title: item,
                 subtitle: item == 'Черновой'
-                    ? '1080p • быстро'
+                    ? '720p • быстро'
                     : item == 'Стандарт'
-                    ? '1440p • баланс'
+                    ? '1080p • баланс'
                     : item == 'Высокий'
-                    ? '4K • финальный кадр'
-                    : '4K • максимальные настройки',
+                    ? '1440p • финальный кадр'
+                    : '4K • максимальный размер',
                 selected: item == _quality,
                 onTap: () => Navigator.pop(sheetContext, item),
               ),
