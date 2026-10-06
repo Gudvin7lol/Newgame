@@ -1121,6 +1121,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     final id = object.catalogId.toLowerCase();
     final isWall = id.startsWith('wall-sconce');
     final isFloor = id.startsWith('floor-lamp');
+    final isTable = id.startsWith('table-lamp');
     final isTrack = id.startsWith('track-');
     final isPendant = id.startsWith('pendant-') || id.startsWith('chandelier-');
     final isCeiling = isTrack || isPendant || id.startsWith('ceiling-');
@@ -1131,7 +1132,9 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
             : isWall
                 ? math.max(0.05, object.heightMm / 1000 * 0.50)
                 : math.max(0.035, object.heightMm / 1000 * 0.20))
-        : math.max(0.02, object.heightMm / 1000 * 0.45);
+        : (isTable
+            ? math.max(0.10, object.heightMm / 1000 * 0.72)
+            : math.max(0.02, object.heightMm / 1000 * 0.45));
 
     final lightNode = Node(name: 'light:${object.id}')
       ..position = vm.Vector3(0, localY, 0);
@@ -1139,18 +1142,22 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
         ? 9.0
         : isFloor
             ? 7.0
-            : isTrack
-                ? 22.0
-                : isPendant
-                    ? 28.0
-                    : isCeiling
-                        ? 20.0
-                        : 8.0;
+            : isTable
+                ? 7.5
+                : isTrack
+                    ? 22.0
+                    : isPendant
+                        ? 28.0
+                        : isCeiling
+                            ? 20.0
+                            : 8.0;
     final range = isWall
         ? 5.0
         : isFloor
             ? 5.5
-            : 9.5;
+            : isTable
+                ? 4.5
+                : 9.5;
     lightNode.addComponent(
       PointLightComponent(
         PointLight(
@@ -1171,7 +1178,11 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     )
       ..emissiveFactor = vm.Vector4(1.0, 0.62, 0.28, 1)
       ..emissiveStrength = isWall ? 2.8 : 4.8;
-    final glowRadius = isWall ? 0.035 : (isTrack ? 0.045 : 0.055);
+    final glowRadius = isWall
+        ? 0.035
+        : isTable
+            ? 0.028
+            : (isTrack ? 0.045 : 0.055);
     final glow = Node(
       name: 'glow:${object.id}',
       mesh: Mesh(
@@ -1184,24 +1195,163 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
   }
 
   Node _fallbackObject(ZamerObjectPlacement object) {
+    switch (object.catalogId) {
+      case 'rug-textile-2300':
+        return _proceduralRug(object);
+      case 'curtain-pair-1800':
+        return _proceduralCurtain(object);
+      case 'table-lamp-soft':
+        return _proceduralTableLamp(object);
+    }
+
+    final height = math.max(0.05, object.heightMm / 1000);
     final material = _pbr(
       vm.Vector4(0.31, 0.38, 0.45, 1),
       roughness: 0.72,
     );
-    final node = Node(
+    return Node(
       name: 'fallback:${object.id}',
       mesh: Mesh(
         CuboidGeometry(
           vm.Vector3(
             math.max(0.05, object.widthMm / 1000),
-            math.max(0.05, object.heightMm / 1000),
+            height,
             math.max(0.05, object.depthMm / 1000),
           ),
         ),
         material,
       ),
+    )..position = vm.Vector3(0, height / 2, 0);
+  }
+
+  Node _proceduralRug(ZamerObjectPlacement object) {
+    final width = math.max(0.25, object.widthMm / 1000);
+    final depth = math.max(0.25, object.depthMm / 1000);
+    final height = math.max(0.008, object.heightMm / 1000);
+    final material = _pbr(
+      vm.Vector4(0.57, 0.52, 0.45, 1),
+      roughness: 0.97,
     );
-    return node;
+    return Node(
+      name: 'procedural-rug:${object.id}',
+      mesh: Mesh(
+        CuboidGeometry(vm.Vector3(width, height, depth)),
+        material,
+      ),
+    )
+      ..position = vm.Vector3(0, height / 2 + 0.002, 0)
+      ..castsShadows = false
+      ..shadowStatic = true;
+  }
+
+  Node _proceduralCurtain(ZamerObjectPlacement object) {
+    final width = math.max(0.40, object.widthMm / 1000);
+    final depth = math.max(0.05, object.depthMm / 1000);
+    final height = math.max(0.50, object.heightMm / 1000);
+    const folds = 18;
+    final spacing = width / folds;
+    final foldWidth = spacing * 1.10;
+    final root = Node(name: 'procedural-curtain:${object.id}');
+    final materialA = _pbr(
+      vm.Vector4(0.34, 0.32, 0.30, 1),
+      roughness: 0.95,
+    );
+    final materialB = _pbr(
+      vm.Vector4(0.29, 0.28, 0.27, 1),
+      roughness: 0.97,
+    );
+
+    for (var i = 0; i < folds; i++) {
+      final x = -width / 2 + spacing * (i + 0.5);
+      final wave = math.sin(i * math.pi) * depth * 0.18 +
+          (i.isEven ? -depth * 0.12 : depth * 0.12);
+      root.add(
+        Node(
+          name: 'curtain-fold:${object.id}:$i',
+          mesh: Mesh(
+            CuboidGeometry(
+              vm.Vector3(foldWidth, height, math.max(0.025, depth * 0.45)),
+            ),
+            i.isEven ? materialA : materialB,
+          ),
+        )
+          ..position = vm.Vector3(x, height / 2, wave)
+          ..shadowStatic = true,
+      );
+    }
+    return root;
+  }
+
+  Node _proceduralTableLamp(ZamerObjectPlacement object) {
+    final scale = math.max(0.55, object.heightMm / 520);
+    final root = Node(name: 'procedural-table-lamp:${object.id}');
+    final metal = _pbr(
+      vm.Vector4(0.35, 0.24, 0.14, 1),
+      roughness: 0.28,
+    )..metallicFactor = 0.72;
+    final shade = _pbr(
+      vm.Vector4(0.075, 0.07, 0.065, 1),
+      roughness: 0.78,
+    );
+    final warm = _pbr(
+      vm.Vector4(1.0, 0.83, 0.58, 1),
+      roughness: 0.20,
+    )
+      ..emissiveFactor = vm.Vector4(1.0, 0.56, 0.24, 1)
+      ..emissiveStrength = 2.2;
+
+    root.add(
+      Node(
+        name: 'lamp-base:${object.id}',
+        mesh: Mesh(
+          CylinderGeometry(
+            bottomRadius: 0.085 * scale,
+            topRadius: 0.075 * scale,
+            height: 0.026 * scale,
+            radialSegments: 24,
+          ),
+          metal,
+        ),
+      )..position = vm.Vector3(0, 0.013 * scale, 0),
+    );
+    root.add(
+      Node(
+        name: 'lamp-stem:${object.id}',
+        mesh: Mesh(
+          CylinderGeometry(
+            bottomRadius: 0.012 * scale,
+            topRadius: 0.012 * scale,
+            height: 0.24 * scale,
+            radialSegments: 16,
+          ),
+          metal,
+        ),
+      )..position = vm.Vector3(0, 0.145 * scale, 0),
+    );
+    root.add(
+      Node(
+        name: 'lamp-shade:${object.id}',
+        mesh: Mesh(
+          CylinderGeometry(
+            bottomRadius: 0.16 * scale,
+            topRadius: 0.105 * scale,
+            height: 0.20 * scale,
+            radialSegments: 32,
+          ),
+          shade,
+        ),
+      )..position = vm.Vector3(0, 0.39 * scale, 0),
+    );
+    root.add(
+      Node(
+        name: 'lamp-bulb:${object.id}',
+        mesh: Mesh(
+          SphereGeometry(radius: 0.034 * scale, segments: 18, rings: 12),
+          warm,
+        ),
+      )..position = vm.Vector3(0, 0.35 * scale, 0),
+    );
+    return root;
   }
 
   static void _markStatic(Node root) {
