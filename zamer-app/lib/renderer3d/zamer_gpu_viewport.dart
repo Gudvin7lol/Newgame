@@ -58,6 +58,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
   final Map<String, Node> _modelTemplates = <String, Node>{};
   final List<_WallVisual> _wallVisuals = <_WallVisual>[];
   final List<Node> _ceilingNodes = <Node>[];
+  final List<SpotLight> _shadowSpots = <SpotLight>[];
   final Map<String, Texture2D> _finishTextures = <String, Texture2D>{};
   final Map<String, Texture2D> _normalTextures = <String, Texture2D>{};
   final Map<String, Texture2D> _dataTextures = <String, Texture2D>{};
@@ -287,6 +288,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       ..radius = 0.24
       ..intensity = isQuality ? 0.64 : 0.45
       ..bias = 0.04;
+    _configureLocalLightQuality(widget.quality);
   }
 
   void _configurePhotoLighting() {
@@ -348,6 +350,22 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       ..radius = 0.30
       ..intensity = 0.82
       ..bias = 0.035;
+    _configureLocalLightQuality(ZamerRenderQuality.photo4k);
+  }
+
+  void _configureLocalLightQuality(ZamerRenderQuality quality) {
+    final enabled = quality != ZamerRenderQuality.performance;
+    final resolution = quality == ZamerRenderQuality.photo4k ? 1024 : 512;
+    final softness = quality == ZamerRenderQuality.photo4k ? 2.4 : 1.6;
+    for (final light in _shadowSpots) {
+      light
+        ..castsShadow = enabled
+        ..shadowMapResolution = resolution
+        ..shadowNear = 0.055
+        ..shadowNormalBias = 0.025
+        ..shadowDepthBias = 0.00015
+        ..shadowSoftness = softness;
+    }
   }
 
   Future<void> _loadFinishTextures() async {
@@ -431,6 +449,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     scene.removeAll();
     _wallVisuals.clear();
     _ceilingNodes.clear();
+    _shadowSpots.clear();
 
     final floorMaterialCache = <String, PhysicallyBasedMaterial>{};
     for (final surface in geometry.floors) {
@@ -1440,6 +1459,30 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       ),
     );
 
+    // A soft downward spot gives interior fixtures real contact shadows in
+    // Quality/Photo. Performance keeps only the cheap point contribution.
+    if (isTable || isCeiling || isPendant) {
+      final spot = SpotLight(
+        color: vm.Vector3(1.0, 0.78, 0.54),
+        intensity: isTable ? 9.0 : 13.0,
+        range: isTable ? 4.5 : 7.5,
+        falloffExponent: 2.0,
+        direction: vm.Vector3(0, -1, 0),
+        innerConeAngle: isTable ? 0.42 : 0.50,
+        outerConeAngle: isTable ? 1.05 : 1.18,
+        castsShadow: widget.quality != ZamerRenderQuality.performance,
+        shadowMapResolution:
+            widget.quality == ZamerRenderQuality.photo4k ? 1024 : 512,
+        shadowNear: 0.055,
+        shadowNormalBias: 0.025,
+        shadowDepthBias: 0.00015,
+        shadowSoftness:
+            widget.quality == ZamerRenderQuality.photo4k ? 2.4 : 1.6,
+      );
+      _shadowSpots.add(spot);
+      lightNode.addComponent(SpotLightComponent(spot));
+    }
+
     // Make the light source itself visibly luminous. A point light can brighten
     // nearby surfaces while the chandelier mesh still looks "off", which is
     // exactly what users were seeing with the ceiling fixtures.
@@ -1901,6 +1944,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     _modelTemplates.clear();
     _wallVisuals.clear();
     _ceilingNodes.clear();
+    _shadowSpots.clear();
     _finishTextures.clear();
     _normalTextures.clear();
     _dataTextures.clear();
