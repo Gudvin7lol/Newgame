@@ -922,7 +922,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     if (runtime == null || !runtime.isPlankCollection) return null;
 
     final baseColor = _finishTextures[
-      runtime.plankAtlasMapAsset('basecolor.webp'),
+      runtime.plankAtlasMapAsset('basecolor.webp')
     ];
     if (baseColor == null) return null;
 
@@ -988,7 +988,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     )..doubleSided = false;
 
     final normal = _finishTextures[
-      runtime.plankAtlasMapAsset('normal.png'),
+      runtime.plankAtlasMapAsset('normal.png')
     ];
     if (normal != null) {
       material
@@ -997,7 +997,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
             GeneratedPbrFinishCatalog.byId(preset.id)?.normalScale ?? 1.0;
     }
     final metallicRoughness = _finishTextures[
-      runtime.plankAtlasMapAsset('metallic_roughness.png'),
+      runtime.plankAtlasMapAsset('metallic_roughness.png')
     ];
     if (metallicRoughness != null) {
       material.metallicRoughnessTexture = metallicRoughness;
