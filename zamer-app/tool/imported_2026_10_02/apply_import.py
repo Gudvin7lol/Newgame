@@ -117,13 +117,36 @@ def patch_material_catalog() -> None:
       textureAsset: 'assets/textures/imported_2026_10_02/{stem}_basecolor.webp',
       roughness: {rough:.2f},
     ),''')
-    marker = '  static const presets = <VisualMaterialPreset>[\n    ...generatedV1,\n'
+    runtime_marker = (
+        '  static const presets = <VisualMaterialPreset>[\n'
+        '    ...runtimeV4,\n'
+        '    ...generatedV1,\n'
+    )
+    legacy_marker = (
+        '  static const presets = <VisualMaterialPreset>[\n'
+        '    ...generatedV1,\n'
+    )
+    if runtime_marker in text:
+        marker = runtime_marker
+        preset_prefix = (
+            '  static const presets = <VisualMaterialPreset>[\n'
+            '    ...runtimeV4,\n'
+            '    ...generatedV1,\n'
+        )
+    elif legacy_marker in text:
+        marker = legacy_marker
+        preset_prefix = (
+            '  static const presets = <VisualMaterialPreset>[\n'
+            '    ...generatedV1,\n'
+        )
+    else:
+        raise RuntimeError('marker not found: material catalog')
+
     replacement = (
         '  static const imported20261002 = <VisualMaterialPreset>[\n'
         + '\n'.join(rows)
         + '\n  ];\n\n'
-        + '  static const presets = <VisualMaterialPreset>[\n'
-        + '    ...generatedV1,\n'
+        + preset_prefix
         + '    ...imported20261002,\n'
     )
     path.write_text(replace_once(text, marker, replacement, 'material catalog'))
