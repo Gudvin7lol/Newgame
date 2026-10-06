@@ -882,6 +882,16 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       _pbr(vm.Vector4(0.78, 0.79, 0.79, 1), roughness: 0.92)
         ..doubleSided = true;
 
+  double _wallFinishPhysicalRepeatMm(ZamerWallFinishLayer finish) {
+    final id = finish.tileEnabled ? finish.tileMaterialId : finish.materialId;
+    final preset = MaterialCatalog.byId(id);
+    final generated = GeneratedPbrFinishCatalog.byId(preset.id);
+    if (generated != null) {
+      return math.max(50.0, generated.realWorldTileMm);
+    }
+    return finish.tileEnabled ? 600.0 : 1000.0;
+  }
+
   PhysicallyBasedMaterial _wallFinishMaterial(
     ZamerWallFinishLayer finish,
     ZamerWallPiece wall,
@@ -925,60 +935,38 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       texture: texture,
     )..doubleSided = false;
     TextureTransform? baseTextureTransform;
+    final generatedPbr = GeneratedPbrFinishCatalog.byId(preset.id);
+    final physicalRepeatMm = _wallFinishPhysicalRepeatMm(finish);
     if (finish.tileEnabled && texture != null) {
       final sourceTileW = math.max(20.0, finish.tileWidthMm);
       final sourceTileH = math.max(20.0, finish.tileHeightMm);
       final tileW = finish.tileRotated ? sourceTileH : sourceTileW;
       final tileH = finish.tileRotated ? sourceTileW : sourceTileH;
-      final repeatX = math.max(0.001, wall.lengthMm / tileW);
-      final repeatY = math.max(0.001, wall.heightMm / tileH);
-      final wallU = (wall.textureStartMm + finish.tileOffsetXMm) / tileW;
-      final wallV = (wall.bottomMm - finish.tileOffsetYMm) / tileH;
+      // Mesh UVs are already physical wall-space coordinates. Convert only
+      // the BaseColor into the user-selected tile module. PBR micro maps stay
+      // at their real-world scale instead of stretching with tile dimensions.
+      final sx = physicalRepeatMm / tileW;
+      final sy = physicalRepeatMm / tileH;
+      final ox = finish.tileOffsetXMm / tileW;
+      final oy = -finish.tileOffsetYMm / tileH;
       baseTextureTransform = TextureTransform(
         scale: vm.Vector2(
-          (finish.tileMirrored ? -1.0 : 1.0) * repeatX,
-          repeatY,
+          (finish.tileMirrored ? -1.0 : 1.0) * sx,
+          sy,
         ),
-        offset: vm.Vector2(finish.tileMirrored ? 1.0 - wallU : wallU, wallV),
+        offset: vm.Vector2(finish.tileMirrored ? 1.0 - ox : ox, oy),
         rotation: finish.tileRotated ? math.pi / 2 : 0,
       );
-    } else if (texture != null) {
-      final generatedPbr = GeneratedPbrFinishCatalog.byId(preset.id);
-      if (generatedPbr != null) {
-        final repeatMm = math.max(50.0, generatedPbr.realWorldTileMm);
-        baseTextureTransform = TextureTransform(
-          scale: vm.Vector2(
-            math.max(0.001, wall.lengthMm / repeatMm),
-            math.max(0.001, wall.heightMm / repeatMm),
-          ),
-          offset: vm.Vector2(
-            wall.textureStartMm / repeatMm,
-            wall.bottomMm / repeatMm,
-          ),
-        );
-      }
     }
-    final generatedPbr = GeneratedPbrFinishCatalog.byId(preset.id);
     TextureTransform? pbrTextureTransform;
-    if (generatedPbr != null) {
-      final physical = ZamerMaterialPbrUvPolicy.forWall(
-        wallLengthMm: wall.lengthMm,
-        wallHeightMm: wall.heightMm,
-        textureStartMm: wall.textureStartMm,
-        bottomMm: wall.bottomMm,
-        realWorldTileMm: generatedPbr.realWorldTileMm,
-      );
-      final mirrored = finish.tileEnabled && finish.tileMirrored;
+    if (generatedPbr != null && finish.tileEnabled) {
+      // Keep Normal/Roughness at physical scale while following tile
+      // mirror/rotation. Supplying an explicit transform prevents the PBR
+      // channels from inheriting the BaseColor tile scaling above.
       pbrTextureTransform = TextureTransform(
-        scale: vm.Vector2(
-          (mirrored ? -1.0 : 1.0) * physical.scaleX,
-          physical.scaleY,
-        ),
-        offset: vm.Vector2(
-          mirrored ? 1.0 - physical.offsetX : physical.offsetX,
-          physical.offsetY,
-        ),
-        rotation: finish.tileEnabled && finish.tileRotated ? math.pi / 2 : 0,
+        scale: vm.Vector2(finish.tileMirrored ? -1.0 : 1.0, 1.0),
+        offset: vm.Vector2(finish.tileMirrored ? 1.0 : 0.0, 0.0),
+        rotation: finish.tileRotated ? math.pi / 2 : 0,
       );
     }
     _applyGeneratedPbr(
@@ -1264,15 +1252,26 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       final halfLengthM = math.max(0.001, wall.lengthMm / 2000);
       final halfHeightM = math.max(0.001, wall.heightMm / 2000);
       final sign = finish.sideSign >= 0 ? 1.0 : -1.0;
+      // Bake the wall-space phase into the mesh UVs. Openings split one wall
+      // into left/right/top pieces, but every piece still samples the same
+      // continuous physical coordinate system. This removes visible jumps
+      // above doors/windows even on backends that round TextureTransform
+      // offsets differently per mesh.
+      final physicalRepeatMm = _wallFinishPhysicalRepeatMm(finish);
+      final u0 = wall.textureStartMm / physicalRepeatMm;
+      final u1 =
+          (wall.textureStartMm + wall.lengthMm) / physicalRepeatMm;
+      final v0 = wall.bottomMm / physicalRepeatMm;
+      final v1 = (wall.bottomMm + wall.heightMm) / physicalRepeatMm;
       final finishGeometry = GeometryBuilder(deduplicate: false)
         ..normal(vm.Vector3(0, 0, sign))
-        ..texCoord(vm.Vector2(0, 0))
+        ..texCoord(vm.Vector2(u0, v0))
         ..addVertex(vm.Vector3(-halfLengthM, -halfHeightM, 0))
-        ..texCoord(vm.Vector2(1, 0))
+        ..texCoord(vm.Vector2(u1, v0))
         ..addVertex(vm.Vector3(halfLengthM, -halfHeightM, 0))
-        ..texCoord(vm.Vector2(1, 1))
+        ..texCoord(vm.Vector2(u1, v1))
         ..addVertex(vm.Vector3(halfLengthM, halfHeightM, 0))
-        ..texCoord(vm.Vector2(0, 1))
+        ..texCoord(vm.Vector2(u0, v1))
         ..addVertex(vm.Vector3(-halfLengthM, halfHeightM, 0));
       if (sign > 0) {
         finishGeometry
