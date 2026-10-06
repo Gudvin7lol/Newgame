@@ -288,6 +288,21 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       ..radius = 0.24
       ..intensity = isQuality ? 0.64 : 0.45
       ..bias = 0.04;
+    scene.globalIllumination
+      ..enabled = isQuality
+      ..volumeMode = IrradianceVolumeMode.fitScene
+      ..resolution = vm.Vector3(12, 6, 12)
+      ..intensity = isQuality ? 0.72 : 0.0
+      ..hysteresis = 0.93
+      ..shadowBias = 0.28
+      ..visibility = 0.78
+      ..visibilityBias = 0.065
+      ..probeUpdateBudget = isQuality ? 96 : 0
+      ..injectionResolution = IrradianceInjectionResolution.eighth
+      ..fireflyClamp = 6.0
+      ..emissiveGiBoost = 1.35
+      ..updateWhenIdleOnly = isQuality
+      ..bakeOnly = false;
     _configureLocalLightQuality(widget.quality);
   }
 
@@ -350,6 +365,21 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       ..radius = 0.30
       ..intensity = 0.82
       ..bias = 0.035;
+    scene.globalIllumination
+      ..enabled = true
+      ..volumeMode = IrradianceVolumeMode.fitScene
+      ..resolution = vm.Vector3(16, 8, 16)
+      ..intensity = 0.92
+      ..hysteresis = 0.88
+      ..shadowBias = 0.26
+      ..visibility = 0.86
+      ..visibilityBias = 0.055
+      ..probeUpdateBudget = 0
+      ..injectionResolution = IrradianceInjectionResolution.quarter
+      ..fireflyClamp = 5.5
+      ..emissiveGiBoost = 1.65
+      ..updateWhenIdleOnly = false
+      ..bakeOnly = false;
     _configureLocalLightQuality(ZamerRenderQuality.photo4k);
   }
 
