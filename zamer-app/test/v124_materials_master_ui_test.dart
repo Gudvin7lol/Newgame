@@ -5,10 +5,12 @@ import 'package:zamer_app/models/models.dart';
 import 'package:zamer_app/services/material_catalog.dart';
 
 void main() {
-  test('v124 Materials catalog exposes only curated base finishes', () {
+  test('v125 Materials catalog exposes curated wall and floor grids', () {
     final ids = MaterialCatalog.masterUiPresets.map((e) => e.id).toList();
 
-    expect(ids.length, 8);
+    expect(MaterialCatalog.masterWallFinishes.length, 8);
+    expect(MaterialCatalog.masterFloorFinishes.length, 8);
+    expect(ids.length, greaterThanOrEqualTo(12));
     expect(ids.toSet().length, ids.length);
     expect(MaterialCatalog.masterWallFinishes, isNotEmpty);
     expect(MaterialCatalog.masterFloorFinishes, isNotEmpty);
@@ -47,5 +49,15 @@ void main() {
     expect(screen, contains('_walkMode ? -1.25'));
     expect(renderer, contains('fovRadiansY: 72 * math.pi / 180'));
     expect(renderer, contains('widget.tilt.clamp(-1.25, 0.90)'));
+  });
+
+  test('approved Materials layout keeps phone side-by-side composition', () {
+    final source = File('lib/screens/materials_master_screen.dart').readAsStringSync();
+
+    expect(source, contains("Text('Материалы'"));
+    expect(source, contains('crossAxisCount: 4'));
+    expect(source, contains('flex: 50'));
+    expect(source, contains('Предпросмотр материала'));
+    expect(source, isNot(contains('constraints.maxWidth >= 400')));
   });
 }
