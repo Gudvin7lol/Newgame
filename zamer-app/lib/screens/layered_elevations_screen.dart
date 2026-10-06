@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../design_system/zamer_components.dart';
@@ -414,6 +416,11 @@ class _LayeredElevationsScreenState extends State<LayeredElevationsScreen> {
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
+                        _ElevationMaterialSurface(
+                          runLengthMm: run.lengthMm,
+                          heightMm: height,
+                          material: finish,
+                        ),
                         CustomPaint(
                           painter: ElevationPainter(
                             floor: displayFloor,
@@ -421,6 +428,7 @@ class _LayeredElevationsScreenState extends State<LayeredElevationsScreen> {
                             run: run,
                             heightMm: height,
                             settings: settings,
+                            drawMaterialFill: false,
                           ),
                         ),
                         if (_showObjects)
@@ -490,6 +498,66 @@ class _LayeredElevationsScreenState extends State<LayeredElevationsScreen> {
       ),
     );
   }
+}
+
+class _ElevationMaterialSurface extends StatelessWidget {
+  const _ElevationMaterialSurface({
+    required this.runLengthMm,
+    required this.heightMm,
+    required this.material,
+  });
+
+  final double runLengthMm;
+  final double heightMm;
+  final VisualMaterialPreset material;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, constraints) {
+          final size = constraints.biggest;
+          if (!size.width.isFinite ||
+              !size.height.isFinite ||
+              runLengthMm <= 0 ||
+              heightMm <= 0) {
+            return const SizedBox.shrink();
+          }
+          final horizontalMargin = math.min(38.0, size.width * .09);
+          final verticalMargin = math.min(34.0, size.height * .12);
+          final scale = math.min(
+            (size.width - horizontalMargin * 2) / runLengthMm,
+            (size.height - verticalMargin * 2) / heightMm,
+          );
+          final width = runLengthMm * scale;
+          final height = heightMm * scale;
+          final left = (size.width - width) / 2;
+          final top = (size.height - height) / 2;
+          return Stack(
+            children: [
+              Positioned(
+                left: left,
+                top: top,
+                width: width,
+                height: height,
+                child: ClipRect(
+                  child: ColoredBox(
+                    color: material.color,
+                    child: material.textureAsset == null
+                        ? const SizedBox.expand()
+                        : Image.asset(
+                            material.textureAsset!,
+                            fit: BoxFit.cover,
+                            repeat: ImageRepeat.repeat,
+                            filterQuality: FilterQuality.high,
+                            errorBuilder: (_, __, ___) =>
+                                const SizedBox.expand(),
+                          ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      );
 }
 
 class _InfoCard extends StatelessWidget {
