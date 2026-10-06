@@ -16,6 +16,7 @@ import '../widgets/floor_3d_painter.dart';
 import 'camera_clip_policy.dart';
 import 'ceiling_visibility_policy.dart';
 import 'floor_grout_geometry.dart';
+import 'herringbone_surface_geometry.dart';
 import 'cutaway_corridor_policy.dart';
 import 'cutaway_geometry.dart';
 import 'door_floor_bridge.dart';
@@ -496,16 +497,17 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     ZamerFloorSurface surface,
   ) {
     final runtime = RuntimeMaterialPackV4.maybeById(surface.materialId);
-    if (runtime == null ||
-        !runtime.isPlankCollection ||
-        surface.laminatePattern == 'herringbone') {
+    if (runtime == null || !runtime.isPlankCollection) {
       return const <String>{};
     }
+    final offsetMode = surface.laminatePattern == 'herringbone'
+        ? 'straight'
+        : surface.laminateOffsetMode;
     return <String>{
       for (final mapName in RuntimeMaterialPackV4.mapNames)
         runtime.plankAtlasMapAsset(
           mapName,
-          offsetMode: surface.laminateOffsetMode,
+          offsetMode: offsetMode,
         ),
     };
   }
@@ -793,6 +795,8 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
         ..shadowStatic = true,
     );
     if (surface.laminatePattern == 'herringbone') {
+      final plankSurface = _buildFloorHerringboneSurfaceNode(surface, bounds);
+      if (plankSurface != null) root.add(plankSurface);
       final seams = _buildFloorHerringboneSeamNode(surface, bounds);
       if (seams != null) root.add(seams);
     } else if (isWood) {
@@ -906,6 +910,103 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     )..doubleSided = false;
     return Node(
         name: 'floor-laminate-seams:${surface.roomKey}',
+        mesh: Mesh(builder.build(), material),
+      )
+      ..castsShadows = false
+      ..shadowStatic = true;
+  }
+
+  Node? _buildFloorHerringboneSurfaceNode(
+    ZamerFloorSurface surface,
+    ZamerSceneBounds bounds,
+  ) {
+    final runtime = RuntimeMaterialPackV4.maybeById(surface.materialId);
+    if (runtime == null || !runtime.isPlankCollection) return null;
+
+    final baseColor = _finishTextures[
+      runtime.plankAtlasMapAsset('basecolor.webp'),
+    ];
+    if (baseColor == null) return null;
+
+    final polygons = buildHerringboneSurfacePolygons(
+      polygonMm: surface.polygonMm,
+      anchorXMm: surface.anchorXMm,
+      anchorYMm: surface.anchorYMm,
+      directionDeg: surface.directionDeg,
+      plankLengthMm: surface.plankLengthMm,
+      plankWidthMm: surface.plankWidthMm,
+      offsetXMm: surface.laminateOffsetXMm,
+      offsetYMm: surface.laminateOffsetYMm,
+      plankVariantCount: runtime.plankCount,
+    );
+    if (polygons.isEmpty) return null;
+
+    final builder = GeometryBuilder(deduplicate: false)
+      ..normal(vm.Vector3(0, 1, 0));
+    var vertex = 0;
+    for (final polygon in polygons) {
+      if (polygon.vertices.length < 3) continue;
+      final col = polygon.atlasVariant % 4;
+      final row = polygon.atlasVariant ~/ 4;
+      final start = vertex;
+
+      for (final item in polygon.vertices) {
+        builder
+          ..texCoord(
+            vm.Vector2(
+              (col + item.u) / 4,
+              (row + item.v) / 4,
+            ),
+          )
+          ..addVertex(
+            vm.Vector3(
+              _mx(item.pointMm.x, bounds),
+              zamerFloorPatternYM,
+              _mz(item.pointMm.y, bounds),
+            ),
+          );
+        vertex++;
+      }
+
+      // XY plan -> XZ scene flips handedness. Reverse the fan so every clipped
+      // board piece faces upward and uses the same one-sided PBR material.
+      for (var i = 1; i + 1 < polygon.vertices.length; i++) {
+        builder.addTriangle(start, start + i + 1, start + i);
+      }
+    }
+    if (vertex == 0) return null;
+
+    final preset = MaterialCatalog.byId(surface.materialId);
+    final source = _vectorColor(preset.color);
+    final material = _pbr(
+      vm.Vector4(
+        0.52 + source.x * 0.48,
+        0.52 + source.y * 0.48,
+        0.52 + source.z * 0.48,
+        1,
+      ),
+      roughness: preset.roughness ?? 0.54,
+      texture: baseColor,
+    )..doubleSided = false;
+
+    final normal = _finishTextures[
+      runtime.plankAtlasMapAsset('normal.png'),
+    ];
+    if (normal != null) {
+      material
+        ..normalTexture = normal
+        ..normalScale =
+            GeneratedPbrFinishCatalog.byId(preset.id)?.normalScale ?? 1.0;
+    }
+    final metallicRoughness = _finishTextures[
+      runtime.plankAtlasMapAsset('metallic_roughness.png'),
+    ];
+    if (metallicRoughness != null) {
+      material.metallicRoughnessTexture = metallicRoughness;
+    }
+
+    return Node(
+        name: 'floor-herringbone-pbr:${surface.roomKey}',
         mesh: Mesh(builder.build(), material),
       )
       ..castsShadows = false
