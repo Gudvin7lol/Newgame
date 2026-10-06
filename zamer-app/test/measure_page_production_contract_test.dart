@@ -38,7 +38,6 @@ void main() {
       'class _MaterialPanel',
       "'Сетка'",
       "'Привязка'",
-      "'Геометрия'",
     ]) {
       expect(
         editor.contains(required),
@@ -46,6 +45,11 @@ void main() {
         reason: 'Missing compact UI Kit CAD element: $required',
       );
     }
+
+    expect(editor.contains("label: 'Геометрия'"), isFalse);
+    expect(editor.contains("label: 'Проверка'"), isFalse);
+    expect(project.contains("title: 'Радиусы и узлы'"), isTrue);
+    expect(project.contains("title: 'Проверка обмера'"), isTrue);
 
     for (final duplicate in const [
       'class _ActionBar',
