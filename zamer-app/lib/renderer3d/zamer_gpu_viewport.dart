@@ -453,6 +453,17 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     final indices = _triangulate(surface.polygonMm);
     if (indices.isEmpty) return null;
 
+    final preset = MaterialCatalog.byId(surface.materialId);
+    if (surface.laminatePattern == 'herringbone' &&
+        preset.pattern == 'wood') {
+      return _buildHerringboneFloorNode(
+        surface,
+        bounds,
+        materialCache,
+        indices,
+      );
+    }
+
     final uvScale = _floorUvScaleMm(surface);
     final effectiveDirection = surface.materialMode.toLowerCase().contains('tile')
         ? surface.directionDeg + (surface.tilePattern == 'diagonal' ? 45 : 0)
@@ -495,6 +506,194 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     )
       ..castsShadows = false
       ..shadowStatic = true;
+  }
+
+  Node _buildHerringboneFloorNode(
+    ZamerFloorSurface surface,
+    ZamerSceneBounds bounds,
+    Map<String, PhysicallyBasedMaterial> materialCache,
+    List<int> roomIndices,
+  ) {
+    final plankLength = math.max(240.0, surface.plankLengthMm);
+    final plankWidth = math.max(55.0, surface.plankWidthMm);
+    final angle = surface.directionDeg * math.pi / 180;
+    final ca = math.cos(angle);
+    final sa = math.sin(angle);
+
+    math.Point<double> toLocal(math.Point<double> p) {
+      final dx = p.x - surface.anchorXMm;
+      final dy = p.y - surface.anchorYMm;
+      return math.Point<double>(
+        dx * ca + dy * sa,
+        -dx * sa + dy * ca,
+      );
+    }
+
+    math.Point<double> toWorld(math.Point<double> p) => math.Point<double>(
+          surface.anchorXMm + p.x * ca - p.y * sa,
+          surface.anchorYMm + p.x * sa + p.y * ca,
+        );
+
+    final localRoom = surface.polygonMm.map(toLocal).toList(growable: false);
+    var minX = localRoom.first.x;
+    var maxX = minX;
+    var minY = localRoom.first.y;
+    var maxY = minY;
+    for (final p in localRoom.skip(1)) {
+      minX = math.min(minX, p.x);
+      maxX = math.max(maxX, p.x);
+      minY = math.min(minY, p.y);
+      maxY = math.max(maxY, p.y);
+    }
+
+    final roomTriangles = <List<math.Point<double>>>[];
+    for (var i = 0; i < roomIndices.length; i += 3) {
+      roomTriangles.add(<math.Point<double>>[
+        surface.polygonMm[roomIndices[i]],
+        surface.polygonMm[roomIndices[i + 1]],
+        surface.polygonMm[roomIndices[i + 2]],
+      ]);
+    }
+
+    // The dark receiver is only visible through the tiny gaps between planks.
+    // It makes the bevel/joint readable without baking a fake herringbone
+    // pattern into the wood texture.
+    final baseBuilder = GeometryBuilder(deduplicate: false)
+      ..normal(vm.Vector3(0, 1, 0));
+    for (final p in surface.polygonMm) {
+      baseBuilder
+        ..texCoord(vm.Vector2.zero())
+        ..addVertex(vm.Vector3(_mx(p.x, bounds), 0.004, _mz(p.y, bounds)));
+    }
+    for (var i = 0; i < roomIndices.length; i += 3) {
+      baseBuilder.addTriangle(
+        roomIndices[i],
+        roomIndices[i + 1],
+        roomIndices[i + 2],
+      );
+    }
+
+    final root = Node(name: 'floor-herringbone:${surface.roomKey}');
+    root.add(
+      Node(
+        name: 'floor-herringbone-joints:${surface.roomKey}',
+        mesh: Mesh(
+          baseBuilder.build(),
+          _pbr(
+            vm.Vector4(0.075, 0.058, 0.045, 1),
+            roughness: 0.90,
+          )..doubleSided = true,
+        ),
+      )
+        ..castsShadows = false
+        ..shadowStatic = true,
+    );
+
+    final builder = GeometryBuilder(deduplicate: false)
+      ..normal(vm.Vector3(0, 1, 0));
+    final run = plankLength / math.sqrt2;
+    final pitch = plankWidth * math.sqrt2;
+    final ox = surface.laminateOffsetXMm % plankLength;
+    final oy = surface.laminateOffsetYMm % plankWidth;
+    final firstRow = ((minY - plankLength - oy) / pitch).floor();
+    final lastRow = ((maxY + plankLength - oy) / pitch).ceil();
+    final firstCol = ((minX - plankLength - ox) / run).floor();
+    final lastCol = ((maxX + plankLength - ox) / run).ceil();
+    var boardCount = 0;
+
+    for (var row = firstRow; row <= lastRow && boardCount < 20000; row++) {
+      final y = row * pitch + oy;
+      for (var col = firstCol; col <= lastCol && boardCount < 20000; col++) {
+        final x = col * run + ox;
+        final y0 = y + (col.isOdd ? run : 0);
+        final y1 = y + (col.isOdd ? 0 : run);
+        var boardLocal = <math.Point<double>>[
+          math.Point<double>(x, y0),
+          math.Point<double>(x + run, y1),
+          math.Point<double>(x + run, y1 + pitch),
+          math.Point<double>(x, y0 + pitch),
+        ];
+
+        // A sub-percent inset exposes the joint receiver and reads as a bevel
+        // at normal phone viewing distances without exploding vertex count.
+        final centerX =
+            boardLocal.fold<double>(0, (sum, p) => sum + p.x) / 4;
+        final centerY =
+            boardLocal.fold<double>(0, (sum, p) => sum + p.y) / 4;
+        const insetScale = 0.994;
+        boardLocal = boardLocal
+            .map(
+              (p) => math.Point<double>(
+                centerX + (p.x - centerX) * insetScale,
+                centerY + (p.y - centerY) * insetScale,
+              ),
+            )
+            .toList(growable: false);
+
+        final boardWorld = boardLocal.map(toWorld).toList(growable: false);
+        final p0 = boardWorld[0];
+        final p1 = boardWorld[1];
+        final p3 = boardWorld[3];
+        var alongX = p1.x - p0.x;
+        var alongY = p1.y - p0.y;
+        final alongLength = math.sqrt(alongX * alongX + alongY * alongY);
+        if (alongLength < 0.001) continue;
+        alongX /= alongLength;
+        alongY /= alongLength;
+        var perpX = -alongY;
+        var perpY = alongX;
+        if ((p3.x - p0.x) * perpX + (p3.y - p0.y) * perpY < 0) {
+          perpX = -perpX;
+          perpY = -perpY;
+        }
+
+        final shadeIndex = ((row * 31 + col * 17).abs()) % 4;
+        final shade = const <double>[0.94, 0.975, 1.0, 0.96][shadeIndex];
+
+        for (final triangle in roomTriangles) {
+          final clipped = _clipPolygonToConvex(boardWorld, triangle);
+          if (clipped.length < 3) continue;
+          final vertexIndices = <int>[];
+          for (final p in clipped) {
+            final dx = p.x - p0.x;
+            final dy = p.y - p0.y;
+            final u = (dx * alongX + dy * alongY) / plankLength;
+            final v = (dx * perpX + dy * perpY) / plankWidth;
+            builder
+              ..color(vm.Vector4(shade, shade, shade, 1))
+              ..texCoord(vm.Vector2(u, v));
+            vertexIndices.add(
+              builder.addVertex(
+                vm.Vector3(_mx(p.x, bounds), 0.008, _mz(p.y, bounds)),
+              ),
+            );
+          }
+          for (var i = 1; i < vertexIndices.length - 1; i++) {
+            builder.addTriangle(
+              vertexIndices[0],
+              vertexIndices[i],
+              vertexIndices[i + 1],
+            );
+          }
+        }
+        boardCount++;
+      }
+    }
+
+    final key = '${surface.materialMode}:${surface.materialId}:herringbone';
+    final material = materialCache.putIfAbsent(
+      key,
+      () => _floorMaterial(surface),
+    );
+    root.add(
+      Node(
+        name: 'floor-herringbone-planks:${surface.roomKey}',
+        mesh: Mesh(builder.build(), material),
+      )
+        ..castsShadows = false
+        ..shadowStatic = true,
+    );
+    return root;
   }
 
   PhysicallyBasedMaterial _floorMaterial(ZamerFloorSurface surface) {
@@ -1723,6 +1922,62 @@ List<int> _triangulate(List<math.Point<double>> polygon) {
     }
   }
   return result;
+}
+
+List<math.Point<double>> _clipPolygonToConvex(
+  List<math.Point<double>> subject,
+  List<math.Point<double>> clip,
+) {
+  if (subject.isEmpty || clip.length < 3) return const <math.Point<double>>[];
+  var output = List<math.Point<double>>.of(subject);
+  final clipCcw = _signedArea(clip) >= 0;
+
+  bool inside(
+    math.Point<double> p,
+    math.Point<double> a,
+    math.Point<double> b,
+  ) {
+    final cross =
+        (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x);
+    return clipCcw ? cross >= -0.0001 : cross <= 0.0001;
+  }
+
+  math.Point<double> intersection(
+    math.Point<double> s,
+    math.Point<double> e,
+    math.Point<double> a,
+    math.Point<double> b,
+  ) {
+    final dx1 = e.x - s.x;
+    final dy1 = e.y - s.y;
+    final dx2 = b.x - a.x;
+    final dy2 = b.y - a.y;
+    final denominator = dx1 * dy2 - dy1 * dx2;
+    if (denominator.abs() < 0.0000001) return e;
+    final t = ((a.x - s.x) * dy2 - (a.y - s.y) * dx2) / denominator;
+    return math.Point<double>(s.x + dx1 * t, s.y + dy1 * t);
+  }
+
+  for (var edge = 0; edge < clip.length; edge++) {
+    if (output.isEmpty) break;
+    final input = output;
+    output = <math.Point<double>>[];
+    final a = clip[edge];
+    final b = clip[(edge + 1) % clip.length];
+    var s = input.last;
+    for (final e in input) {
+      final eInside = inside(e, a, b);
+      final sInside = inside(s, a, b);
+      if (eInside) {
+        if (!sInside) output.add(intersection(s, e, a, b));
+        output.add(e);
+      } else if (sInside) {
+        output.add(intersection(s, e, a, b));
+      }
+      s = e;
+    }
+  }
+  return output;
 }
 
 double _signedArea(List<math.Point<double>> p) {
