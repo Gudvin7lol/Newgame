@@ -155,7 +155,9 @@ class _MaterialsMasterScreenState extends State<MaterialsMasterScreen> {
             ? MaterialCatalog.byId(settings.wallMaterialId).color
             : Color(settings.wallPaintColorArgb);
       case _MaterialSurface.floor:
-        return MaterialCatalog.byId(settings.floorMaterialId).color;
+        return settings.floorTintArgb == 0
+            ? MaterialCatalog.byId(settings.floorMaterialId).color
+            : Color(settings.floorTintArgb);
       case _MaterialSurface.ceiling:
         return settings.ceilingPaintColorArgb == 0
             ? MaterialCatalog.byId(settings.ceilingMaterialId).color
@@ -176,27 +178,7 @@ class _MaterialsMasterScreenState extends State<MaterialsMasterScreen> {
         }
         break;
       case _MaterialSurface.floor:
-        final current = MaterialCatalog.byId(settings.floorMaterialId);
-        final choices = current.pattern == 'wood'
-            ? MaterialCatalog.masterFloorFinishes
-                  .where((item) => item.pattern == 'wood')
-                  .toList(growable: false)
-            : MaterialCatalog.masterFloorFinishes
-                  .where((item) => item.category == 'Плитка')
-                  .toList(growable: false);
-        if (choices.isNotEmpty) {
-          choices.sort((a, b) {
-            int distance(VisualMaterialPreset item) {
-              final c = item.color;
-              return ((c.r - color.r).abs() * 255 +
-                      (c.g - color.g).abs() * 255 +
-                      (c.b - color.b).abs() * 255)
-                  .round();
-            }
-            return distance(a).compareTo(distance(b));
-          });
-          settings.floorMaterialId = choices.first.id;
-        }
+        settings.floorTintArgb = color.toARGB32();
         break;
       case _MaterialSurface.ceiling:
         settings.ceilingPaintColorArgb = color.toARGB32();
@@ -712,7 +694,7 @@ class _MaterialsMasterScreenState extends State<MaterialsMasterScreen> {
         const SizedBox(height: 4),
         Text(
           _surface == _MaterialSurface.floor
-              ? 'Для пола цвет выбирает ближайший PBR-вариант этой коллекции.'
+              ? 'Цвет хранится отдельно: PBR-фактура и раскладка не меняются.'
               : 'Цвет хранится отдельно от базового материала.',
           style: ZamerTypography.caption,
         ),
