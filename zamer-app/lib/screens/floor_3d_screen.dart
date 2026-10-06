@@ -26,6 +26,7 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
   bool _walkMode = false;
   bool _noclip = false;
   double _walkStepMm = 120;
+  double _walkFovDeg = 76;
   double _walkX = 0, _walkY = 0;
   double _overviewRotation = -0.65, _overviewTilt = 0.82;
   double _overviewZoom = 0.92;
@@ -39,6 +40,21 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
   ZamerRenderQuality _renderQuality = ZamerRenderQuality.quality;
   final GlobalKey<ZamerGpuViewportState> _gpuKey =
       GlobalKey<ZamerGpuViewportState>();
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.floor.id == 'benchmark-floor') {
+      _walkMode = true;
+      _cutaway = false;
+      _walkX = 3400;
+      _walkY = 900;
+      _rotation = 1.13;
+      _tilt = -0.10;
+      _zoom = 1;
+      _walkFovDeg = 76;
+    }
+  }
 
   void _reset() => setState(() {
     if (_walkMode) _centerWalk();
@@ -323,6 +339,7 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
                 walkMode: _walkMode,
                 walkX: _walkX,
                 walkY: _walkY,
+                walkFovDegrees: _walkFovDeg,
                 quality: _renderQuality,
               ),
             ),
@@ -392,6 +409,35 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
                                     label: '${_walkStepMm.round()} мм',
                                     onChanged: (v) =>
                                         setState(() => _walkStepMm = v),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Row(
+                              children: [
+                                const SizedBox(
+                                  width: 42,
+                                  child: Text(
+                                    'FOV',
+                                    style: TextStyle(fontSize: 12),
+                                  ),
+                                ),
+                                Expanded(
+                                  child: Slider(
+                                    value: _walkFovDeg,
+                                    min: 55,
+                                    max: 100,
+                                    divisions: 9,
+                                    label: '${_walkFovDeg.round()}°',
+                                    onChanged: (v) =>
+                                        setState(() => _walkFovDeg = v),
+                                  ),
+                                ),
+                                SizedBox(
+                                  width: 44,
+                                  child: Text(
+                                    '${_walkFovDeg.round()}°',
+                                    textAlign: TextAlign.end,
                                   ),
                                 ),
                               ],
