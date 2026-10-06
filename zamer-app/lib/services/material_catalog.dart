@@ -518,7 +518,7 @@ class MaterialCatalog {
   ];
 
   static VisualMaterialPreset byId(String id) =>
-      presets.firstWhere((e) => e.id == id, orElse: () => presets.first);
+      presets.firstWhere((e) => e.id == id, orElse: () => generatedV1.first);
 
   static List<VisualMaterialPreset> forCategory(String category) =>
       presets.where((e) => e.category == category).toList(growable: false);
