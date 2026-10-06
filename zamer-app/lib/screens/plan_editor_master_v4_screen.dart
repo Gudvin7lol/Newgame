@@ -818,8 +818,6 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                   materialMode: _materialPickMode,
                   onRoomMode: _selectRoomMode,
                   onTool: _selectTool,
-                  onGeometry: widget.onOpenGeometry,
-                  onReview: widget.onOpenReview,
                 ),
               ),
               Positioned(
@@ -883,15 +881,11 @@ class _ToolRail extends StatelessWidget {
     required this.materialMode,
     required this.onRoomMode,
     required this.onTool,
-    required this.onGeometry,
-    required this.onReview,
   });
   final ZMeasureTool tool;
   final bool materialMode;
   final VoidCallback onRoomMode;
   final ValueChanged<ZMeasureTool> onTool;
-  final VoidCallback onGeometry;
-  final VoidCallback onReview;
 
   @override
   Widget build(BuildContext context) => _RailFrame(
@@ -906,25 +900,13 @@ class _ToolRail extends StatelessWidget {
             ),
             const Divider(height: 7, color: ZamerColors.outlineSoft),
             for (final item in ZMeasureTool.values)
-              _RailItem(
-                icon: item.icon,
-                label: item.label,
-                selected: !materialMode && tool == item,
-                onTap: () => onTool(item),
-              ),
-            const Divider(height: 7, color: ZamerColors.outlineSoft),
-            _RailItem(
-              icon: Icons.hexagon_outlined,
-              label: 'Геометрия',
-              selected: false,
-              onTap: onGeometry,
-            ),
-            _RailItem(
-              icon: Icons.check_circle_outline_rounded,
-              label: 'Проверка',
-              selected: false,
-              onTap: onReview,
-            ),
+              if (item != ZMeasureTool.objects)
+                _RailItem(
+                  icon: item.icon,
+                  label: item.label,
+                  selected: !materialMode && tool == item,
+                  onTap: () => onTool(item),
+                ),
           ],
         ),
       );
