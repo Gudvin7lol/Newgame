@@ -5,18 +5,13 @@ import 'package:flutter/material.dart';
 import '../design_system/zamer_components.dart';
 import '../design_system/zamer_tokens.dart';
 import '../models/models.dart';
-import '../services/equipment_placement_service.dart';
 import '../services/geometry_service.dart';
-import '../services/object_catalog.dart';
 import '../services/report_service.dart';
 import '../widgets/recovered_workspace_navigation.dart';
 import '../widgets/workspace_master_header.dart';
 import '../widgets/workspace_mode_context.dart';
-import '../widgets/workspace_navigation.dart';
 import 'floor_3d_screen.dart';
 import 'layered_elevations_screen.dart';
-import 'master_equipment_screen.dart';
-import 'master_object_placement_workspace.dart';
 import 'master_profile_screen.dart';
 import 'measurement_review_screen.dart';
 import 'photo_studio_screen.dart';
@@ -41,7 +36,7 @@ class RecoveredProjectWorkspaceScreen extends StatefulWidget {
   final FloorPlan floor;
   final Future<void> Function() onChanged;
 
-  /// 0 = Measure, 1 = 3D, 2 = Equipment, 3 = Elevations.
+  /// 0 = Measure, 1 = 3D, 2 = Elevations.
   final int initialMode;
 
   @override
@@ -52,14 +47,13 @@ class RecoveredProjectWorkspaceScreen extends StatefulWidget {
 class _RecoveredProjectWorkspaceScreenState
     extends State<RecoveredProjectWorkspaceScreen> {
   int _mode = 0;
-  int _equipmentPage = 0;
   final _history = <String>[];
   int _historyIndex = 0;
 
   @override
   void initState() {
     super.initState();
-    _mode = widget.initialMode.clamp(0, 3).toInt();
+    _mode = widget.initialMode.clamp(0, 2).toInt();
     _history.add(jsonEncode(widget.floor.toJson()));
   }
 
@@ -93,7 +87,7 @@ class _RecoveredProjectWorkspaceScreenState
   }
 
   void _selectPrimaryMode(int mode) {
-    final next = mode.clamp(0, 3).toInt();
+    final next = mode.clamp(0, 2).toInt();
     if (next == _mode) return;
     setState(() => _mode = next);
   }
@@ -177,7 +171,7 @@ class _RecoveredProjectWorkspaceScreenState
           },
           onOpenElevations: () {
             Navigator.pop(profileContext);
-            _selectPrimaryMode(3);
+            _selectPrimaryMode(2);
           },
         ),
       ),
@@ -256,36 +250,6 @@ class _RecoveredProjectWorkspaceScreenState
     );
   }
 
-  Future<void> _addEquipment(ObjectCatalogItem item) async {
-    final object = EquipmentPlacementService.addCatalogItem(
-      floor: widget.floor,
-      item: item,
-    );
-    try {
-      await _changed();
-      if (!mounted) return;
-      setState(() => _equipmentPage = 1);
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            duration: const Duration(milliseconds: 1200),
-            content: Text('${item.name} добавлен. Размести его на плане.'),
-          ),
-        );
-    } catch (error) {
-      EquipmentPlacementService.removeObject(
-        floor: widget.floor,
-        object: object,
-      );
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Не удалось добавить объект: $error')),
-        );
-      }
-    }
-  }
-
   Future<void> _showProjectActions() async {
     await showModalBottomSheet<void>(
       context: context,
@@ -305,15 +269,6 @@ class _RecoveredProjectWorkspaceScreenState
               onTap: () {
                 Navigator.pop(sheetContext);
                 _showFloorPicker();
-              },
-            ),
-            ZActionTile(
-              icon: Icons.category_outlined,
-              title: 'Оснащение',
-              subtitle: 'Каталог и размещение объектов',
-              onTap: () {
-                Navigator.pop(sheetContext);
-                setState(() => _mode = 2);
               },
             ),
             ZActionTile(
@@ -423,46 +378,6 @@ class _RecoveredProjectWorkspaceScreenState
     );
   }
 
-  Widget _equipmentMode() {
-    const tabs = <(String, IconData)>[
-      ('Каталог', Icons.grid_view_rounded),
-      ('Размещение', Icons.open_with_rounded),
-    ];
-    return _secondaryMode(
-      label: 'ОСНАЩЕНИЕ',
-      title: _equipmentPage == 0 ? 'Каталог объектов' : 'Размещение объектов',
-      subtitle: _equipmentPage == 0
-          ? 'Мебель, сантехника, техника, свет, двери и окна'
-          : 'Перемещение, вращение, дублирование и удаление на плане',
-      icon: Icons.chair_alt_outlined,
-      child: Column(
-        children: [
-          ZWorkspaceSubnav(
-            items: tabs,
-            selectedIndex: _equipmentPage,
-            onSelected: (value) => setState(() => _equipmentPage = value),
-          ),
-          Expanded(
-            child: IndexedStack(
-              index: _equipmentPage,
-              children: [
-                MasterEquipmentScreen(
-                  projectTitle: widget.project.name,
-                  embedded: true,
-                  onAdd: (item) => _addEquipment(item),
-                ),
-                MasterObjectPlacementWorkspace(
-                  floor: widget.floor,
-                  onChanged: _changed,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     if (_mode == 0) {
@@ -495,8 +410,6 @@ class _RecoveredProjectWorkspaceScreenState
         child: Floor3DScreen(floor: widget.floor),
       );
     }
-
-    if (_mode == 2) return _equipmentMode();
 
     return _secondaryMode(
       label: 'РАЗВЁРТКИ',
