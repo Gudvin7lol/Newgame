@@ -16,12 +16,14 @@ void main() {
 
   test('ceiling finish survives project serialization', () {
     final settings = RoomMaterialSettings(
+      floorTintArgb: 0xFF7A583F,
       ceilingMaterialId: 'Wall_GypsumPlaster_White_01',
       ceilingPaintColorArgb: 0xFFE8E0D4,
     );
 
     final restored = RoomMaterialSettings.fromJson(settings.toJson());
 
+    expect(restored.floorTintArgb, 0xFF7A583F);
     expect(restored.ceilingMaterialId, 'Wall_GypsumPlaster_White_01');
     expect(restored.ceilingPaintColorArgb, 0xFFE8E0D4);
   });
