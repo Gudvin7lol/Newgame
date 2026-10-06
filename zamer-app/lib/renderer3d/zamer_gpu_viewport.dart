@@ -1265,7 +1265,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
 
     for (var i = 0; i < folds; i++) {
       final x = -width / 2 + spacing * (i + 0.5);
-      final wave = math.sin(i * math.pi) * depth * 0.18 +
+      final wave = math.sin(i * math.pi / 2) * depth * 0.18 +
           (i.isEven ? -depth * 0.12 : depth * 0.12);
       root.add(
         Node(
