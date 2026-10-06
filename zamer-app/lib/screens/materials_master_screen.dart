@@ -647,8 +647,7 @@ class _MaterialsMasterScreenState extends State<MaterialsMasterScreen> {
             _texturePanel(material, settings)
           else
             _parametersPanel(material, settings),
-          const Spacer(),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           FilledButton.icon(
             onPressed: () async {
               await widget.onChanged();
