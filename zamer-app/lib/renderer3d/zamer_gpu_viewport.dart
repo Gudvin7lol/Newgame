@@ -23,7 +23,6 @@ import 'model_asset_catalog.dart';
 import 'model_lod_policy.dart';
 import 'photo_render_quality_policy.dart';
 import 'photo_export_policy.dart';
-import 'photo_render_quality_policy.dart';
 import 'scene_fingerprint.dart';
 import 'scene_mesh_winding.dart';
 import 'zamer_scene_geometry.dart';
@@ -230,12 +229,16 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
   }
 
   void _scheduleLiveRebuildRetry() {
-    if (!mounted) return;
+    if (!mounted ||
+        !ZamerGpuRetryPolicy.shouldScheduleAutomaticRetry(
+          ready: false,
+          retryAttempt: _retryAttempt,
+        )) {
+      return;
+    }
     _retryTimer?.cancel();
     _retryAttempt++;
-    final delay = Duration(
-      milliseconds: math.min(2500, 250 + _retryAttempt * 250),
-    );
+    final delay = ZamerGpuRetryPolicy.delayForAttempt(_retryAttempt);
     _retryTimer = Timer(delay, () {
       if (!mounted) return;
       _rebuildSceneAfterUpdate();
