@@ -133,7 +133,7 @@ List<FloorGroutQuad> buildFloorTileGroutQuads({
     }
   }
 
-  if (pattern == 'half') {
+  if (pattern == 'half' || pattern == 'third') {
     var row = ((minY - offsetYMm) / tileHeightMm).floor();
     for (
       var y0 = row * tileHeightMm + offsetYMm;
@@ -141,7 +141,9 @@ List<FloorGroutQuad> buildFloorTileGroutQuads({
       y0 += tileHeightMm, row++
     ) {
       final y1 = y0 + tileHeightMm;
-      final shift = row.isOdd ? tileWidthMm / 2 : 0.0;
+      final shift = pattern == 'half'
+          ? (row.isOdd ? tileWidthMm / 2 : 0.0)
+          : (row % 3) * tileWidthMm / 3;
       final firstX =
           ((minX - offsetXMm - shift) / tileWidthMm).floor() * tileWidthMm +
           offsetXMm +
