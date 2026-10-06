@@ -17,6 +17,6 @@ void main() {
     expect(source, contains('door-hinge-plate'));
     expect(source, contains('metallicFactor = 0.86'));
     expect(source, isNot(contains('..metallic = 0.86')));
-    expect(source, contains('swingSign * 32 * math.pi / 180'));
+    expect(source, contains('swingSign * 42 * math.pi / 180'));
   });
 }
