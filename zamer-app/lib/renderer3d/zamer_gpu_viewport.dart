@@ -1256,28 +1256,50 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       // whole cuboid. This prevents tile from leaking through to the opposite
       // room while still allowing each side of a shared wall to have its own
       // paint/tile settings.
-      final thin = finish.tileEnabled ? 0.004 : 0.002;
+      // Use an explicit one-sided quad instead of a thin cuboid. Cuboid face
+      // UVs restart independently on every wall piece, which made the texture
+      // above doors/windows jump relative to the rest of the same wall.
+      // A stable 0..1 quad plus textureStartMm/bottomMm in the material
+      // transform keeps one continuous wall-space UV phase across all pieces.
+      final halfLengthM = math.max(0.001, wall.lengthMm / 2000);
+      final halfHeightM = math.max(0.001, wall.heightMm / 2000);
+      final sign = finish.sideSign >= 0 ? 1.0 : -1.0;
+      final finishGeometry = GeometryBuilder(deduplicate: false)
+        ..normal(vm.Vector3(0, 0, sign))
+        ..texCoord(vm.Vector2(0, 0))
+        ..addVertex(vm.Vector3(-halfLengthM, -halfHeightM, 0))
+        ..texCoord(vm.Vector2(1, 0))
+        ..addVertex(vm.Vector3(halfLengthM, -halfHeightM, 0))
+        ..texCoord(vm.Vector2(1, 1))
+        ..addVertex(vm.Vector3(halfLengthM, halfHeightM, 0))
+        ..texCoord(vm.Vector2(0, 1))
+        ..addVertex(vm.Vector3(-halfLengthM, halfHeightM, 0));
+      if (sign > 0) {
+        finishGeometry
+          ..addTriangle(0, 1, 2)
+          ..addTriangle(0, 2, 3);
+      } else {
+        finishGeometry
+          ..addTriangle(0, 2, 1)
+          ..addTriangle(0, 3, 2);
+      }
       final layer =
           Node(
               name:
                   'wall-finish:${wall.wallId}:${finish.roomKey}:${finish.sideSign}',
               mesh: Mesh(
-                CuboidGeometry(
-                  vm.Vector3(
-                    math.max(0.002, wall.lengthMm / 1000),
-                    math.max(0.002, wall.heightMm / 1000),
-                    thin,
-                  ),
-                ),
+                finishGeometry.build(),
                 _wallFinishMaterial(finish, wall),
               ),
             )
             ..position = vm.Vector3(
               0,
               (wall.bottomMm + wall.heightMm / 2) / 1000,
-              finish.sideSign * (wall.thicknessMm / 2000 + thin / 2 + ZamerSurfaceStabilityPolicy.wallFinishGapM),
+              sign *
+                  (wall.thicknessMm / 2000 +
+                      ZamerSurfaceStabilityPolicy.wallFinishGapM),
             )
-            ..castsShadows = finish.tileEnabled
+            ..castsShadows = false
             ..shadowStatic = true;
       root.add(layer);
     }
