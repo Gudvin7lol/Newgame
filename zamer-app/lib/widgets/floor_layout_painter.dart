@@ -177,10 +177,10 @@ class FloorLayoutPainter extends CustomPainter {
   void _drawHerringbone(Canvas canvas, Size size, double scale) {
     final boardL = math.max(0.5, settings.laminatePlankLengthMm * scale);
     final boardW = math.max(0.5, settings.laminatePlankWidthMm * scale);
-    final offX =
-        (settings.laminateOffsetXMm % settings.laminatePlankLengthMm) * scale;
-    final offY =
-        (settings.laminateOffsetYMm % settings.laminatePlankWidthMm) * scale;
+    final run = boardL / math.sqrt2;
+    final pitch = boardW * math.sqrt2;
+    final offX = settings.laminateOffsetXMm % run;
+    final offY = settings.laminateOffsetYMm % pitch;
     final clip = canvas.getLocalClipBounds().inflate(boardL + boardW);
     final outline = Paint()
       ..color = const Color(0xFF79685D)
@@ -191,8 +191,6 @@ class FloorLayoutPainter extends CustomPainter {
 
     // Continuous mitred chevrons. Parallel zigzag boundaries are exactly one
     // plank width apart, so the pattern fills the room with no intersections.
-    final run = boardL / math.sqrt2;
-    final pitch = boardW * math.sqrt2;
     final firstRow = ((clip.top - run - offY) / pitch).floor();
     final lastRow = ((clip.bottom - offY) / pitch).ceil();
     final firstColumn = ((clip.left - offX) / (2 * run)).floor() * 2;
