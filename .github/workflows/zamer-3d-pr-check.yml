@@ -8,6 +8,10 @@ on:
       - 'zamer-app/**'
       - '.github/workflows/zamer-3d-pr-check.yml'
 
+concurrency:
+  group: zamer-3d-pr-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
