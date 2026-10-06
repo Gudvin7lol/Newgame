@@ -26,8 +26,101 @@ class GeneratedPbrFinish {
 
 abstract final class GeneratedPbrFinishCatalog {
   static const _root = 'assets/textures/generated_v1';
+  static const _runtimeV4Root = 'assets/textures/runtime_v4';
 
   static const byMaterialId = <String, GeneratedPbrFinish>{
+    GeneratedMaterialIds.runtimeV4WallBrickRed: GeneratedPbrFinish(
+      baseColorAsset: '$_runtimeV4Root/Wall_Brick_Red_01_basecolor.webp',
+      normalAsset: '$_runtimeV4Root/Wall_Brick_Red_01_normal.png',
+      heightAsset: '$_root/wall_red_clay_height.png',
+      metallicRoughnessAsset:
+          '$_runtimeV4Root/Wall_Brick_Red_01_metallic_roughness.png',
+      realWorldTileMm: 1000,
+      normalScale: 4.2,
+    ),
+    GeneratedMaterialIds.runtimeV4WallGypsumPlaster: GeneratedPbrFinish(
+      baseColorAsset:
+          '$_runtimeV4Root/Wall_GypsumPlaster_White_01_basecolor.webp',
+      normalAsset:
+          '$_runtimeV4Root/Wall_GypsumPlaster_White_01_normal.png',
+      heightAsset: '$_root/wall_lime_height.png',
+      metallicRoughnessAsset:
+          '$_runtimeV4Root/Wall_GypsumPlaster_White_01_metallic_roughness.png',
+      realWorldTileMm: 1000,
+      normalScale: .75,
+    ),
+    GeneratedMaterialIds.runtimeV4WallPaintMatteWhite: GeneratedPbrFinish(
+      baseColorAsset:
+          '$_runtimeV4Root/Wall_Paint_MatteWhite_01_basecolor.webp',
+      normalAsset:
+          '$_runtimeV4Root/Wall_Paint_MatteWhite_01_normal.png',
+      heightAsset: '$_root/wall_paint_height.png',
+      metallicRoughnessAsset:
+          '$_runtimeV4Root/Wall_Paint_MatteWhite_01_metallic_roughness.png',
+      realWorldTileMm: 1000,
+      normalScale: .35,
+    ),
+    GeneratedMaterialIds.runtimeV4TileConcreteLight: GeneratedPbrFinish(
+      baseColorAsset:
+          '$_runtimeV4Root/Tile_ConcreteLight_01_basecolor.webp',
+      normalAsset: '$_runtimeV4Root/Tile_ConcreteLight_01_normal.png',
+      heightAsset: '$_root/wall_microcement_height.png',
+      metallicRoughnessAsset:
+          '$_runtimeV4Root/Tile_ConcreteLight_01_metallic_roughness.png',
+      realWorldTileMm: 600,
+      normalScale: .8,
+    ),
+    GeneratedMaterialIds.runtimeV4TileMarbleLight: GeneratedPbrFinish(
+      baseColorAsset:
+          '$_runtimeV4Root/Tile_MarbleLight_01_basecolor.webp',
+      normalAsset: '$_runtimeV4Root/Tile_MarbleLight_01_normal.png',
+      heightAsset: '$_root/travertine_height.png',
+      metallicRoughnessAsset:
+          '$_runtimeV4Root/Tile_MarbleLight_01_metallic_roughness.png',
+      realWorldTileMm: 600,
+      normalScale: .55,
+    ),
+    GeneratedMaterialIds.runtimeV4TileTerrazzoLight: GeneratedPbrFinish(
+      baseColorAsset:
+          '$_runtimeV4Root/Tile_TerrazzoLight_01_basecolor.webp',
+      normalAsset: '$_runtimeV4Root/Tile_TerrazzoLight_01_normal.png',
+      heightAsset: '$_root/terrazzo_height.png',
+      metallicRoughnessAsset:
+          '$_runtimeV4Root/Tile_TerrazzoLight_01_metallic_roughness.png',
+      realWorldTileMm: 600,
+      normalScale: .7,
+    ),
+    GeneratedMaterialIds.runtimeV4LaminateOakLight: GeneratedPbrFinish(
+      baseColorAsset:
+          '$_runtimeV4Root/Laminate_OakLight_01_basecolor.webp',
+      normalAsset: '$_runtimeV4Root/Laminate_OakLight_01_normal.png',
+      heightAsset: '$_root/white_oak_height.png',
+      metallicRoughnessAsset:
+          '$_runtimeV4Root/Laminate_OakLight_01_metallic_roughness.png',
+      realWorldTileMm: 1380,
+      normalScale: 1.1,
+    ),
+    GeneratedMaterialIds.runtimeV4LaminateOakSmoked: GeneratedPbrFinish(
+      baseColorAsset:
+          '$_runtimeV4Root/Laminate_OakSmoked_01_basecolor.webp',
+      normalAsset: '$_runtimeV4Root/Laminate_OakSmoked_01_normal.png',
+      heightAsset: '$_root/dark_oak_height.png',
+      metallicRoughnessAsset:
+          '$_runtimeV4Root/Laminate_OakSmoked_01_metallic_roughness.png',
+      realWorldTileMm: 1380,
+      normalScale: 1.1,
+    ),
+    GeneratedMaterialIds.runtimeV4LaminateWalnutWarm: GeneratedPbrFinish(
+      baseColorAsset:
+          '$_runtimeV4Root/Laminate_WalnutWarm_01_basecolor.webp',
+      normalAsset:
+          '$_runtimeV4Root/Laminate_WalnutWarm_01_normal.png',
+      heightAsset: '$_root/dark_oak_height.png',
+      metallicRoughnessAsset:
+          '$_runtimeV4Root/Laminate_WalnutWarm_01_metallic_roughness.png',
+      realWorldTileMm: 1380,
+      normalScale: 1.15,
+    ),
     GeneratedMaterialIds.darkOak: GeneratedPbrFinish(
       baseColorAsset: '$_root/dark_oak.jpg',
       normalAsset: '$_root/dark_oak_normal.png',
