@@ -45,12 +45,23 @@ class RuntimeMaterialV4Descriptor {
 
   String mapAsset(String mapName) => '${assetPrefix}_$mapName';
 
-  String plankAtlasMapAsset(String mapName) {
+  String plankAtlasMapAsset(
+    String mapName, {
+    String offsetMode = 'straight',
+  }) {
     if (!isPlankCollection) {
       throw StateError('$id is not a plank collection');
     }
-    return '${assetPrefix}_plank_atlas_$mapName';
+    final mode = switch (offsetMode) {
+      'half' => '_half',
+      'third' => '_third',
+      _ => '',
+    };
+    return '${assetPrefix}_plank_atlas$mode' '_$mapName';
   }
+
+  int plankAtlasRowsFor(String offsetMode) =>
+      offsetMode == 'half' || offsetMode == 'third' ? 6 : 4;
 
   /// UV rectangle of one deterministic plank variant inside the 4x4 atlas.
   /// Indices stay 1-based because the material UI and source-pack convention
@@ -221,8 +232,16 @@ abstract final class RuntimeMaterialPackV4 {
     ),
   ];
 
+  static RuntimeMaterialV4Descriptor? maybeById(String id) {
+    for (final material in materials) {
+      if (material.id == id) return material;
+    }
+    return null;
+  }
+
   static RuntimeMaterialV4Descriptor byId(String id) =>
-      materials.firstWhere((material) => material.id == id);
+      maybeById(id) ??
+      (throw StateError('Unknown Runtime v4 material: $id'));
 
   static List<RuntimeMaterialV4Descriptor> get walls =>
       materials.where((material) => material.category == 'walls').toList();
