@@ -24,6 +24,28 @@ abstract final class GeneratedMaterialIds {
   /// not inherit the porcelain-tile normal/roughness response.
   static const runtimeTileConcreteLight = 'zamer-runtime-tile-concrete-light';
 
+  static const runtimeV4WallBrickRed = 'Wall_Brick_Red_01';
+  static const runtimeV4WallGypsumPlaster = 'Wall_GypsumPlaster_White_01';
+  static const runtimeV4WallPaintMatteWhite = 'Wall_Paint_MatteWhite_01';
+  static const runtimeV4TileConcreteLight = 'Tile_ConcreteLight_01';
+  static const runtimeV4TileMarbleLight = 'Tile_MarbleLight_01';
+  static const runtimeV4TileTerrazzoLight = 'Tile_TerrazzoLight_01';
+  static const runtimeV4LaminateOakLight = 'Laminate_OakLight_01';
+  static const runtimeV4LaminateOakSmoked = 'Laminate_OakSmoked_01';
+  static const runtimeV4LaminateWalnutWarm = 'Laminate_WalnutWarm_01';
+
+  static const runtimeV4 = <String>{
+    runtimeV4WallBrickRed,
+    runtimeV4WallGypsumPlaster,
+    runtimeV4WallPaintMatteWhite,
+    runtimeV4TileConcreteLight,
+    runtimeV4TileMarbleLight,
+    runtimeV4TileTerrazzoLight,
+    runtimeV4LaminateOakLight,
+    runtimeV4LaminateOakSmoked,
+    runtimeV4LaminateWalnutWarm,
+  };
+
   static const all = <String>{
     darkOak,
     whiteOak,
@@ -44,5 +66,6 @@ abstract final class GeneratedMaterialIds {
     plasterMineralPbr,
     graphiteTilePbr,
     runtimeTileConcreteLight,
+    ...runtimeV4,
   };
 }
