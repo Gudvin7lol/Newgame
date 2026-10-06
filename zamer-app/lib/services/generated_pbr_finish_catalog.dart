@@ -26,25 +26,21 @@ class GeneratedPbrFinish {
 
 abstract final class GeneratedPbrFinishCatalog {
   static const _root = 'assets/textures/generated_v1';
-  static const _runtimeV2 = 'assets/textures/runtime_v2';
 
   static const byMaterialId = <String, GeneratedPbrFinish>{
     GeneratedMaterialIds.darkOak: GeneratedPbrFinish(
       baseColorAsset: '$_root/dark_oak.jpg',
-      normalAsset: '$_runtimeV2/laminate_oak_smoked_normal.webp',
-      heightAsset:
-          '$_runtimeV2/laminate_oak_smoked_metallic_roughness.webp',
-      metallicRoughnessAsset:
-          '$_runtimeV2/laminate_oak_smoked_metallic_roughness.webp',
+      normalAsset: '$_root/dark_oak_normal.png',
+      heightAsset: '$_root/dark_oak_height.png',
+      metallicRoughnessAsset: '$_root/dark_oak_metallic_roughness.png',
       realWorldTileMm: 1380,
       normalScale: 1.1,
     ),
     GeneratedMaterialIds.whiteOak: GeneratedPbrFinish(
       baseColorAsset: '$_root/white_oak.jpg',
-      normalAsset: '$_runtimeV2/laminate_oak_light_normal.webp',
-      heightAsset: '$_runtimeV2/laminate_oak_light_metallic_roughness.webp',
-      metallicRoughnessAsset:
-          '$_runtimeV2/laminate_oak_light_metallic_roughness.webp',
+      normalAsset: '$_root/white_oak_normal.png',
+      heightAsset: '$_root/white_oak_height.png',
+      metallicRoughnessAsset: '$_root/white_oak_metallic_roughness.png',
       realWorldTileMm: 1380,
       normalScale: 1.1,
     ),
@@ -58,11 +54,9 @@ abstract final class GeneratedPbrFinishCatalog {
     ),
     GeneratedMaterialIds.terrazzo: GeneratedPbrFinish(
       baseColorAsset: '$_root/terrazzo.jpg',
-      normalAsset: '$_runtimeV2/tile_terrazzo_light_normal.webp',
-      heightAsset:
-          '$_runtimeV2/tile_terrazzo_light_metallic_roughness.webp',
-      metallicRoughnessAsset:
-          '$_runtimeV2/tile_terrazzo_light_metallic_roughness.webp',
+      normalAsset: '$_root/terrazzo_normal.png',
+      heightAsset: '$_root/terrazzo_height.png',
+      metallicRoughnessAsset: '$_root/terrazzo_metallic_roughness.png',
       realWorldTileMm: 600,
       normalScale: .7,
     ),
@@ -84,11 +78,9 @@ abstract final class GeneratedPbrFinishCatalog {
     ),
     GeneratedMaterialIds.wallPaint: GeneratedPbrFinish(
       baseColorAsset: '$_root/wall_paint.jpg',
-      normalAsset: '$_runtimeV2/wall_paint_matte_white_normal.webp',
-      heightAsset:
-          '$_runtimeV2/wall_paint_matte_white_metallic_roughness.webp',
-      metallicRoughnessAsset:
-          '$_runtimeV2/wall_paint_matte_white_metallic_roughness.webp',
+      normalAsset: '$_root/wall_paint_normal.png',
+      heightAsset: '$_root/wall_paint_height.png',
+      metallicRoughnessAsset: '$_root/wall_paint_metallic_roughness.png',
       realWorldTileMm: 1000,
       normalScale: .35,
     ),
@@ -110,12 +102,11 @@ abstract final class GeneratedPbrFinishCatalog {
     ),
     GeneratedMaterialIds.wallRedClay: GeneratedPbrFinish(
       baseColorAsset: '$_root/wall_red_clay.jpg',
-      normalAsset: '$_runtimeV2/wall_brick_red_normal.webp',
-      heightAsset: '$_runtimeV2/wall_brick_red_metallic_roughness.webp',
-      metallicRoughnessAsset:
-          '$_runtimeV2/wall_brick_red_metallic_roughness.webp',
+      normalAsset: '$_root/wall_red_clay_normal.png',
+      heightAsset: '$_root/wall_red_clay_height.png',
+      metallicRoughnessAsset: '$_root/wall_red_clay_metallic_roughness.png',
       realWorldTileMm: 1000,
-      normalScale: 1.35,
+      normalScale: 4.2,
     ),
     GeneratedMaterialIds.wallWhiteClay: GeneratedPbrFinish(
       baseColorAsset: '$_root/wall_white_clay.jpg',
@@ -143,20 +134,17 @@ abstract final class GeneratedPbrFinishCatalog {
     ),
     GeneratedMaterialIds.walnutPbr: GeneratedPbrFinish(
       baseColorAsset: 'assets/textures/floor_walnut.png',
-      normalAsset: '$_runtimeV2/laminate_walnut_warm_normal.webp',
-      heightAsset:
-          '$_runtimeV2/laminate_walnut_warm_metallic_roughness.webp',
-      metallicRoughnessAsset:
-          '$_runtimeV2/laminate_walnut_warm_metallic_roughness.webp',
+      normalAsset: '$_root/dark_oak_normal.png',
+      heightAsset: '$_root/dark_oak_height.png',
+      metallicRoughnessAsset: '$_root/dark_oak_metallic_roughness.png',
       realWorldTileMm: 1380,
       normalScale: 1.15,
     ),
     GeneratedMaterialIds.marbleBiancoPbr: GeneratedPbrFinish(
       baseColorAsset: 'assets/textures/tile_marble.png',
-      normalAsset: '$_runtimeV2/tile_marble_light_normal.webp',
-      heightAsset: '$_runtimeV2/tile_marble_light_metallic_roughness.webp',
-      metallicRoughnessAsset:
-          '$_runtimeV2/tile_marble_light_metallic_roughness.webp',
+      normalAsset: '$_root/travertine_normal.png',
+      heightAsset: '$_root/travertine_height.png',
+      metallicRoughnessAsset: '$_root/travertine_metallic_roughness.png',
       realWorldTileMm: 600,
       normalScale: .55,
     ),
@@ -170,11 +158,9 @@ abstract final class GeneratedPbrFinishCatalog {
     ),
     GeneratedMaterialIds.plasterMineralPbr: GeneratedPbrFinish(
       baseColorAsset: 'assets/textures/plaster_warm.png',
-      normalAsset: '$_runtimeV2/wall_gypsum_plaster_white_normal.webp',
-      heightAsset:
-          '$_runtimeV2/wall_gypsum_plaster_white_metallic_roughness.webp',
-      metallicRoughnessAsset:
-          '$_runtimeV2/wall_gypsum_plaster_white_metallic_roughness.webp',
+      normalAsset: '$_root/wall_lime_normal.png',
+      heightAsset: '$_root/wall_lime_height.png',
+      metallicRoughnessAsset: '$_root/wall_lime_metallic_roughness.png',
       realWorldTileMm: 1000,
       normalScale: .75,
     ),
@@ -188,11 +174,9 @@ abstract final class GeneratedPbrFinishCatalog {
     ),
     GeneratedMaterialIds.runtimeTileConcreteLight: GeneratedPbrFinish(
       baseColorAsset: 'assets/textures/tile_concrete.png',
-      normalAsset: '$_runtimeV2/tile_concrete_light_normal.webp',
-      heightAsset:
-          '$_runtimeV2/tile_concrete_light_metallic_roughness.webp',
-      metallicRoughnessAsset:
-          '$_runtimeV2/tile_concrete_light_metallic_roughness.webp',
+      normalAsset: '$_root/wall_microcement_normal.png',
+      heightAsset: '$_root/wall_microcement_height.png',
+      metallicRoughnessAsset: '$_root/wall_microcement_metallic_roughness.png',
       realWorldTileMm: 600,
       normalScale: .8,
     ),
