@@ -20,6 +20,21 @@ void main() {
         isTrue,
         reason: 'Не найден ${preset.textureAsset}',
       );
+
+      for (final companion in <String?>[
+        preset.normalAsset,
+        preset.metallicRoughnessAsset,
+        preset.occlusionAsset,
+      ]) {
+        if (companion == null) continue;
+        expect(
+          File(companion).existsSync(),
+          isTrue,
+          reason: 'Не найдена PBR-карта $companion для ${preset.id}',
+        );
+      }
+      expect(preset.normalScale, greaterThanOrEqualTo(0));
+      expect(preset.occlusionStrength, inInclusiveRange(0, 1));
     }
   });
 }
