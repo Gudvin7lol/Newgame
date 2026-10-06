@@ -20,20 +20,20 @@ void main() {
     expect(source, contains("preset.pattern == 'concrete'"));
   });
 
-  test('herringbone uses the same physical phase modules everywhere', () {
-    final layout =
-        File('lib/widgets/floor_layout_painter.dart').readAsStringSync();
-    final preview =
-        File('lib/widgets/floor_3d_painter.dart').readAsStringSync();
+  test('herringbone uses one physical board layout in 2D and GPU', () {
+    final plan =
+        File('lib/widgets/cad_plan_painter_v2.dart').readAsStringSync();
     final gpu =
         File('lib/renderer3d/floor_grout_geometry.dart').readAsStringSync();
+    final shared =
+        File('lib/services/herringbone_layout.dart').readAsStringSync();
 
-    for (final source in [layout, preview, gpu]) {
-      expect(source, contains('/ math.sqrt2'));
-      expect(source, contains('* math.sqrt2'));
-      expect(source, contains('% run'));
-      expect(source, contains('% pitch'));
-    }
+    expect(plan, contains('buildHerringboneBoards('));
+    expect(gpu, contains('buildHerringboneBoards('));
+    expect(shared, contains('plankLength / math.sqrt2'));
+    expect(shared, contains('plankWidth / math.sqrt2'));
+    expect(shared, contains('final cellX = 2 * r'));
+    expect(shared, contains('final cellY = 2 * q'));
   });
 
   test('Measure material strip shows all relevant materials and can collapse', () {
