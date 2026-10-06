@@ -156,6 +156,40 @@ class _MeasureUnifiedWorkspaceScreenState
 
   @override
   Widget build(BuildContext context) {
+    if (_layer == 5) {
+      return Scaffold(
+        backgroundColor: ZamerColors.background,
+        appBar: ZWorkspaceHeader(
+          projectName: widget.project.name,
+          floorName: widget.floor.name,
+          modeLabel: 'ЗАМЕР',
+          onCheck: widget.onOpenReview,
+          onUndo: widget.onUndo,
+          onRedo: widget.onRedo,
+          canUndo: widget.canUndo,
+          canRedo: widget.canRedo,
+          onMore: widget.onMore,
+        ),
+        body: Column(
+          children: [
+            Expanded(
+              child: MaterialsMasterScreen(
+                floor: widget.floor,
+                onChanged: widget.onChanged,
+                onClose: () => _selectLayer(0),
+              ),
+            ),
+            ZWorkspacePrimaryNav(
+              selectedIndex: 0,
+              onSelected: widget.onPrimaryMode,
+              onHome: widget.onHome,
+              onProfile: widget.onProfile,
+            ),
+          ],
+        ),
+      );
+    }
+
     final pages = <Widget>[
       PlanEditorProductionScreen(
         floor: widget.floor,
