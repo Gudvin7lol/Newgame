@@ -348,7 +348,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       _scene?.removeAll();
       _scene = Scene();
       _configureScene();
-      await _loadFinishTextures();
+      await _loadFallbackTextures();
       await _rebuildScene();
       if (!mounted) return;
       _retryTimer?.cancel();
@@ -477,29 +477,48 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       ..bias = 0.035;
   }
 
-  Future<void> _loadFinishTextures() async {
-    for (final preset in MaterialCatalog.presets) {
-      final asset = preset.textureAsset;
-      final generatedPbr = GeneratedPbrFinishCatalog.byId(preset.id);
-      final candidates = <String>{
-        if (asset != null) asset,
-        if (generatedPbr != null) generatedPbr.normalAsset,
-        if (generatedPbr != null) generatedPbr.metallicRoughnessAsset,
-        if (asset != null && preset.pattern == 'wood' && asset.endsWith('.png'))
-          asset.replaceFirst('.png', '_half.png'),
-        if (asset != null && preset.pattern == 'wood' && asset.endsWith('.png'))
-          asset.replaceFirst('.png', '_third.png'),
-      };
+  Set<String> _materialTextureCandidates(VisualMaterialPreset preset) {
+    final asset = preset.textureAsset;
+    final generatedPbr = GeneratedPbrFinishCatalog.byId(preset.id);
+    return <String>{
+      if (asset != null) asset,
+      if (generatedPbr != null) generatedPbr.normalAsset,
+      if (generatedPbr != null) generatedPbr.metallicRoughnessAsset,
+      if (asset != null && preset.pattern == 'wood' && asset.endsWith('.png'))
+        asset.replaceFirst('.png', '_half.png'),
+      if (asset != null && preset.pattern == 'wood' && asset.endsWith('.png'))
+        asset.replaceFirst('.png', '_third.png'),
+    };
+  }
+
+  Future<Set<String>> _ensureFinishTexturesForGeometry(
+    ZamerSceneGeometry geometry,
+  ) async {
+    final materialIds = <String>{
+      for (final surface in geometry.floors) surface.materialId,
+      for (final wall in geometry.walls)
+        for (final finish in wall.finishes)
+          finish.tileEnabled ? finish.tileMaterialId : finish.materialId,
+    };
+    final active = <String>{};
+
+    for (final materialId in materialIds) {
+      final preset = MaterialCatalog.byId(materialId);
+      final candidates = _materialTextureCandidates(preset);
+      active.addAll(candidates);
       for (final candidate in candidates) {
         if (_finishTextures.containsKey(candidate)) continue;
         try {
           _finishTextures[candidate] = await Texture2D.fromAsset(candidate);
         } catch (_) {
-          // Decorative textures are optional; a single missing asset must not
-          // make the complete 3D room fail to initialise.
+          // One missing optional map must not take the complete room down.
         }
       }
     }
+    return active;
+  }
+
+  Future<void> _loadFallbackTextures() async {
     _concreteTexture ??= await _tryLoadTexture(
       'assets/textures/concrete_soft.png',
     );
@@ -541,6 +560,11 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     }
 
     final geometry = ZamerSceneGeometry.fromFloor(widget.floor);
+    final activeFinishTextures = await _ensureFinishTexturesForGeometry(
+      geometry,
+    );
+    if (!mounted || generation != _buildGeneration) return;
+
     final nextNodes = <Node>[];
     final nextWallVisuals = <_WallVisual>[];
     final nextHostedWallVisuals = <_HostedWallVisual>[];
@@ -648,6 +672,9 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       ..addAll(nextCeilingNodes);
 
     _modelTemplates.removeWhere((path, _) => !activeModelPaths.contains(path));
+    _finishTextures.removeWhere(
+      (path, _) => !activeFinishTextures.contains(path),
+    );
     setState(() {
       _loadError = null;
       _ready = true;
