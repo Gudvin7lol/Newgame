@@ -426,6 +426,32 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
     setState(() {});
   }
 
+  Future<void> _rotateSelected(double deltaDeg) async {
+    final object = _objectById(_selectedId);
+    if (object == null) return;
+    final previous = object.rotationDeg;
+    object.rotationDeg = (object.rotationDeg + deltaDeg) % 360;
+    if (object.rotationDeg < 0) object.rotationDeg += 360;
+    if (SpaceCheckService.intersectsWall(widget.floor, object) &&
+        (object.catalogId.isEmpty ||
+            ObjectCatalog.byId(object.catalogId).mount != CatalogMount.wall)) {
+      object.rotationDeg = previous;
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            const SnackBar(
+              content: Text('Поворот пересекает стену. Сдвинь объект и повтори.'),
+            ),
+          );
+      }
+      return;
+    }
+    _syncLightingElectricalPoint(object);
+    await widget.onChanged();
+    if (mounted) setState(() {});
+  }
+
   Future<void> _objectScaleEnd(ScaleEndDetails d) async {
     if (_gestureObjectId == null) return;
     final object = _objectById(_gestureObjectId);
@@ -1300,6 +1326,43 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
             },
           ),
         ),
+        if (_objectById(_selectedId) case final selected?)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    selected.label.trim().isEmpty
+                        ? selected.type.label
+                        : selected.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: ZamerTypography.bodySmall.copyWith(
+                      color: ZamerColors.textPrimary,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                IconButton.filledTonal(
+                  tooltip: 'Повернуть −15°',
+                  onPressed: () => _rotateSelected(-15),
+                  icon: const Icon(Icons.rotate_left_rounded, size: 19),
+                ),
+                const SizedBox(width: 6),
+                IconButton.filledTonal(
+                  tooltip: 'Повернуть +15°',
+                  onPressed: () => _rotateSelected(15),
+                  icon: const Icon(Icons.rotate_right_rounded, size: 19),
+                ),
+                const SizedBox(width: 6),
+                FilledButton.tonal(
+                  onPressed: () => _rotateSelected(90),
+                  child: Text('${selected.rotationDeg.round()}° → +90°'),
+                ),
+              ],
+            ),
+          ),
         if (widget.floor.planObjects.isNotEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
