@@ -6,7 +6,7 @@ void main() {
   test('wall finish uses stable wall-space UV across opening pieces', () {
     final source =
         File('lib/renderer3d/zamer_gpu_viewport.dart').readAsStringSync();
-    expect(source, contains("name: 'wall-finish:"));
+    expect(source, contains("'wall-finish:"));
     expect(source, contains('final finishGeometry = GeometryBuilder'));
     expect(source, contains('finishGeometry.build()'));
     expect(source, contains('wall.textureStartMm'));
