@@ -184,6 +184,15 @@ class MaterialCatalog {
       textureAsset: 'assets/textures/tile_graphite.png',
       roughness: .43,
     ),
+    VisualMaterialPreset(
+      id: GeneratedMaterialIds.runtimeTileConcreteLight,
+      name: 'Бетон светлый · PBR',
+      category: 'Плитка',
+      color: Color(0xFFB8B9B7),
+      pattern: 'tile',
+      textureAsset: 'assets/textures/tile_concrete.png',
+      roughness: .55,
+    ),
   ];
 
   static const presets = <VisualMaterialPreset>[
