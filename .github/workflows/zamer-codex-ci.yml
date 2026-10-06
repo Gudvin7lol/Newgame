@@ -199,13 +199,14 @@ jobs:
           test -s assets/textures/runtime_v4/Wall_GypsumPlaster_White_01_normal.png
           test -s assets/textures/runtime_v4/Tile_MarbleLight_01_metallic_roughness.png
           test -s assets/textures/runtime_v4/Laminate_OakLight_01_plank_atlas_basecolor.webp
-          test -s assets/textures/runtime_v4/Laminate_OakSmoked_01_plank_atlas_normal.png
-          test -s assets/textures/runtime_v4/Laminate_WalnutWarm_01_plank_atlas_metallic_roughness.png
+          test -s assets/textures/runtime_v4/Laminate_OakLight_01_plank_atlas_half_normal.png
+          test -s assets/textures/runtime_v4/Laminate_OakSmoked_01_plank_atlas_third_basecolor.webp
+          test -s assets/textures/runtime_v4/Laminate_WalnutWarm_01_plank_atlas_third_metallic_roughness.png
           test -s assets/textures/runtime_v4/manifest.json
 
           generated_count="$(find assets/textures/runtime_v4 -maxdepth 1 -type f \
             ! -name README.txt ! -name manifest.json | wc -l | tr -d ' ')"
-          test "$generated_count" -eq 36
+          test "$generated_count" -eq 54
           echo "Runtime v4 material pack generated: $generated_count texture files."
 
       - name: Format changed UI sources
