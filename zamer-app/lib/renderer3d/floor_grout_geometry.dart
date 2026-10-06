@@ -8,6 +8,7 @@ import '../services/herringbone_layout.dart';
 /// A sub-millimetre separation was prone to depth-buffer fighting on mobile
 /// GPUs at shallow viewing angles and across long rooms.
 const double zamerFloorSurfaceYM = 0.006;
+const double zamerFloorPatternYM = 0.007;
 const double zamerFloorGroutYM = 0.008;
 const double zamerFloorGroutSeparationM =
     zamerFloorGroutYM - zamerFloorSurfaceYM;
