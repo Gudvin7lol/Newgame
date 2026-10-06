@@ -22,6 +22,7 @@ class ZamerModelAssetCatalog {
     final matches = ObjectCatalog.items.where((e) => e.id == id);
     if (matches.isEmpty) return null;
     final item = matches.first;
+    if (item.procedural) return null;
     return ZamerModelAsset(
       catalogId: id,
       assetPath: 'assets/models/zamer_catalog/$id.glb',
