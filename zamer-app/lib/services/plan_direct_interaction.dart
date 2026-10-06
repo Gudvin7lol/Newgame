@@ -47,13 +47,20 @@ class PlanDirectInteraction {
         settings.tileHeightMm,
       );
     } else {
+      final herringbone = settings.laminatePattern == 'herringbone';
+      final xModule = herringbone
+          ? settings.laminatePlankLengthMm / math.sqrt2
+          : settings.laminatePlankLengthMm;
+      final yModule = herringbone
+          ? settings.laminatePlankWidthMm * math.sqrt2
+          : settings.laminatePlankWidthMm;
       settings.laminateOffsetXMm = _wrapped(
         settings.laminateOffsetXMm + dx,
-        settings.laminatePlankLengthMm,
+        xModule,
       );
       settings.laminateOffsetYMm = _wrapped(
         settings.laminateOffsetYMm + dy,
-        settings.laminatePlankWidthMm,
+        yModule,
       );
     }
   }
