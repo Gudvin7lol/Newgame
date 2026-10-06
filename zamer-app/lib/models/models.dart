@@ -801,8 +801,15 @@ class RoomMaterialSettings {
     underlaySheetWidthMm = valid(underlaySheetWidthMm, 20, 500);
     underlaySheetHeightMm = valid(underlaySheetHeightMm, 20, 1000);
     floorDirectionDeg = wrap(floorDirectionDeg, 360);
-    laminateOffsetXMm = wrap(laminateOffsetXMm, laminatePlankLengthMm);
-    laminateOffsetYMm = wrap(laminateOffsetYMm, laminatePlankWidthMm);
+    final herringbone = laminatePattern == 'herringbone';
+    final laminateXModule = herringbone
+        ? laminatePlankLengthMm / math.sqrt2
+        : laminatePlankLengthMm;
+    final laminateYModule = herringbone
+        ? laminatePlankWidthMm * math.sqrt2
+        : laminatePlankWidthMm;
+    laminateOffsetXMm = wrap(laminateOffsetXMm, laminateXModule);
+    laminateOffsetYMm = wrap(laminateOffsetYMm, laminateYModule);
     tileOffsetXMm = wrap(tileOffsetXMm, tileWidthMm);
     tileOffsetYMm = wrap(tileOffsetYMm, tileHeightMm);
     underlayOffsetXMm = wrap(
