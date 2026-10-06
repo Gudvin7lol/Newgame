@@ -296,8 +296,8 @@ List<FloorGroutQuad> buildFloorHerringboneSeamQuads({
 
   final run = plankLengthMm / math.sqrt2;
   final pitch = plankWidthMm * math.sqrt2;
-  final ox = offsetXMm % plankLengthMm;
-  final oy = offsetYMm % plankWidthMm;
+  final ox = offsetXMm % run;
+  final oy = offsetYMm % pitch;
   final firstRow = ((minY - run - oy) / pitch).floor();
   final lastRow = ((maxY + run - oy) / pitch).ceil();
   final firstCol = ((minX - run - ox) / run).floor();
