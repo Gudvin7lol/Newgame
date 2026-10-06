@@ -15,6 +15,7 @@ class ElevationPainter extends CustomPainter {
     required this.run,
     required this.heightMm,
     required this.settings,
+    this.drawMaterialFill = true,
   });
 
   final FloorPlan floor;
@@ -22,6 +23,7 @@ class ElevationPainter extends CustomPainter {
   final ElevationRun run;
   final double heightMm;
   final RoomMaterialSettings settings;
+  final bool drawMaterialFill;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -48,9 +50,11 @@ class ElevationPainter extends CustomPainter {
           ? settings.wallTileMaterialId
           : settings.wallMaterialId,
     );
-    _drawWallFinish(canvas, rect, scale, wallFinish);
+    if (drawMaterialFill) {
+      _drawWallFinish(canvas, rect, scale, wallFinish);
+    }
     if (settings.wallTileEnabledFor(run.id)) {
-      _drawWallTiles(canvas, rect, scale);
+      _drawWallTiles(canvas, rect, scale, fillSurface: drawMaterialFill);
     }
     canvas.drawRect(
       rect,
@@ -217,7 +221,12 @@ class ElevationPainter extends CustomPainter {
     canvas.restore();
   }
 
-  void _drawWallTiles(Canvas canvas, Rect rect, double scale) {
+  void _drawWallTiles(
+    Canvas canvas,
+    Rect rect,
+    double scale, {
+    required bool fillSurface,
+  }) {
     final from = settings.wallTileFromMm.clamp(0, heightMm).toDouble();
     final to = settings.wallTileToMm.clamp(from, heightMm).toDouble();
     if (to <= from) return;
@@ -226,7 +235,9 @@ class ElevationPainter extends CustomPainter {
     final tileRect = Rect.fromLTRB(rect.left, topY, rect.right, bottomY);
     canvas.save();
     canvas.clipRect(tileRect);
-    canvas.drawRect(tileRect, Paint()..color = ZamerColors.surfaceHighest);
+    if (fillSurface) {
+      canvas.drawRect(tileRect, Paint()..color = ZamerColors.surfaceHighest);
+    }
     if (settings.wallTileMirroredFor(run.id)) {
       canvas.translate(tileRect.left + tileRect.right, 0);
       canvas.scale(-1, 1);
