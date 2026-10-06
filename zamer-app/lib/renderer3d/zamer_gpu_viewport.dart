@@ -1122,7 +1122,10 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       )
       ..castsShadows = true
       ..shadowStatic = true
-      ..visible = widget.walkMode;
+      ..visible = ZamerCeilingVisibilityPolicy.visible(
+        walkMode: widget.walkMode,
+        photoPreview: widget.photoPreview,
+      );
   }
 
   Node? _buildDoorFloorBridgeNode(
@@ -2390,12 +2393,20 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     if (scene == null) return _fallbackViewport(context);
     final camera = _camera();
     _applyCutaway(camera);
+    final previewProfile = widget.photoPreview
+        ? zamerPhotoLightingProfile(widget.photoTime)
+        : null;
     return DecoratedBox(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: <Color>[Color(0xFFDDE8EE), Color(0xFFF4F1EA)],
+          colors: previewProfile == null
+              ? const <Color>[Color(0xFFDDE8EE), Color(0xFFF4F1EA)]
+              : <Color>[
+                  previewProfile.backgroundTop,
+                  previewProfile.backgroundBottom,
+                ],
         ),
       ),
       child: SceneView(scene, camera: camera, warmUp: true),
