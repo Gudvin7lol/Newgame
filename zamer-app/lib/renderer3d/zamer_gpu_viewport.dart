@@ -11,6 +11,7 @@ import '../models/models.dart';
 import '../services/material_catalog.dart';
 import '../widgets/floor_3d_painter.dart';
 import 'model_asset_catalog.dart';
+import 'render_quality.dart';
 import 'zamer_scene_geometry.dart';
 
 /// GPU-backed 3D viewport for Zamер.
@@ -31,6 +32,7 @@ class ZamerGpuViewport extends StatefulWidget {
     required this.walkMode,
     required this.walkX,
     required this.walkY,
+    this.quality = ZamerRenderQuality.quality,
   });
 
   final FloorPlan floor;
@@ -42,6 +44,7 @@ class ZamerGpuViewport extends StatefulWidget {
   final bool walkMode;
   final double walkX;
   final double walkY;
+  final ZamerRenderQuality quality;
 
   @override
   State<ZamerGpuViewport> createState() => ZamerGpuViewportState();
@@ -97,6 +100,9 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
   @override
   void didUpdateWidget(covariant ZamerGpuViewport oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.quality != widget.quality) {
+      _configureScene();
+    }
     final fingerprint = _floorFingerprint();
     if (!identical(oldWidget.floor, widget.floor) ||
         fingerprint != _lastFloorFingerprint) {
@@ -220,37 +226,62 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
   void _configureScene() {
     final scene = _scene;
     if (scene == null) return;
+
+    if (widget.quality == ZamerRenderQuality.photo4k) {
+      _configurePhotoLighting();
+      return;
+    }
+
+    final isQuality = widget.quality == ZamerRenderQuality.quality;
     scene.environmentSettings = EnvironmentSettings(
       toneMapping: ToneMappingMode.pbrNeutral,
-      environmentIntensity: 0.90,
-      exposure: 1.0,
-      ambientOcclusionEnabled: false,
-      screenSpaceReflectionsEnabled: false,
-      bloomEnabled: false,
+      environmentIntensity: isQuality ? 1.0 : 0.82,
+      exposure: isQuality ? 1.02 : 0.96,
+      colorGradingEnabled: isQuality,
+      brightness: 1.0,
+      contrast: isQuality ? 1.025 : 1.0,
+      saturation: isQuality ? 1.015 : 1.0,
+      temperature: isQuality ? 0.012 : 0.0,
+      ambientOcclusionEnabled: widget.quality.ambientOcclusionEnabled,
+      ambientOcclusionRadius: 0.24,
+      ambientOcclusionIntensity: isQuality ? 0.64 : 0.45,
+      ambientOcclusionBias: 0.04,
+      ambientOcclusionSampleCount: widget.quality.ambientOcclusionSamples,
+      ambientOcclusionHalfResolution: true,
+      screenSpaceReflectionsEnabled: widget.quality.reflectionsEnabled,
+      screenSpaceReflectionsIntensity: isQuality ? 0.32 : 0.0,
+      screenSpaceReflectionsMaxDistance: 12,
+      screenSpaceReflectionsThickness: 0.45,
+      screenSpaceReflectionsStride: 4,
+      screenSpaceReflectionsMaxSteps: isQuality ? 48 : 16,
+      screenSpaceReflectionsBlur: 0.22,
+      screenSpaceReflectionsResolutionScale:
+          widget.quality.reflectionsResolutionScale,
+      bloomEnabled: widget.quality.bloomEnabled,
+      bloomThreshold: 1.30,
+      bloomIntensity: isQuality ? 0.035 : 0.0,
+      bloomScatter: 0.55,
       vignetteEnabled: false,
       autoExposureEnabled: false,
     );
     scene.antiAliasingMode = AntiAliasingMode.auto;
-    scene.environmentIntensity = 0.90;
+    scene.environmentIntensity = isQuality ? 1.0 : 0.82;
     scene.directionalLight = DirectionalLight(
       direction: vm.Vector3(-0.45, -1.0, -0.32)..normalize(),
       color: vm.Vector3(1.0, 0.97, 0.92),
-      intensity: 2.45,
+      intensity: isQuality ? 2.75 : 2.35,
       castsShadow: true,
       cacheStaticShadows: false,
-      shadowMapResolution: 512,
-      shadowMaxDistance: 35,
-      shadowSoftness: 0.12,
+      shadowMapResolution: widget.quality.shadowMapResolution,
+      shadowMaxDistance: isQuality ? 40 : 30,
+      shadowSoftness: isQuality ? 0.20 : 0.12,
     );
-    // The first GPU version used a fairly expensive mobile AO profile. A
-    // lighter half-resolution profile is much more stable on mid-range Android
-    // GPUs while keeping enough depth to read the room shape.
     scene.ambientOcclusion
-      ..enabled = false
+      ..enabled = widget.quality.ambientOcclusionEnabled
       ..halfResolution = true
-      ..sampleCount = 2
-      ..radius = 0.20
-      ..intensity = 0.55
+      ..sampleCount = widget.quality.ambientOcclusionSamples
+      ..radius = 0.24
+      ..intensity = isQuality ? 0.64 : 0.45
       ..bias = 0.04;
   }
 
@@ -1218,7 +1249,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
         1.65,
         _mz(widget.walkY, bounds),
       );
-      final pitch = widget.tilt.clamp(-0.7, 0.7).toDouble();
+      final pitch = widget.tilt.clamp(-1.35, 1.20).toDouble();
       final cp = math.cos(pitch);
       final forward = vm.Vector3(
         math.cos(widget.rotation) * cp,
@@ -1226,7 +1257,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
         math.sin(widget.rotation) * cp,
       );
       return PerspectiveCamera(
-        fovRadiansY: 64 * math.pi / 180,
+        fovRadiansY: 76 * math.pi / 180,
         position: eye,
         target: eye + forward * 4,
         up: vm.Vector3(0, 1, 0),
@@ -1257,7 +1288,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
         );
 
     return PerspectiveCamera(
-      fovRadiansY: 46 * math.pi / 180,
+      fovRadiansY: 52 * math.pi / 180,
       position: eye,
       target: target,
       up: vm.Vector3(0, 1, 0),
