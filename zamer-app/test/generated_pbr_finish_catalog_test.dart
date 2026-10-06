@@ -55,9 +55,9 @@ void main() {
       isTrue,
     );
     expect(source.contains('realWorldTileMm'), isTrue);
-    expect(source.contains('normalTextureTransform = transform'), isTrue);
+    expect(source.contains('normalTextureTransform = physicalTransform'), isTrue);
     expect(
-      source.contains('metallicRoughnessTextureTransform = transform'),
+      source.contains('metallicRoughnessTextureTransform = physicalTransform'),
       isTrue,
     );
   });
@@ -86,7 +86,7 @@ void main() {
     expect(concrete, isNotNull);
     expect(brick, isNotNull);
     expect(paint!.normalScale, lessThan(1));
-    expect(plaster!.realWorldTileMm, 900);
+    expect(plaster!.realWorldTileMm, 1000);
     expect(concrete!.realWorldTileMm, 1000);
     expect(brick!.normalScale, greaterThan(4));
   });
