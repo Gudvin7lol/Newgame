@@ -88,7 +88,7 @@ class BenchmarkProjectFactory {
           endNodeId: 'e',
           type: WallType.partition,
           thicknessMm: 120,
-          material: WallMaterial.block,
+          material: WallMaterial.gasBlock,
           openings: <WallOpening>[
             WallOpening(
               id: 'bedroom-door',
