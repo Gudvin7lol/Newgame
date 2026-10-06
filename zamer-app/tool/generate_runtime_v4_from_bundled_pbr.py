@@ -132,11 +132,11 @@ def _pack_metallic_roughness(source: Image.Image) -> Image.Image:
 
 
 def _save_webp(image: Image.Image, path: Path) -> None:
-    image.save(path, "WEBP", quality=88, method=6)
+    image.save(path, "WEBP", quality=86, method=4)
 
 
 def _save_png(image: Image.Image, path: Path) -> None:
-    image.save(path, "PNG", optimize=True, compress_level=7)
+    image.save(path, "PNG", optimize=False, compress_level=4)
 
 
 def _validate_written_image(path: Path, expected_size: tuple[int, int]) -> None:
