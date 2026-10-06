@@ -169,6 +169,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
   int _buildGeneration = 0;
   bool _initializing = false;
   int _retryAttempt = 0;
+  int _liveRebuildRetryAttempt = 0;
   Timer? _retryTimer;
   int _lastFloorFingerprint = 0;
   bool _liveRebuildInProgress = false;
@@ -232,13 +233,15 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     if (!mounted ||
         !ZamerGpuRetryPolicy.shouldScheduleAutomaticRetry(
           ready: false,
-          retryAttempt: _retryAttempt,
+          retryAttempt: _liveRebuildRetryAttempt,
         )) {
       return;
     }
     _retryTimer?.cancel();
-    _retryAttempt++;
-    final delay = ZamerGpuRetryPolicy.delayForAttempt(_retryAttempt);
+    _liveRebuildRetryAttempt++;
+    final delay = ZamerGpuRetryPolicy.delayForAttempt(
+      _liveRebuildRetryAttempt,
+    );
     _retryTimer = Timer(delay, () {
       if (!mounted) return;
       _rebuildSceneAfterUpdate();
@@ -258,7 +261,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
           await _rebuildScene();
           if (!mounted) return;
           _retryTimer?.cancel();
-          _retryAttempt = 0;
+          _liveRebuildRetryAttempt = 0;
           if (!_ready && _loadError != null) {
             _scheduleRetry(immediate: true);
           }
