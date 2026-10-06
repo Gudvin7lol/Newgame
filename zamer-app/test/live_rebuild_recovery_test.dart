@@ -30,6 +30,6 @@ void main() {
     expect(recoveryBranch, contains('_scheduleLiveRebuildRetry();'));
     expect(recoveryBranch, contains('break;'));
     expect(recoveryBranch, isNot(contains('_ready = false')));
-    expect(rebuild, contains('_retryAttempt = 0;'));
+    expect(rebuild, contains('_liveRebuildRetryAttempt = 0;'));
   });
 }
