@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zamer_app/models/models.dart';
 import 'package:zamer_app/services/plan_direct_interaction.dart';
@@ -57,4 +59,25 @@ void main() {
     expect(settings.tileOffsetXMm.abs(), lessThan(0.001));
     expect(settings.tileOffsetYMm, closeTo(500, 0.001));
   });
+  test('herringbone drag wraps by its real run and pitch', () {
+    final settings = RoomMaterialSettings(
+      floorMode: 'laminate',
+      laminatePattern: 'herringbone',
+      floorDirectionDeg: 0,
+      laminatePlankLengthMm: 1380,
+      laminatePlankWidthMm: 193,
+    );
+
+    final run = settings.laminatePlankLengthMm / math.sqrt2;
+    final pitch = settings.laminatePlankWidthMm * math.sqrt2;
+    PlanDirectInteraction.shiftFloorLayout(
+      settings,
+      worldDxMm: run + 40,
+      worldDyMm: pitch + 30,
+    );
+
+    expect(settings.laminateOffsetXMm, closeTo(40, 0.001));
+    expect(settings.laminateOffsetYMm, closeTo(30, 0.001));
+  });
+
 }
