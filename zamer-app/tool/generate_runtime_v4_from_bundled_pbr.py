@@ -22,7 +22,13 @@ import json
 import shutil
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageFile
+
+# Several legacy generated JPEGs predate the current asset pipeline and miss
+# a clean end-of-stream marker even though their decoded pixels are intact.
+# Pillow is stricter than Flutter here. Allow those legacy sources to decode,
+# then write fresh, fully valid Runtime v4 files and validate the outputs.
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 APP_ROOT = Path(__file__).resolve().parents[1]
 TEXTURES = APP_ROOT / "assets" / "textures"
@@ -98,8 +104,17 @@ def _resample(image: Image.Image, size: tuple[int, int]) -> Image.Image:
 def _load_rgb(path: Path, size: tuple[int, int]) -> Image.Image:
     if not path.is_file():
         raise FileNotFoundError(path)
-    with Image.open(path) as source:
-        return _resample(source.convert("RGB"), size)
+    try:
+        with Image.open(path) as source:
+            decoded = source.convert("RGB")
+    except OSError as exc:
+        raise OSError(f"Could not decode material source {path}: {exc}") from exc
+    if decoded.width < 8 or decoded.height < 8:
+        raise ValueError(
+            f"Material source is implausibly small: {path} "
+            f"({decoded.width}x{decoded.height})"
+        )
+    return _resample(decoded, size)
 
 
 def _pack_metallic_roughness(source: Image.Image) -> Image.Image:
@@ -116,6 +131,18 @@ def _save_webp(image: Image.Image, path: Path) -> None:
 
 def _save_png(image: Image.Image, path: Path) -> None:
     image.save(path, "PNG", optimize=True, compress_level=7)
+
+
+def _validate_written_image(path: Path, expected_size: tuple[int, int]) -> None:
+    if not path.is_file() or path.stat().st_size <= 0:
+        raise RuntimeError(f"Runtime texture was not written: {path}")
+    with Image.open(path) as image:
+        image.load()
+        if image.size != expected_size:
+            raise RuntimeError(
+                f"Runtime texture has wrong size: {path} "
+                f"{image.size} != {expected_size}"
+            )
 
 
 def _wrapped_crop(image: Image.Image, x: int, y: int, width: int, height: int) -> Image.Image:
@@ -146,6 +173,8 @@ def _generate_surface(material_id: str, spec: dict[str, object]) -> list[str]:
     _save_webp(base, OUTPUT / files[0])
     _save_png(normal, OUTPUT / files[1])
     _save_png(packed, OUTPUT / files[2])
+    for name in files:
+        _validate_written_image(OUTPUT / name, SURFACE_SIZE)
     return files
 
 
@@ -182,6 +211,7 @@ def _generate_planks(material_id: str, spec: dict[str, object]) -> list[str]:
                 _save_webp(plank, OUTPUT / name)
             else:
                 _save_png(plank, OUTPUT / name)
+            _validate_written_image(OUTPUT / name, PLANK_SIZE)
             files.append(name)
 
     return files
