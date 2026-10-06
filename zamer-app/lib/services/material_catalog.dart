@@ -8,7 +8,12 @@ class VisualMaterialPreset {
     required this.color,
     this.pattern = 'solid',
     this.textureAsset,
+    this.normalAsset,
+    this.metallicRoughnessAsset,
+    this.occlusionAsset,
     this.roughness,
+    this.normalScale = 1.0,
+    this.occlusionStrength = 1.0,
   });
 
   final String id;
@@ -17,7 +22,12 @@ class VisualMaterialPreset {
   final Color color;
   final String pattern;
   final String? textureAsset;
+  final String? normalAsset;
+  final String? metallicRoughnessAsset;
+  final String? occlusionAsset;
   final double? roughness;
+  final double normalScale;
+  final double occlusionStrength;
 }
 
 class MaterialCatalog {
