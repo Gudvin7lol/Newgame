@@ -11,7 +11,7 @@ void main() {
     expect(source.contains('PlanEditorMasterV3Screen('), isFalse);
   });
 
-  test('UI KIT 02 CAD essentials are present and functional in v4', () {
+  test('UI KIT 02 CAD essentials stay present without duplicate chrome', () {
     final source = File('lib/screens/plan_editor_master_v4_screen.dart')
         .readAsStringSync();
     final adapter = File('lib/widgets/cad_plan_painter.dart').readAsStringSync();
@@ -25,7 +25,6 @@ void main() {
       '_ToolRail',
       '_ViewRail',
       '_WallInspector',
-      '_ActionBar',
       '_MaterialPanel',
       '_CanvasControls',
       '_UndoRedo',
@@ -38,19 +37,28 @@ void main() {
       'Размер',
       'Проверка',
       'Сетка',
-      '3D вид',
-      'Этажи',
       'Привязка',
-      'Настройки',
-      'Потолок',
-      'Двери',
-      'Окна',
-      'Освещение',
+      'Геометрия',
+      "'Пол'",
+      "'Стены'",
     ]) {
       expect(
         source.contains(required),
         isTrue,
-        reason: 'Missing UI KIT 02 CAD contract element: $required',
+        reason: 'Missing compact UI KIT 02 CAD element: $required',
+      );
+    }
+
+    for (final removedDuplicate in const [
+      'class _ActionBar',
+      "label: '3D вид'",
+      "label: 'Этажи'",
+      "label: 'Настройки'",
+    ]) {
+      expect(
+        source.contains(removedDuplicate),
+        isFalse,
+        reason: 'Duplicate Measure chrome returned: $removedDuplicate',
       );
     }
 
@@ -90,14 +98,16 @@ void main() {
     }
   });
 
-  test('Master editor v4 keeps the plan dominant with material context', () {
+  test('Master editor v4 keeps the plan dominant with collapsible materials', () {
     final source = File('lib/screens/plan_editor_master_v4_screen.dart')
         .readAsStringSync();
     expect(source.contains('height: 66'), isTrue);
-    expect(source.contains('height: 49'), isTrue);
-    expect(source.contains('height: 120'), isTrue);
+    expect(source.contains('height: expanded ? 132 : 38'), isTrue);
     expect(source.contains('width: 54'), isTrue);
     expect(source.contains('onZoomIn'), isTrue);
     expect(source.contains('onZoomOut'), isTrue);
+    expect(source.contains('MaterialCatalog.floorFinishes'), isTrue);
+    expect(source.contains('MaterialCatalog.wallFinishes'), isTrue);
+    expect(source.contains('.take(8)'), isFalse);
   });
 }
