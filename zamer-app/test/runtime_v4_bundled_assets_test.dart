@@ -29,15 +29,22 @@ void main() {
     }
   });
 
-  test('Runtime v4 laminate collections bundle compact 16-variant atlases', () {
+  test('Runtime v4 laminate collections bundle all stagger-aware atlases', () {
     for (final material in RuntimeMaterialPackV4.laminate) {
       expect(material.plankCount, 16, reason: material.id);
-      for (final mapName in RuntimeMaterialPackV4.mapNames) {
-        expect(
-          File(material.plankAtlasMapAsset(mapName)).existsSync(),
-          isTrue,
-          reason: '${material.id} atlas $mapName',
-        );
+      for (final offsetMode in const <String>['straight', 'half', 'third']) {
+        for (final mapName in RuntimeMaterialPackV4.mapNames) {
+          expect(
+            File(
+              material.plankAtlasMapAsset(
+                mapName,
+                offsetMode: offsetMode,
+              ),
+            ).existsSync(),
+            isTrue,
+            reason: '${material.id} $offsetMode atlas $mapName',
+          );
+        }
       }
       expect(material.plankAtlasUv(1).u0, 0);
       expect(material.plankAtlasUv(16).u1, 1);
