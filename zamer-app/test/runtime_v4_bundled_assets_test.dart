@@ -29,27 +29,18 @@ void main() {
     }
   });
 
-  test('Runtime v4 laminate collections bundle sixteen independent plank faces', () {
+  test('Runtime v4 laminate collections bundle compact 16-variant atlases', () {
     for (final material in RuntimeMaterialPackV4.laminate) {
-      for (var index = 1; index <= material.plankCount; index++) {
+      expect(material.plankCount, 16, reason: material.id);
+      for (final mapName in RuntimeMaterialPackV4.mapNames) {
         expect(
-          File(material.plankMapAsset(index, 'basecolor.webp')).existsSync(),
+          File(material.plankAtlasMapAsset(mapName)).existsSync(),
           isTrue,
-          reason: '${material.id} plank $index BaseColor',
-        );
-        expect(
-          File(material.plankMapAsset(index, 'normal.png')).existsSync(),
-          isTrue,
-          reason: '${material.id} plank $index Normal',
-        );
-        expect(
-          File(
-            material.plankMapAsset(index, 'metallic_roughness.png'),
-          ).existsSync(),
-          isTrue,
-          reason: '${material.id} plank $index MetallicRoughness',
+          reason: '${material.id} atlas $mapName',
         );
       }
+      expect(material.plankAtlasUv(1).u0, 0);
+      expect(material.plankAtlasUv(16).u1, 1);
     }
   });
 
