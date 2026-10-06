@@ -45,15 +45,34 @@ class RuntimeMaterialV4Descriptor {
 
   String mapAsset(String mapName) => '${assetPrefix}_$mapName';
 
-  String plankMapAsset(int plankIndex, String mapName) {
+  String plankAtlasMapAsset(String mapName) {
+    if (!isPlankCollection) {
+      throw StateError('$id is not a plank collection');
+    }
+    return '${assetPrefix}_plank_atlas_$mapName';
+  }
+
+  /// UV rectangle of one deterministic plank variant inside the 4x4 atlas.
+  /// Indices stay 1-based because the material UI and source-pack convention
+  /// present variants as 01..16.
+  ({double u0, double v0, double u1, double v1}) plankAtlasUv(int plankIndex) {
     if (!isPlankCollection) {
       throw StateError('$id is not a plank collection');
     }
     if (plankIndex < 1 || plankIndex > plankCount) {
       throw RangeError.range(plankIndex, 1, plankCount, 'plankIndex');
     }
-    final plank = plankIndex.toString().padLeft(2, '0');
-    return '${assetPrefix}_plank_${plank}_$mapName';
+    const columns = 4;
+    const rows = 4;
+    final zero = plankIndex - 1;
+    final col = zero % columns;
+    final row = zero ~/ columns;
+    return (
+      u0: col / columns,
+      v0: row / rows,
+      u1: (col + 1) / columns,
+      v1: (row + 1) / rows,
+    );
   }
 }
 
@@ -61,8 +80,8 @@ class RuntimeMaterialV4Descriptor {
 ///
 /// Runtime maps bundled by the current renderer:
 /// - walls/tiles: 2048x2048 BaseColor, Normal and packed MetallicRoughness;
-/// - laminate: an aggregate 2048x2048 surface plus 16 separate 2048x286
-///   plank faces per collection using the same runtime channels;
+/// - laminate: an aggregate 2048x2048 surface plus one 4x4 atlas per runtime
+///   channel containing 16 deterministic plank-face variants;
 /// - normals use OpenGL Y+;
 /// - metallic is always zero;
 /// - Height/AO remain source/offline channels until the renderer has dedicated
