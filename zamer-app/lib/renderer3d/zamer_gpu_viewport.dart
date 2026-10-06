@@ -190,7 +190,15 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed && !_ready) {
+    if (state != AppLifecycleState.resumed) return;
+
+    // Android may preserve the Dart/widget state while recreating the GPU
+    // surface after backgrounding. Refresh a healthy scene immediately; if the
+    // context was actually lost, the staged rebuild retry path escalates to a
+    // full GPU reset instead of making the user restart the whole app.
+    if (_ready && _scene != null) {
+      _rebuildSceneAfterUpdate();
+    } else {
       _scheduleRetry(immediate: true);
     }
   }
@@ -228,6 +236,19 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     if (!mounted) return;
     _retryTimer?.cancel();
     _retryAttempt++;
+
+    // Repeating a staged rebuild against a lost Android GPU context cannot
+    // heal it. After three failed live rebuilds, recreate the Scene and reload
+    // GPU resources automatically. This is the recovery path for the old
+    // "3D appears only after restarting the app" failure.
+    if (_retryAttempt >= 3) {
+      _retryTimer = Timer(
+        const Duration(milliseconds: 80),
+        _resetGpuAndRetry,
+      );
+      return;
+    }
+
     final delay = Duration(
       milliseconds: math.min(2500, 250 + _retryAttempt * 250),
     );
@@ -235,6 +256,37 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       if (!mounted) return;
       _rebuildSceneAfterUpdate();
     });
+  }
+
+  void _resetGpuAndRetry() {
+    if (!mounted) return;
+    if (_initializing) {
+      _retryTimer = Timer(
+        const Duration(milliseconds: 120),
+        _resetGpuAndRetry,
+      );
+      return;
+    }
+
+    _buildGeneration++;
+    _liveRebuildPending = false;
+    _scene?.removeAll();
+    _scene = null;
+    _modelTemplates.clear();
+    _finishTextures.clear();
+    _concreteTexture = null;
+    _plasterTexture = null;
+    _geometry = null;
+    _wallVisuals.clear();
+    _hostedWallVisuals.clear();
+    _ceilingNodes.clear();
+    _retryAttempt = 0;
+
+    setState(() {
+      _ready = false;
+      _loadError = null;
+    });
+    _initialize();
   }
 
   Future<void> _rebuildSceneAfterUpdate() async {
@@ -448,12 +500,23 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
         }
       }
     }
-    _concreteTexture ??= await Texture2D.fromAsset(
+    _concreteTexture ??= await _tryLoadTexture(
       'assets/textures/concrete_soft.png',
     );
-    _plasterTexture ??= await Texture2D.fromAsset(
+    _plasterTexture ??= await _tryLoadTexture(
       'assets/textures/plaster_warm.png',
     );
+  }
+
+  Future<Texture2D?> _tryLoadTexture(String asset) async {
+    try {
+      return await Texture2D.fromAsset(asset);
+    } catch (_) {
+      // Fallback decoration is optional. A corrupt/missing fallback must not
+      // prevent the measured room, furniture and remaining PBR maps from
+      // opening in 3D.
+      return null;
+    }
   }
 
   Future<void> _rebuildScene({bool photoQuality = false}) async {
@@ -1732,6 +1795,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       ..frustumCulled = ZamerModelVisibilityPolicy.frustumCulled(
         performanceMode: widget.performanceMode,
         photoQuality: photoQuality,
+        walkMode: widget.walkMode,
         visibleObjectCount: visibleObjectCount,
       );
     var importedModel = false;
