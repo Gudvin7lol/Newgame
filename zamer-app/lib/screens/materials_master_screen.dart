@@ -441,10 +441,7 @@ class _MaterialsMasterScreenState extends State<MaterialsMasterScreen> {
     ),
   );
 
-  Widget _preview(
-    VisualMaterialPreset material,
-    RoomMaterialSettings settings,
-  ) {
+  Widget _preview(VisualMaterialPreset material) {
     final texture = material.textureAsset;
     return Container(
       height: 286,
@@ -782,7 +779,6 @@ class _MaterialsMasterScreenState extends State<MaterialsMasterScreen> {
           children: [
             Expanded(
               child: _patternButton(
-                settings,
                 'Прямая',
                 Icons.view_column_outlined,
                 settings.laminatePattern == 'straight',
@@ -792,7 +788,6 @@ class _MaterialsMasterScreenState extends State<MaterialsMasterScreen> {
             const SizedBox(width: 6),
             Expanded(
               child: _patternButton(
-                settings,
                 'Ёлочка',
                 Icons.compare_arrows_rounded,
                 settings.laminatePattern == 'herringbone',
@@ -854,7 +849,6 @@ class _MaterialsMasterScreenState extends State<MaterialsMasterScreen> {
   }
 
   Widget _patternButton(
-    RoomMaterialSettings settings,
     String label,
     IconData icon,
     bool selected,
@@ -992,7 +986,7 @@ class _MaterialsMasterScreenState extends State<MaterialsMasterScreen> {
               if (!sideBySide) {
                 return Column(
                   children: [
-                    _preview(selectedMaterial, settings),
+                    _preview(selectedMaterial),
                     const SizedBox(height: 10),
                     _editor(selectedMaterial, settings),
                   ],
@@ -1003,7 +997,7 @@ class _MaterialsMasterScreenState extends State<MaterialsMasterScreen> {
                 children: [
                   Expanded(
                     flex: 48,
-                    child: _preview(selectedMaterial, settings),
+                    child: _preview(selectedMaterial),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
