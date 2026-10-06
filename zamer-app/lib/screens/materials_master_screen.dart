@@ -128,15 +128,18 @@ class _MaterialsMasterScreenState extends State<MaterialsMasterScreen> {
             ..wallMaterialId = material.id
             ..wallPaintColorArgb = 0;
         }
+        break;
       case _MaterialSurface.floor:
         settings
           ..floorMaterialId = material.id
           ..floorTile = material.category == 'Плитка'
           ..floorMode = material.category == 'Плитка' ? 'tile' : 'laminate';
+        break;
       case _MaterialSurface.ceiling:
         settings
           ..ceilingMaterialId = material.id
           ..ceilingPaintColorArgb = 0;
+        break;
     }
     await widget.onChanged();
     if (mounted) setState(() {});
@@ -171,6 +174,7 @@ class _MaterialsMasterScreenState extends State<MaterialsMasterScreen> {
         } else {
           settings.wallPaintColorArgb = color.toARGB32();
         }
+        break;
       case _MaterialSurface.floor:
         final current = MaterialCatalog.byId(settings.floorMaterialId);
         final choices = current.pattern == 'wood'
@@ -193,8 +197,10 @@ class _MaterialsMasterScreenState extends State<MaterialsMasterScreen> {
           });
           settings.floorMaterialId = choices.first.id;
         }
+        break;
       case _MaterialSurface.ceiling:
         settings.ceilingPaintColorArgb = color.toARGB32();
+        break;
     }
     await widget.onChanged();
     if (mounted) setState(() {});
@@ -820,7 +826,7 @@ class _MaterialsMasterScreenState extends State<MaterialsMasterScreen> {
             const SizedBox(width: 70, child: Text('Поворот', style: ZamerTypography.caption)),
             Expanded(
               child: Slider(
-                value: settings.floorDirectionDeg.clamp(0, 180),
+                value: settings.floorDirectionDeg.clamp(0, 180).toDouble(),
                 min: 0,
                 max: 180,
                 divisions: 36,
@@ -1012,7 +1018,7 @@ class _MaterialsMasterScreenState extends State<MaterialsMasterScreen> {
                 );
               }
               return Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
                     flex: 48,
