@@ -155,7 +155,7 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
           sensitivity: lookSensitivity,
         );
         _tilt = (_tilt - lookDelta.dy * lookSensitivity * 0.6)
-            .clamp(_walkMode ? -0.7 : 0.22, _walkMode ? 0.7 : 1.48)
+            .clamp(_walkMode ? -1.25 : 0.22, _walkMode ? 0.90 : 1.48)
             .toDouble();
       }
     });
@@ -279,6 +279,7 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
                   walkX: _walkX,
                   walkY: _walkY,
                   performanceMode: _graphicsMode == ZGraphicsMode.performance,
+                  cameraFovDegrees: 58,
                 ),
                 if (_walkMode)
                   const IgnorePointer(
