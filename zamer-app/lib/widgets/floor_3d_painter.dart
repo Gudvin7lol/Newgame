@@ -582,8 +582,8 @@ class Floor3DPainter extends CustomPainter {
           )
         : LayoutService.localBounds(room, settings.floorDirectionDeg);
     final run = l / math.sqrt2, pitch = w * math.sqrt2;
-    final ox = settings.laminateOffsetXMm % l;
-    final oy = settings.laminateOffsetYMm % w;
+    final ox = settings.laminateOffsetXMm % run;
+    final oy = settings.laminateOffsetYMm % pitch;
     final angle = settings.floorDirectionDeg * math.pi / 180;
     final ca = math.cos(angle), sa = math.sin(angle);
     final c = anchor;
