@@ -570,7 +570,8 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     final offX = isTile ? surface.tileOffsetXMm : surface.laminateOffsetXMm;
     final offY = isTile ? surface.tileOffsetYMm : surface.laminateOffsetYMm;
     final builder = GeometryBuilder(deduplicate: false)
-      ..normal(vm.Vector3(0, 1, 0));
+      ..normal(vm.Vector3(0, 1, 0))
+      ..tangent(vm.Vector4(ca, 0, sa, 1));
     for (final point in surface.polygonMm) {
       final dx = point.x - surface.anchorXMm;
       final dy = point.y - surface.anchorYMm;
@@ -755,6 +756,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
             final u = (dx * alongX + dy * alongY) / plankLength;
             final v = (dx * perpX + dy * perpY) / plankWidth;
             builder
+              ..tangent(vm.Vector4(alongX, 0, alongY, 1))
               ..color(vm.Vector4(shade, shade, shade, 1))
               ..texCoord(vm.Vector2(u, v));
             vertexIndices.add(
