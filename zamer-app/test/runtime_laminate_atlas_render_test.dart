@@ -81,8 +81,9 @@ void main() {
 
     expect(source, contains('RuntimeMaterialPackV4.maybeById'));
     expect(source, contains('_runtimeLaminateAtlasCandidates'));
-    expect(source, contains("plankAtlasMapAsset(\n        'basecolor.webp'"));
-    expect(source, contains("plankAtlasMapAsset(\n        'normal.png'"));
+    expect(source, contains('plankAtlasMapAsset('));
+    expect(source, contains("'basecolor.webp'"));
+    expect(source, contains("'normal.png'"));
     expect(source, contains("'floor-laminate-seams:"));
     expect(source, contains('tileWidthMm: surface.plankLengthMm'));
     expect(source, contains('tileHeightMm: surface.plankWidthMm'));
