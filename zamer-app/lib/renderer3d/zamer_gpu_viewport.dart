@@ -535,9 +535,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     for (final surface in geometry.floors) {
       final preset = MaterialCatalog.byId(surface.materialId);
       final runtime = RuntimeMaterialPackV4.maybeById(surface.materialId);
-      final usesRuntimeAtlas =
-          runtime?.isPlankCollection == true &&
-          surface.laminatePattern != 'herringbone';
+      final usesRuntimeAtlas = runtime?.isPlankCollection == true;
 
       if (!usesRuntimeAtlas) {
         await _ensureTextureCandidates(
@@ -954,8 +952,8 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
         builder
           ..texCoord(
             vm.Vector2(
-              (col + item.u) / 4,
-              (row + item.v) / 4,
+              (col + 1 / 1024 + item.u * (1 - 2 / 1024)) / 4,
+              (row + 1 / 143 + item.v * (1 - 2 / 143)) / 4,
             ),
           )
           ..addVertex(
