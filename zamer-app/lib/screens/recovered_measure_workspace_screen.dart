@@ -176,6 +176,7 @@ class _RecoveredMeasureWorkspaceScreenState
       PlanningObjectsScreen(
         floor: widget.floor,
         onChanged: widget.onChanged,
+        embedded: true,
       ),
       ElectricalScreen(floor: widget.floor, onChanged: widget.onChanged),
       EngineeringScreen(floor: widget.floor, onChanged: widget.onChanged),
