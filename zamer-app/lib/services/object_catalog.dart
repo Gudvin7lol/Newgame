@@ -13,6 +13,7 @@ class ObjectCatalogItem {
     required this.heightMm,
     this.elevationMm = 0,
     this.mount = CatalogMount.floor,
+    this.procedural = false,
   });
 
   final String id;
@@ -24,6 +25,7 @@ class ObjectCatalogItem {
   final double heightMm;
   final double elevationMm;
   final CatalogMount mount;
+  final bool procedural;
 
   String get mountLabel => switch (mount) {
     CatalogMount.floor => 'На пол',
@@ -774,6 +776,37 @@ class ObjectCatalog {
       widthMm: 500,
       depthMm: 500,
       heightMm: 1000,
+    ),
+    ObjectCatalogItem(
+      id: 'rug-textile-2300',
+      name: 'Ковёр текстильный 2300×3000',
+      group: 'Декор',
+      type: PlanObjectType.furniture,
+      widthMm: 2300,
+      depthMm: 3000,
+      heightMm: 18,
+      procedural: true,
+    ),
+    ObjectCatalogItem(
+      id: 'curtain-pair-1800',
+      name: 'Шторы 1800',
+      group: 'Декор',
+      type: PlanObjectType.furniture,
+      widthMm: 1800,
+      depthMm: 140,
+      heightMm: 2550,
+      mount: CatalogMount.wall,
+      procedural: true,
+    ),
+    ObjectCatalogItem(
+      id: 'table-lamp-soft',
+      name: 'Настольная лампа',
+      group: 'Освещение',
+      type: PlanObjectType.lighting,
+      widthMm: 320,
+      depthMm: 320,
+      heightMm: 520,
+      procedural: true,
     ),
   ];
 
