@@ -1249,14 +1249,15 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       preset,
       fallbackMode: finish.tileEnabled ? 'tile' : 'wall',
     );
+    final hasCustomWallTint = finish.wallColorArgb != 0;
     final presetColor = finish.tileEnabled
         ? Color(finish.tileTintArgb)
-        : (finish.materialId.startsWith('paint-')
-              ? (finish.wallColorArgb == 0
-                    ? preset.color
-                    : Color(finish.wallColorArgb))
-              : preset.color);
+        : (hasCustomWallTint ? Color(finish.wallColorArgb) : preset.color);
     final source = _vectorColor(presetColor);
+    final paintLike =
+        finish.materialId.startsWith('paint-') ||
+        finish.materialId == 'zamer-wall-paint' ||
+        finish.materialId == 'Wall_Paint_MatteWhite_01';
     final tint = texture == null
         ? source
         : (finish.tileEnabled
@@ -1264,6 +1265,13 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
                   0.28 + source.x * 0.72,
                   0.28 + source.y * 0.72,
                   0.28 + source.z * 0.72,
+                  1,
+                )
+              : (paintLike || hasCustomWallTint)
+              ? vm.Vector4(
+                  0.38 + source.x * 0.62,
+                  0.38 + source.y * 0.62,
+                  0.38 + source.z * 0.62,
                   1,
                 )
               : vm.Vector4(
