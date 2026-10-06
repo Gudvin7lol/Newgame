@@ -11,6 +11,7 @@ import '../models/models.dart';
 import '../services/generated_pbr_finish_catalog.dart';
 import '../services/material_catalog.dart';
 import '../services/object_catalog.dart';
+import '../services/runtime_material_pack_v4.dart';
 import '../widgets/floor_3d_painter.dart';
 import 'camera_clip_policy.dart';
 import 'ceiling_visibility_policy.dart';
@@ -491,28 +492,65 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     };
   }
 
+  Set<String> _runtimeLaminateAtlasCandidates(
+    ZamerFloorSurface surface,
+  ) {
+    final runtime = RuntimeMaterialPackV4.maybeById(surface.materialId);
+    if (runtime == null ||
+        !runtime.isPlankCollection ||
+        surface.laminatePattern == 'herringbone') {
+      return const <String>{};
+    }
+    return <String>{
+      for (final mapName in RuntimeMaterialPackV4.mapNames)
+        runtime.plankAtlasMapAsset(
+          mapName,
+          offsetMode: surface.laminateOffsetMode,
+        ),
+    };
+  }
+
+  Future<void> _ensureTextureCandidates(
+    Set<String> candidates,
+    Set<String> active,
+  ) async {
+    active.addAll(candidates);
+    for (final candidate in candidates) {
+      if (_finishTextures.containsKey(candidate)) continue;
+      try {
+        _finishTextures[candidate] = await Texture2D.fromAsset(candidate);
+      } catch (_) {
+        // One missing optional map must not take the complete room down.
+      }
+    }
+  }
+
   Future<Set<String>> _ensureFinishTexturesForGeometry(
     ZamerSceneGeometry geometry,
   ) async {
-    final materialIds = <String>{
-      for (final surface in geometry.floors) surface.materialId,
-      for (final wall in geometry.walls)
-        for (final finish in wall.finishes)
-          finish.tileEnabled ? finish.tileMaterialId : finish.materialId,
-    };
     final active = <String>{};
 
-    for (final materialId in materialIds) {
-      final preset = MaterialCatalog.byId(materialId);
-      final candidates = _materialTextureCandidates(preset);
-      active.addAll(candidates);
-      for (final candidate in candidates) {
-        if (_finishTextures.containsKey(candidate)) continue;
-        try {
-          _finishTextures[candidate] = await Texture2D.fromAsset(candidate);
-        } catch (_) {
-          // One missing optional map must not take the complete room down.
-        }
+    for (final surface in geometry.floors) {
+      final preset = MaterialCatalog.byId(surface.materialId);
+      await _ensureTextureCandidates(
+        _materialTextureCandidates(preset),
+        active,
+      );
+      await _ensureTextureCandidates(
+        _runtimeLaminateAtlasCandidates(surface),
+        active,
+      );
+    }
+
+    for (final wall in geometry.walls) {
+      for (final finish in wall.finishes) {
+        final materialId = finish.tileEnabled
+            ? finish.tileMaterialId
+            : finish.materialId;
+        await _ensureTextureCandidates(
+          _materialTextureCandidates(MaterialCatalog.byId(materialId)),
+          active,
+        );
       }
     }
     return active;
@@ -691,9 +729,11 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     if (indices.isEmpty) return null;
 
     final uvScale = _floorUvScaleMm(surface);
+    final floorPreset = MaterialCatalog.byId(surface.materialId);
     final isTile =
         surface.materialMode.toLowerCase().contains('tile') ||
-        MaterialCatalog.byId(surface.materialId).pattern == 'tile';
+        floorPreset.pattern == 'tile';
+    final isWood = floorPreset.pattern == 'wood';
     final effectiveDirection = isTile
         ? surface.directionDeg + (surface.tilePattern == 'diagonal' ? 45 : 0)
         : surface.directionDeg;
@@ -747,6 +787,9 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     );
     if (surface.laminatePattern == 'herringbone') {
       final seams = _buildFloorHerringboneSeamNode(surface, bounds);
+      if (seams != null) root.add(seams);
+    } else if (isWood) {
+      final seams = _buildFloorLaminateSeamNode(surface, bounds);
       if (seams != null) root.add(seams);
     }
     if (isTile && surface.groutMm > 0) {
@@ -803,6 +846,59 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       ..doubleSided = false;
     return Node(
         name: 'floor-grout:${surface.roomKey}',
+        mesh: Mesh(builder.build(), material),
+      )
+      ..castsShadows = false
+      ..shadowStatic = true;
+  }
+
+  Node? _buildFloorLaminateSeamNode(
+    ZamerFloorSurface surface,
+    ZamerSceneBounds bounds,
+  ) {
+    final quads = buildFloorTileGroutQuads(
+      polygonMm: surface.polygonMm,
+      anchorXMm: surface.anchorXMm,
+      anchorYMm: surface.anchorYMm,
+      directionDeg: surface.directionDeg,
+      tileWidthMm: surface.plankLengthMm,
+      tileHeightMm: surface.plankWidthMm,
+      offsetXMm: surface.laminateOffsetXMm,
+      offsetYMm: surface.laminateOffsetYMm,
+      groutMm: 1.2,
+      pattern: surface.laminateOffsetMode,
+    );
+    if (quads.isEmpty) return null;
+
+    final builder = GeometryBuilder(deduplicate: false)
+      ..normal(vm.Vector3(0, 1, 0));
+    var vertex = 0;
+    for (final quad in quads) {
+      if (quad.pointsMm.length != 4) continue;
+      for (final point in quad.pointsMm) {
+        builder
+          ..texCoord(vm.Vector2.zero())
+          ..addVertex(
+            vm.Vector3(
+              _mx(point.x, bounds),
+              zamerFloorGroutYM,
+              _mz(point.y, bounds),
+            ),
+          );
+      }
+      builder
+        ..addTriangle(vertex, vertex + 2, vertex + 1)
+        ..addTriangle(vertex, vertex + 3, vertex + 2);
+      vertex += 4;
+    }
+    if (vertex == 0) return null;
+
+    final material = _pbr(
+      vm.Vector4(0.20, 0.16, 0.12, 1),
+      roughness: 0.88,
+    )..doubleSided = false;
+    return Node(
+        name: 'floor-laminate-seams:${surface.roomKey}',
         mesh: Mesh(builder.build(), material),
       )
       ..castsShadows = false
@@ -886,6 +982,34 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
           );
     final material = _pbr(tint, roughness: roughness, texture: texture)
       ..doubleSided = false;
+
+    final runtime = RuntimeMaterialPackV4.maybeById(surface.materialId);
+    final useRuntimeAtlas =
+        runtime?.isPlankCollection == true &&
+        surface.laminatePattern != 'herringbone' &&
+        texture != null;
+    if (useRuntimeAtlas) {
+      final normal = _finishTextures[runtime!.plankAtlasMapAsset(
+        'normal.png',
+        offsetMode: surface.laminateOffsetMode,
+      )];
+      final metallicRoughness =
+          _finishTextures[runtime.plankAtlasMapAsset(
+            'metallic_roughness.png',
+            offsetMode: surface.laminateOffsetMode,
+          )];
+      if (normal != null) {
+        material
+          ..normalTexture = normal
+          ..normalScale =
+              GeneratedPbrFinishCatalog.byId(preset.id)?.normalScale ?? 1.0;
+      }
+      if (metallicRoughness != null) {
+        material.metallicRoughnessTexture = metallicRoughness;
+      }
+      return material;
+    }
+
     final generatedPbr = GeneratedPbrFinishCatalog.byId(preset.id);
     TextureTransform? pbrTransform;
     if (generatedPbr != null) {
@@ -906,6 +1030,17 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     ZamerFloorSurface surface,
     VisualMaterialPreset preset,
   ) {
+    final runtime = RuntimeMaterialPackV4.maybeById(surface.materialId);
+    if (runtime?.isPlankCollection == true &&
+        surface.laminatePattern != 'herringbone') {
+      final atlas = runtime!.plankAtlasMapAsset(
+        'basecolor.webp',
+        offsetMode: surface.laminateOffsetMode,
+      );
+      final texture = _finishTextures[atlas];
+      if (texture != null) return texture;
+    }
+
     final asset = preset.textureAsset;
     if (asset != null &&
         preset.pattern == 'wood' &&
@@ -952,6 +1087,16 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       );
       return (repeatMm, repeatMm);
     }
+
+    final runtime = RuntimeMaterialPackV4.maybeById(surface.materialId);
+    if (runtime?.isPlankCollection == true) {
+      final rows = runtime!.plankAtlasRowsFor(surface.laminateOffsetMode);
+      return (
+        math.max(240.0, surface.plankLengthMm) * 4,
+        math.max(80.0, surface.plankWidthMm) * rows,
+      );
+    }
+
     final repeatX = surface.laminateOffsetMode == 'third'
         ? 3.0
         : surface.laminateOffsetMode == 'half'
