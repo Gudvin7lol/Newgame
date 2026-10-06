@@ -59,6 +59,8 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
   final List<_WallVisual> _wallVisuals = <_WallVisual>[];
   final List<Node> _ceilingNodes = <Node>[];
   final Map<String, Texture2D> _finishTextures = <String, Texture2D>{};
+  final Map<String, Texture2D> _normalTextures = <String, Texture2D>{};
+  final Map<String, Texture2D> _dataTextures = <String, Texture2D>{};
   Texture2D? _concreteTexture;
   Texture2D? _plasterTexture;
 
@@ -351,21 +353,48 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
   Future<void> _loadFinishTextures() async {
     for (final preset in MaterialCatalog.presets) {
       final asset = preset.textureAsset;
-      if (asset == null) continue;
-      final candidates = <String>{
-        asset,
-        if (preset.pattern == 'wood' && asset.endsWith('.png'))
-          asset.replaceFirst('.png', '_half.png'),
-        if (preset.pattern == 'wood' && asset.endsWith('.png'))
-          asset.replaceFirst('.png', '_third.png'),
-      };
-      for (final candidate in candidates) {
-        if (_finishTextures.containsKey(candidate)) continue;
+      if (asset != null) {
+        final candidates = <String>{
+          asset,
+          if (preset.pattern == 'wood' && asset.endsWith('.png'))
+            asset.replaceFirst('.png', '_half.png'),
+          if (preset.pattern == 'wood' && asset.endsWith('.png'))
+            asset.replaceFirst('.png', '_third.png'),
+        };
+        for (final candidate in candidates) {
+          if (_finishTextures.containsKey(candidate)) continue;
+          try {
+            _finishTextures[candidate] = await Texture2D.fromAsset(candidate);
+          } catch (_) {
+            // A missing decorative map must never take the complete room down.
+          }
+        }
+      }
+
+      final normalAsset = preset.normalAsset;
+      if (normalAsset != null && !_normalTextures.containsKey(normalAsset)) {
         try {
-          _finishTextures[candidate] = await Texture2D.fromAsset(candidate);
+          _normalTextures[normalAsset] = await Texture2D.fromAsset(
+            normalAsset,
+            content: TextureContent.normal,
+          );
         } catch (_) {
-          // Decorative textures are optional; a single missing asset must not
-          // make the complete 3D room fail to initialise.
+          // PBR companions are optional while the library is being migrated.
+        }
+      }
+
+      for (final dataAsset in <String?>[
+        preset.metallicRoughnessAsset,
+        preset.occlusionAsset,
+      ]) {
+        if (dataAsset == null || _dataTextures.containsKey(dataAsset)) continue;
+        try {
+          _dataTextures[dataAsset] = await Texture2D.fromAsset(
+            dataAsset,
+            content: TextureContent.data,
+          );
+        } catch (_) {
+          // The base color still renders if a companion map is unavailable.
         }
       }
     }
@@ -711,8 +740,22 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     final tint = texture == null
         ? _vectorColor(preset.color)
         : vm.Vector4(0.98, 0.98, 0.98, 1);
-    final material = _pbr(tint, roughness: roughness, texture: texture)
-      ..doubleSided = true;
+    final material = _pbr(
+      tint,
+      roughness: roughness,
+      texture: texture,
+      normalTexture: preset.normalAsset == null
+          ? null
+          : _normalTextures[preset.normalAsset],
+      metallicRoughnessTexture: preset.metallicRoughnessAsset == null
+          ? null
+          : _dataTextures[preset.metallicRoughnessAsset],
+      occlusionTexture: preset.occlusionAsset == null
+          ? null
+          : _dataTextures[preset.occlusionAsset],
+      normalScale: preset.normalScale,
+      occlusionStrength: preset.occlusionStrength,
+    )..doubleSided = true;
     return material;
   }
 
@@ -809,11 +852,22 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
               ? 0.40
               : (preset.pattern == 'concrete' ? 0.90 : 0.82)),
       texture: texture,
+      normalTexture: preset.normalAsset == null
+          ? null
+          : _normalTextures[preset.normalAsset],
+      metallicRoughnessTexture: preset.metallicRoughnessAsset == null
+          ? null
+          : _dataTextures[preset.metallicRoughnessAsset],
+      occlusionTexture: preset.occlusionAsset == null
+          ? null
+          : _dataTextures[preset.occlusionAsset],
+      normalScale: preset.normalScale,
+      occlusionStrength: preset.occlusionStrength,
     )..doubleSided = false;
     if (finish.tileEnabled && texture != null) {
       final tileW = math.max(20.0, finish.tileWidthMm);
       final tileH = math.max(20.0, finish.tileHeightMm);
-      material.baseColorTextureTransform = TextureTransform(
+      final transform = TextureTransform(
         scale: vm.Vector2(
           (finish.tileMirrored ? -1.0 : 1.0) *
               math.max(1.0, wall.lengthMm / tileW),
@@ -825,6 +879,22 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
               : finish.tileOffsetXMm / tileW,
           -finish.tileOffsetYMm / tileH,
         ),
+      );
+      material.baseColorTextureTransform = transform;
+      material.normalTextureTransform = TextureTransform(
+        scale: transform.scale.clone(),
+        offset: transform.offset.clone(),
+        rotation: transform.rotation,
+      );
+      material.metallicRoughnessTextureTransform = TextureTransform(
+        scale: transform.scale.clone(),
+        offset: transform.offset.clone(),
+        rotation: transform.rotation,
+      );
+      material.occlusionTextureTransform = TextureTransform(
+        scale: transform.scale.clone(),
+        offset: transform.offset.clone(),
+        rotation: transform.rotation,
       );
     }
     return material;
@@ -1577,11 +1647,23 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     vm.Vector4 color, {
     required double roughness,
     TextureSource? texture,
+    TextureSource? normalTexture,
+    TextureSource? metallicRoughnessTexture,
+    TextureSource? occlusionTexture,
+    double normalScale = 1.0,
+    double occlusionStrength = 1.0,
   }) {
-    final material = PhysicallyBasedMaterial(baseColorTexture: texture)
+    final material = PhysicallyBasedMaterial(
+      baseColorTexture: texture,
+      normalTexture: normalTexture,
+      metallicRoughnessTexture: metallicRoughnessTexture,
+      occlusionTexture: occlusionTexture,
+    )
       ..baseColorFactor = color
       ..metallicFactor = 0
       ..roughnessFactor = roughness
+      ..normalScale = normalScale
+      ..occlusionStrength = occlusionStrength
       ..doubleSided = false;
     return material;
   }
@@ -1820,6 +1902,8 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     _wallVisuals.clear();
     _ceilingNodes.clear();
     _finishTextures.clear();
+    _normalTextures.clear();
+    _dataTextures.clear();
     super.dispose();
   }
 
