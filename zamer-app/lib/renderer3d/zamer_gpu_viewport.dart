@@ -547,6 +547,12 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
         _runtimeLaminateAtlasCandidates(surface),
         active,
       );
+      await _ensureTextureCandidates(
+        _materialTextureCandidates(
+          MaterialCatalog.byId(surface.ceilingMaterialId),
+        ),
+        active,
+      );
     }
 
     for (final wall in geometry.walls) {
@@ -1392,8 +1398,26 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     for (var i = 0; i < indices.length; i += 3) {
       builder.addTriangle(indices[i], indices[i + 1], indices[i + 2]);
     }
-    final material = _pbr(vm.Vector4(0.94, 0.94, 0.92, 1), roughness: 0.88)
-      ..doubleSided = false;
+    final preset = MaterialCatalog.byId(surface.ceilingMaterialId);
+    final texture = _textureForPreset(preset, fallbackMode: 'wall');
+    final selectedColor = surface.ceilingColorArgb == 0
+        ? preset.color
+        : Color(surface.ceilingColorArgb);
+    final source = _vectorColor(selectedColor);
+    final tint = texture == null
+        ? source
+        : vm.Vector4(
+            0.46 + source.x * 0.54,
+            0.46 + source.y * 0.54,
+            0.46 + source.z * 0.54,
+            1,
+          );
+    final material = _pbr(
+      tint,
+      roughness: preset.roughness ?? 0.88,
+      texture: texture,
+    )..doubleSided = false;
+    _applyGeneratedPbr(material, preset);
     return Node(
         name: 'ceiling:${surface.roomKey}',
         mesh: Mesh(builder.build(), material),
