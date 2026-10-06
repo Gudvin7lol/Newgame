@@ -9,6 +9,10 @@ on:
       - 'zamer-app/**'
       - '.github/workflows/zamer-render-core-apk.yml'
 
+concurrency:
+  group: zamer-render-core-apk-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
