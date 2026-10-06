@@ -14,6 +14,9 @@ import '../widgets/floor_3d_painter.dart';
 import 'camera_clip_policy.dart';
 import 'ceiling_visibility_policy.dart';
 import 'floor_grout_geometry.dart';
+import 'gpu_loading_overlay.dart';
+import 'gpu_loading_policy.dart';
+import 'gpu_retry_policy.dart';
 import 'cutaway_geometry.dart';
 import 'host_wall_visibility.dart';
 import 'model_asset_catalog.dart';
@@ -191,12 +194,19 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
   }
 
   void _scheduleRetry({bool immediate = false}) {
-    if (!mounted || _ready) return;
+    if (!mounted ||
+        !ZamerGpuRetryPolicy.shouldScheduleAutomaticRetry(
+          ready: _ready,
+          retryAttempt: _retryAttempt,
+        )) {
+      return;
+    }
     _retryTimer?.cancel();
     _retryAttempt++;
-    final delay = immediate
-        ? Duration.zero
-        : Duration(milliseconds: math.min(3200, 350 + _retryAttempt * 350));
+    final delay = ZamerGpuRetryPolicy.delayForAttempt(
+      _retryAttempt,
+      immediate: immediate,
+    );
     _retryTimer = Timer(delay, _initialize);
   }
 
@@ -1980,20 +1990,15 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
 
   @override
   Widget build(BuildContext context) {
-    if (_loadError != null) return _fallbackViewport(context);
     if (!_ready) {
-      return const ColoredBox(
-        color: Color(0xFFF3F5F7),
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 12),
-              Text('Собираем GPU-сцену…'),
-            ],
-          ),
+      return ZamerGpuLoadingOverlay(
+        state: zamerGpuLoadingState(
+          initializing: _initializing,
+          retryAttempt: _retryAttempt,
+          hasError: _loadError != null,
+          automaticRetryLimit: ZamerGpuRetryPolicy.automaticRetryLimit,
         ),
+        onRetry: retryGpu,
       );
     }
 
