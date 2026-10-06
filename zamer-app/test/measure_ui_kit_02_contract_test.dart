@@ -32,10 +32,8 @@ void main() {
       'ControlMeasure(',
       'DimensionRecord(',
       'WallOpening(',
-      'Проверка',
       'Сетка',
       'Привязка',
-      'Геометрия',
       "'Пол'",
       "'Стены'",
     ]) {
@@ -58,6 +56,10 @@ void main() {
         reason: 'Duplicate Measure chrome returned: $removedDuplicate',
       );
     }
+
+    expect(source.contains('if (item != ZMeasureTool.objects)'), isTrue);
+    expect(source.contains("label: 'Геометрия'"), isFalse);
+    expect(source.contains("label: 'Проверка'"), isFalse);
 
     expect(source.contains('ZMeasureTool.values'), isTrue);
     expect(source.contains('ZMeasureTool.openings'), isTrue);
