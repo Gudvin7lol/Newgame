@@ -1567,6 +1567,7 @@ class _MaterialCard extends StatelessWidget {
                         : DecorationImage(
                             image: AssetImage(material.textureAsset!),
                             fit: BoxFit.cover,
+                            filterQuality: FilterQuality.high,
                           ),
                   ),
                 ),
