@@ -397,7 +397,7 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
                         if (v == null) return;
                         s.wallMaterialId = v;
                         final preset = MaterialCatalog.byId(v);
-                        if (v.startsWith('paint-')) {
+                        if (preset.pattern == 'paint') {
                           s.wallPaintColorArgb = preset.color.toARGB32();
                         }
                         await widget.onChanged();
@@ -580,10 +580,11 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
                                     Expanded(
                                       child: ClipRRect(
                                         borderRadius: BorderRadius.circular(8),
-                                        child: material.textureAsset == null
+                                        child: (material.textureAssetMobile ?? material.textureAsset) == null
                                             ? ColoredBox(color: material.color)
                                             : Image.asset(
-                                                material.textureAsset!,
+                                                material.textureAssetMobile ??
+                                                    material.textureAsset!,
                                                 fit: BoxFit.cover,
                                               ),
                                       ),
