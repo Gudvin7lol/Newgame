@@ -56,12 +56,18 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         loaded.insert(0, DemoProjectFactory.create());
         changed = true;
       }
-      if (!loaded.any(
-        (project) => project.id == BenchmarkProjectFactory.projectId,
-      )) {
-        loaded.insert(0, BenchmarkProjectFactory.create());
-        changed = true;
-      }
+      // The benchmark is disposable internal QA data. Always replace it
+      // with the factory version so an installed 3D Lab update cannot keep an
+      // older scene/material setup in SharedPreferences.
+      final benchmarkBefore = loaded.length;
+      loaded.removeWhere(
+        (project) => project.id.startsWith(
+          BenchmarkProjectFactory.benchmarkPrefix,
+        ),
+      );
+      changed = changed || loaded.length != benchmarkBefore;
+      loaded.insert(0, BenchmarkProjectFactory.create());
+      changed = true;
       if (changed) {
         try {
           await _store.save(loaded);
