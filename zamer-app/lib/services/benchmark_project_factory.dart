@@ -105,14 +105,14 @@ class BenchmarkProjectFactory {
         PlanObject(
           id: 'benchmark-bed',
           type: PlanObjectType.furniture,
-          catalogId: 'bed-180',
+          catalogId: 'bed-sand',
           xMm: 1200,
           yMm: 2000,
-          widthMm: 1900,
-          depthMm: 2100,
-          heightMm: 950,
+          widthMm: 1800,
+          depthMm: 2200,
+          heightMm: 1130,
           rotationDeg: 90,
-          label: 'Кровать 180×200',
+          label: 'Кровать Sand',
         ),
         PlanObject(
           id: 'benchmark-nightstand',
@@ -165,13 +165,13 @@ class BenchmarkProjectFactory {
         PlanObject(
           id: 'benchmark-hall-console',
           type: PlanObjectType.furniture,
-          catalogId: 'dresser-1200',
-          xMm: 5350,
+          catalogId: 'tv-console-oak',
+          xMm: 5250,
           yMm: 850,
-          widthMm: 1200,
-          depthMm: 450,
-          heightMm: 850,
-          label: 'Консоль',
+          widthMm: 1820,
+          depthMm: 468,
+          heightMm: 598,
+          label: 'ТВ-тумба Oak',
         ),
         PlanObject(
           id: 'benchmark-hall-light',
@@ -217,8 +217,8 @@ class BenchmarkProjectFactory {
         materials.laminateOffsetXMm = 40;
         materials.laminateOffsetYMm = 25;
         materials.floorDirectionDeg = 0;
-        materials.wallMaterialId = 'plaster-sand';
-        materials.wallPaint = false;
+        materials.wallMaterialId = 'paint-warm-white';
+        materials.wallPaint = true;
         materials.wallTile = false;
       } else {
         meta.name = 'Светлый коридор';
