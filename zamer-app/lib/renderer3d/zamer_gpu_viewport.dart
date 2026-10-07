@@ -209,7 +209,6 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       _scene?.removeAll();
       _scene = Scene();
       _configureScene();
-      await _loadFinishTextures();
       await _rebuildScene();
       if (!mounted) return;
       _retryTimer?.cancel();
@@ -426,21 +425,43 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
   bool get _usePhotoFinishAssets =>
       _effectiveAssetQuality == ZamerRenderQuality.photo4k;
 
+  Iterable<VisualMaterialPreset> _usedMaterialPresets() sync* {
+    final ids = <String>{};
+    for (final meta in widget.floor.roomMetas) {
+      final m = meta.materials;
+      ids
+        ..add(m.floorMaterialId)
+        ..add(m.wallMaterialId);
+      if (m.wallTile || m.wallTileRunEnabled.values.any((enabled) => enabled)) {
+        ids.add(m.wallTileMaterialId);
+      }
+    }
+    if (ids.isEmpty) {
+      ids
+        ..add('oak-natural')
+        ..add('paint-warm-white')
+        ..add('tile-light-stone');
+    }
+    for (final id in ids) {
+      yield MaterialCatalog.byId(id);
+    }
+  }
+
   Future<void> _loadFinishTextures() async {
-    for (final preset in MaterialCatalog.presets) {
-      for (final asset in <String?>[
-        preset.textureAsset,
-        preset.textureAssetMobile,
-        preset.textureAssetPhoto,
-      ]) {
-        if (asset == null) continue;
-        final candidates = <String>{
-          asset,
-          if (preset.pattern == 'wood' && asset.endsWith('.png'))
-            asset.replaceFirst('.png', '_half.png'),
-          if (preset.pattern == 'wood' && asset.endsWith('.png'))
-            asset.replaceFirst('.png', '_third.png'),
-        };
+    for (final preset in _usedMaterialPresets()) {
+      final asset = preset.textureFor(
+        mobile: _useMobileFinishAssets,
+        photo: _usePhotoFinishAssets,
+      );
+      if (asset != null) {
+        final candidates = <String>{asset};
+        if (preset.pattern == 'wood' &&
+            !asset.contains('/pbr12/') &&
+            asset.endsWith('.png')) {
+          candidates
+            ..add(asset.replaceFirst('.png', '_half.png'))
+            ..add(asset.replaceFirst('.png', '_third.png'));
+        }
         for (final candidate in candidates) {
           if (_finishTextures.containsKey(candidate)) continue;
           try {
@@ -451,14 +472,11 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
         }
       }
 
-      for (final normalAsset in <String?>[
-        preset.normalAsset,
-        preset.normalAssetMobile,
-        preset.normalAssetPhoto,
-      ]) {
-        if (normalAsset == null || _normalTextures.containsKey(normalAsset)) {
-          continue;
-        }
+      final normalAsset = preset.normalFor(
+        mobile: _useMobileFinishAssets,
+        photo: _usePhotoFinishAssets,
+      );
+      if (normalAsset != null && !_normalTextures.containsKey(normalAsset)) {
         try {
           _normalTextures[normalAsset] = await Texture2D.fromAsset(
             normalAsset,
@@ -470,12 +488,14 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       }
 
       for (final dataAsset in <String?>[
-        preset.metallicRoughnessAsset,
-        preset.metallicRoughnessAssetMobile,
-        preset.metallicRoughnessAssetPhoto,
-        preset.occlusionAsset,
-        preset.occlusionAssetMobile,
-        preset.occlusionAssetPhoto,
+        preset.metallicRoughnessFor(
+          mobile: _useMobileFinishAssets,
+          photo: _usePhotoFinishAssets,
+        ),
+        preset.occlusionFor(
+          mobile: _useMobileFinishAssets,
+          photo: _usePhotoFinishAssets,
+        ),
       ]) {
         if (dataAsset == null || _dataTextures.containsKey(dataAsset)) continue;
         try {
@@ -518,6 +538,8 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
 
     final geometry = ZamerSceneGeometry.fromFloor(widget.floor);
     _geometry = geometry;
+    await _loadFinishTextures();
+    if (generation != _buildGeneration) return;
     scene.removeAll();
     _wallVisuals.clear();
     _ceilingNodes.clear();
