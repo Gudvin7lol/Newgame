@@ -209,7 +209,7 @@ class BenchmarkProjectFactory {
       if (face.centroid.x < 4300) {
         meta.name = 'Спальня benchmark';
         materials.floorMode = 'laminate';
-        materials.floorMaterialId = 'oak-smoked';
+        materials.floorMaterialId = 'LAM_03';
         materials.laminatePattern = 'herringbone';
         materials.laminatePlankLengthMm = 600;
         materials.laminatePlankWidthMm = 90;
@@ -217,18 +217,18 @@ class BenchmarkProjectFactory {
         materials.laminateOffsetXMm = 40;
         materials.laminateOffsetYMm = 25;
         materials.floorDirectionDeg = 0;
-        materials.wallMaterialId = 'paint-warm-white';
+        materials.wallMaterialId = 'PAINT_01';
         materials.wallPaint = true;
         materials.wallTile = false;
       } else {
         meta.name = 'Светлый коридор';
         materials.floorMode = 'tile';
-        materials.floorMaterialId = 'tile-light-stone';
+        materials.floorMaterialId = 'TILE_01';
         materials.tileWidthMm = 600;
         materials.tileHeightMm = 600;
         materials.tilePattern = 'straight';
         materials.floorDirectionDeg = 0;
-        materials.wallMaterialId = 'paint-warm-white';
+        materials.wallMaterialId = 'PAINT_01';
         materials.wallPaint = true;
         materials.wallTile = false;
       }
