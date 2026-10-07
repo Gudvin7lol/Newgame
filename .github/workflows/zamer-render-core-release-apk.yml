@@ -1,0 +1,90 @@
+name: Zamer ARM64 release APK
+
+on:
+  push:
+    branches:
+      - feature/render-core-quality-foundation
+    paths:
+      - '.github/workflows/zamer-render-core-release-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+
+      - name: Install Khronos KTX tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://github.com/KhronosGroup/KTX-Software/releases/download/v4.4.2/KTX-Software-4.4.2-Linux-x86_64.deb"
+          deb="$RUNNER_TEMP/ktx-4.4.2.deb"
+          curl -L --fail --retry 3 "$url" -o "$deb"
+          echo "ca635ed489d8bf54fac8d7687056c651193de0740830a7738cc034adc63e3027  $deb" | sha256sum -c -
+          sudo dpkg --install "$deb"
+          ktx --version
+
+      - name: Cook runtime KTX2
+        working-directory: zamer-app
+        run: bash tool/cook_pbr_ktx2.sh
+
+      - name: Drop PBR12 PNG sources from mobile bundle
+        working-directory: zamer-app
+        shell: bash
+        run: |
+          set -euo pipefail
+          find assets/textures/pbr12 -type f -name '*.png' -delete
+          test -f assets/textures/pbr12/material.json
+          test -f assets/textures/pbr12/PAINT_01/quality/basecolor.ktx2
+          test -f assets/textures/pbr12/LAM_01/quality/normal.ktx2
+          test -f assets/textures/pbr12/TILE_03/performance/orm.ktx2
+          echo "KTX2 payload bytes:"
+          find assets/textures/pbr12 -type f -name '*.ktx2' -printf '%s\n' | awk '{s+=$1} END {print s}'
+
+      - name: Get packages
+        working-directory: zamer-app
+        run: flutter pub get
+
+      - name: Build ARM64 release APK
+        working-directory: zamer-app
+        env:
+          ZAMER_RENDER_LAB: "1"
+        run: flutter build apk --release --target-platform android-arm64
+
+      - name: Prepare artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp zamer-app/build/app/outputs/flutter-apk/app-release.apk "$RUNNER_TEMP/Zamer-3D-Lab-arm64-release.apk"
+          sha256sum "$RUNNER_TEMP/Zamer-3D-Lab-arm64-release.apk" > "$RUNNER_TEMP/Zamer-3D-Lab-arm64-release.apk.sha256"
+          ls -lh "$RUNNER_TEMP/Zamer-3D-Lab-arm64-release.apk"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Zamer-3D-Lab-ARM64-Release
+          path: |
+            ${{ runner.temp }}/Zamer-3D-Lab-arm64-release.apk
+            ${{ runner.temp }}/Zamer-3D-Lab-arm64-release.apk.sha256
+          compression-level: 0
+          retention-days: 14
