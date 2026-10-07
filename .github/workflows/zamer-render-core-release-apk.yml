@@ -67,24 +67,22 @@ jobs:
 
       - name: Build ARM64 release APK
         working-directory: zamer-app
-        env:
-          ZAMER_RENDER_LAB: "1"
         run: flutter build apk --release --target-platform android-arm64
 
       - name: Prepare artifact
         shell: bash
         run: |
           set -euo pipefail
-          cp zamer-app/build/app/outputs/flutter-apk/app-release.apk "$RUNNER_TEMP/Zamer-3D-Lab-arm64-release.apk"
-          sha256sum "$RUNNER_TEMP/Zamer-3D-Lab-arm64-release.apk" > "$RUNNER_TEMP/Zamer-3D-Lab-arm64-release.apk.sha256"
-          ls -lh "$RUNNER_TEMP/Zamer-3D-Lab-arm64-release.apk"
+          cp zamer-app/build/app/outputs/flutter-apk/app-release.apk "$RUNNER_TEMP/Zamer-arm64-release.apk"
+          sha256sum "$RUNNER_TEMP/Zamer-arm64-release.apk" > "$RUNNER_TEMP/Zamer-arm64-release.apk.sha256"
+          ls -lh "$RUNNER_TEMP/Zamer-arm64-release.apk"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Zamer-3D-Lab-ARM64-Release
+          name: Zamer-ARM64-Release
           path: |
-            ${{ runner.temp }}/Zamer-3D-Lab-arm64-release.apk
-            ${{ runner.temp }}/Zamer-3D-Lab-arm64-release.apk.sha256
+            ${{ runner.temp }}/Zamer-arm64-release.apk
+            ${{ runner.temp }}/Zamer-arm64-release.apk.sha256
           compression-level: 0
           retention-days: 14
