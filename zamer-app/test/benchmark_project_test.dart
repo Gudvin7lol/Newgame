@@ -28,12 +28,13 @@ void main() {
     final floor = BenchmarkProjectFactory.create().floors.single;
     final ids = floor.planObjects.map((o) => o.catalogId).toSet();
 
-    expect(ids, contains('bed-180'));
+    expect(ids, contains('bed-sand'));
     expect(ids, contains('nightstand'));
     expect(ids, contains('rug-textile-2300'));
     expect(ids, contains('curtain-pair-1800'));
     expect(ids, contains('table-lamp-soft'));
     expect(ids, contains('ceiling-dome'));
+    expect(ids, contains('tv-console-oak'));
   });
 
   test('simple benchmark decor uses procedural catalog assets', () {
