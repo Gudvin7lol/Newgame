@@ -21,20 +21,38 @@ void main() {
         reason: 'Не найден ${preset.textureAsset}',
       );
 
-      for (final companion in <String?>[
+      for (final asset in <String?>[
+        preset.textureAssetMobile,
         preset.normalAsset,
+        preset.normalAssetMobile,
         preset.metallicRoughnessAsset,
+        preset.metallicRoughnessAssetMobile,
         preset.occlusionAsset,
+        preset.occlusionAssetMobile,
       ]) {
-        if (companion == null) continue;
+        if (asset == null) continue;
         expect(
-          File(companion).existsSync(),
+          File(asset).existsSync(),
           isTrue,
-          reason: 'Не найдена PBR-карта $companion для ${preset.id}',
+          reason: 'Не найдена PBR-карта $asset для ${preset.id}',
         );
       }
       expect(preset.normalScale, greaterThanOrEqualTo(0));
       expect(preset.occlusionStrength, inInclusiveRange(0, 1));
+    }
+
+    for (final id in <String>[
+      'oak-smoked',
+      'paint-warm-white',
+      'tile-light-stone',
+    ]) {
+      final preset = MaterialCatalog.byId(id);
+      expect(preset.textureAsset, isNotNull);
+      expect(preset.textureAssetMobile, isNotNull);
+      expect(preset.normalAsset, isNotNull);
+      expect(preset.normalAssetMobile, isNotNull);
+      expect(preset.metallicRoughnessAsset, isNotNull);
+      expect(preset.occlusionAsset, isNotNull);
     }
   });
 }
