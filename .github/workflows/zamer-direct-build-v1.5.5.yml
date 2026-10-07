@@ -5,7 +5,6 @@ on:
   push:
     branches:
       - main
-      - 'codex/zamer-1.5.7-126-cc0-furniture'
     paths:
       - 'zamer-app/**'
       - '.github/workflows/zamer-direct-build-v1.5.5.yml'
