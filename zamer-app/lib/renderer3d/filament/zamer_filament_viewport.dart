@@ -56,6 +56,9 @@ class ZamerFilamentViewportState extends State<ZamerFilamentViewport> {
   int _sceneFingerprint = 0;
   int _buildGeneration = 0;
   Object? _error;
+  bool _fallbackToLegacy = false;
+  String? _diagnostic;
+  Timer? _healthTimer;
 
   bool get _useFilament =>
       !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
@@ -68,9 +71,15 @@ class ZamerFilamentViewportState extends State<ZamerFilamentViewport> {
   }
 
   @override
+  void dispose() {
+    _healthTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
   void didUpdateWidget(covariant ZamerFilamentViewport oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!_useFilament) return;
+    if (!_useFilament || _fallbackToLegacy) return;
     final fingerprint = _fingerprint();
     if (fingerprint != _sceneFingerprint ||
         oldWidget.walkMode != widget.walkMode) {
@@ -247,22 +256,101 @@ class ZamerFilamentViewportState extends State<ZamerFilamentViewport> {
     return png;
   }
 
-  void _onPlatformViewCreated(int id) {
-    _channel = MethodChannel('ru.zamer.zamer_app/filament/$id');
-    final bytes = _pendingGlb;
-    if (bytes != null) {
-      _channel!.invokeMethod<void>('loadGlb', {'bytes': bytes}).then((_) {
-        _pushCamera();
-      });
-    } else {
-      _pushCamera();
+  Future<void> _onPlatformViewCreated(int id) async {
+    final channel = MethodChannel('ru.zamer.zamer_app/filament/$id');
+    _channel = channel;
+    try {
+      final status = await channel
+          .invokeMapMethod<String, dynamic>('getStatus')
+          .timeout(const Duration(seconds: 4));
+      if (!mounted) return;
+      final ready = status?['ready'] == true;
+      if (!ready) {
+        _activateFallback(
+          StateError(
+            status?['error']?.toString() ??
+                'Filament native view did not initialize.',
+          ),
+        );
+        return;
+      }
+
+      final bytes = _pendingGlb;
+      if (bytes != null) {
+        await channel
+            .invokeMethod<dynamic>('loadGlb', {'bytes': bytes})
+            .timeout(const Duration(seconds: 12));
+      }
+      await _pushCamera();
+      _startHealthProbe(channel);
+    } catch (error) {
+      _activateFallback(error);
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    if (!_useFilament) {
-      return ZamerGpuViewport(
+  void _startHealthProbe(MethodChannel channel) {
+    _healthTimer?.cancel();
+    var attempts = 0;
+    _healthTimer = Timer.periodic(const Duration(milliseconds: 900), (timer) async {
+      attempts++;
+      try {
+        final status = await channel
+            .invokeMapMethod<String, dynamic>('getStatus')
+            .timeout(const Duration(seconds: 2));
+        if (!mounted || _fallbackToLegacy) {
+          timer.cancel();
+          return;
+        }
+        final ready = status?['ready'] == true;
+        final frames = (status?['renderedFrames'] as num?)?.toInt() ?? 0;
+        final textureAvailable = status?['textureAvailable'] == true;
+        if (!ready) {
+          timer.cancel();
+          _activateFallback(
+            StateError(status?['error']?.toString() ?? 'Filament is not ready.'),
+          );
+          return;
+        }
+        if (frames > 0) {
+          timer.cancel();
+          if (mounted) {
+            setState(() {
+              _diagnostic = null;
+              _error = null;
+            });
+          }
+          return;
+        }
+        if (attempts >= 6) {
+          timer.cancel();
+          _activateFallback(
+            StateError(
+              'Filament initialized but produced no frames '
+              '(TextureView available: $textureAvailable).',
+            ),
+          );
+        }
+      } catch (error) {
+        if (attempts >= 3) {
+          timer.cancel();
+          _activateFallback(error);
+        }
+      }
+    });
+  }
+
+  void _activateFallback(Object error) {
+    if (!mounted) return;
+    _healthTimer?.cancel();
+    setState(() {
+      _fallbackToLegacy = true;
+      _error = null;
+      _buildingGlb = false;
+      _diagnostic = error.toString();
+    });
+  }
+
+  Widget _legacyViewport() => ZamerGpuViewport(
         floor: widget.floor,
         rotation: widget.rotation,
         tilt: widget.tilt,
@@ -274,6 +362,44 @@ class ZamerFilamentViewportState extends State<ZamerFilamentViewport> {
         walkY: widget.walkY,
         walkFovDegrees: widget.walkFovDegrees,
         quality: widget.quality,
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_useFilament) {
+      return _legacyViewport();
+    }
+    if (_fallbackToLegacy) {
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          _legacyViewport(),
+          Positioned(
+            left: 8,
+            right: 8,
+            top: 8,
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: const Color(0xDD5B1D1D),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: Text(
+                    'Filament fallback: ${_diagnostic ?? 'runtime error'}',
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       );
     }
 
