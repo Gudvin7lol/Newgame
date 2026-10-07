@@ -1,10 +1,11 @@
-name: Build Zamer v1.5.5 direct
+name: Build Zamer 1.5.7+126 CC0 furniture
 
 on:
   workflow_dispatch:
   push:
     branches:
       - main
+      - 'codex/zamer-1.5.7-126-cc0-furniture'
     paths:
       - 'zamer-app/**'
       - '.github/workflows/zamer-direct-build-v1.5.5.yml'
@@ -33,6 +34,11 @@ jobs:
           flutter-version: '3.47.5'
           channel: stable
           cache: true
+
+      - name: Fetch licensed CC0 furniture
+        working-directory: zamer-app
+        shell: bash
+        run: bash tool/fetch_cc0_furniture.sh .
 
       - name: Get packages
         working-directory: zamer-app
@@ -65,14 +71,14 @@ jobs:
 
       - name: Prepare APK
         run: |
-          cp zamer-app/build/app/outputs/flutter-apk/app-release.apk "$RUNNER_TEMP/Zamer-1.5.5-build46-release.apk"
-          sha256sum "$RUNNER_TEMP/Zamer-1.5.5-build46-release.apk" > "$RUNNER_TEMP/Zamer-1.5.5-build46-release.apk.sha256"
+          cp zamer-app/build/app/outputs/flutter-apk/app-release.apk "$RUNNER_TEMP/Zamer-1.5.7-build126-release.apk"
+          sha256sum "$RUNNER_TEMP/Zamer-1.5.7-build126-release.apk" > "$RUNNER_TEMP/Zamer-1.5.7-build126-release.apk.sha256"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Zamer-1.5.5-build46-APK
+          name: Zamer-1.5.7-build126-APK
           path: |
-            ${{ runner.temp }}/Zamer-1.5.5-build46-release.apk
-            ${{ runner.temp }}/Zamer-1.5.5-build46-release.apk.sha256
+            ${{ runner.temp }}/Zamer-1.5.7-build126-release.apk
+            ${{ runner.temp }}/Zamer-1.5.7-build126-release.apk.sha256
           retention-days: 14
