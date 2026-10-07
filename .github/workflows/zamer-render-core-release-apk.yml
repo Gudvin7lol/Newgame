@@ -5,6 +5,7 @@ on:
     branches:
       - feature/render-core-quality-foundation
     paths:
+      - 'zamer-app/**'
       - '.github/workflows/zamer-render-core-release-apk.yml'
   workflow_dispatch:
 
