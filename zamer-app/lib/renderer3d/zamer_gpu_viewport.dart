@@ -1899,6 +1899,29 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     _applyCutaway(camera);
     if (photoQuality) _configurePhotoLighting();
     try {
+      if (photoQuality) {
+        // Give GI/TAA one real GPU frame to settle before the frame that is
+        // exported. A single cold render produced the same flat look as the
+        // realtime preview even though the Photo settings were enabled.
+        final warmRecorder = ui.PictureRecorder();
+        final warmCanvas = ui.Canvas(warmRecorder);
+        scene.render(
+          camera,
+          warmCanvas,
+          viewport: ui.Rect.fromLTWH(
+            0,
+            0,
+            width.toDouble(),
+            height.toDouble(),
+          ),
+          pixelRatio: 1,
+        );
+        final warmPicture = warmRecorder.endRecording();
+        final warmImage = await warmPicture.toImage(width, height);
+        warmImage.dispose();
+        await Future<void>.delayed(Duration.zero);
+      }
+
       final recorder = ui.PictureRecorder();
       final canvas = ui.Canvas(recorder);
       final background = ui.Paint()
