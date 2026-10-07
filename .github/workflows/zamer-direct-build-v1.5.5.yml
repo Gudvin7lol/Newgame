@@ -34,6 +34,11 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Fetch licensed CC0 furniture
+        working-directory: zamer-app
+        shell: bash
+        run: bash tool/fetch_cc0_furniture.sh .
+
       - name: Get packages
         working-directory: zamer-app
         run: flutter pub get
