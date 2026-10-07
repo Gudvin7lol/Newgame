@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
 
-COMPONENT = {5121: np.uint8, 5123: np.uint16, 5125: np.uint32, 5126: np.float32}
+COMPONENT = {5120: np.int8, 5121: np.uint8, 5122: np.int16, 5123: np.uint16, 5125: np.uint32, 5126: np.float32}
 COMPONENTS = {'SCALAR': 1, 'VEC2': 2, 'VEC3': 3, 'VEC4': 4}
 
 
@@ -45,16 +45,32 @@ def accessor(doc, binary, index):
     stride = view.get('byteStride', dtype.itemsize * width)
     if stride == dtype.itemsize * width:
         arr = np.frombuffer(binary, dtype=dtype, count=count * width, offset=offset)
-        return arr.reshape(count, width) if width > 1 else arr
-    result = np.empty((count, width), dtype=dtype)
-    for row in range(count):
-        result[row] = np.frombuffer(
-            binary,
-            dtype=dtype,
-            count=width,
-            offset=offset + row * stride,
-        )
-    return result
+        arr = arr.reshape(count, width) if width > 1 else arr
+    else:
+        arr = np.empty((count, width), dtype=dtype)
+        for row in range(count):
+            arr[row] = np.frombuffer(
+                binary,
+                dtype=dtype,
+                count=width,
+                offset=offset + row * stride,
+            )
+
+    # glTF commonly packs normals and texture coordinates into normalized
+    # signed/unsigned integer accessors. Convert them to their floating-point
+    # semantic range so external assets render correctly in catalogue previews.
+    if spec.get('normalized'):
+        kind = spec['componentType']
+        arr = arr.astype(np.float32)
+        if kind == 5120:
+            arr = np.maximum(arr / 127.0, -1.0)
+        elif kind == 5121:
+            arr = arr / 255.0
+        elif kind == 5122:
+            arr = np.maximum(arr / 32767.0, -1.0)
+        elif kind == 5123:
+            arr = arr / 65535.0
+    return arr
 
 
 def embedded_images(doc, binary):
