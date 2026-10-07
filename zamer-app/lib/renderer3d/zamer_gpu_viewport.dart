@@ -68,6 +68,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
   ZamerSceneGeometry? _geometry;
   Object? _loadError;
   bool _ready = false;
+  bool _photoRenderOverride = false;
   int _buildGeneration = 0;
   bool _initializing = false;
   int _retryAttempt = 0;
@@ -417,14 +418,20 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     }
   }
 
+  ZamerRenderQuality get _effectiveAssetQuality =>
+      _photoRenderOverride ? ZamerRenderQuality.photo4k : widget.quality;
+
   bool get _useMobileFinishAssets =>
-      widget.quality == ZamerRenderQuality.performance;
+      _effectiveAssetQuality == ZamerRenderQuality.performance;
+  bool get _usePhotoFinishAssets =>
+      _effectiveAssetQuality == ZamerRenderQuality.photo4k;
 
   Future<void> _loadFinishTextures() async {
     for (final preset in MaterialCatalog.presets) {
       for (final asset in <String?>[
         preset.textureAsset,
         preset.textureAssetMobile,
+        preset.textureAssetPhoto,
       ]) {
         if (asset == null) continue;
         final candidates = <String>{
@@ -447,6 +454,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       for (final normalAsset in <String?>[
         preset.normalAsset,
         preset.normalAssetMobile,
+        preset.normalAssetPhoto,
       ]) {
         if (normalAsset == null || _normalTextures.containsKey(normalAsset)) {
           continue;
@@ -464,8 +472,10 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       for (final dataAsset in <String?>[
         preset.metallicRoughnessAsset,
         preset.metallicRoughnessAssetMobile,
+        preset.metallicRoughnessAssetPhoto,
         preset.occlusionAsset,
         preset.occlusionAssetMobile,
+        preset.occlusionAssetPhoto,
       ]) {
         if (dataAsset == null || _dataTextures.containsKey(dataAsset)) continue;
         try {
@@ -826,11 +836,20 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
         ? _vectorColor(preset.color)
         : vm.Vector4(0.98, 0.98, 0.98, 1);
     final normalAsset =
-        preset.normalFor(mobile: _useMobileFinishAssets);
+        preset.normalFor(
+      mobile: _useMobileFinishAssets,
+      photo: _usePhotoFinishAssets,
+    );
     final metallicRoughnessAsset =
-        preset.metallicRoughnessFor(mobile: _useMobileFinishAssets);
+        preset.metallicRoughnessFor(
+      mobile: _useMobileFinishAssets,
+      photo: _usePhotoFinishAssets,
+    );
     final occlusionAsset =
-        preset.occlusionFor(mobile: _useMobileFinishAssets);
+        preset.occlusionFor(
+      mobile: _useMobileFinishAssets,
+      photo: _usePhotoFinishAssets,
+    );
     final material = _pbr(
       tint,
       roughness: roughness,
@@ -852,7 +871,10 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     ZamerFloorSurface surface,
     VisualMaterialPreset preset,
   ) {
-    final asset = preset.textureFor(mobile: _useMobileFinishAssets);
+    final asset = preset.textureFor(
+      mobile: _useMobileFinishAssets,
+      photo: _usePhotoFinishAssets,
+    );
     if (asset != null && preset.pattern == 'wood' &&
         surface.laminatePattern != 'herringbone') {
       if (surface.laminateOffsetMode == 'half') {
@@ -913,7 +935,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     );
     final presetColor = finish.tileEnabled
         ? Color(finish.tileTintArgb)
-        : (finish.materialId.startsWith('paint-')
+        : (preset.pattern == 'paint'
             ? (finish.wallColorArgb == 0
                 ? preset.color
                 : Color(finish.wallColorArgb))
@@ -921,19 +943,21 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     final source = _vectorColor(presetColor);
     final tint = texture == null
         ? source
-        : (finish.tileEnabled
-            ? vm.Vector4(
-                0.28 + source.x * 0.72,
-                0.28 + source.y * 0.72,
-                0.28 + source.z * 0.72,
-                1,
-              )
-            : vm.Vector4(
-                0.92 + source.x * 0.08,
-                0.92 + source.y * 0.08,
-                0.92 + source.z * 0.08,
-                1,
-              ));
+        : (preset.pattern == 'paint'
+            ? source
+            : (finish.tileEnabled
+                ? vm.Vector4(
+                    0.28 + source.x * 0.72,
+                    0.28 + source.y * 0.72,
+                    0.28 + source.z * 0.72,
+                    1,
+                  )
+                : vm.Vector4(
+                    0.92 + source.x * 0.08,
+                    0.92 + source.y * 0.08,
+                    0.92 + source.z * 0.08,
+                    1,
+                  )));
     final material = _pbr(
       tint,
       roughness: preset.roughness ??
@@ -941,38 +965,61 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
               ? 0.40
               : (preset.pattern == 'concrete' ? 0.90 : 0.82)),
       texture: texture,
-      normalTexture: preset.normalFor(mobile: _useMobileFinishAssets) == null
+      normalTexture: preset.normalFor(
+      mobile: _useMobileFinishAssets,
+      photo: _usePhotoFinishAssets,
+    ) == null
           ? null
           : _normalTextures[
-              preset.normalFor(mobile: _useMobileFinishAssets)!],
+              preset.normalFor(
+      mobile: _useMobileFinishAssets,
+      photo: _usePhotoFinishAssets,
+    )!],
       metallicRoughnessTexture:
-          preset.metallicRoughnessFor(mobile: _useMobileFinishAssets) == null
+          preset.metallicRoughnessFor(
+      mobile: _useMobileFinishAssets,
+      photo: _usePhotoFinishAssets,
+    ) == null
               ? null
               : _dataTextures[preset.metallicRoughnessFor(
-                  mobile: _useMobileFinishAssets)!],
+                  mobile: _useMobileFinishAssets,
+                  photo: _usePhotoFinishAssets)!],
       occlusionTexture:
-          preset.occlusionFor(mobile: _useMobileFinishAssets) == null
+          preset.occlusionFor(
+      mobile: _useMobileFinishAssets,
+      photo: _usePhotoFinishAssets,
+    ) == null
               ? null
               : _dataTextures[
-                  preset.occlusionFor(mobile: _useMobileFinishAssets)!],
+                  preset.occlusionFor(
+      mobile: _useMobileFinishAssets,
+      photo: _usePhotoFinishAssets,
+    )!],
       normalScale: preset.normalScale,
       occlusionStrength: preset.occlusionStrength,
     )..doubleSided = false;
-    if (finish.tileEnabled && texture != null) {
-      final tileW = math.max(20.0, finish.tileWidthMm);
-      final tileH = math.max(20.0, finish.tileHeightMm);
+    if (texture != null) {
+      final unitW = finish.tileEnabled
+          ? math.max(20.0, finish.tileWidthMm)
+          : math.max(100.0, preset.physicalWidthMm);
+      final unitH = finish.tileEnabled
+          ? math.max(20.0, finish.tileHeightMm)
+          : math.max(100.0, preset.physicalHeightMm);
+      final mirrored = finish.tileEnabled && finish.tileMirrored;
       final transform = TextureTransform(
         scale: vm.Vector2(
-          (finish.tileMirrored ? -1.0 : 1.0) *
-              math.max(1.0, wall.lengthMm / tileW),
-          math.max(1.0, wall.heightMm / tileH),
+          (mirrored ? -1.0 : 1.0) *
+              math.max(1.0, wall.lengthMm / unitW),
+          math.max(1.0, wall.heightMm / unitH),
         ),
-        offset: vm.Vector2(
-          finish.tileMirrored
-              ? 1.0 - finish.tileOffsetXMm / tileW
-              : finish.tileOffsetXMm / tileW,
-          -finish.tileOffsetYMm / tileH,
-        ),
+        offset: finish.tileEnabled
+            ? vm.Vector2(
+                mirrored
+                    ? 1.0 - finish.tileOffsetXMm / unitW
+                    : finish.tileOffsetXMm / unitW,
+                -finish.tileOffsetYMm / unitH,
+              )
+            : vm.Vector2.zero(),
       );
       material.baseColorTextureTransform = transform;
       material.normalTextureTransform = TextureTransform(
@@ -998,7 +1045,10 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     VisualMaterialPreset preset, {
     required String fallbackMode,
   }) {
-    final asset = preset.textureFor(mobile: _useMobileFinishAssets);
+    final asset = preset.textureFor(
+      mobile: _useMobileFinishAssets,
+      photo: _usePhotoFinishAssets,
+    );
     if (asset != null && _finishTextures[asset] != null) {
       return _finishTextures[asset];
     }
@@ -1432,7 +1482,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       root.add(_fallbackObject(object));
     } else {
       try {
-        final assetPath = asset.assetPathFor(widget.quality);
+        final assetPath = asset.assetPathFor(_effectiveAssetQuality);
         final template = _modelTemplates[assetPath] ??=
             await Node.fromGlbAsset(assetPath);
         final model = template.clone(recursive: true);
@@ -1890,8 +1940,18 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
   }) async {
     if (width <= 0 || height <= 0) throw ArgumentError('Некорректный размер');
 
+    if (_scene == null || !_ready) {
+      return _renderFallbackPng(width: width, height: height);
+    }
+
+    if (photoQuality) {
+      _photoRenderOverride = true;
+      await _rebuildScene();
+    }
+
     final scene = _scene;
     if (scene == null || !_ready) {
+      _photoRenderOverride = false;
       return _renderFallbackPng(width: width, height: height);
     }
 
@@ -1950,7 +2010,11 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
         image.dispose();
       }
     } finally {
-      if (photoQuality) _configureScene();
+      if (photoQuality) {
+        _photoRenderOverride = false;
+        await _rebuildScene();
+        _configureScene();
+      }
     }
   }
 
