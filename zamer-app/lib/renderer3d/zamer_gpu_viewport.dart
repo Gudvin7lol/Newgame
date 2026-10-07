@@ -105,11 +105,13 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
   @override
   void didUpdateWidget(covariant ZamerGpuViewport oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.quality != widget.quality) {
+    final qualityChanged = oldWidget.quality != widget.quality;
+    if (qualityChanged) {
       _configureScene();
     }
     final fingerprint = _floorFingerprint();
-    if (!identical(oldWidget.floor, widget.floor) ||
+    if (qualityChanged ||
+        !identical(oldWidget.floor, widget.floor) ||
         fingerprint != _lastFloorFingerprint) {
       _lastFloorFingerprint = fingerprint;
       _rebuildScene();
@@ -415,10 +417,16 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     }
   }
 
+  bool get _useMobileFinishAssets =>
+      widget.quality == ZamerRenderQuality.performance;
+
   Future<void> _loadFinishTextures() async {
     for (final preset in MaterialCatalog.presets) {
-      final asset = preset.textureAsset;
-      if (asset != null) {
+      for (final asset in <String?>[
+        preset.textureAsset,
+        preset.textureAssetMobile,
+      ]) {
+        if (asset == null) continue;
         final candidates = <String>{
           asset,
           if (preset.pattern == 'wood' && asset.endsWith('.png'))
@@ -436,8 +444,13 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
         }
       }
 
-      final normalAsset = preset.normalAsset;
-      if (normalAsset != null && !_normalTextures.containsKey(normalAsset)) {
+      for (final normalAsset in <String?>[
+        preset.normalAsset,
+        preset.normalAssetMobile,
+      ]) {
+        if (normalAsset == null || _normalTextures.containsKey(normalAsset)) {
+          continue;
+        }
         try {
           _normalTextures[normalAsset] = await Texture2D.fromAsset(
             normalAsset,
@@ -450,7 +463,9 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
 
       for (final dataAsset in <String?>[
         preset.metallicRoughnessAsset,
+        preset.metallicRoughnessAssetMobile,
         preset.occlusionAsset,
+        preset.occlusionAssetMobile,
       ]) {
         if (dataAsset == null || _dataTextures.containsKey(dataAsset)) continue;
         try {
@@ -808,19 +823,23 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     final tint = texture == null
         ? _vectorColor(preset.color)
         : vm.Vector4(0.98, 0.98, 0.98, 1);
+    final normalAsset =
+        preset.normalFor(mobile: _useMobileFinishAssets);
+    final metallicRoughnessAsset =
+        preset.metallicRoughnessFor(mobile: _useMobileFinishAssets);
+    final occlusionAsset =
+        preset.occlusionFor(mobile: _useMobileFinishAssets);
     final material = _pbr(
       tint,
       roughness: roughness,
       texture: texture,
-      normalTexture: preset.normalAsset == null
+      normalTexture:
+          normalAsset == null ? null : _normalTextures[normalAsset],
+      metallicRoughnessTexture: metallicRoughnessAsset == null
           ? null
-          : _normalTextures[preset.normalAsset],
-      metallicRoughnessTexture: preset.metallicRoughnessAsset == null
-          ? null
-          : _dataTextures[preset.metallicRoughnessAsset],
-      occlusionTexture: preset.occlusionAsset == null
-          ? null
-          : _dataTextures[preset.occlusionAsset],
+          : _dataTextures[metallicRoughnessAsset],
+      occlusionTexture:
+          occlusionAsset == null ? null : _dataTextures[occlusionAsset],
       normalScale: preset.normalScale,
       occlusionStrength: preset.occlusionStrength,
     )..doubleSided = true;
@@ -831,7 +850,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     ZamerFloorSurface surface,
     VisualMaterialPreset preset,
   ) {
-    final asset = preset.textureAsset;
+    final asset = preset.textureFor(mobile: _useMobileFinishAssets);
     if (asset != null && preset.pattern == 'wood' &&
         surface.laminatePattern != 'herringbone') {
       if (surface.laminateOffsetMode == 'half') {
@@ -920,15 +939,20 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
               ? 0.40
               : (preset.pattern == 'concrete' ? 0.90 : 0.82)),
       texture: texture,
-      normalTexture: preset.normalAsset == null
+      normalTexture: preset.normalFor(mobile: _useMobileFinishAssets) == null
           ? null
-          : _normalTextures[preset.normalAsset],
-      metallicRoughnessTexture: preset.metallicRoughnessAsset == null
-          ? null
-          : _dataTextures[preset.metallicRoughnessAsset],
-      occlusionTexture: preset.occlusionAsset == null
-          ? null
-          : _dataTextures[preset.occlusionAsset],
+          : _normalTextures[
+              preset.normalFor(mobile: _useMobileFinishAssets)!],
+      metallicRoughnessTexture:
+          preset.metallicRoughnessFor(mobile: _useMobileFinishAssets) == null
+              ? null
+              : _dataTextures[preset.metallicRoughnessFor(
+                  mobile: _useMobileFinishAssets)!],
+      occlusionTexture:
+          preset.occlusionFor(mobile: _useMobileFinishAssets) == null
+              ? null
+              : _dataTextures[
+                  preset.occlusionFor(mobile: _useMobileFinishAssets)!],
       normalScale: preset.normalScale,
       occlusionStrength: preset.occlusionStrength,
     )..doubleSided = false;
@@ -972,7 +996,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     VisualMaterialPreset preset, {
     required String fallbackMode,
   }) {
-    final asset = preset.textureAsset;
+    final asset = preset.textureFor(mobile: _useMobileFinishAssets);
     if (asset != null && _finishTextures[asset] != null) {
       return _finishTextures[asset];
     }
@@ -1406,8 +1430,9 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       root.add(_fallbackObject(object));
     } else {
       try {
-        final template = _modelTemplates[asset.assetPath] ??=
-            await Node.fromGlbAsset(asset.assetPath);
+        final assetPath = asset.assetPathFor(widget.quality);
+        final template = _modelTemplates[assetPath] ??=
+            await Node.fromGlbAsset(assetPath);
         final model = template.clone(recursive: true);
         importedModel = true;
 
