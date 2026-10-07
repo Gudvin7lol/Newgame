@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zamer_app/models/models.dart';
 import 'package:zamer_app/renderer3d/model_asset_catalog.dart';
+import 'package:zamer_app/renderer3d/render_quality.dart';
 import 'package:zamer_app/services/object_catalog.dart';
 
 void main() {
@@ -17,9 +18,13 @@ void main() {
     expect(lights.any((item) => item.mount == CatalogMount.floor), isTrue);
 
     for (final item in lights) {
+      if (item.procedural) continue;
       final model = ZamerModelAssetCatalog.byId(item.id);
       expect(model, isNotNull, reason: 'Нет GLB для ${item.id}');
-      expect(File(model!.assetPath).existsSync(), isTrue);
+      expect(
+        File(model!.assetPathFor(ZamerRenderQuality.quality)).existsSync(),
+        isTrue,
+      );
     }
   });
 
