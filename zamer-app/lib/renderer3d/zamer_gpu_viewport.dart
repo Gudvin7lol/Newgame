@@ -36,7 +36,7 @@ class ZamerGpuViewport extends StatefulWidget {
     required this.walkMode,
     required this.walkX,
     required this.walkY,
-    this.walkFovDegrees = 76,
+    this.walkFovDegrees = 64,
     this.quality = ZamerRenderQuality.quality,
   });
 
@@ -250,17 +250,17 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     final isQuality = widget.quality == ZamerRenderQuality.quality;
     scene.environmentSettings = EnvironmentSettings(
       toneMapping: ToneMappingMode.pbrNeutral,
-      environmentIntensity: isQuality ? 0.86 : 0.78,
-      exposure: isQuality ? 0.92 : 0.90,
+      environmentIntensity: isQuality ? 0.72 : 0.68,
+      exposure: isQuality ? 0.84 : 0.86,
       colorGradingEnabled: isQuality,
       brightness: 1.0,
       contrast: isQuality ? 1.025 : 1.0,
       saturation: isQuality ? 1.015 : 1.0,
       temperature: isQuality ? 0.006 : 0.0,
       ambientOcclusionEnabled: widget.quality.ambientOcclusionEnabled,
-      ambientOcclusionRadius: 0.24,
-      ambientOcclusionIntensity: isQuality ? 0.64 : 0.45,
-      ambientOcclusionBias: 0.04,
+      ambientOcclusionRadius: 0.18,
+      ambientOcclusionIntensity: isQuality ? 0.82 : 0.48,
+      ambientOcclusionBias: 0.028,
       ambientOcclusionSampleCount: widget.quality.ambientOcclusionSamples,
       ambientOcclusionHalfResolution: true,
       screenSpaceReflectionsEnabled: widget.quality.reflectionsEnabled,
@@ -289,34 +289,34 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       ..sharpness = isQuality ? 0.18 : 0.10
       ..objectMotion = false
       ..skinnedMotion = false;
-    scene.environmentIntensity = isQuality ? 0.86 : 0.78;
+    scene.environmentIntensity = isQuality ? 0.72 : 0.68;
     scene.directionalLight = DirectionalLight(
       direction: vm.Vector3(-0.45, -1.0, -0.32)..normalize(),
-      color: vm.Vector3(1.0, 0.97, 0.92),
-      intensity: isQuality ? 2.20 : 1.95,
+      color: vm.Vector3(1.0, 0.99, 0.97),
+      intensity: isQuality ? 1.35 : 1.20,
       castsShadow: true,
       cacheStaticShadows: false,
-      shadowMapResolution: widget.quality.shadowMapResolution,
-      shadowMaxDistance: isQuality ? 40 : 30,
-      shadowSoftness: isQuality ? 0.20 : 0.12,
+      shadowMapResolution: isQuality ? 2048 : widget.quality.shadowMapResolution,
+      shadowMaxDistance: isQuality ? 32 : 26,
+      shadowSoftness: isQuality ? 0.48 : 0.26,
     );
     scene.ambientOcclusion
       ..enabled = widget.quality.ambientOcclusionEnabled
       ..halfResolution = true
-      ..sampleCount = widget.quality.ambientOcclusionSamples
-      ..radius = 0.24
-      ..intensity = isQuality ? 0.64 : 0.45
-      ..bias = 0.04;
+      ..sampleCount = isQuality ? 8 : widget.quality.ambientOcclusionSamples
+      ..radius = 0.18
+      ..intensity = isQuality ? 0.82 : 0.48
+      ..bias = 0.028;
     scene.globalIllumination
       ..enabled = isQuality
       ..volumeMode = IrradianceVolumeMode.fitScene
       ..resolution = vm.Vector3(10, 5, 10)
-      ..intensity = isQuality ? 0.58 : 0.0
-      ..hysteresis = 0.93
-      ..shadowBias = 0.28
-      ..visibility = 0.78
-      ..visibilityBias = 0.065
-      ..probeUpdateBudget = isQuality ? 48 : 0
+      ..intensity = isQuality ? 0.74 : 0.0
+      ..hysteresis = 0.91
+      ..shadowBias = 0.22
+      ..visibility = 0.84
+      ..visibilityBias = 0.050
+      ..probeUpdateBudget = isQuality ? 64 : 0
       ..injectionResolution = IrradianceInjectionResolution.eighth
       ..fireflyClamp = 6.0
       ..emissiveGiBoost = 1.35
@@ -442,12 +442,19 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
         photo: _usePhotoFinishAssets,
       );
 
-  String? _baseColorAssetFor(VisualMaterialPreset preset) =>
-      _manifestTexturesFor(preset)?.baseColor ??
-      preset.textureFor(
-        mobile: _useMobileFinishAssets,
-        photo: _usePhotoFinishAssets,
-      );
+  String? _baseColorAssetFor(VisualMaterialPreset preset) {
+    final manifest = _manifestFor(preset);
+    // Paint colour is authored by the user. Sampling a generated albedo here
+    // was adding visible dirt/speckles and also contaminated the selected tint.
+    // Keep only micro-normal/roughness for paint and let baseColorFactor carry
+    // the actual wall colour.
+    if (preset.pattern == 'paint' || manifest?.tintable == true) return null;
+    return _manifestTexturesFor(preset)?.baseColor ??
+        preset.textureFor(
+          mobile: _useMobileFinishAssets,
+          photo: _usePhotoFinishAssets,
+        );
+  }
 
   String? _normalAssetFor(VisualMaterialPreset preset) =>
       _manifestTexturesFor(preset)?.normal ??
@@ -1649,20 +1656,73 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
           swingSign * 32 * math.pi / 180,
         );
       final leafMaterial = _pbr(
-        vm.Vector4(0.68, 0.52, 0.36, 1),
-        roughness: 0.62,
+        vm.Vector4(0.88, 0.86, 0.82, 1),
+        roughness: 0.40,
       );
-      hinge.add(
+      final panelMaterial = _pbr(
+        vm.Vector4(0.82, 0.80, 0.76, 1),
+        roughness: 0.46,
+      );
+      final metalMaterial = _pbr(
+        vm.Vector4(0.34, 0.35, 0.36, 1),
+        roughness: 0.24,
+      )..metallicFactor = 0.78;
+
+      final leaf = Node(name: 'door-leaf-root')
+        ..position = vm.Vector3(-hingeSign * leafWidth / 2, leafHeight / 2, 0);
+      leaf.add(
         Node(
           name: 'door-leaf',
           mesh: Mesh(
-            CuboidGeometry(vm.Vector3(leafWidth, leafHeight, 0.038)),
+            CuboidGeometry(vm.Vector3(leafWidth, leafHeight, 0.042)),
             leafMaterial,
           ),
+        )..shadowStatic = true,
+      );
+
+      // Shallow raised rails/stiles break the giant flat slab and read much
+      // closer to a real interior door at phone viewing distance.
+      final panelWidth = math.max(0.12, leafWidth * 0.72);
+      final panelHeight = math.max(0.16, leafHeight * 0.25);
+      for (final y in <double>[-leafHeight * 0.23, leafHeight * 0.18]) {
+        leaf.add(
+          Node(
+            name: 'door-panel',
+            mesh: Mesh(
+              CuboidGeometry(vm.Vector3(panelWidth, panelHeight, 0.010)),
+              panelMaterial,
+            ),
+          )
+            ..position = vm.Vector3(0, y, 0.026)
+            ..shadowStatic = true,
+        );
+      }
+
+      leaf.add(
+        Node(
+          name: 'door-handle',
+          mesh: Mesh(
+            CylinderGeometry(
+              bottomRadius: 0.012,
+              topRadius: 0.012,
+              height: 0.115,
+              radialSegments: 20,
+            ),
+            metalMaterial,
+          ),
         )
-          ..position = vm.Vector3(-hingeSign * leafWidth / 2, leafHeight / 2, 0)
+          ..position = vm.Vector3(
+            hingeSign * leafWidth * 0.36,
+            0.03,
+            0.070,
+          )
+          ..rotation = vm.Quaternion.axisAngle(
+            vm.Vector3(0, 0, 1),
+            math.pi / 2,
+          )
           ..shadowStatic = true,
       );
+      hinge.add(leaf);
       root.add(hinge);
     }
     _markStatic(root);
@@ -2139,7 +2199,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       );
       return PerspectiveCamera(
         fovRadiansY:
-            widget.walkFovDegrees.clamp(55, 100).toDouble() * math.pi / 180,
+            widget.walkFovDegrees.clamp(50, 82).toDouble() * math.pi / 180,
         position: eye,
         target: eye + forward * 4,
         up: vm.Vector3(0, 1, 0),
