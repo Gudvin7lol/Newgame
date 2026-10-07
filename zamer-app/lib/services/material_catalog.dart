@@ -9,15 +9,21 @@ class VisualMaterialPreset {
     this.pattern = 'solid',
     this.textureAsset,
     this.textureAssetMobile,
+    this.textureAssetPhoto,
     this.normalAsset,
     this.normalAssetMobile,
+    this.normalAssetPhoto,
     this.metallicRoughnessAsset,
     this.metallicRoughnessAssetMobile,
+    this.metallicRoughnessAssetPhoto,
     this.occlusionAsset,
     this.occlusionAssetMobile,
+    this.occlusionAssetPhoto,
     this.roughness,
     this.normalScale = 1.0,
     this.occlusionStrength = 1.0,
+    this.physicalWidthMm = 1000,
+    this.physicalHeightMm = 1000,
   });
 
   final String id;
@@ -27,29 +33,402 @@ class VisualMaterialPreset {
   final String pattern;
   final String? textureAsset;
   final String? textureAssetMobile;
+  final String? textureAssetPhoto;
   final String? normalAsset;
   final String? normalAssetMobile;
+  final String? normalAssetPhoto;
   final String? metallicRoughnessAsset;
   final String? metallicRoughnessAssetMobile;
+  final String? metallicRoughnessAssetPhoto;
   final String? occlusionAsset;
   final String? occlusionAssetMobile;
+  final String? occlusionAssetPhoto;
   final double? roughness;
 
-  String? textureFor({required bool mobile}) =>
-      mobile ? (textureAssetMobile ?? textureAsset) : textureAsset;
-  String? normalFor({required bool mobile}) =>
-      mobile ? (normalAssetMobile ?? normalAsset) : normalAsset;
-  String? metallicRoughnessFor({required bool mobile}) => mobile
-      ? (metallicRoughnessAssetMobile ?? metallicRoughnessAsset)
-      : metallicRoughnessAsset;
-  String? occlusionFor({required bool mobile}) =>
-      mobile ? (occlusionAssetMobile ?? occlusionAsset) : occlusionAsset;
+  String? textureFor({required bool mobile, bool photo = false}) => photo
+      ? (textureAssetPhoto ?? textureAsset)
+      : (mobile ? (textureAssetMobile ?? textureAsset) : textureAsset);
+  String? normalFor({required bool mobile, bool photo = false}) => photo
+      ? (normalAssetPhoto ?? normalAsset)
+      : (mobile ? (normalAssetMobile ?? normalAsset) : normalAsset);
+  String? metallicRoughnessFor({required bool mobile, bool photo = false}) =>
+      photo
+          ? (metallicRoughnessAssetPhoto ?? metallicRoughnessAsset)
+          : (mobile
+              ? (metallicRoughnessAssetMobile ?? metallicRoughnessAsset)
+              : metallicRoughnessAsset);
+  String? occlusionFor({required bool mobile, bool photo = false}) => photo
+      ? (occlusionAssetPhoto ?? occlusionAsset)
+      : (mobile ? (occlusionAssetMobile ?? occlusionAsset) : occlusionAsset);
   final double normalScale;
   final double occlusionStrength;
+  final double physicalWidthMm;
+  final double physicalHeightMm;
 }
 
 class MaterialCatalog {
   static const presets = <VisualMaterialPreset>[
+    VisualMaterialPreset(
+      id: 'PAINT_01',
+      name: 'Универсальная краска',
+      category: 'Стены',
+      color: Color(0xFFEFEDE8),
+      pattern: 'paint',
+      textureAsset: 'assets/textures/pbr12/PAINT_01/quality/basecolor.png',
+      textureAssetMobile:
+          'assets/textures/pbr12/PAINT_01/performance/basecolor.png',
+      textureAssetPhoto: 'assets/textures/pbr12/PAINT_01/photo/basecolor.png',
+      normalAsset: 'assets/textures/pbr12/PAINT_01/quality/normal.png',
+      normalAssetMobile:
+          'assets/textures/pbr12/PAINT_01/performance/normal.png',
+      normalAssetPhoto: 'assets/textures/pbr12/PAINT_01/photo/normal.png',
+      metallicRoughnessAsset:
+          'assets/textures/pbr12/PAINT_01/quality/orm.png',
+      metallicRoughnessAssetMobile:
+          'assets/textures/pbr12/PAINT_01/performance/orm.png',
+      metallicRoughnessAssetPhoto:
+          'assets/textures/pbr12/PAINT_01/photo/orm.png',
+      occlusionAsset: 'assets/textures/pbr12/PAINT_01/quality/orm.png',
+      occlusionAssetMobile:
+          'assets/textures/pbr12/PAINT_01/performance/orm.png',
+      occlusionAssetPhoto: 'assets/textures/pbr12/PAINT_01/photo/orm.png',
+      roughness: .80,
+      normalScale: .18,
+      occlusionStrength: .52,
+      physicalWidthMm: 1000,
+      physicalHeightMm: 1000,
+    ),
+    VisualMaterialPreset(
+      id: 'PLASTER_01',
+      name: 'Гипсовая штукатурка',
+      category: 'Стены',
+      color: Color(0xFFDED8CF),
+      pattern: 'plaster',
+      textureAsset: 'assets/textures/pbr12/PLASTER_01/quality/basecolor.png',
+      textureAssetMobile:
+          'assets/textures/pbr12/PLASTER_01/performance/basecolor.png',
+      textureAssetPhoto: 'assets/textures/pbr12/PLASTER_01/photo/basecolor.png',
+      normalAsset: 'assets/textures/pbr12/PLASTER_01/quality/normal.png',
+      normalAssetMobile:
+          'assets/textures/pbr12/PLASTER_01/performance/normal.png',
+      normalAssetPhoto: 'assets/textures/pbr12/PLASTER_01/photo/normal.png',
+      metallicRoughnessAsset:
+          'assets/textures/pbr12/PLASTER_01/quality/orm.png',
+      metallicRoughnessAssetMobile:
+          'assets/textures/pbr12/PLASTER_01/performance/orm.png',
+      metallicRoughnessAssetPhoto:
+          'assets/textures/pbr12/PLASTER_01/photo/orm.png',
+      occlusionAsset: 'assets/textures/pbr12/PLASTER_01/quality/orm.png',
+      occlusionAssetMobile:
+          'assets/textures/pbr12/PLASTER_01/performance/orm.png',
+      occlusionAssetPhoto: 'assets/textures/pbr12/PLASTER_01/photo/orm.png',
+      roughness: .82,
+      normalScale: .30,
+      occlusionStrength: .72,
+      physicalWidthMm: 1000,
+      physicalHeightMm: 1000,
+    ),
+    VisualMaterialPreset(
+      id: 'BRICK_01',
+      name: 'Красный кирпич',
+      category: 'Стены',
+      color: Color(0xFFB86849),
+      pattern: 'brick',
+      textureAsset: 'assets/textures/pbr12/BRICK_01/quality/basecolor.png',
+      textureAssetMobile:
+          'assets/textures/pbr12/BRICK_01/performance/basecolor.png',
+      textureAssetPhoto: 'assets/textures/pbr12/BRICK_01/photo/basecolor.png',
+      normalAsset: 'assets/textures/pbr12/BRICK_01/quality/normal.png',
+      normalAssetMobile:
+          'assets/textures/pbr12/BRICK_01/performance/normal.png',
+      normalAssetPhoto: 'assets/textures/pbr12/BRICK_01/photo/normal.png',
+      metallicRoughnessAsset:
+          'assets/textures/pbr12/BRICK_01/quality/orm.png',
+      metallicRoughnessAssetMobile:
+          'assets/textures/pbr12/BRICK_01/performance/orm.png',
+      metallicRoughnessAssetPhoto:
+          'assets/textures/pbr12/BRICK_01/photo/orm.png',
+      occlusionAsset: 'assets/textures/pbr12/BRICK_01/quality/orm.png',
+      occlusionAssetMobile:
+          'assets/textures/pbr12/BRICK_01/performance/orm.png',
+      occlusionAssetPhoto: 'assets/textures/pbr12/BRICK_01/photo/orm.png',
+      roughness: .76,
+      normalScale: .60,
+      occlusionStrength: .88,
+      physicalWidthMm: 1040,
+      physicalHeightMm: 900,
+    ),
+    VisualMaterialPreset(
+      id: 'TILE_01',
+      name: 'Светлый камень',
+      category: 'Плитка',
+      color: Color(0xFFD9CCB8),
+      pattern: 'tile',
+      textureAsset: 'assets/textures/pbr12/TILE_01/quality/basecolor.png',
+      textureAssetMobile:
+          'assets/textures/pbr12/TILE_01/performance/basecolor.png',
+      textureAssetPhoto: 'assets/textures/pbr12/TILE_01/photo/basecolor.png',
+      normalAsset: 'assets/textures/pbr12/TILE_01/quality/normal.png',
+      normalAssetMobile:
+          'assets/textures/pbr12/TILE_01/performance/normal.png',
+      normalAssetPhoto: 'assets/textures/pbr12/TILE_01/photo/normal.png',
+      metallicRoughnessAsset:
+          'assets/textures/pbr12/TILE_01/quality/orm.png',
+      metallicRoughnessAssetMobile:
+          'assets/textures/pbr12/TILE_01/performance/orm.png',
+      metallicRoughnessAssetPhoto:
+          'assets/textures/pbr12/TILE_01/photo/orm.png',
+      occlusionAsset: 'assets/textures/pbr12/TILE_01/quality/orm.png',
+      occlusionAssetMobile:
+          'assets/textures/pbr12/TILE_01/performance/orm.png',
+      occlusionAssetPhoto: 'assets/textures/pbr12/TILE_01/photo/orm.png',
+      roughness: .56,
+      normalScale: .22,
+      occlusionStrength: .80,
+      physicalWidthMm: 1000,
+      physicalHeightMm: 1000,
+    ),
+    VisualMaterialPreset(
+      id: 'TILE_02',
+      name: 'Бетонная плитка',
+      category: 'Плитка',
+      color: Color(0xFFB5B3AE),
+      pattern: 'tile',
+      textureAsset: 'assets/textures/pbr12/TILE_02/quality/basecolor.png',
+      textureAssetMobile:
+          'assets/textures/pbr12/TILE_02/performance/basecolor.png',
+      textureAssetPhoto: 'assets/textures/pbr12/TILE_02/photo/basecolor.png',
+      normalAsset: 'assets/textures/pbr12/TILE_02/quality/normal.png',
+      normalAssetMobile:
+          'assets/textures/pbr12/TILE_02/performance/normal.png',
+      normalAssetPhoto: 'assets/textures/pbr12/TILE_02/photo/normal.png',
+      metallicRoughnessAsset:
+          'assets/textures/pbr12/TILE_02/quality/orm.png',
+      metallicRoughnessAssetMobile:
+          'assets/textures/pbr12/TILE_02/performance/orm.png',
+      metallicRoughnessAssetPhoto:
+          'assets/textures/pbr12/TILE_02/photo/orm.png',
+      occlusionAsset: 'assets/textures/pbr12/TILE_02/quality/orm.png',
+      occlusionAssetMobile:
+          'assets/textures/pbr12/TILE_02/performance/orm.png',
+      occlusionAssetPhoto: 'assets/textures/pbr12/TILE_02/photo/orm.png',
+      roughness: .66,
+      normalScale: .28,
+      occlusionStrength: .82,
+      physicalWidthMm: 1000,
+      physicalHeightMm: 1000,
+    ),
+    VisualMaterialPreset(
+      id: 'TILE_03',
+      name: 'Светлый мрамор',
+      category: 'Плитка',
+      color: Color(0xFFE7E3DE),
+      pattern: 'tile',
+      textureAsset: 'assets/textures/pbr12/TILE_03/quality/basecolor.png',
+      textureAssetMobile:
+          'assets/textures/pbr12/TILE_03/performance/basecolor.png',
+      textureAssetPhoto: 'assets/textures/pbr12/TILE_03/photo/basecolor.png',
+      normalAsset: 'assets/textures/pbr12/TILE_03/quality/normal.png',
+      normalAssetMobile:
+          'assets/textures/pbr12/TILE_03/performance/normal.png',
+      normalAssetPhoto: 'assets/textures/pbr12/TILE_03/photo/normal.png',
+      metallicRoughnessAsset:
+          'assets/textures/pbr12/TILE_03/quality/orm.png',
+      metallicRoughnessAssetMobile:
+          'assets/textures/pbr12/TILE_03/performance/orm.png',
+      metallicRoughnessAssetPhoto:
+          'assets/textures/pbr12/TILE_03/photo/orm.png',
+      occlusionAsset: 'assets/textures/pbr12/TILE_03/quality/orm.png',
+      occlusionAssetMobile:
+          'assets/textures/pbr12/TILE_03/performance/orm.png',
+      occlusionAssetPhoto: 'assets/textures/pbr12/TILE_03/photo/orm.png',
+      roughness: .34,
+      normalScale: .10,
+      occlusionStrength: .72,
+      physicalWidthMm: 1000,
+      physicalHeightMm: 1000,
+    ),
+    VisualMaterialPreset(
+      id: 'LAM_01',
+      name: 'Натуральный дуб',
+      category: 'Пол',
+      color: Color(0xFFA77A4F),
+      pattern: 'wood',
+      textureAsset: 'assets/textures/pbr12/LAM_01/quality/basecolor.png',
+      textureAssetMobile:
+          'assets/textures/pbr12/LAM_01/performance/basecolor.png',
+      textureAssetPhoto: 'assets/textures/pbr12/LAM_01/photo/basecolor.png',
+      normalAsset: 'assets/textures/pbr12/LAM_01/quality/normal.png',
+      normalAssetMobile:
+          'assets/textures/pbr12/LAM_01/performance/normal.png',
+      normalAssetPhoto: 'assets/textures/pbr12/LAM_01/photo/normal.png',
+      metallicRoughnessAsset:
+          'assets/textures/pbr12/LAM_01/quality/orm.png',
+      metallicRoughnessAssetMobile:
+          'assets/textures/pbr12/LAM_01/performance/orm.png',
+      metallicRoughnessAssetPhoto:
+          'assets/textures/pbr12/LAM_01/photo/orm.png',
+      occlusionAsset: 'assets/textures/pbr12/LAM_01/quality/orm.png',
+      occlusionAssetMobile:
+          'assets/textures/pbr12/LAM_01/performance/orm.png',
+      occlusionAssetPhoto: 'assets/textures/pbr12/LAM_01/photo/orm.png',
+      roughness: .58,
+      normalScale: .35,
+      occlusionStrength: .78,
+      physicalWidthMm: 1000,
+      physicalHeightMm: 1000,
+    ),
+    VisualMaterialPreset(
+      id: 'LAM_02',
+      name: 'Светлый дуб',
+      category: 'Пол',
+      color: Color(0xFFC6A37D),
+      pattern: 'wood',
+      textureAsset: 'assets/textures/pbr12/LAM_02/quality/basecolor.png',
+      textureAssetMobile:
+          'assets/textures/pbr12/LAM_02/performance/basecolor.png',
+      textureAssetPhoto: 'assets/textures/pbr12/LAM_02/photo/basecolor.png',
+      normalAsset: 'assets/textures/pbr12/LAM_02/quality/normal.png',
+      normalAssetMobile:
+          'assets/textures/pbr12/LAM_02/performance/normal.png',
+      normalAssetPhoto: 'assets/textures/pbr12/LAM_02/photo/normal.png',
+      metallicRoughnessAsset:
+          'assets/textures/pbr12/LAM_02/quality/orm.png',
+      metallicRoughnessAssetMobile:
+          'assets/textures/pbr12/LAM_02/performance/orm.png',
+      metallicRoughnessAssetPhoto:
+          'assets/textures/pbr12/LAM_02/photo/orm.png',
+      occlusionAsset: 'assets/textures/pbr12/LAM_02/quality/orm.png',
+      occlusionAssetMobile:
+          'assets/textures/pbr12/LAM_02/performance/orm.png',
+      occlusionAssetPhoto: 'assets/textures/pbr12/LAM_02/photo/orm.png',
+      roughness: .62,
+      normalScale: .35,
+      occlusionStrength: .76,
+      physicalWidthMm: 1000,
+      physicalHeightMm: 1000,
+    ),
+    VisualMaterialPreset(
+      id: 'LAM_03',
+      name: 'Дымчатый серо-бежевый дуб',
+      category: 'Пол',
+      color: Color(0xFF928477),
+      pattern: 'wood',
+      textureAsset: 'assets/textures/pbr12/LAM_03/quality/basecolor.png',
+      textureAssetMobile:
+          'assets/textures/pbr12/LAM_03/performance/basecolor.png',
+      textureAssetPhoto: 'assets/textures/pbr12/LAM_03/photo/basecolor.png',
+      normalAsset: 'assets/textures/pbr12/LAM_03/quality/normal.png',
+      normalAssetMobile:
+          'assets/textures/pbr12/LAM_03/performance/normal.png',
+      normalAssetPhoto: 'assets/textures/pbr12/LAM_03/photo/normal.png',
+      metallicRoughnessAsset:
+          'assets/textures/pbr12/LAM_03/quality/orm.png',
+      metallicRoughnessAssetMobile:
+          'assets/textures/pbr12/LAM_03/performance/orm.png',
+      metallicRoughnessAssetPhoto:
+          'assets/textures/pbr12/LAM_03/photo/orm.png',
+      occlusionAsset: 'assets/textures/pbr12/LAM_03/quality/orm.png',
+      occlusionAssetMobile:
+          'assets/textures/pbr12/LAM_03/performance/orm.png',
+      occlusionAssetPhoto: 'assets/textures/pbr12/LAM_03/photo/orm.png',
+      roughness: .60,
+      normalScale: .35,
+      occlusionStrength: .80,
+      physicalWidthMm: 1000,
+      physicalHeightMm: 1000,
+    ),
+    VisualMaterialPreset(
+      id: 'CONCRETE_01',
+      name: 'Архитектурный бетон',
+      category: 'Стены',
+      color: Color(0xFFB8B8B4),
+      pattern: 'concrete',
+      textureAsset: 'assets/textures/pbr12/CONCRETE_01/quality/basecolor.png',
+      textureAssetMobile:
+          'assets/textures/pbr12/CONCRETE_01/performance/basecolor.png',
+      textureAssetPhoto: 'assets/textures/pbr12/CONCRETE_01/photo/basecolor.png',
+      normalAsset: 'assets/textures/pbr12/CONCRETE_01/quality/normal.png',
+      normalAssetMobile:
+          'assets/textures/pbr12/CONCRETE_01/performance/normal.png',
+      normalAssetPhoto: 'assets/textures/pbr12/CONCRETE_01/photo/normal.png',
+      metallicRoughnessAsset:
+          'assets/textures/pbr12/CONCRETE_01/quality/orm.png',
+      metallicRoughnessAssetMobile:
+          'assets/textures/pbr12/CONCRETE_01/performance/orm.png',
+      metallicRoughnessAssetPhoto:
+          'assets/textures/pbr12/CONCRETE_01/photo/orm.png',
+      occlusionAsset: 'assets/textures/pbr12/CONCRETE_01/quality/orm.png',
+      occlusionAssetMobile:
+          'assets/textures/pbr12/CONCRETE_01/performance/orm.png',
+      occlusionAssetPhoto: 'assets/textures/pbr12/CONCRETE_01/photo/orm.png',
+      roughness: .69,
+      normalScale: .34,
+      occlusionStrength: .82,
+      physicalWidthMm: 1000,
+      physicalHeightMm: 1000,
+    ),
+    VisualMaterialPreset(
+      id: 'MARBLE_01',
+      name: 'Натуральный мрамор',
+      category: 'Плитка',
+      color: Color(0xFFE6E3DF),
+      pattern: 'tile',
+      textureAsset: 'assets/textures/pbr12/MARBLE_01/quality/basecolor.png',
+      textureAssetMobile:
+          'assets/textures/pbr12/MARBLE_01/performance/basecolor.png',
+      textureAssetPhoto: 'assets/textures/pbr12/MARBLE_01/photo/basecolor.png',
+      normalAsset: 'assets/textures/pbr12/MARBLE_01/quality/normal.png',
+      normalAssetMobile:
+          'assets/textures/pbr12/MARBLE_01/performance/normal.png',
+      normalAssetPhoto: 'assets/textures/pbr12/MARBLE_01/photo/normal.png',
+      metallicRoughnessAsset:
+          'assets/textures/pbr12/MARBLE_01/quality/orm.png',
+      metallicRoughnessAssetMobile:
+          'assets/textures/pbr12/MARBLE_01/performance/orm.png',
+      metallicRoughnessAssetPhoto:
+          'assets/textures/pbr12/MARBLE_01/photo/orm.png',
+      occlusionAsset: 'assets/textures/pbr12/MARBLE_01/quality/orm.png',
+      occlusionAssetMobile:
+          'assets/textures/pbr12/MARBLE_01/performance/orm.png',
+      occlusionAssetPhoto: 'assets/textures/pbr12/MARBLE_01/photo/orm.png',
+      roughness: .30,
+      normalScale: .08,
+      occlusionStrength: .68,
+      physicalWidthMm: 1000,
+      physicalHeightMm: 1000,
+    ),
+    VisualMaterialPreset(
+      id: 'TRAVERTINE_01',
+      name: 'Травертин натуральный',
+      category: 'Плитка',
+      color: Color(0xFFC7AD8C),
+      pattern: 'tile',
+      textureAsset: 'assets/textures/pbr12/TRAVERTINE_01/quality/basecolor.png',
+      textureAssetMobile:
+          'assets/textures/pbr12/TRAVERTINE_01/performance/basecolor.png',
+      textureAssetPhoto: 'assets/textures/pbr12/TRAVERTINE_01/photo/basecolor.png',
+      normalAsset: 'assets/textures/pbr12/TRAVERTINE_01/quality/normal.png',
+      normalAssetMobile:
+          'assets/textures/pbr12/TRAVERTINE_01/performance/normal.png',
+      normalAssetPhoto: 'assets/textures/pbr12/TRAVERTINE_01/photo/normal.png',
+      metallicRoughnessAsset:
+          'assets/textures/pbr12/TRAVERTINE_01/quality/orm.png',
+      metallicRoughnessAssetMobile:
+          'assets/textures/pbr12/TRAVERTINE_01/performance/orm.png',
+      metallicRoughnessAssetPhoto:
+          'assets/textures/pbr12/TRAVERTINE_01/photo/orm.png',
+      occlusionAsset: 'assets/textures/pbr12/TRAVERTINE_01/quality/orm.png',
+      occlusionAssetMobile:
+          'assets/textures/pbr12/TRAVERTINE_01/performance/orm.png',
+      occlusionAssetPhoto: 'assets/textures/pbr12/TRAVERTINE_01/photo/orm.png',
+      roughness: .64,
+      normalScale: .42,
+      occlusionStrength: .84,
+      physicalWidthMm: 1000,
+      physicalHeightMm: 1000,
+    ),
+
     VisualMaterialPreset(
       id: 'oak-natural',
       name: 'Дуб натуральный',
@@ -329,6 +708,6 @@ class MaterialCatalog {
       .toList(growable: false);
 
   static List<VisualMaterialPreset> get paintFinishes => presets
-      .where((e) => e.id.startsWith('paint-'))
+      .where((e) => e.pattern == 'paint')
       .toList(growable: false);
 }
