@@ -1,0 +1,24 @@
+{
+  "id": "TRAVERTINE_01",
+  "name": "Травертин",
+  "category": "stone",
+  "type": "travertine",
+  "version": 1,
+  "physicalScale": {
+    "unit": "mm",
+    "width": 1000,
+    "height": 1000
+  },
+  "surface": {
+    "roughness": 0.64,
+    "normalStrength": 0.42,
+    "heightStrength": 0.11,
+    "metallic": 0.0
+  },
+  "variants": 6,
+  "quality": {
+    "master": 4096,
+    "quality": 2048,
+    "performance": 1024
+  }
+}

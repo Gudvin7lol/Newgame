@@ -1,0 +1,28 @@
+{
+  "id": "TILE_02",
+  "name": "Бетонная плитка",
+  "category": "tile",
+  "type": "concrete_tile",
+  "version": 1,
+  "layout": {
+    "procedural": true,
+    "defaultWidth": 600,
+    "defaultHeight": 600,
+    "defaultJoint": 2
+  },
+  "grout": {
+    "separate": true,
+    "editableColor": true
+  },
+  "surface": {
+    "roughness": 0.66,
+    "normalStrength": 0.28,
+    "metallic": 0.0
+  },
+  "variants": 6,
+  "quality": {
+    "master": 4096,
+    "quality": 2048,
+    "performance": 1024
+  }
+}

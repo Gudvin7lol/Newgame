@@ -1,0 +1,34 @@
+{
+  "id": "LAM_03",
+  "name": "Дымчатый серо-бежевый дуб",
+  "category": "floor",
+  "type": "laminate",
+  "version": 1,
+  "physicalScale": {
+    "unit": "mm",
+    "width": 1000,
+    "height": 1000
+  },
+  "defaultPlank": {
+    "width": 193,
+    "length": 1380
+  },
+  "surface": {
+    "roughness": 0.6,
+    "normalStrength": 0.35,
+    "heightStrength": 0.0,
+    "metallic": 0.0
+  },
+  "variants": 10,
+  "layout": {
+    "procedural": true,
+    "allowRotation": true,
+    "allowOffset": true,
+    "allowHerringbone": true
+  },
+  "quality": {
+    "master": 4096,
+    "quality": 2048,
+    "performance": 1024
+  }
+}

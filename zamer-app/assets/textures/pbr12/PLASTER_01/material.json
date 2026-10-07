@@ -1,0 +1,24 @@
+{
+  "id": "PLASTER_01",
+  "name": "Гипсовая штукатурка",
+  "category": "wall",
+  "type": "plaster",
+  "version": 1,
+  "physicalScale": {
+    "unit": "mm",
+    "width": 1000,
+    "height": 1000
+  },
+  "surface": {
+    "roughness": 0.82,
+    "normalStrength": 0.3,
+    "heightStrength": 0.045,
+    "metallic": 0.0
+  },
+  "variants": 2,
+  "quality": {
+    "master": 4096,
+    "quality": 2048,
+    "performance": 1024
+  }
+}

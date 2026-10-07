@@ -1,0 +1,24 @@
+{
+  "id": "CONCRETE_01",
+  "name": "Архитектурный бетон",
+  "category": "wall",
+  "type": "concrete",
+  "version": 1,
+  "physicalScale": {
+    "unit": "mm",
+    "width": 1000,
+    "height": 1000
+  },
+  "surface": {
+    "roughness": 0.69,
+    "normalStrength": 0.34,
+    "heightStrength": 0.06,
+    "metallic": 0.0
+  },
+  "variants": 3,
+  "quality": {
+    "master": 4096,
+    "quality": 2048,
+    "performance": 1024
+  }
+}

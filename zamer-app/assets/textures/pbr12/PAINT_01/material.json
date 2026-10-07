@@ -1,0 +1,29 @@
+{
+  "id": "PAINT_01",
+  "name": "Универсальная краска",
+  "category": "wall",
+  "type": "paint",
+  "version": 1,
+  "colorMode": "user_defined",
+  "physicalScale": {
+    "unit": "mm",
+    "width": 1000,
+    "height": 1000
+  },
+  "surface": {
+    "roughness": 0.8,
+    "normalStrength": 0.18,
+    "heightStrength": 0.0,
+    "metallic": 0.0
+  },
+  "finishPresets": {
+    "matte": 0.82,
+    "eggshell": 0.66,
+    "satin": 0.52
+  },
+  "quality": {
+    "master": 4096,
+    "quality": 2048,
+    "performance": 1024
+  }
+}
