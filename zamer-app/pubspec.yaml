@@ -30,4 +30,8 @@ flutter:
   uses-material-design: true
   assets:
     - assets/models/zamer_catalog/
+    - assets/models/zamer_premium/
     - assets/textures/
+    - assets/textures/pbr/dark_oak/
+    - assets/textures/pbr/paint/
+    - assets/textures/pbr/ivory_tile/
