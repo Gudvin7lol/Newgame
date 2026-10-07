@@ -90,6 +90,7 @@ class _EngineeringScreenState extends State<EngineeringScreen> {
       (sum, zone) => sum + EngineeringService.zoneAreaM2(face, zone),
     );
     return ListView(
+      key: const PageStorageKey<String>('engineering-ceiling'),
       padding: const EdgeInsets.all(12),
       children: [
         if (widget.floor.planObjects.any(
@@ -287,6 +288,7 @@ class _EngineeringScreenState extends State<EngineeringScreen> {
     final spec = meta.heating;
     final takeoff = EngineeringService.warmFloor(face, spec);
     return ListView(
+      key: const PageStorageKey<String>('engineering-warm-floor'),
       padding: const EdgeInsets.all(12),
       children: [
         SwitchListTile.adaptive(
@@ -389,6 +391,7 @@ class _EngineeringScreenState extends State<EngineeringScreen> {
   }
 
   Widget _routes(RoomFace face, RoomMeta meta) => ListView(
+    key: const PageStorageKey<String>('engineering-routes'),
     padding: const EdgeInsets.all(12),
     children: [
       Row(
@@ -623,12 +626,63 @@ class _EngineeringScreenState extends State<EngineeringScreen> {
       orElse: () => faces.first,
     );
     final meta = widget.floor.roomMetaByKey(face.key)!;
+    final roomName = widget.floor.roomMetaByKey(face.key)?.name ?? 'Помещение';
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.all(10),
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              Row(
+                children: [
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Инженерия',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: .1,
+                          ),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'Потолки, тёплый пол и инженерные трассы',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFF8C989D),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 9,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF171F23),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFF2A3941)),
+                    ),
+                    child: Text(
+                      roomName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFFF1C79E),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
               DropdownButtonFormField<String>(
                 value: face.key,
                 decoration: const InputDecoration(labelText: 'Помещение'),
@@ -647,18 +701,22 @@ class _EngineeringScreenState extends State<EngineeringScreen> {
               ),
               const SizedBox(height: 8),
               SegmentedButton<_EngineeringTab>(
+                showSelectedIcon: false,
                 segments: const [
                   ButtonSegment(
                     value: _EngineeringTab.ceiling,
+                    icon: Icon(Icons.layers_outlined),
                     label: Text('Потолок'),
                   ),
                   ButtonSegment(
                     value: _EngineeringTab.warmFloor,
+                    icon: Icon(Icons.waves_rounded),
                     label: Text('Тёплый пол'),
                   ),
                   ButtonSegment(
                     value: _EngineeringTab.routes,
-                    label: Text('Трубы'),
+                    icon: Icon(Icons.route_outlined),
+                    label: Text('Трассы'),
                   ),
                 ],
                 selected: {_tab},
@@ -737,8 +795,18 @@ class _EngineeringPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     canvas.drawRect(
       Offset.zero & size,
-      Paint()..color = const Color(0xFFF5F7F7),
+      Paint()..color = const Color(0xFF0B1115),
     );
+    final gridPaint = Paint()
+      ..color = const Color(0xFF172229)
+      ..strokeWidth = .7;
+    const gridStep = 32.0;
+    for (var x = 0.0; x <= size.width; x += gridStep) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
+    }
+    for (var y = 0.0; y <= size.height; y += gridStep) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
+    }
     final polygon = LayoutService.finishPolygon(face);
     if (polygon.isEmpty) return;
     final path = Path()
@@ -751,7 +819,7 @@ class _EngineeringPainter extends CustomPainter {
       path.lineTo(q.dx, q.dy);
     }
     path.close();
-    canvas.drawPath(path, Paint()..color = Colors.white);
+    canvas.drawPath(path, Paint()..color = const Color(0xFF111A1F));
     canvas.save();
     canvas.clipPath(path);
     if (tab == _EngineeringTab.ceiling) {
@@ -762,11 +830,11 @@ class _EngineeringPainter extends CustomPainter {
           width: zone.widthMm * tx.scale,
           height: zone.depthMm * tx.scale,
         );
-        canvas.drawRect(rect, Paint()..color = const Color(0xFFB8DCCC));
+        canvas.drawRect(rect, Paint()..color = const Color(0xFF29483E));
         canvas.drawRect(
           rect,
           Paint()
-            ..color = const Color(0xFF247A5D)
+            ..color = const Color(0xFF8AC8AE)
             ..style = PaintingStyle.stroke
             ..strokeWidth = 2,
         );
@@ -775,7 +843,7 @@ class _EngineeringPainter extends CustomPainter {
       final b = path.getBounds();
       final spacing = math.max(8.0, meta.heating.spacingMm * tx.scale);
       final pipe = Paint()
-        ..color = const Color(0xFFD46A43)
+        ..color = const Color(0xFFE89B67)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2.4
         ..strokeJoin = StrokeJoin.round
@@ -796,7 +864,7 @@ class _EngineeringPainter extends CustomPainter {
         canvas.drawCircle(
           Offset(left, top),
           5,
-          Paint()..color = const Color(0xFFD46A43),
+          Paint()..color = const Color(0xFFE89B67),
         );
       }
     }
@@ -804,16 +872,16 @@ class _EngineeringPainter extends CustomPainter {
     canvas.drawPath(
       path,
       Paint()
-        ..color = const Color(0xFF26363A)
+        ..color = const Color(0xFFD4DEE2)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2,
     );
     if (tab != _EngineeringTab.routes) return;
     final colors = {
-      ServiceRunType.coldWater: const Color(0xFF3285D0),
-      ServiceRunType.hotWater: const Color(0xFFD7574D),
-      ServiceRunType.drain: const Color(0xFF83715A),
-      ServiceRunType.heating: const Color(0xFFE6913A),
+      ServiceRunType.coldWater: const Color(0xFF62A9E6),
+      ServiceRunType.hotWater: const Color(0xFFE66E67),
+      ServiceRunType.drain: const Color(0xFFB69B79),
+      ServiceRunType.heating: const Color(0xFFEBA45A),
     };
     void draw(List<ServiceVertex> points, Color color) {
       if (points.isEmpty) return;

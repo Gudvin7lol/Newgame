@@ -1,6 +1,9 @@
+import 'dart:math' as math;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zamer_app/models/models.dart';
 import 'package:zamer_app/renderer3d/zamer_scene_geometry.dart';
+import 'package:zamer_app/services/geometry_service.dart';
 
 void main() {
   test('straight wall is cut around a door and opening is exported to 3D', () {
@@ -69,6 +72,7 @@ void main() {
 
     final scene = ZamerSceneGeometry.fromFloor(floor);
     final point = scene.electrical.single;
+    expect(point.wallId, 'w');
     expect(point.heightMm, 300);
     expect(point.wallThicknessMm, 120);
     expect(point.rotationRad, closeTo(0, 0.0001));
@@ -113,39 +117,112 @@ void main() {
     expect(surface.tileHeightMm, 600);
     expect(scene.walls, isNotEmpty);
     expect(scene.walls.every((wall) => wall.tileEnabled), isTrue);
-    expect(scene.walls.every((wall) => wall.tileMaterialId == 'tile-marble'), isTrue);
+    expect(
+      scene.walls.every((wall) => wall.tileMaterialId == 'tile-marble'),
+      isTrue,
+    );
   });
 
-  test('fixture electrical marker is not duplicated beside the 3D light object', () {
-    final floor = FloorPlan(id: 'lights', name: 'Lights')
-      ..planObjects.add(
-        PlanObject(
-          id: 'lamp',
-          type: PlanObjectType.lighting,
-          xMm: 1500,
-          yMm: 1200,
-          widthMm: 500,
-          depthMm: 180,
-          heightMm: 220,
-          elevationMm: 1800,
-          catalogId: 'wall-sconce-round',
-        ),
-      )
-      ..electricalPoints.add(
-        ElectricalPoint(
-          id: 'legacy-light-point',
-          type: ElectricalPointType.wallLight,
-          xMm: 1510,
-          yMm: 1205,
-          heightMm: 1900,
-        ),
+  test(
+    'plan object keeps its authored orientation at the 3D geometry boundary',
+    () {
+      final floor = FloorPlan(id: 'orientation', name: 'Orientation')
+        ..planObjects.addAll(<PlanObject>[
+          PlanObject(
+            id: 'bed-90',
+            type: PlanObjectType.furniture,
+            catalogId: 'bed-160',
+            xMm: 1200,
+            yMm: 900,
+            widthMm: 1700,
+            depthMm: 2100,
+            heightMm: 950,
+            rotationDeg: 90,
+          ),
+          PlanObject(
+            id: 'bed-270',
+            type: PlanObjectType.furniture,
+            catalogId: 'bed-160',
+            xMm: 3200,
+            yMm: 900,
+            widthMm: 1700,
+            depthMm: 2100,
+            heightMm: 950,
+            rotationDeg: 270,
+          ),
+        ]);
+
+      final scene = ZamerSceneGeometry.fromFloor(floor);
+      final bed90 = scene.objects.singleWhere((o) => o.id == 'bed-90');
+      final bed270 = scene.objects.singleWhere((o) => o.id == 'bed-270');
+
+      expect(bed90.rotationRad, closeTo(math.pi / 2, 0.0001));
+      expect(bed270.rotationRad, closeTo(3 * math.pi / 2, 0.0001));
+    },
+  );
+
+  test(
+    'fixture electrical marker is not duplicated beside the 3D light object',
+    () {
+      final floor = FloorPlan(id: 'lights', name: 'Lights')
+        ..planObjects.add(
+          PlanObject(
+            id: 'lamp',
+            type: PlanObjectType.lighting,
+            xMm: 1500,
+            yMm: 1200,
+            widthMm: 500,
+            depthMm: 180,
+            heightMm: 220,
+            elevationMm: 1800,
+            catalogId: 'wall-sconce-round',
+          ),
+        )
+        ..electricalPoints.add(
+          ElectricalPoint(
+            id: 'legacy-light-point',
+            type: ElectricalPointType.wallLight,
+            xMm: 1510,
+            yMm: 1205,
+            heightMm: 1900,
+          ),
+        );
+
+      final scene = ZamerSceneGeometry.fromFloor(floor);
+      expect(
+        scene.objects.where((o) => o.type == PlanObjectType.lighting),
+        hasLength(1),
       );
+      expect(
+        scene.electrical.where((e) => e.type == ElectricalPointType.wallLight),
+        isEmpty,
+      );
+    },
+  );
+
+  test('curved wall pieces preserve one continuous texture phase', () {
+    final floor = FloorPlan(id: 'arc-uv', name: 'Arc UV')
+      ..nodes.add(PlanNode(id: 'a', xMm: 0, yMm: 0));
+    GeometryService.addArcWallFromNode(
+      floor,
+      startNodeId: 'a',
+      endPoint: const math.Point<double>(4000, 0),
+      sagittaMm: 900,
+      type: WallType.exterior,
+      thicknessMm: 200,
+      material: WallMaterial.gasBlock,
+    );
 
     final scene = ZamerSceneGeometry.fromFloor(floor);
-    expect(scene.objects.where((o) => o.type == PlanObjectType.lighting), hasLength(1));
-    expect(scene.electrical.where((e) => e.type == ElectricalPointType.wallLight), isEmpty);
+    final pieces = scene.walls;
+    expect(pieces.length, greaterThan(4));
+    expect(pieces.first.textureStartMm, closeTo(0, 0.001));
+    for (var i = 1; i < pieces.length; i++) {
+      final previousPhysicalLength = pieces[i - 1].lengthMm - 2;
+      expect(
+        pieces[i].textureStartMm,
+        closeTo(pieces[i - 1].textureStartMm + previousPhysicalLength, 0.5),
+      );
+    }
   });
-
-
 }
-

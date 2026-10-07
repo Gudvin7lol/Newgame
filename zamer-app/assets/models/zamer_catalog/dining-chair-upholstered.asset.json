@@ -1,0 +1,35 @@
+{
+  "id": "dining-chair-upholstered",
+  "name": "Стул обеденный мягкий",
+  "category": "tables_chairs",
+  "file": "assets/models/zamer_catalog/dining-chair-upholstered.glb",
+  "dimensions_m": {
+    "width": 0.5,
+    "depth": 0.58,
+    "height": 0.86
+  },
+  "placement": "floor",
+  "pivot": "floor_center",
+  "lod": {
+    "lod0_triangles": 4544,
+    "lod1_file": "assets/models/zamer_catalog/dining-chair-upholstered_lod1.glb",
+    "lod1_triangles": 1792,
+    "lod2_file": "assets/models/zamer_catalog/dining-chair-upholstered_lod2.glb",
+    "lod2_triangles": 664
+  },
+  "materials": {
+    "pbr": true,
+    "max_texture_size": 2048,
+    "material_count": 2
+  },
+  "collision": {
+    "type": "box",
+    "file": null
+  },
+  "source": {
+    "generator": "zamer-procedural-furniture-v1",
+    "license": "project-generated",
+    "reference": "internal"
+  },
+  "version": 1
+}

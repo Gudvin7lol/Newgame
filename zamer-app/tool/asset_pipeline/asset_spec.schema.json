@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zamer.app/schemas/asset_spec.schema.json",
+  "title": "Zamer 3D Asset Metadata",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "name",
+    "category",
+    "file",
+    "dimensions_m",
+    "placement",
+    "pivot",
+    "lod",
+    "materials",
+    "collision"
+  ],
+  "properties": {
+    "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]*$"},
+    "name": {"type": "string", "minLength": 1},
+    "category": {
+      "type": "string",
+      "enum": [
+        "soft_furniture",
+        "tables_chairs",
+        "storage",
+        "beds",
+        "kitchen",
+        "plumbing",
+        "office",
+        "kids",
+        "outdoor",
+        "lighting",
+        "doors_windows",
+        "stairs",
+        "decor_plants",
+        "appliances",
+        "sport_hobby",
+        "construction",
+        "misc"
+      ]
+    },
+    "file": {"type": "string", "pattern": "\\.glb$"},
+    "preview": {"type": "string"},
+    "dimensions_m": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["width", "depth", "height"],
+      "properties": {
+        "width": {"type": "number", "exclusiveMinimum": 0},
+        "depth": {"type": "number", "exclusiveMinimum": 0},
+        "height": {"type": "number", "exclusiveMinimum": 0}
+      }
+    },
+    "placement": {
+      "type": "string",
+      "enum": ["floor", "wall", "ceiling", "opening", "free"]
+    },
+    "pivot": {
+      "type": "string",
+      "enum": ["floor_center", "wall_center", "ceiling_center", "opening_center", "custom"]
+    },
+    "lod": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lod0_triangles"],
+      "properties": {
+        "lod0_triangles": {"type": "integer", "minimum": 1},
+        "lod1_file": {"type": ["string", "null"]},
+        "lod1_triangles": {"type": ["integer", "null"], "minimum": 1},
+        "lod2_file": {"type": ["string", "null"]},
+        "lod2_triangles": {"type": ["integer", "null"], "minimum": 1}
+      }
+    },
+    "materials": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pbr", "max_texture_size"],
+      "properties": {
+        "pbr": {"type": "boolean"},
+        "max_texture_size": {"type": "integer", "enum": [512, 1024, 2048, 4096]},
+        "material_count": {"type": "integer", "minimum": 1}
+      }
+    },
+    "collision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": {"type": "string", "enum": ["box", "convex", "mesh", "compound", "none"]},
+        "file": {"type": ["string", "null"]}
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "generator": {"type": "string"},
+        "license": {"type": "string"},
+        "reference": {"type": "string"}
+      }
+    },
+    "version": {"type": "integer", "minimum": 1, "default": 1}
+  }
+}

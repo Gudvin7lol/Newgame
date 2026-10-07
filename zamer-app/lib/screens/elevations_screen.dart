@@ -2,11 +2,15 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../design_system/zamer_components.dart';
+import '../design_system/zamer_master_page_header.dart';
+import '../design_system/zamer_tokens.dart';
 import '../models/models.dart';
 import '../services/layout_service.dart';
 import '../services/geometry_service.dart';
 import '../services/material_catalog.dart';
 import '../widgets/elevation_painter.dart';
+import '../widgets/large_elevation_viewer.dart';
 
 class ElevationsScreen extends StatefulWidget {
   const ElevationsScreen({
@@ -117,9 +121,8 @@ class _ElevationsScreenState extends State<ElevationsScreen> {
                 children: [
                   Text(
                     'Плитка на стенах',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
+                    style: Theme.of(context).textTheme.titleLarge
+                        ?.copyWith(fontWeight: FontWeight.w800),
                   ),
                   const SizedBox(height: 12),
                   Row(
@@ -260,8 +263,8 @@ class _ElevationsScreenState extends State<ElevationsScreen> {
       (size.height - verticalMargin * 2) / math.max(1, heightMm),
     );
     if (scale <= 0 || !scale.isFinite) return;
-    final tileW = math.max(1.0, s.wallTileWidthMm).toDouble();
-    final tileH = math.max(1.0, s.wallTileHeightMm).toDouble();
+    final tileW = math.max(1.0, s.wallTileWidthFor(run.id)).toDouble();
+    final tileH = math.max(1.0, s.wallTileHeightFor(run.id)).toDouble();
     s.wallTileRunOffsetX[run.id] =
         (s.wallTileXFor(run.id) + delta.dx / scale) % tileW;
     s.wallTileRunOffsetY[run.id] =
@@ -285,50 +288,17 @@ class _ElevationsScreenState extends State<ElevationsScreen> {
   ) async {
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
-        builder: (context) => Scaffold(
-          appBar: AppBar(title: Text('Развёртка • ${run.lengthMm.round()} мм')),
-          body: StatefulBuilder(
-            builder: (context, refresh) => LayoutBuilder(
-              builder: (context, constraints) {
-                final drawing = Size(
-                  math.max(constraints.maxWidth - 24, run.lengthMm * .25),
-                  math.max(constraints.maxHeight * .8, height * .25),
-                );
-                return InteractiveViewer(
-                  constrained: false,
-                  minScale: .35,
-                  maxScale: 6,
-                  boundaryMargin: const EdgeInsets.all(240),
-                  child: GestureDetector(
-                    onPanUpdate: settings.wallTileEnabledFor(run.id)
-                        ? (d) {
-                            _panRunTile(settings, run, height, drawing, d);
-                            refresh(() {});
-                          }
-                        : null,
-                    onPanEnd: settings.wallTileEnabledFor(run.id)
-                        ? (_) => widget.onChanged()
-                        : null,
-                    child: SizedBox.fromSize(
-                      size: drawing,
-                      child: CustomPaint(
-                        painter: ElevationPainter(
-                          floor: widget.floor,
-                          face: face,
-                          run: run,
-                          heightMm: height,
-                          settings: settings,
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
+        builder: (context) => LargeElevationViewer(
+          floor: widget.floor,
+          face: face,
+          run: run,
+          heightMm: height,
+          settings: settings,
+          onChanged: widget.onChanged,
         ),
       ),
     );
+    if (mounted) setState(() {});
   }
 
   @override
@@ -355,7 +325,14 @@ class _ElevationsScreenState extends State<ElevationsScreen> {
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              ZMasterPageHeader(
+                icon: Icons.view_agenda_outlined,
+                title: 'Развёртки',
+                subtitle: '${meta.name} • ${runs.length} стен',
+              ),
+              const SizedBox(height: 10),
               DropdownButtonFormField<String>(
                 value: face.key,
                 decoration: const InputDecoration(labelText: 'Помещение'),
@@ -391,9 +368,22 @@ class _ElevationsScreenState extends State<ElevationsScreen> {
                     return ChoiceChip(
                       selected: selected,
                       showCheckmark: false,
+                      selectedColor: ZamerColors.accent.withValues(alpha: .12),
+                      backgroundColor: ZamerColors.surfaceLow,
+                      side: BorderSide(
+                        color: selected
+                            ? ZamerColors.accent
+                            : ZamerColors.outline,
+                      ),
                       avatar: CircleAvatar(
                         radius: 13,
-                        child: Text(letter, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
+                        child: Text(
+                          letter,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
                       ),
                       label: Text('${run.lengthMm.round()} мм'),
                       onSelected: (_) {
@@ -486,7 +476,9 @@ class _ElevationsScreenState extends State<ElevationsScreen> {
                 // drag gestures inside the drawing area.
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                  child: Card(
+                  child: ZPanel(
+                    padding: EdgeInsets.zero,
+                    color: ZamerColors.surfaceLow,
                     child: Column(
                       children: [
                         Padding(
@@ -518,7 +510,7 @@ class _ElevationsScreenState extends State<ElevationsScreen> {
                           ),
                         ),
                         SizedBox(
-                          height: 410,
+                          height: 440,
                           child: Padding(
                             padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
                             child: LayoutBuilder(
@@ -543,14 +535,20 @@ class _ElevationsScreenState extends State<ElevationsScreen> {
                                       : null,
                                   child: DecoratedBox(
                                     decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      borderRadius: BorderRadius.circular(12),
+                                      color: ZamerColors.background,
+                                      borderRadius: BorderRadius.circular(
+                                        ZamerRadius.md,
+                                      ),
                                       border: Border.all(
-                                        color: Theme.of(context).colorScheme.outlineVariant,
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .outlineVariant,
                                       ),
                                     ),
                                     child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(11),
+                                      borderRadius: BorderRadius.circular(
+                                        ZamerRadius.md,
+                                      ),
                                       child: CustomPaint(
                                         painter: ElevationPainter(
                                           floor: widget.floor,
@@ -574,11 +572,20 @@ class _ElevationsScreenState extends State<ElevationsScreen> {
                             scrollDirection: Axis.horizontal,
                             child: Row(
                               children: [
-                                _InfoPill(icon: Icons.height, text: '${height.round()} мм'),
+                                _InfoPill(
+                                  icon: Icons.height,
+                                  text: '${height.round()} мм',
+                                ),
                                 const SizedBox(width: 6),
-                                _InfoPill(icon: Icons.layers_outlined, text: floorFinish.name),
+                                _InfoPill(
+                                  icon: Icons.layers_outlined,
+                                  text: floorFinish.name,
+                                ),
                                 const SizedBox(width: 6),
-                                _InfoPill(icon: Icons.format_paint, text: wallFinish.name),
+                                _InfoPill(
+                                  icon: Icons.format_paint,
+                                  text: wallFinish.name,
+                                ),
                                 const SizedBox(width: 6),
                                 OutlinedButton.icon(
                                   onPressed: () => _tileOptions(settings, runs),
@@ -611,7 +618,8 @@ class _ElevationsScreenState extends State<ElevationsScreen> {
                                 onPressed: () async {
                                   settings.wallTile = true;
                                   for (final r in runs) {
-                                    settings.wallTileRunEnabled[r.id] = r.id == run.id;
+                                    settings.wallTileRunEnabled[r.id] =
+                                        r.id == run.id;
                                   }
                                   await widget.onChanged();
                                   if (mounted) setState(() {});
@@ -634,7 +642,9 @@ class _ElevationsScreenState extends State<ElevationsScreen> {
                                   const SizedBox(width: 12),
                                   Text(
                                     'R ${run.radiusMm!.round()} мм',
-                                    style: Theme.of(context).textTheme.bodySmall,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodySmall,
                                   ),
                                 ],
                               ],
@@ -647,6 +657,20 @@ class _ElevationsScreenState extends State<ElevationsScreen> {
                               spacing: 8,
                               runSpacing: 8,
                               children: [
+                                OutlinedButton.icon(
+                                  onPressed: () async {
+                                    settings.wallTileRunRotated[run.id] =
+                                        !settings.wallTileRotatedFor(run.id);
+                                    await widget.onChanged();
+                                    if (mounted) setState(() {});
+                                  },
+                                  icon: const Icon(Icons.rotate_90_degrees_cw),
+                                  label: Text(
+                                    settings.wallTileRotatedFor(run.id)
+                                        ? 'Плитка 90°'
+                                        : 'Повернуть 90°',
+                                  ),
+                                ),
                                 OutlinedButton.icon(
                                   onPressed: () async {
                                     settings.wallTileRunMirrored[run.id] =
@@ -667,16 +691,19 @@ class _ElevationsScreenState extends State<ElevationsScreen> {
                                       run.lengthMm,
                                       settings.wallTileFromMm,
                                       math.min(height, settings.wallTileToMm),
-                                      settings.wallTileWidthMm,
-                                      settings.wallTileHeightMm,
-                                      staggered: settings.wallTilePattern == 'half',
+                                      settings.wallTileWidthFor(run.id),
+                                      settings.wallTileHeightFor(run.id),
+                                      staggered:
+                                          settings.wallTilePattern == 'half',
                                     );
                                     settings.wallTileRunOffsetX[run.id] = b.xMm;
                                     settings.wallTileRunOffsetY[run.id] = b.yMm;
                                     await widget.onChanged();
                                     if (mounted) {
                                       setState(() {});
-                                      ScaffoldMessenger.of(context).showSnackBar(
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
                                         SnackBar(
                                           content: Text(
                                             'Минимальная подрезка по габариту: ${b.minimumCutMm.round()} мм',
@@ -686,7 +713,9 @@ class _ElevationsScreenState extends State<ElevationsScreen> {
                                     }
                                   },
                                   icon: const Icon(Icons.auto_fix_high),
-                                  label: const Text('По технологии • без узких подрезок'),
+                                  label: const Text(
+                                    'По технологии • без узких подрезок',
+                                  ),
                                 ),
                               ],
                             ),
@@ -719,7 +748,6 @@ class _ElevationsScreenState extends State<ElevationsScreen> {
   }
 }
 
-
 class _InfoPill extends StatelessWidget {
   const _InfoPill({required this.icon, required this.text});
   final IconData icon;
@@ -727,18 +755,22 @@ class _InfoPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(10),
+    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+    decoration: BoxDecoration(
+      color: ZamerColors.surface,
+      borderRadius: BorderRadius.circular(ZamerRadius.sm),
+      border: Border.all(color: ZamerColors.outline),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 15),
+        const SizedBox(width: 5),
+        Text(
+          text,
+          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 15),
-            const SizedBox(width: 5),
-            Text(text, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
-          ],
-        ),
-      );
+      ],
+    ),
+  );
 }

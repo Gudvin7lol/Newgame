@@ -2,10 +2,15 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../design_system/zamer_components.dart';
+import '../design_system/zamer_master_page_header.dart';
+import '../design_system/zamer_tokens.dart';
 import '../models/models.dart';
+import '../services/angle_snap_service.dart';
 import '../services/object_catalog.dart';
 import '../services/geometry_service.dart';
 import '../services/space_check_service.dart';
+import '../widgets/model_thumbnail.dart';
 
 enum _ObjectMode { add, select }
 
@@ -31,6 +36,7 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
   String? _selectedId;
   String? _gestureObjectId;
   double _gestureBaseRotation = 0;
+  double? _gestureSnapAngleDeg;
   Offset _gestureGrabOffset = Offset.zero;
   bool _gestureDirty = false;
 
@@ -54,7 +60,9 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
       }
       final before = widget.floor.electricalPoints.length;
       widget.floor.electricalPoints.removeWhere(
-        (point) => point.id.startsWith('fixture:') && !liveFixtureIds.contains(point.id),
+        (point) =>
+            point.id.startsWith('fixture:') &&
+            !liveFixtureIds.contains(point.id),
       );
       changed |= before != widget.floor.electricalPoints.length;
       if (changed) await widget.onChanged();
@@ -114,7 +122,8 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
             final nx = -dy / len;
             final ny = dx / len;
             final sideValue =
-                (object.xMm - hit.point.x) * nx + (object.yMm - hit.point.y) * ny;
+                (object.xMm - hit.point.x) * nx +
+                (object.yMm - hit.point.y) * ny;
             wallSide = sideValue >= 0 ? 1 : -1;
           }
         }
@@ -160,16 +169,25 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
       update();
       changed = true;
     }
+
     assign(point.type != type, () => point!.type = type);
     assign((point.xMm - x).abs() > 0.01, () => point!.xMm = x);
     assign((point.yMm - y).abs() > 0.01, () => point!.yMm = y);
     assign(point.label != item.name, () => point!.label = item.name);
-    assign((point.heightMm - height).abs() > 0.01, () => point!.heightMm = height);
+    assign(
+      (point.heightMm - height).abs() > 0.01,
+      () => point!.heightMm = height,
+    );
     assign(point.circuit != 'Освещение', () => point!.circuit = 'Освещение');
-    assign((point.powerW - (isWall ? 12 : 24)).abs() > 0.01,
-        () => point!.powerW = isWall ? 12 : 24);
+    assign(
+      (point.powerW - (isWall ? 12 : 24)).abs() > 0.01,
+      () => point!.powerW = isWall ? 12 : 24,
+    );
     assign(point.wallId != wallId, () => point!.wallId = wallId);
-    assign(point.wallOffsetMm != wallOffsetMm, () => point!.wallOffsetMm = wallOffsetMm);
+    assign(
+      point.wallOffsetMm != wallOffsetMm,
+      () => point!.wallOffsetMm = wallOffsetMm,
+    );
     assign(point.wallSide != wallSide, () => point!.wallSide = wallSide);
     return changed;
   }
@@ -342,6 +360,7 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
       _gestureObjectId = o?.id;
       _selectedId = o?.id;
       _gestureBaseRotation = o?.rotationDeg ?? 0;
+      _gestureSnapAngleDeg = null;
       _gestureGrabOffset = o == null
           ? Offset.zero
           : d.localFocalPoint - (tx.origin + Offset(o.xMm, o.yMm) * tx.scale);
@@ -358,8 +377,15 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
     o.xMm = target.x;
     o.yMm = target.y;
     if (d.pointerCount >= 2) {
-      o.rotationDeg = _gestureBaseRotation + d.rotation * 180 / math.pi;
+      final rawRotation = _gestureBaseRotation + d.rotation * 180 / math.pi;
+      final snap = AngleSnapService.snapQuarterTurnWithLock(
+        rawRotation,
+        lockedAngleDeg: _gestureSnapAngleDeg,
+      );
+      o.rotationDeg = snap.angleDeg;
+      _gestureSnapAngleDeg = snap.lockedAngleDeg;
     } else {
+      _gestureSnapAngleDeg = null;
       _snapObjectGuides(o);
       _snapRadiatorToWall(o);
       _snapCatalogMount(o);
@@ -416,6 +442,7 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
     if (mounted)
       setState(() {
         _gestureObjectId = null;
+        _gestureSnapAngleDeg = null;
         _gestureDirty = false;
       });
   }
@@ -577,9 +604,8 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
                   o.catalogId.isEmpty
                       ? o.type.label
                       : ObjectCatalog.byId(o.catalogId).name,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                  style: Theme.of(context).textTheme.titleLarge
+                      ?.copyWith(fontWeight: FontWeight.w800),
                 ),
                 const SizedBox(height: 10),
                 TextField(
@@ -752,7 +778,7 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
       (size - 12) / item.widthMm,
       (size - 12) / item.depthMm,
     );
-    return ClipRRect(
+    final fallback = ClipRRect(
       borderRadius: BorderRadius.circular(8),
       child: SizedBox.square(
         dimension: size,
@@ -766,6 +792,11 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
         ),
       ),
     );
+    return ZamerModelThumbnail(
+      catalogId: item.id,
+      size: size,
+      fallback: fallback,
+    );
   }
 
   Future<void> _chooseModel() async {
@@ -776,10 +807,10 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: const Color(0xFF0E1517),
+      backgroundColor: ZamerColors.background,
       showDragHandle: true,
       builder: (sheetContext) => FractionallySizedBox(
-        heightFactor: .90,
+        heightFactor: .94,
         child: StatefulBuilder(
           builder: (context, refresh) {
             final normalizedQuery = query.trim().toLowerCase();
@@ -855,7 +886,7 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
                                 SizedBox(
-                                  width: 118,
+                                  width: 88,
                                   child: ListView.separated(
                                     itemCount: ObjectCatalog.groups.length,
                                     separatorBuilder: (_, __) =>
@@ -866,12 +897,17 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
                                       final selected = candidate == group;
                                       return Material(
                                         color: selected
-                                            ? const Color(0xFF24483D)
+                                            ? ZamerColors.accent.withValues(
+                                                alpha: .12,
+                                              )
                                             : Colors.transparent,
-                                        borderRadius: BorderRadius.circular(12),
+                                        borderRadius: BorderRadius.circular(
+                                          ZamerRadius.md,
+                                        ),
                                         child: InkWell(
-                                          borderRadius:
-                                              BorderRadius.circular(12),
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
                                           onTap: () => refresh(() {
                                             group = candidate;
                                             query = '';
@@ -882,19 +918,23 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
                                               vertical: 11,
                                             ),
                                             child: Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
                                               children: [
                                                 Text(
                                                   candidate,
                                                   maxLines: 2,
-                                                  overflow: TextOverflow.ellipsis,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
                                                   style: TextStyle(
                                                     fontSize: 12,
                                                     fontWeight: selected
                                                         ? FontWeight.w800
                                                         : FontWeight.w500,
                                                     color: selected
-                                                        ? const Color(0xFF79E1B9)
+                                                        ? const Color(
+                                                            0xFFF1C79E,
+                                                          )
                                                         : Colors.white70,
                                                   ),
                                                 ),
@@ -904,7 +944,11 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
                                                   style: TextStyle(
                                                     fontSize: 9,
                                                     color: selected
-                                                        ? const Color(0xFF79E1B9).withValues(alpha: .75)
+                                                        ? const Color(
+                                                            0xFFF1C79E,
+                                                          ).withValues(
+                                                            alpha: .75,
+                                                          )
                                                         : Colors.white38,
                                                   ),
                                                 ),
@@ -929,7 +973,7 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
                                                 crossAxisCount: 2,
                                                 mainAxisSpacing: 8,
                                                 crossAxisSpacing: 8,
-                                                childAspectRatio: .88,
+                                                childAspectRatio: .72,
                                               ),
                                           itemBuilder: (context, index) {
                                             final item = items[index];
@@ -937,21 +981,26 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
                                                 item.id == _catalogId;
                                             return InkWell(
                                               borderRadius:
-                                                  BorderRadius.circular(18),
+                                                  BorderRadius.circular(
+                                                    ZamerRadius.lg,
+                                                  ),
                                               onTap: () => choose(item),
                                               child: Container(
-                                                padding:
-                                                    const EdgeInsets.all(9),
+                                                padding: const EdgeInsets.all(
+                                                  9,
+                                                ),
                                                 decoration: BoxDecoration(
                                                   color: const Color(
                                                     0xFF172125,
                                                   ),
                                                   borderRadius:
-                                                      BorderRadius.circular(18),
+                                                      BorderRadius.circular(
+                                                        ZamerRadius.lg,
+                                                      ),
                                                   border: Border.all(
                                                     color: selected
                                                         ? const Color(
-                                                            0xFF56D6A3,
+                                                            0xFFF1C79E,
                                                           )
                                                         : const Color(
                                                             0xFF29373B,
@@ -965,7 +1014,7 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
                                                       child: Center(
                                                         child: _modelPreview(
                                                           item,
-                                                          108,
+                                                          118,
                                                         ),
                                                       ),
                                                     ),
@@ -985,13 +1034,18 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
                                                     const SizedBox(height: 3),
                                                     Text(
                                                       item.group,
-                                                      textAlign: TextAlign.center,
+                                                      textAlign:
+                                                          TextAlign.center,
                                                       maxLines: 1,
-                                                      overflow: TextOverflow.ellipsis,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
                                                       style: const TextStyle(
                                                         fontSize: 9,
-                                                        color: Color(0xFF77BFA4),
-                                                        fontWeight: FontWeight.w600,
+                                                        color: Color(
+                                                          0xFFB8A28F,
+                                                        ),
+                                                        fontWeight:
+                                                            FontWeight.w600,
                                                       ),
                                                     ),
                                                     const SizedBox(height: 2),
@@ -999,7 +1053,8 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
                                                       '${item.widthMm.round()} × '
                                                       '${item.depthMm.round()} × '
                                                       '${item.heightMm.round()} мм',
-                                                      textAlign: TextAlign.center,
+                                                      textAlign:
+                                                          TextAlign.center,
                                                       style: const TextStyle(
                                                         fontSize: 10,
                                                         color: Colors.white54,
@@ -1007,20 +1062,29 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
                                                     ),
                                                     const SizedBox(height: 5),
                                                     Container(
-                                                      padding: const EdgeInsets.symmetric(
-                                                        horizontal: 7,
-                                                        vertical: 3,
-                                                      ),
+                                                      padding:
+                                                          const EdgeInsets.symmetric(
+                                                            horizontal: 7,
+                                                            vertical: 3,
+                                                          ),
                                                       decoration: BoxDecoration(
-                                                        color: const Color(0xFF233036),
-                                                        borderRadius: BorderRadius.circular(20),
+                                                        color: const Color(
+                                                          0xFF233036,
+                                                        ),
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              20,
+                                                            ),
                                                       ),
                                                       child: Text(
                                                         item.mountLabel,
                                                         style: const TextStyle(
                                                           fontSize: 9,
-                                                          color: Color(0xFF9DE6C8),
-                                                          fontWeight: FontWeight.w600,
+                                                          color: Color(
+                                                            0xFF9DE6C8,
+                                                          ),
+                                                          fontWeight:
+                                                              FontWeight.w600,
                                                         ),
                                                       ),
                                                     ),
@@ -1047,8 +1111,9 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
                                     '${item.depthMm.round()} × '
                                     '${item.heightMm.round()} мм • ${item.mountLabel}',
                                   ),
-                                  trailing:
-                                      const Icon(Icons.add_circle_outline),
+                                  trailing: const Icon(
+                                    Icons.add_circle_outline,
+                                  ),
                                   onTap: () => choose(item),
                                 );
                               },
@@ -1073,89 +1138,130 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(10, 8, 10, 4),
-          child: Card(
-            child: Padding(
-              padding: const EdgeInsets.all(10),
-              child: Column(
-                children: [
-                  const Text(
-                    'Объекты: добавление и перемещение',
-                    style: TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                  ...[
-                    const SizedBox(height: 8),
-                    SegmentedButton<_AddSource>(
-                      segments: const [
-                        ButtonSegment(
-                          value: _AddSource.catalog,
-                          icon: Icon(Icons.chair_alt_outlined),
-                          label: Text('Библиотека'),
-                        ),
-                        ButtonSegment(
-                          value: _AddSource.engineering,
-                          icon: Icon(Icons.engineering_outlined),
-                          label: Text('Инженерия'),
-                        ),
-                      ],
-                      selected: {_source},
-                      onSelectionChanged: (v) =>
-                          setState(() => _source = v.first),
-                    ),
-                    const SizedBox(height: 8),
-                    if (_source == _AddSource.catalog) ...[
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: _modelPreview(
-                          ObjectCatalog.byId(_catalogId),
-                          52,
-                        ),
-                        title: Text(ObjectCatalog.byId(_catalogId).name),
-                        subtitle: Text(
-                          '$_group · '
-                          '${ObjectCatalog.byId(_catalogId).widthMm.round()} × '
-                          '${ObjectCatalog.byId(_catalogId).depthMm.round()} × '
-                          '${ObjectCatalog.byId(_catalogId).heightMm.round()} мм',
-                        ),
-                        trailing: const Icon(Icons.grid_view_outlined),
-                        onTap: _chooseModel,
-                      ),
-                    ] else
-                      DropdownButtonFormField<PlanObjectType>(
-                        value: _engineeringType,
-                        decoration: const InputDecoration(
-                          labelText: 'Инженерный / конструктивный элемент',
-                        ),
-                        items: _engineeringTypes
-                            .map(
-                              (e) => DropdownMenuItem(
-                                value: e,
-                                child: Text(e.label),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (v) => setState(
-                          () => _engineeringType = v ?? _engineeringType,
-                        ),
-                      ),
-                    const SizedBox(height: 8),
-                    DropdownButtonFormField<ProjectLayer>(
-                      value: _layer,
-                      decoration: const InputDecoration(labelText: 'Слой'),
-                      items: ProjectLayer.values
-                          .map(
-                            (e) => DropdownMenuItem(
-                              value: e,
-                              child: Text(e.label),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (v) => setState(() => _layer = v ?? _layer),
-                    ),
-                  ],
-                ],
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ZMasterPageHeader(
+                icon: Icons.chair_alt_outlined,
+                title: 'Оснащение',
+                subtitle: 'Выбери объект и размести его касанием по плану',
+                trailing: IconButton.filledTonal(
+                  tooltip: 'Открыть каталог',
+                  onPressed: _source == _AddSource.catalog
+                      ? _chooseModel
+                      : null,
+                  icon: const Icon(Icons.grid_view_rounded),
+                ),
               ),
-            ),
+              const SizedBox(height: 9),
+              SegmentedButton<_AddSource>(
+                showSelectedIcon: false,
+                segments: const [
+                  ButtonSegment(
+                    value: _AddSource.catalog,
+                    icon: Icon(Icons.chair_alt_outlined),
+                    label: Text('Каталог'),
+                  ),
+                  ButtonSegment(
+                    value: _AddSource.engineering,
+                    icon: Icon(Icons.engineering_outlined),
+                    label: Text('Инженерия'),
+                  ),
+                ],
+                selected: {_source},
+                onSelectionChanged: (value) =>
+                    setState(() => _source = value.first),
+              ),
+              const SizedBox(height: 9),
+              if (_source == _AddSource.catalog)
+                ZPanel(
+                  padding: const EdgeInsets.all(ZamerSpace.sm),
+                  color: ZamerColors.surfaceLow,
+                  child: Row(
+                    children: [
+                      _modelPreview(ObjectCatalog.byId(_catalogId), 82),
+                      const SizedBox(width: 11),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              ObjectCatalog.byId(_catalogId).name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${ObjectCatalog.byId(_catalogId).widthMm.round()} × '
+                              '${ObjectCatalog.byId(_catalogId).depthMm.round()} × '
+                              '${ObjectCatalog.byId(_catalogId).heightMm.round()} мм',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Color(0xFFB3BDC1),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 4,
+                              children: [
+                                _EquipmentChip(label: _group),
+                                _EquipmentChip(
+                                  label: ObjectCatalog.byId(_catalogId)
+                                      .mountLabel,
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      IconButton(
+                        tooltip: 'Сменить модель',
+                        onPressed: _chooseModel,
+                        icon: const Icon(Icons.chevron_right_rounded),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                DropdownButtonFormField<PlanObjectType>(
+                  value: _engineeringType,
+                  decoration: const InputDecoration(
+                    labelText: 'Инженерный / конструктивный элемент',
+                  ),
+                  items: _engineeringTypes
+                      .map(
+                        (item) => DropdownMenuItem(
+                          value: item,
+                          child: Text(item.label),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) => setState(
+                    () => _engineeringType = value ?? _engineeringType,
+                  ),
+                ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<ProjectLayer>(
+                value: _layer,
+                decoration: const InputDecoration(labelText: 'Слой проекта'),
+                items: ProjectLayer.values
+                    .map(
+                      (item) => DropdownMenuItem(
+                        value: item,
+                        child: Text(item.label),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) => setState(() => _layer = value ?? _layer),
+              ),
+            ],
           ),
         ),
         Expanded(
@@ -1175,6 +1281,7 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
                     scale: tx.scale,
                     origin: tx.origin,
                     selectedId: _selectedId,
+                    snapAngleDeg: _gestureSnapAngleDeg,
                   ),
                   child: const SizedBox.expand(),
                 ),
@@ -1230,12 +1337,40 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
           child: Text(
-            'Нажми на свободное место для установки. Потяни объект одним пальцем; двумя — поверни. Касание объекта открывает размеры.',
+            'Нажми на свободное место для установки. Потяни объект одним пальцем; двумя — поверни. Возле 0/90/180/270° включается магнитная привязка.',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodySmall,
           ),
         ),
       ],
+    );
+  }
+}
+
+class _EquipmentChip extends StatelessWidget {
+  const _EquipmentChip({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+      decoration: BoxDecoration(
+        color: ZamerColors.background,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: ZamerColors.outline),
+      ),
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          fontSize: 9.5,
+          color: Color(0xFFC7CFD2),
+          fontWeight: FontWeight.w700,
+        ),
+      ),
     );
   }
 }
@@ -1246,12 +1381,14 @@ class _PlanningPainter extends CustomPainter {
     required this.scale,
     required this.origin,
     this.selectedId,
+    this.snapAngleDeg,
     this.darkPreview = false,
   });
   final FloorPlan floor;
   final double scale;
   final Offset origin;
   final String? selectedId;
+  final double? snapAngleDeg;
   final bool darkPreview;
   Offset p(double x, double y) => origin + Offset(x * scale, y * scale);
 
@@ -1262,7 +1399,7 @@ class _PlanningPainter extends CustomPainter {
       Paint()
         ..color = darkPreview
             ? const Color(0xFF10181B)
-            : const Color(0xFFF7F8FA),
+            : const Color(0xFF0B1115),
     );
     for (final w in floor.walls) {
       final a = floor.nodeById(w.startNodeId), b = floor.nodeById(w.endNodeId);
@@ -1271,7 +1408,7 @@ class _PlanningPainter extends CustomPainter {
           ? const Color(0xFFD85B68)
           : w.projectLayer == ProjectLayer.proposed
           ? const Color(0xFF55B98C)
-          : const Color(0xFF3B4148);
+          : const Color(0xFFD6DEE1);
       canvas.drawLine(
         p(a.xMm, a.yMm),
         p(b.xMm, b.yMm),
@@ -1280,6 +1417,23 @@ class _PlanningPainter extends CustomPainter {
           ..strokeWidth = math.max(2, w.thicknessMm * scale)
           ..strokeCap = StrokeCap.square,
       );
+    }
+    if (selectedId != null && snapAngleDeg != null) {
+      PlanObject? active;
+      for (final object in floor.planObjects) {
+        if (object.id == selectedId) {
+          active = object;
+          break;
+        }
+      }
+      if (active != null) {
+        final c = p(active.xMm, active.yMm);
+        final guide = Paint()
+          ..color = const Color(0xFF18A979).withValues(alpha: .48)
+          ..strokeWidth = 1.2;
+        canvas.drawLine(Offset(0, c.dy), Offset(size.width, c.dy), guide);
+        canvas.drawLine(Offset(c.dx, 0), Offset(c.dx, size.height), guide);
+      }
     }
     for (final o in floor.planObjects) _object(canvas, o, size);
   }
@@ -1290,11 +1444,11 @@ class _PlanningPainter extends CustomPainter {
     final color = switch (o.layer) {
       ProjectLayer.existing => const Color(0xFF64717D),
       ProjectLayer.demolition => const Color(0xFFC04E5A),
-      ProjectLayer.proposed => const Color(0xFF4E68A7),
+      ProjectLayer.proposed => const Color(0xFFB88862),
     };
     final fill = Paint()..color = color.withValues(alpha: 0.12);
     final stroke = Paint()
-      ..color = selected ? const Color(0xFF0D5BD7) : color
+      ..color = selected ? ZamerColors.accent : color
       ..style = PaintingStyle.stroke
       ..strokeWidth = selected ? 2.5 : 1.5;
     canvas.save();
@@ -1586,13 +1740,17 @@ class _PlanningPainter extends CustomPainter {
 
     if (!selected) return;
     final name = o.label.isEmpty ? o.type.label : o.label;
+    final snapped = snapAngleDeg != null;
+    final label = snapped
+        ? '$name • ${o.rotationDeg.round()}° • 90°'
+        : '$name • ${o.rotationDeg.round()}°';
     final tp = TextPainter(
       text: TextSpan(
-        text: name,
-        style: const TextStyle(
+        text: label,
+        style: TextStyle(
           fontSize: 9,
           fontWeight: FontWeight.w700,
-          color: Color(0xFF30363D),
+          color: snapped ? const Color(0xFF087A5B) : const Color(0xFF30363D),
         ),
       ),
       textDirection: TextDirection.ltr,
@@ -1608,7 +1766,10 @@ class _PlanningPainter extends CustomPainter {
     final labelRect = Rect.fromLTWH(x - 4, y - 2, tp.width + 8, tp.height + 4);
     canvas.drawRRect(
       RRect.fromRectAndRadius(labelRect, const Radius.circular(4)),
-      Paint()..color = const Color(0xFFF7F8FA),
+      Paint()
+        ..color = snapAngleDeg != null
+            ? const Color(0xFFE5F7F0)
+            : const Color(0xFFF7F8FA),
     );
     tp.paint(canvas, Offset(x, y));
   }

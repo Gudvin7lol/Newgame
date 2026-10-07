@@ -683,6 +683,7 @@ class RoomMaterialSettings {
     this.tilePattern = 'straight',
     this.tileOffsetXMm = 0,
     this.tileOffsetYMm = 0,
+    this.floorTileGroutMm = 2,
     this.tileMinCutMm = 120,
     this.wallTileWidthMm = 600,
     this.wallTileHeightMm = 300,
@@ -701,10 +702,12 @@ class RoomMaterialSettings {
     Map<String, double>? wallTileRunOffsetY,
     Map<String, bool>? wallTileRunEnabled,
     Map<String, bool>? wallTileRunMirrored,
+    Map<String, bool>? wallTileRunRotated,
   }) : wallTileRunOffsetX = wallTileRunOffsetX ?? {},
        wallTileRunOffsetY = wallTileRunOffsetY ?? {},
        wallTileRunEnabled = wallTileRunEnabled ?? {},
-       wallTileRunMirrored = wallTileRunMirrored ?? {};
+       wallTileRunMirrored = wallTileRunMirrored ?? {},
+       wallTileRunRotated = wallTileRunRotated ?? {};
 
   String floorMode;
   double floorWastePct;
@@ -748,6 +751,7 @@ class RoomMaterialSettings {
   String tilePattern;
   double tileOffsetXMm;
   double tileOffsetYMm;
+  double floorTileGroutMm;
   double tileMinCutMm;
   double wallTileWidthMm;
   double wallTileHeightMm;
@@ -766,6 +770,7 @@ class RoomMaterialSettings {
   final Map<String, double> wallTileRunOffsetY;
   final Map<String, bool> wallTileRunEnabled;
   final Map<String, bool> wallTileRunMirrored;
+  final Map<String, bool> wallTileRunRotated;
 
   double wallTileXFor(String runId) =>
       wallTileRunOffsetX[runId] ?? wallTileOffsetXMm;
@@ -773,8 +778,12 @@ class RoomMaterialSettings {
       wallTileRunOffsetY[runId] ?? wallTileOffsetYMm;
   bool wallTileEnabledFor(String runId) =>
       wallTileRunEnabled[runId] ?? wallTile;
-  bool wallTileMirroredFor(String runId) =>
-      wallTileRunMirrored[runId] ?? false;
+  bool wallTileMirroredFor(String runId) => wallTileRunMirrored[runId] ?? false;
+  bool wallTileRotatedFor(String runId) => wallTileRunRotated[runId] ?? false;
+  double wallTileWidthFor(String runId) =>
+      wallTileRotatedFor(runId) ? wallTileHeightMm : wallTileWidthMm;
+  double wallTileHeightFor(String runId) =>
+      wallTileRotatedFor(runId) ? wallTileWidthMm : wallTileHeightMm;
 
   void normalizeFormats() {
     double valid(double value, double min, double fallback) =>
@@ -785,6 +794,7 @@ class RoomMaterialSettings {
     laminatePlankWidthMm = valid(laminatePlankWidthMm, 40, 193);
     tileWidthMm = valid(tileWidthMm, 20, 600);
     tileHeightMm = valid(tileHeightMm, 20, 600);
+    floorTileGroutMm = valid(floorTileGroutMm, 0.5, 2);
     wallTileWidthMm = valid(wallTileWidthMm, 20, 600);
     wallTileHeightMm = valid(wallTileHeightMm, 20, 300);
     underlayRollWidthMm = valid(underlayRollWidthMm, 20, 1000);
@@ -853,6 +863,7 @@ class RoomMaterialSettings {
     'tilePattern': tilePattern,
     'tileOffsetXMm': tileOffsetXMm,
     'tileOffsetYMm': tileOffsetYMm,
+    'floorTileGroutMm': floorTileGroutMm,
     'tileMinCutMm': tileMinCutMm,
     'wallTileWidthMm': wallTileWidthMm,
     'wallTileHeightMm': wallTileHeightMm,
@@ -871,6 +882,7 @@ class RoomMaterialSettings {
     'wallTileRunOffsetY': wallTileRunOffsetY,
     'wallTileRunEnabled': wallTileRunEnabled,
     'wallTileRunMirrored': wallTileRunMirrored,
+    'wallTileRunRotated': wallTileRunRotated,
   };
 
   factory RoomMaterialSettings.fromJson(
@@ -923,6 +935,7 @@ class RoomMaterialSettings {
     tilePattern: json['tilePattern'] as String? ?? 'straight',
     tileOffsetXMm: (json['tileOffsetXMm'] as num?)?.toDouble() ?? 0,
     tileOffsetYMm: (json['tileOffsetYMm'] as num?)?.toDouble() ?? 0,
+    floorTileGroutMm: (json['floorTileGroutMm'] as num?)?.toDouble() ?? 2,
     tileMinCutMm: (json['tileMinCutMm'] as num?)?.toDouble() ?? 120,
     wallTileWidthMm: (json['wallTileWidthMm'] as num?)?.toDouble() ?? 600,
     wallTileHeightMm: (json['wallTileHeightMm'] as num?)?.toDouble() ?? 300,
@@ -935,10 +948,8 @@ class RoomMaterialSettings {
     wallMaterialId: json['wallMaterialId'] as String? ?? 'paint-warm-white',
     wallTileMaterialId:
         json['wallTileMaterialId'] as String? ?? 'tile-light-stone',
-    wallPaintColorArgb:
-        (json['wallPaintColorArgb'] as num?)?.toInt() ?? 0,
-    wallTileTintArgb:
-        (json['wallTileTintArgb'] as num?)?.toInt() ?? 0xFFFFFFFF,
+    wallPaintColorArgb: (json['wallPaintColorArgb'] as num?)?.toInt() ?? 0,
+    wallTileTintArgb: (json['wallTileTintArgb'] as num?)?.toInt() ?? 0xFFFFFFFF,
     wallTileGroutMm: (json['wallTileGroutMm'] as num?)?.toDouble() ?? 1.5,
     wallTileRunOffsetX: ((json['wallTileRunOffsetX'] as Map?) ?? const {}).map(
       (k, v) => MapEntry(k.toString(), (v as num).toDouble()),
@@ -949,7 +960,9 @@ class RoomMaterialSettings {
     wallTileRunEnabled: ((json['wallTileRunEnabled'] as Map?) ?? const {}).map(
       (k, v) => MapEntry(k.toString(), v as bool),
     ),
-    wallTileRunMirrored: ((json['wallTileRunMirrored'] as Map?) ?? const {}).map(
+    wallTileRunMirrored: ((json['wallTileRunMirrored'] as Map?) ?? const {})
+        .map((k, v) => MapEntry(k.toString(), v as bool)),
+    wallTileRunRotated: ((json['wallTileRunRotated'] as Map?) ?? const {}).map(
       (k, v) => MapEntry(k.toString(), v as bool),
     ),
   );

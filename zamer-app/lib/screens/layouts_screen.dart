@@ -195,6 +195,8 @@ class _LayoutsScreenState extends State<LayoutsScreen> {
       v = await _number('Сдвиг раскладки по X', s.tileOffsetXMm, 'мм');
     if (field == 'offY')
       v = await _number('Сдвиг раскладки по Y', s.tileOffsetYMm, 'мм');
+    if (field == 'grout')
+      v = await _number('Ширина плиточного шва', s.floorTileGroutMm, 'мм');
     if (field == 'minCut')
       v = await _number(
         'Минимальная желательная подрезка',
@@ -244,6 +246,7 @@ class _LayoutsScreenState extends State<LayoutsScreen> {
     if (field == 'tileH') s.tileHeightMm = v;
     if (field == 'offX') s.tileOffsetXMm = v;
     if (field == 'offY') s.tileOffsetYMm = v;
+    if (field == 'grout') s.floorTileGroutMm = v.clamp(0.5, 50);
     if (field == 'minCut') s.tileMinCutMm = v;
     await _changedLayout(s);
     if (mounted) setState(() {});
@@ -455,7 +458,55 @@ class _LayoutsScreenState extends State<LayoutsScreen> {
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              Row(
+                children: [
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Материалы и раскладка',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: .1,
+                          ),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'Один рисунок пола для плана и 3D',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFF8C989D),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 9,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF171F23),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFF2A3941)),
+                    ),
+                    child: Text(
+                      '${meta.name} • ${face.areaM2.toStringAsFixed(1)} м²',
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFFF1C79E),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
               DropdownButtonFormField<String>(
                 value: face.key,
                 decoration: const InputDecoration(labelText: 'Помещение'),
@@ -472,28 +523,35 @@ class _LayoutsScreenState extends State<LayoutsScreen> {
                 onChanged: (v) => setState(() => _faceKey = v),
               ),
               if (faces.length > 1)
-                TextButton.icon(
-                  onPressed: () => _chooseCarpet(faces, face, s),
-                  icon: const Icon(Icons.layers_outlined),
-                  label: Text(
-                    widget.floor.carpetRoomIds.isEmpty
-                        ? 'Единый ковёр по помещениям'
-                        : 'Единый ковёр: ${widget.floor.carpetRoomIds.length} помещения',
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: OutlinedButton.icon(
+                    onPressed: () => _chooseCarpet(faces, face, s),
+                    icon: const Icon(Icons.layers_outlined, size: 18),
+                    label: Text(
+                      widget.floor.carpetRoomIds.isEmpty
+                          ? 'Единый ковёр по помещениям'
+                          : 'Единый ковёр • ${widget.floor.carpetRoomIds.length} помещения',
+                    ),
                   ),
                 ),
               const SizedBox(height: 8),
               SegmentedButton<FloorLayoutKind>(
+                showSelectedIcon: false,
                 segments: const [
                   ButtonSegment(
                     value: FloorLayoutKind.laminate,
+                    icon: Icon(Icons.view_agenda_outlined),
                     label: Text('Ламинат'),
                   ),
                   ButtonSegment(
                     value: FloorLayoutKind.underlay,
+                    icon: Icon(Icons.layers_outlined),
                     label: Text('Подложка'),
                   ),
                   ButtonSegment(
                     value: FloorLayoutKind.tile,
+                    icon: Icon(Icons.grid_view_rounded),
                     label: Text('Плитка'),
                   ),
                 ],
@@ -517,6 +575,12 @@ class _LayoutsScreenState extends State<LayoutsScreen> {
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: Card(
+              color: const Color(0xFF0B1115),
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18),
+                side: const BorderSide(color: Color(0xFF243139)),
+              ),
               clipBehavior: Clip.antiAlias,
               child: LayoutBuilder(
                 builder: (context, c) {
@@ -558,8 +622,14 @@ class _LayoutsScreenState extends State<LayoutsScreen> {
             child: Padding(
               padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
               child: Card(
+                color: const Color(0xFF11191E),
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18),
+                  side: const BorderSide(color: Color(0xFF243139)),
+                ),
                 child: Padding(
-                  padding: const EdgeInsets.all(10),
+                  padding: const EdgeInsets.all(12),
                   child: Column(
                     children: [
                       Row(
@@ -765,16 +835,22 @@ class _LayoutsScreenState extends State<LayoutsScreen> {
                           },
                         ),
                         const SizedBox(height: 8),
-                        Row(
+                        Wrap(
+                          alignment: WrapAlignment.center,
+                          spacing: 8,
+                          runSpacing: 6,
                           children: [
-                            Expanded(
-                              child: FilledButton.icon(
-                                onPressed: () => _autoBalance(face, s),
-                                icon: const Icon(Icons.center_focus_strong),
-                                label: const Text('Авто без узких'),
+                            FilledButton.icon(
+                              onPressed: () => _autoBalance(face, s),
+                              icon: const Icon(Icons.center_focus_strong),
+                              label: const Text('Авто без узких'),
+                            ),
+                            OutlinedButton(
+                              onPressed: () => _edit(s, 'grout'),
+                              child: Text(
+                                'Шов ${s.floorTileGroutMm.toStringAsFixed(s.floorTileGroutMm % 1 == 0 ? 0 : 1)} мм',
                               ),
                             ),
-                            const SizedBox(width: 8),
                             OutlinedButton(
                               onPressed: () => _edit(s, 'minCut'),
                               child: Text('Мин. ${s.tileMinCutMm.round()}'),
@@ -799,8 +875,8 @@ class _LayoutsScreenState extends State<LayoutsScreen> {
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
                             color: thin
-                                ? const Color(0xFFFFF1E8)
-                                : const Color(0xFFEEF7F1),
+                                ? const Color(0xFF38241A)
+                                : const Color(0xFF173127),
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Text(
@@ -809,8 +885,8 @@ class _LayoutsScreenState extends State<LayoutsScreen> {
                             style: TextStyle(
                               fontWeight: FontWeight.w700,
                               color: thin
-                                  ? const Color(0xFF9B4B1B)
-                                  : const Color(0xFF2E6B45),
+                                  ? const Color(0xFFF0A06A)
+                                  : const Color(0xFF8AC8AE),
                             ),
                           ),
                         ),

@@ -43,7 +43,12 @@ void main() {
       ),
     );
     expect(find.textContaining('2880 × 2880'), findsOneWidget);
-    await tester.tap(find.byTooltip('Добавить слой в Пол снизу вверх'));
+
+    // The redesigned layer cards use the same compact add action for floor and
+    // wall stacks. The floor section is rendered first, so its action is the
+    // first matching tooltip. The rest of this test stays focused on behavior:
+    // clear dimensions and material takeoff must still update correctly.
+    await tester.tap(find.byTooltip('Добавить слой').first);
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextFormField).first, 'Стяжка');
     await tester.enterText(find.byType(TextFormField).last, '50');

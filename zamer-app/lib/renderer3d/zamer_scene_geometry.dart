@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import '../models/models.dart';
 import '../services/geometry_service.dart';
 import '../services/layout_service.dart';
+import 'rotated_footprint_bounds.dart';
 
 /// Engine-neutral 3D representation of one measured floor.
 /// All source dimensions stay in millimetres here. The GPU layer converts once
@@ -48,6 +49,10 @@ class ZamerSceneGeometry {
       if (polygon.length < 3) continue;
       final meta = floor.roomMetaByKey(face.key);
       final settings = meta?.materials ?? RoomMaterialSettings();
+      final sharedFloorAnchor =
+          meta != null &&
+          floor.carpetRoomIds.length > 1 &&
+          floor.carpetRoomIds.contains(meta.id);
       floorSurfaces.add(
         ZamerFloorSurface(
           roomKey: face.key,
@@ -66,8 +71,9 @@ class ZamerSceneGeometry {
           tilePattern: settings.tilePattern,
           tileOffsetXMm: settings.tileOffsetXMm,
           tileOffsetYMm: settings.tileOffsetYMm,
-          anchorXMm: face.centroid.x,
-          anchorYMm: face.centroid.y,
+          groutMm: settings.floorTileGroutMm,
+          anchorXMm: sharedFloorAnchor ? floor.carpetAnchorX : face.centroid.x,
+          anchorYMm: sharedFloorAnchor ? floor.carpetAnchorY : face.centroid.y,
           ceilingHeightMm: meta?.ceilingHeightMm ?? floor.defaultHeightMm,
         ),
       );
@@ -125,6 +131,7 @@ class ZamerSceneGeometry {
           tileOffsetXMm: settings.wallTileXFor(runId),
           tileOffsetYMm: settings.wallTileYFor(runId),
           tileMirrored: settings.wallTileMirroredFor(runId),
+          tileRotated: settings.wallTileRotatedFor(runId),
           groutMm: settings.wallTileGroutMm,
           wallColorArgb: settings.wallPaintColorArgb,
           tileTintArgb: settings.wallTileTintArgb,
@@ -148,6 +155,7 @@ class ZamerSceneGeometry {
             tileOffsetXMm: settings.wallTileXFor(runId),
             tileOffsetYMm: settings.wallTileYFor(runId),
             tileMirrored: settings.wallTileMirroredFor(runId),
+            tileRotated: settings.wallTileRotatedFor(runId),
             groutMm: settings.wallTileGroutMm,
             wallColorArgb: settings.wallPaintColorArgb,
             tileTintArgb: settings.wallTileTintArgb,
@@ -165,11 +173,18 @@ class ZamerSceneGeometry {
       if (wall.isCurved && wall.curveGroupId != null) {
         final groupId = wall.curveGroupId!;
         if (!handledCurves.add(groupId)) continue;
-        final points = GeometryService.smoothCurvePoints(floor, groupId, stepMm: 90);
+        final points = GeometryService.smoothCurvePoints(
+          floor,
+          groupId,
+          stepMm: 90,
+        );
         if (points.length >= 2) {
-          final groupWalls = floor.walls.where((w) => w.curveGroupId == groupId).toList();
+          final groupWalls = floor.walls
+              .where((w) => w.curveGroupId == groupId)
+              .toList();
           final sample = groupWalls.isEmpty ? wall : groupWalls.first;
           final height = sample.heightOverrideMm ?? floor.defaultHeightMm;
+          var textureCursorMm = 0.0;
           for (var i = 0; i < points.length - 1; i++) {
             final a = points[i];
             final b = points[i + 1];
@@ -188,6 +203,7 @@ class ZamerSceneGeometry {
                 thicknessMm: sample.thicknessMm,
                 bottomMm: 0,
                 heightMm: height,
+                textureStartMm: textureCursorMm,
                 materialId: finish.wallMaterialId,
                 tileMaterialId: finish.wallTileMaterialId,
                 tileEnabled: finish.wallTileEnabledFor(groupId),
@@ -208,6 +224,7 @@ class ZamerSceneGeometry {
                 ),
               ),
             );
+            textureCursorMm += len;
           }
         }
         continue;
@@ -274,40 +291,42 @@ class ZamerSceneGeometry {
     final electrical = floor.electricalPoints
         .where((point) => !isRepresentedByLightingObject(point))
         .map((point) {
-      var angle = 0.0;
-      var wallThickness = 100.0;
-      if (point.wallId != null) {
-        PlanWall? wall;
-        for (final candidate in floor.walls) {
-          if (candidate.id == point.wallId) {
-            wall = candidate;
-            break;
+          var angle = 0.0;
+          var wallThickness = 100.0;
+          if (point.wallId != null) {
+            PlanWall? wall;
+            for (final candidate in floor.walls) {
+              if (candidate.id == point.wallId) {
+                wall = candidate;
+                break;
+              }
+            }
+            if (wall != null) {
+              wallThickness = wall.thicknessMm;
+              final a = floor.nodeById(wall.startNodeId);
+              final b = floor.nodeById(wall.endNodeId);
+              if (a != null && b != null) {
+                angle = math.atan2(b.yMm - a.yMm, b.xMm - a.xMm);
+              }
+            }
           }
-        }
-        if (wall != null) {
-          wallThickness = wall.thicknessMm;
-          final a = floor.nodeById(wall.startNodeId);
-          final b = floor.nodeById(wall.endNodeId);
-          if (a != null && b != null) {
-            angle = math.atan2(b.yMm - a.yMm, b.xMm - a.xMm);
-          }
-        }
-      }
-      return ZamerElectricalPlacement(
-        id: point.id,
-        type: point.type,
-        xMm: point.xMm,
-        yMm: point.yMm,
-        heightMm: point.type == ElectricalPointType.ceilingLight
-            ? floor.defaultHeightMm - 35
-            : point.heightMm,
-        rotationRad: angle,
-        wallSide: point.wallSide,
-        wallThicknessMm: wallThickness,
-        modules: List<ElectricalModuleType>.unmodifiable(point.modules),
-        frameVertical: point.frameVertical,
-      );
-        }).toList(growable: false);
+          return ZamerElectricalPlacement(
+            id: point.id,
+            wallId: point.wallId,
+            type: point.type,
+            xMm: point.xMm,
+            yMm: point.yMm,
+            heightMm: point.type == ElectricalPointType.ceilingLight
+                ? floor.defaultHeightMm - 35
+                : point.heightMm,
+            rotationRad: angle,
+            wallSide: point.wallSide,
+            wallThicknessMm: wallThickness,
+            modules: List<ElectricalModuleType>.unmodifiable(point.modules),
+            frameVertical: point.frameVertical,
+          );
+        })
+        .toList(growable: false);
 
     return ZamerSceneGeometry(
       bounds: ZamerSceneBounds.fromFloor(floor),
@@ -355,6 +374,7 @@ class ZamerSceneGeometry {
           thicknessMm: wall.thicknessMm,
           bottomMm: bottom,
           heightMm: height,
+          textureStartMm: safeFrom,
           materialId: finish.wallMaterialId,
           tileMaterialId: finish.wallTileMaterialId,
           tileEnabled: finish.wallTileEnabledFor(wall.id),
@@ -425,7 +445,8 @@ class ZamerSceneBounds {
   double get centerY => (minY + maxY) / 2;
 
   factory ZamerSceneBounds.fromFloor(FloorPlan floor) {
-    if (floor.nodes.isEmpty) return const ZamerSceneBounds(-1500, -1500, 1500, 1500);
+    if (floor.nodes.isEmpty)
+      return const ZamerSceneBounds(-1500, -1500, 1500, 1500);
     var minX = floor.nodes.first.xMm;
     var maxX = minX;
     var minY = floor.nodes.first.yMm;
@@ -437,10 +458,16 @@ class ZamerSceneBounds {
       maxY = math.max(maxY, n.yMm);
     }
     for (final o in floor.planObjects) {
-      minX = math.min(minX, o.xMm - o.widthMm / 2);
-      maxX = math.max(maxX, o.xMm + o.widthMm / 2);
-      minY = math.min(minY, o.yMm - o.depthMm / 2);
-      maxY = math.max(maxY, o.yMm + o.depthMm / 2);
+      if (o.layer == ProjectLayer.demolition) continue;
+      final footprint = zamerRotatedFootprintHalfExtentsMm(
+        widthMm: o.widthMm,
+        depthMm: o.depthMm,
+        rotationDeg: o.rotationDeg,
+      );
+      minX = math.min(minX, o.xMm - footprint.halfX);
+      maxX = math.max(maxX, o.xMm + footprint.halfX);
+      minY = math.min(minY, o.yMm - footprint.halfY);
+      maxY = math.max(maxY, o.yMm + footprint.halfY);
     }
     return ZamerSceneBounds(minX, minY, maxX, maxY);
   }
@@ -464,6 +491,7 @@ class ZamerFloorSurface {
     required this.tilePattern,
     required this.tileOffsetXMm,
     required this.tileOffsetYMm,
+    required this.groutMm,
     required this.anchorXMm,
     required this.anchorYMm,
     required this.ceilingHeightMm,
@@ -476,7 +504,7 @@ class ZamerFloorSurface {
   final double tileWidthMm, tileHeightMm, plankLengthMm, plankWidthMm;
   final String laminatePattern, laminateOffsetMode, tilePattern;
   final double laminateOffsetXMm, laminateOffsetYMm;
-  final double tileOffsetXMm, tileOffsetYMm;
+  final double tileOffsetXMm, tileOffsetYMm, groutMm;
   final double anchorXMm, anchorYMm;
   final double ceilingHeightMm;
 }
@@ -493,6 +521,7 @@ class ZamerWallFinishLayer {
     required this.tileOffsetXMm,
     required this.tileOffsetYMm,
     required this.tileMirrored,
+    required this.tileRotated,
     required this.groutMm,
     required this.wallColorArgb,
     required this.tileTintArgb,
@@ -501,7 +530,7 @@ class ZamerWallFinishLayer {
   final String roomKey;
   final int sideSign;
   final String materialId, tileMaterialId;
-  final bool tileEnabled, tileMirrored;
+  final bool tileEnabled, tileMirrored, tileRotated;
   final double tileWidthMm, tileHeightMm, tileOffsetXMm, tileOffsetYMm, groutMm;
   final int wallColorArgb, tileTintArgb;
 }
@@ -516,6 +545,7 @@ class ZamerWallPiece {
     required this.thicknessMm,
     required this.bottomMm,
     required this.heightMm,
+    this.textureStartMm = 0,
     required this.materialId,
     required this.tileMaterialId,
     required this.tileEnabled,
@@ -531,6 +561,7 @@ class ZamerWallPiece {
   final String wallId;
   final double centerXMm, centerYMm, angleRad;
   final double lengthMm, thicknessMm, bottomMm, heightMm;
+  final double textureStartMm;
   final String materialId, tileMaterialId;
   final bool tileEnabled;
   final double tileWidthMm, tileHeightMm, tileOffsetXMm, tileOffsetYMm;
@@ -564,6 +595,7 @@ class ZamerOpeningPlacement {
 class ZamerElectricalPlacement {
   const ZamerElectricalPlacement({
     required this.id,
+    required this.wallId,
     required this.type,
     required this.xMm,
     required this.yMm,
@@ -576,6 +608,7 @@ class ZamerElectricalPlacement {
   });
 
   final String id;
+  final String? wallId;
   final ElectricalPointType type;
   final double xMm, yMm, heightMm, rotationRad, wallThicknessMm;
   final int wallSide;

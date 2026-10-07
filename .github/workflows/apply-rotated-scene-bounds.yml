@@ -1,0 +1,78 @@
+name: Apply rotated scene bounds
+
+on:
+  push:
+    branches:
+      - 'codex/zamer-1.5.6-3d-stability'
+    paths:
+      - 'zamer-app/lib/renderer3d/rotated_footprint_bounds.dart'
+      - 'zamer-app/test/rotated_footprint_bounds_test.dart'
+      - 'zamer-app/tool/migrations/fix_rotated_scene_bounds.py'
+      - '.github/workflows/apply-rotated-scene-bounds.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: zamer-rotated-scene-bounds-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Sparse checkout current branch
+        uses: actions/checkout@v4
+        with:
+          ref: codex/zamer-1.5.6-3d-stability
+          fetch-depth: 2
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            zamer-app/lib/renderer3d/zamer_scene_geometry.dart
+            zamer-app/lib/renderer3d/rotated_footprint_bounds.dart
+            zamer-app/test/rotated_footprint_bounds_test.dart
+            zamer-app/tool/migrations/fix_rotated_scene_bounds.py
+
+      - name: Apply rotated bounds fix
+        run: python3 zamer-app/tool/migrations/fix_rotated_scene_bounds.py
+
+      - name: Setup Dart
+        uses: dart-lang/setup-dart@v1
+
+      - name: Format changed sources
+        run: dart format zamer-app/lib/renderer3d/zamer_scene_geometry.dart zamer-app/lib/renderer3d/rotated_footprint_bounds.dart zamer-app/test/rotated_footprint_bounds_test.dart
+
+      - name: Verify rotated scene bounds
+        shell: bash
+        run: |
+          set -euo pipefail
+          SCENE=zamer-app/lib/renderer3d/zamer_scene_geometry.dart
+          grep -q "import 'rotated_footprint_bounds.dart';" "$SCENE"
+          grep -q 'zamerRotatedFootprintHalfExtentsMm(' "$SCENE"
+          grep -q 'rotationDeg: o.rotationDeg' "$SCENE"
+          grep -q 'o.xMm - footprint.halfX' "$SCENE"
+          grep -q 'o.yMm - footprint.halfY' "$SCENE"
+          if grep -q 'o.xMm - o.widthMm / 2' "$SCENE"; then
+            echo 'Legacy unrotated object bounds are still present.' >&2
+            exit 1
+          fi
+
+      - name: Commit scene bounds integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            zamer-app/lib/renderer3d/zamer_scene_geometry.dart \
+            zamer-app/lib/renderer3d/rotated_footprint_bounds.dart \
+            zamer-app/test/rotated_footprint_bounds_test.dart
+          if git diff --cached --quiet; then
+            echo 'Rotated scene bounds already integrated.'
+            exit 0
+          fi
+          git commit -m 'fix(zamer): include object rotation in scene bounds'
+          git pull --rebase origin codex/zamer-1.5.6-3d-stability
+          git push origin HEAD:codex/zamer-1.5.6-3d-stability

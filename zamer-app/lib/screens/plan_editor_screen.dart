@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../models/models.dart';
@@ -263,9 +264,8 @@ class _PlanEditorScreenState extends State<PlanEditorScreen> {
             children: [
               Text(
                 'Точка • ${connected.length} соединений',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+                style: Theme.of(context).textTheme.titleLarge
+                    ?.copyWith(fontWeight: FontWeight.w800),
               ),
               const SizedBox(height: 10),
               Row(
@@ -288,9 +288,8 @@ class _PlanEditorScreenState extends State<PlanEditorScreen> {
                 const SizedBox(height: 12),
                 Text(
                   'Связанные стены',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
+                  style: Theme.of(context).textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 4),
                 ...connected
@@ -776,9 +775,8 @@ class _PlanEditorScreenState extends State<PlanEditorScreen> {
                   children: [
                     Text(
                       '${wall.type.label} • ${length.round()} мм',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
+                      style: Theme.of(context).textTheme.titleLarge
+                          ?.copyWith(fontWeight: FontWeight.w800),
                     ),
                     const SizedBox(height: 12),
                     ListTile(
@@ -885,9 +883,8 @@ class _PlanEditorScreenState extends State<PlanEditorScreen> {
                     const SizedBox(height: 8),
                     Text(
                       'Проёмы',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
+                      style: Theme.of(context).textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w700),
                     ),
                     const SizedBox(height: 6),
                     ...wall.openings.map(
@@ -1381,9 +1378,7 @@ class _PlanEditorScreenState extends State<PlanEditorScreen> {
       'opening:${opening.id}:rightOffset',
       math.max(
         0.0,
-        floor.wallLengthMm(wall) -
-            opening.offsetFromStartMm -
-            opening.widthMm,
+        floor.wallLengthMm(wall) - opening.offsetFromStartMm - opening.widthMm,
       ),
       DimensionSource.calculated,
     );
@@ -1458,15 +1453,20 @@ class _PlanEditorScreenState extends State<PlanEditorScreen> {
               ),
             ),
             Positioned(
-              left: 10,
-              right: 10,
-              top: 8,
+              left: 12,
+              right: 12,
+              top: 10,
               child: Card(
-                elevation: 4,
+                elevation: 0,
+                color: const Color(0xF2111A1F),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  side: const BorderSide(color: Color(0xFF2A3941)),
+                ),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 4,
+                    horizontal: 5,
+                    vertical: 2,
                   ),
                   child: Row(
                     children: [
@@ -1521,10 +1521,11 @@ class _PlanEditorScreenState extends State<PlanEditorScreen> {
             ),
             if (_mode == PlanMode.nodes && _lastNodeSnap != null)
               Positioned(
-                top: 78,
+                top: 70,
                 left: 18,
                 child: Card(
-                  color: const Color(0xFFF0F5FF),
+                  elevation: 0,
+                  color: const Color(0xF2111A1F),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 10,
@@ -1536,14 +1537,14 @@ class _PlanEditorScreenState extends State<PlanEditorScreen> {
                         const Icon(
                           Icons.link,
                           size: 16,
-                          color: Color(0xFF315DA8),
+                          color: Color(0xFFF1C79E),
                         ),
                         const SizedBox(width: 6),
                         Text(
                           'Привязка: ${_lastNodeSnap!.label}',
                           style: const TextStyle(
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF315DA8),
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFFF1C79E),
                           ),
                         ),
                       ],
@@ -1554,12 +1555,17 @@ class _PlanEditorScreenState extends State<PlanEditorScreen> {
             Positioned(
               left: 10,
               right: 10,
-              bottom: 10,
+              bottom: 8,
               child: SafeArea(
                 child: Card(
-                  elevation: 8,
+                  elevation: 0,
+                  color: const Color(0xF5111A1F),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    side: const BorderSide(color: Color(0xFF2A3941)),
+                  ),
                   child: Padding(
-                    padding: const EdgeInsets.all(8),
+                    padding: const EdgeInsets.fromLTRB(7, 7, 7, 8),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -1570,7 +1576,7 @@ class _PlanEditorScreenState extends State<PlanEditorScreen> {
                               _modeButton(
                                 PlanMode.select,
                                 Icons.pan_tool_alt_outlined,
-                                'Навигация',
+                                'Обзор',
                               ),
                               const SizedBox(width: 6),
                               _modeButton(
@@ -1582,13 +1588,13 @@ class _PlanEditorScreenState extends State<PlanEditorScreen> {
                               _modeButton(
                                 PlanMode.exterior,
                                 Icons.home_work_outlined,
-                                'Наружная',
+                                'Стены',
                               ),
                               const SizedBox(width: 6),
                               _modeButton(
                                 PlanMode.partition,
                                 Icons.view_week_outlined,
-                                'Перегородка',
+                                'Перег.',
                               ),
                               const SizedBox(width: 6),
                               _modeButton(
@@ -1612,7 +1618,7 @@ class _PlanEditorScreenState extends State<PlanEditorScreen> {
                               _modeButton(
                                 PlanMode.dimension,
                                 Icons.square_foot_outlined,
-                                'Размер',
+                                'Размеры',
                               ),
                             ],
                           ),
@@ -1800,25 +1806,55 @@ class _PlanEditorScreenState extends State<PlanEditorScreen> {
 
   Widget _modeButton(PlanMode mode, IconData icon, String label) {
     final active = _mode == mode;
-    final button = active
-        ? FilledButton.icon(
-            onPressed: () => setState(() => _mode = mode),
-            icon: Icon(icon, size: 18),
-            label: Text(label, maxLines: 1),
-          )
-        : OutlinedButton.icon(
-            onPressed: () => setState(() {
-              _mode = mode;
+    final foreground = active
+        ? const Color(0xFF22170F)
+        : const Color(0xFFD6DCDE);
+    return SizedBox(
+      width: 82,
+      height: 58,
+      child: Material(
+        color: active ? const Color(0xFFF1C79E) : const Color(0xFF0D1519),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(11),
+          side: BorderSide(
+            color: active ? const Color(0xFFF1C79E) : const Color(0xFF2A3941),
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => setState(() {
+            _mode = mode;
+            if (!active) {
               _activeNodeId = null;
               _measureStartNodeId = null;
               _selectedNodeId = null;
               _dragNodeId = null;
               _lastNodeSnap = null;
-            }),
-            icon: Icon(icon, size: 18),
-            label: Text(label, maxLines: 1),
-          );
-    return SizedBox(width: 132, child: button);
+            }
+          }),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, size: 19, color: foreground),
+                const SizedBox(height: 3),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: foreground,
+                    fontSize: 9.5,
+                    fontWeight: active ? FontWeight.w900 : FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 

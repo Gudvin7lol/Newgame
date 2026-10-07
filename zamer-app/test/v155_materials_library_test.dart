@@ -8,20 +8,22 @@ void main() {
   test('demo floor keeps the same laminate phase settings for 2D and 3D', () {
     final floor = DemoProjectFactory.create().floors.single;
     final scene = ZamerSceneGeometry.fromFloor(floor);
-    final surface = scene.floors.single;
+    final bedroom = floor.roomMetas.firstWhere((m) => m.name == 'Спальня');
+    final surface = scene.floors.firstWhere((s) => s.roomKey == bedroom.faceKey);
+    final settings = bedroom.materials;
 
-    expect(surface.laminatePattern, 'straight');
-    expect(surface.laminateOffsetMode, 'half');
-    expect(surface.laminateOffsetXMm, 180);
-    expect(surface.laminateOffsetYMm, 70);
-    expect(surface.plankLengthMm, 1380);
-    expect(surface.plankWidthMm, 193);
+    expect(surface.laminatePattern, settings.laminatePattern);
+    expect(surface.laminateOffsetMode, settings.laminateOffsetMode);
+    expect(surface.laminateOffsetXMm, settings.laminateOffsetXMm);
+    expect(surface.laminateOffsetYMm, settings.laminateOffsetYMm);
+    expect(surface.plankLengthMm, settings.laminatePlankLengthMm);
+    expect(surface.plankWidthMm, settings.laminatePlankWidthMm);
   });
 
-  test('tile finish is exported only on the selected side of the demo wall', () {
+  test('tile finish is exported only on the bathroom side of a shared wall', () {
     final floor = DemoProjectFactory.create().floors.single;
     final scene = ZamerSceneGeometry.fromFloor(floor);
-    final wallPieces = scene.walls.where((w) => w.wallId == 'wC').toList();
+    final wallPieces = scene.walls.where((w) => w.wallId == 'w19').toList();
 
     expect(wallPieces, isNotEmpty);
     for (final wall in wallPieces) {

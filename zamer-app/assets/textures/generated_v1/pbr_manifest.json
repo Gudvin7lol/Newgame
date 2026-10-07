@@ -1,0 +1,110 @@
+{
+  "dark_oak": {
+    "baseColor": "dark_oak.jpg",
+    "normal": "dark_oak_normal.png",
+    "height": "dark_oak_height.png",
+    "metallicRoughness": "dark_oak_metallic_roughness.png",
+    "roughness": 0.54,
+    "normalScale": 2.5,
+    "realWorldTileMm": 1200
+  },
+  "white_oak": {
+    "baseColor": "white_oak.jpg",
+    "normal": "white_oak_normal.png",
+    "height": "white_oak_height.png",
+    "metallicRoughness": "white_oak_metallic_roughness.png",
+    "roughness": 0.56,
+    "normalScale": 2.4,
+    "realWorldTileMm": 1200
+  },
+  "travertine": {
+    "baseColor": "travertine.jpg",
+    "normal": "travertine_normal.png",
+    "height": "travertine_height.png",
+    "metallicRoughness": "travertine_metallic_roughness.png",
+    "roughness": 0.62,
+    "normalScale": 3.2,
+    "realWorldTileMm": 600
+  },
+  "terrazzo": {
+    "baseColor": "terrazzo.jpg",
+    "normal": "terrazzo_normal.png",
+    "height": "terrazzo_height.png",
+    "metallicRoughness": "terrazzo_metallic_roughness.png",
+    "roughness": 0.43,
+    "normalScale": 2.2,
+    "realWorldTileMm": 600
+  },
+  "slate": {
+    "baseColor": "slate.jpg",
+    "normal": "slate_normal.png",
+    "height": "slate_height.png",
+    "metallicRoughness": "slate_metallic_roughness.png",
+    "roughness": 0.72,
+    "normalScale": 4.0,
+    "realWorldTileMm": 600
+  },
+  "terracotta": {
+    "baseColor": "terracotta.jpg",
+    "normal": "terracotta_normal.png",
+    "height": "terracotta_height.png",
+    "metallicRoughness": "terracotta_metallic_roughness.png",
+    "roughness": 0.68,
+    "normalScale": 3.4,
+    "realWorldTileMm": 300
+  },
+  "wall_paint": {
+    "baseColor": "wall_paint.jpg",
+    "normal": "wall_paint_normal.png",
+    "height": "wall_paint_height.png",
+    "metallicRoughness": "wall_paint_metallic_roughness.png",
+    "roughness": 0.86,
+    "normalScale": 0.75,
+    "realWorldTileMm": 900
+  },
+  "wall_lime": {
+    "baseColor": "wall_lime.jpg",
+    "normal": "wall_lime_normal.png",
+    "height": "wall_lime_height.png",
+    "metallicRoughness": "wall_lime_metallic_roughness.png",
+    "roughness": 0.88,
+    "normalScale": 2.7,
+    "realWorldTileMm": 900
+  },
+  "wall_microcement": {
+    "baseColor": "wall_microcement.jpg",
+    "normal": "wall_microcement_normal.png",
+    "height": "wall_microcement_height.png",
+    "metallicRoughness": "wall_microcement_metallic_roughness.png",
+    "roughness": 0.82,
+    "normalScale": 2.2,
+    "realWorldTileMm": 1000
+  },
+  "wall_red_clay": {
+    "baseColor": "wall_red_clay.jpg",
+    "normal": "wall_red_clay_normal.png",
+    "height": "wall_red_clay_height.png",
+    "metallicRoughness": "wall_red_clay_metallic_roughness.png",
+    "roughness": 0.78,
+    "normalScale": 4.4,
+    "realWorldTileMm": 1000
+  },
+  "wall_white_clay": {
+    "baseColor": "wall_white_clay.jpg",
+    "normal": "wall_white_clay_normal.png",
+    "height": "wall_white_clay_height.png",
+    "metallicRoughness": "wall_white_clay_metallic_roughness.png",
+    "roughness": 0.82,
+    "normalScale": 4.1,
+    "realWorldTileMm": 1000
+  },
+  "wall_linen": {
+    "baseColor": "wall_linen.jpg",
+    "normal": "wall_linen_normal.png",
+    "height": "wall_linen_height.png",
+    "metallicRoughness": "wall_linen_metallic_roughness.png",
+    "roughness": 0.92,
+    "normalScale": 3.2,
+    "realWorldTileMm": 700
+  }
+}

@@ -61,6 +61,7 @@ class LayoutService {
     to.tilePattern = from.tilePattern;
     to.tileOffsetXMm = from.tileOffsetXMm;
     to.tileOffsetYMm = from.tileOffsetYMm;
+    to.floorTileGroutMm = from.floorTileGroutMm;
   }
 
   static ({double minX, double maxX, double minY, double maxY}) groupBounds(
