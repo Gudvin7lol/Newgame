@@ -12,14 +12,21 @@ count=0
 while IFS= read -r -d '' src; do
   dst="${src%.png}.ktx2"
   name="$(basename "$src")"
+  normal_args=()
   case "$name" in
     basecolor.png)
       format="R8G8B8A8_SRGB"
       transfer="srgb"
       ;;
-    normal.png|orm.png)
+    normal.png)
       format="R8G8B8A8_UNORM"
       transfer="linear"
+      normal_args=(--normalize --normal-mode)
+      ;;
+    orm.png)
+      format="R8G8B8A8_UNORM"
+      transfer="linear"
+      normal_args=()
       ;;
     *)
       continue
@@ -35,6 +42,7 @@ while IFS= read -r -d '' src; do
     --uastc-quality 2 \
     --zstd 12 \
     --assign-tf "$transfer" \
+    "${normal_args[@]}" \
     "$src" "$dst"
   ktx validate "$dst" >/dev/null
   count=$((count + 1))

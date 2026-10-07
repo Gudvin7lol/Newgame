@@ -84,8 +84,7 @@ jobs:
           deb="$RUNNER_TEMP/ktx-4.4.2.deb"
           curl -L --fail --retry 3 "$url" -o "$deb"
           echo "ca635ed489d8bf54fac8d7687056c651193de0740830a7738cc034adc63e3027  $deb" | sha256sum -c -
-          sudo apt-get update -qq
-          sudo apt-get install -y "$deb"
+          sudo dpkg --install "$deb"
           ktx --version
 
       - name: Cook PBR12 KTX2 runtime textures
