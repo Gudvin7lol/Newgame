@@ -7,7 +7,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../models/models.dart';
 import '../renderer3d/render_quality.dart';
-import '../renderer3d/zamer_gpu_viewport.dart';
+import '../renderer3d/filament/zamer_filament_viewport.dart';
 import '../services/walk_navigation_service.dart';
 
 class Floor3DScreen extends StatefulWidget {
@@ -26,7 +26,7 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
   bool _walkMode = false;
   bool _noclip = false;
   double _walkStepMm = 120;
-  double _walkFovDeg = 76;
+  double _walkFovDeg = 64;
   double _walkX = 0, _walkY = 0;
   double _overviewRotation = -0.65, _overviewTilt = 0.82;
   double _overviewZoom = 0.92;
@@ -38,8 +38,8 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
   int _gesturePointers = 0;
   bool _rendering = false;
   ZamerRenderQuality _renderQuality = ZamerRenderQuality.quality;
-  final GlobalKey<ZamerGpuViewportState> _gpuKey =
-      GlobalKey<ZamerGpuViewportState>();
+  final GlobalKey<ZamerFilamentViewportState> _gpuKey =
+      GlobalKey<ZamerFilamentViewportState>();
 
   @override
   void initState() {
@@ -52,7 +52,7 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
       _rotation = 1.13;
       _tilt = -0.10;
       _zoom = 1;
-      _walkFovDeg = 76;
+      _walkFovDeg = 64;
     }
   }
 
@@ -328,7 +328,7 @@ class _Floor3DScreenState extends State<Floor3DScreen> {
             onScaleStart: _onScaleStart,
             onScaleUpdate: _onScaleUpdate,
             child: ClipRect(
-              child: ZamerGpuViewport(
+              child: ZamerFilamentViewport(
                 key: _gpuKey,
                 floor: widget.floor,
                 rotation: _rotation,
