@@ -154,6 +154,8 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
         m.laminateOffsetMode,
         m.laminateOffsetXMm,
         m.laminateOffsetYMm,
+        m.laminateJointMm,
+        m.tileGroutMm,
         m.wallMaterialId,
         m.wallPaintColorArgb,
         m.wallTile,
@@ -606,16 +608,36 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       );
     }
 
+    final isTile = surface.materialMode.toLowerCase().contains('tile') ||
+        surface.materialMode.toLowerCase().contains('плит') ||
+        preset.pattern == 'tile';
+    if (isTile) {
+      return _buildRectangularPatternFloorNode(
+        surface,
+        bounds,
+        materialCache,
+        indices,
+        tile: true,
+      );
+    }
+    if (preset.pattern == 'wood') {
+      return _buildRectangularPatternFloorNode(
+        surface,
+        bounds,
+        materialCache,
+        indices,
+        tile: false,
+      );
+    }
+
     final uvScale = _floorUvScaleMm(surface);
     final effectiveDirection = surface.materialMode.toLowerCase().contains('tile')
         ? surface.directionDeg + (surface.tilePattern == 'diagonal' ? 45 : 0)
         : surface.directionDeg;
     final angle = effectiveDirection * math.pi / 180;
     final ca = math.cos(angle), sa = math.sin(angle);
-    final isTile = surface.materialMode.toLowerCase().contains('tile') ||
-        MaterialCatalog.byId(surface.materialId).pattern == 'tile';
-    final offX = isTile ? surface.tileOffsetXMm : surface.laminateOffsetXMm;
-    final offY = isTile ? surface.tileOffsetYMm : surface.laminateOffsetYMm;
+    final offX = surface.tileOffsetXMm;
+    final offY = surface.tileOffsetYMm;
     final builder = GeometryBuilder(deduplicate: false)
       ..normal(vm.Vector3(0, 1, 0))
       ..tangent(vm.Vector4(ca, 0, sa, 1));
@@ -649,6 +671,229 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     )
       ..castsShadows = false
       ..shadowStatic = true;
+  }
+
+  Node _buildRectangularPatternFloorNode(
+    ZamerFloorSurface surface,
+    ZamerSceneBounds bounds,
+    Map<String, PhysicallyBasedMaterial> materialCache,
+    List<int> roomIndices, {
+    required bool tile,
+  }) {
+    final elementWidth = tile
+        ? math.max(60.0, surface.tileWidthMm)
+        : math.max(240.0, surface.plankLengthMm);
+    final elementHeight = tile
+        ? math.max(60.0, surface.tileHeightMm)
+        : math.max(55.0, surface.plankWidthMm);
+    final requestedJoint = tile ? surface.tileGroutMm : surface.laminateJointMm;
+    final joint = requestedJoint
+        .clamp(0.2, math.min(elementWidth, elementHeight) * 0.18)
+        .toDouble();
+
+    final direction = surface.directionDeg +
+        (tile && surface.tilePattern == 'diagonal' ? 45.0 : 0.0);
+    final angle = direction * math.pi / 180;
+    final ca = math.cos(angle);
+    final sa = math.sin(angle);
+
+    math.Point<double> toLocal(math.Point<double> p) {
+      final dx = p.x - surface.anchorXMm;
+      final dy = p.y - surface.anchorYMm;
+      return math.Point<double>(
+        dx * ca + dy * sa,
+        -dx * sa + dy * ca,
+      );
+    }
+
+    math.Point<double> toWorld(math.Point<double> p) => math.Point<double>(
+          surface.anchorXMm + p.x * ca - p.y * sa,
+          surface.anchorYMm + p.x * sa + p.y * ca,
+        );
+
+    final localRoom = surface.polygonMm.map(toLocal).toList(growable: false);
+    var minX = localRoom.first.x;
+    var maxX = minX;
+    var minY = localRoom.first.y;
+    var maxY = minY;
+    for (final p in localRoom.skip(1)) {
+      minX = math.min(minX, p.x);
+      maxX = math.max(maxX, p.x);
+      minY = math.min(minY, p.y);
+      maxY = math.max(maxY, p.y);
+    }
+
+    final roomTriangles = <List<math.Point<double>>>[];
+    for (var i = 0; i < roomIndices.length; i += 3) {
+      roomTriangles.add(<math.Point<double>>[
+        surface.polygonMm[roomIndices[i]],
+        surface.polygonMm[roomIndices[i + 1]],
+        surface.polygonMm[roomIndices[i + 2]],
+      ]);
+    }
+
+    // A receiver just below the finish is visible only through the procedural
+    // joints. The texture itself stays clean: no baked grout or plank seams.
+    final receiverBuilder = GeometryBuilder(deduplicate: false)
+      ..normal(vm.Vector3(0, 1, 0));
+    for (final p in surface.polygonMm) {
+      receiverBuilder
+        ..texCoord(vm.Vector2.zero())
+        ..addVertex(vm.Vector3(_mx(p.x, bounds), 0.004, _mz(p.y, bounds)));
+    }
+    for (var i = 0; i < roomIndices.length; i += 3) {
+      receiverBuilder.addTriangle(
+        roomIndices[i],
+        roomIndices[i + 1],
+        roomIndices[i + 2],
+      );
+    }
+
+    final root = Node(
+      name: tile
+          ? 'floor-tiles:${surface.roomKey}'
+          : 'floor-planks:${surface.roomKey}',
+    );
+    root.add(
+      Node(
+        name: tile
+            ? 'floor-tile-grout:${surface.roomKey}'
+            : 'floor-plank-joints:${surface.roomKey}',
+        mesh: Mesh(
+          receiverBuilder.build(),
+          _pbr(
+            tile
+                ? vm.Vector4(0.56, 0.55, 0.52, 1)
+                : vm.Vector4(0.075, 0.058, 0.045, 1),
+            roughness: tile ? 0.94 : 0.90,
+          )..doubleSided = true,
+        ),
+      )
+        ..castsShadows = false
+        ..shadowStatic = true,
+    );
+
+    final builder = GeometryBuilder(deduplicate: false)
+      ..normal(vm.Vector3(0, 1, 0));
+    final offsetX =
+        (tile ? surface.tileOffsetXMm : surface.laminateOffsetXMm) %
+            elementWidth;
+    final offsetY =
+        (tile ? surface.tileOffsetYMm : surface.laminateOffsetYMm) %
+            elementHeight;
+    final firstRow = ((minY - elementHeight - offsetY) / elementHeight).floor();
+    final lastRow = ((maxY + elementHeight - offsetY) / elementHeight).ceil();
+    final inset = joint / 2;
+    final visibleWidth = math.max(1.0, elementWidth - joint);
+    final visibleHeight = math.max(1.0, elementHeight - joint);
+    var elementCount = 0;
+
+    for (var row = firstRow; row <= lastRow && elementCount < 20000; row++) {
+      var rowShift = 0.0;
+      if (tile && surface.tilePattern == 'half' && row.isOdd) {
+        rowShift = elementWidth / 2;
+      } else if (!tile) {
+        switch (surface.laminateOffsetMode) {
+          case 'half':
+            if (row.isOdd) rowShift = elementWidth / 2;
+            break;
+          case 'third':
+            rowShift = (row % 3) * (elementWidth / 3);
+            break;
+        }
+      }
+
+      final firstCol =
+          ((minX - elementWidth - offsetX - rowShift) / elementWidth).floor();
+      final lastCol =
+          ((maxX + elementWidth - offsetX - rowShift) / elementWidth).ceil();
+      final y = row * elementHeight + offsetY;
+
+      for (var col = firstCol;
+          col <= lastCol && elementCount < 20000;
+          col++) {
+        final x = col * elementWidth + offsetX + rowShift;
+        final elementLocal = <math.Point<double>>[
+          math.Point<double>(x + inset, y + inset),
+          math.Point<double>(x + elementWidth - inset, y + inset),
+          math.Point<double>(
+            x + elementWidth - inset,
+            y + elementHeight - inset,
+          ),
+          math.Point<double>(x + inset, y + elementHeight - inset),
+        ];
+        final elementWorld =
+            elementLocal.map(toWorld).toList(growable: false);
+        final p0 = elementWorld[0];
+        final p1 = elementWorld[1];
+        final p3 = elementWorld[3];
+
+        var alongX = p1.x - p0.x;
+        var alongY = p1.y - p0.y;
+        final alongLength = math.sqrt(alongX * alongX + alongY * alongY);
+        if (alongLength < 0.001) continue;
+        alongX /= alongLength;
+        alongY /= alongLength;
+        var perpX = -alongY;
+        var perpY = alongX;
+        if ((p3.x - p0.x) * perpX + (p3.y - p0.y) * perpY < 0) {
+          perpX = -perpX;
+          perpY = -perpY;
+        }
+
+        for (final triangle in roomTriangles) {
+          final clipped = _clipPolygonToConvex(elementWorld, triangle);
+          if (clipped.length < 3) continue;
+          final vertexIndices = <int>[];
+          for (final p in clipped) {
+            final dx = p.x - p0.x;
+            final dy = p.y - p0.y;
+            var u = (dx * alongX + dy * alongY) / visibleWidth;
+            var v = (dx * perpX + dy * perpY) / visibleHeight;
+
+            // Deterministic flips reduce obvious repetition without baking
+            // a complete floor layout into the source material.
+            if ((row + col).isOdd) u = 1 - u;
+            if (((row * 31 + col * 17) & 2) != 0) v = 1 - v;
+
+            builder
+              ..tangent(vm.Vector4(alongX, 0, alongY, 1))
+              ..texCoord(vm.Vector2(u, v));
+            vertexIndices.add(
+              builder.addVertex(
+                vm.Vector3(_mx(p.x, bounds), 0.008, _mz(p.y, bounds)),
+              ),
+            );
+          }
+          for (var i = 1; i < vertexIndices.length - 1; i++) {
+            builder.addTriangle(
+              vertexIndices[0],
+              vertexIndices[i],
+              vertexIndices[i + 1],
+            );
+          }
+        }
+        elementCount++;
+      }
+    }
+
+    final key =
+        '${surface.materialMode}:${surface.materialId}:${tile ? 'tiles' : 'planks'}';
+    final material = materialCache.putIfAbsent(
+      key,
+      () => _floorMaterial(surface),
+    );
+    root.add(
+      Node(
+        name: tile
+            ? 'floor-tile-faces:${surface.roomKey}'
+            : 'floor-plank-faces:${surface.roomKey}',
+        mesh: Mesh(builder.build(), material),
+      )
+        ..castsShadows = false
+        ..shadowStatic = true,
+    );
+    return root;
   }
 
   Node _buildHerringboneFloorNode(

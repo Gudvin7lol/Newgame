@@ -63,9 +63,11 @@ class ZamerSceneGeometry {
           laminateOffsetMode: settings.laminateOffsetMode,
           laminateOffsetXMm: settings.laminateOffsetXMm,
           laminateOffsetYMm: settings.laminateOffsetYMm,
+          laminateJointMm: settings.laminateJointMm,
           tilePattern: settings.tilePattern,
           tileOffsetXMm: settings.tileOffsetXMm,
           tileOffsetYMm: settings.tileOffsetYMm,
+          tileGroutMm: settings.tileGroutMm,
           anchorXMm: face.centroid.x,
           anchorYMm: face.centroid.y,
           ceilingHeightMm: meta?.ceilingHeightMm ?? floor.defaultHeightMm,
@@ -461,9 +463,11 @@ class ZamerFloorSurface {
     required this.laminateOffsetMode,
     required this.laminateOffsetXMm,
     required this.laminateOffsetYMm,
+    required this.laminateJointMm,
     required this.tilePattern,
     required this.tileOffsetXMm,
     required this.tileOffsetYMm,
+    required this.tileGroutMm,
     required this.anchorXMm,
     required this.anchorYMm,
     required this.ceilingHeightMm,
@@ -475,8 +479,8 @@ class ZamerFloorSurface {
   final double directionDeg;
   final double tileWidthMm, tileHeightMm, plankLengthMm, plankWidthMm;
   final String laminatePattern, laminateOffsetMode, tilePattern;
-  final double laminateOffsetXMm, laminateOffsetYMm;
-  final double tileOffsetXMm, tileOffsetYMm;
+  final double laminateOffsetXMm, laminateOffsetYMm, laminateJointMm;
+  final double tileOffsetXMm, tileOffsetYMm, tileGroutMm;
   final double anchorXMm, anchorYMm;
   final double ceilingHeightMm;
 }
