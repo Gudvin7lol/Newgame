@@ -13,9 +13,9 @@ void main() {
     expect(scene.floors, hasLength(2));
     expect(scene.openings.any((o) => o.id == 'bedroom-door'), isTrue);
 
-    final bedroom = scene.floors.firstWhere((s) => s.materialId == 'oak-smoked');
+    final bedroom = scene.floors.firstWhere((s) => s.materialId == 'LAM_03');
     final hallway =
-        scene.floors.firstWhere((s) => s.materialId == 'tile-light-stone');
+        scene.floors.firstWhere((s) => s.materialId == 'TILE_01');
 
     expect(bedroom.laminatePattern, 'herringbone');
     expect(bedroom.plankLengthMm, 600);
