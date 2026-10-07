@@ -8,9 +8,13 @@ class VisualMaterialPreset {
     required this.color,
     this.pattern = 'solid',
     this.textureAsset,
+    this.textureAssetMobile,
     this.normalAsset,
+    this.normalAssetMobile,
     this.metallicRoughnessAsset,
+    this.metallicRoughnessAssetMobile,
     this.occlusionAsset,
+    this.occlusionAssetMobile,
     this.roughness,
     this.normalScale = 1.0,
     this.occlusionStrength = 1.0,
@@ -22,10 +26,24 @@ class VisualMaterialPreset {
   final Color color;
   final String pattern;
   final String? textureAsset;
+  final String? textureAssetMobile;
   final String? normalAsset;
+  final String? normalAssetMobile;
   final String? metallicRoughnessAsset;
+  final String? metallicRoughnessAssetMobile;
   final String? occlusionAsset;
+  final String? occlusionAssetMobile;
   final double? roughness;
+
+  String? textureFor({required bool mobile}) =>
+      mobile ? (textureAssetMobile ?? textureAsset) : textureAsset;
+  String? normalFor({required bool mobile}) =>
+      mobile ? (normalAssetMobile ?? normalAsset) : normalAsset;
+  String? metallicRoughnessFor({required bool mobile}) => mobile
+      ? (metallicRoughnessAssetMobile ?? metallicRoughnessAsset)
+      : metallicRoughnessAsset;
+  String? occlusionFor({required bool mobile}) =>
+      mobile ? (occlusionAssetMobile ?? occlusionAsset) : occlusionAsset;
   final double normalScale;
   final double occlusionStrength;
 }
@@ -47,8 +65,18 @@ class MaterialCatalog {
       category: 'Пол',
       color: Color(0xFF947152),
       pattern: 'wood',
-      textureAsset: 'assets/textures/floor_oak_smoked.png',
-      roughness: .56,
+      textureAsset: 'assets/textures/pbr/dark_oak/basecolor.png',
+      textureAssetMobile: 'assets/textures/pbr/dark_oak/basecolor_mobile.png',
+      normalAsset: 'assets/textures/pbr/dark_oak/normal.png',
+      normalAssetMobile: 'assets/textures/pbr/dark_oak/normal_mobile.png',
+      metallicRoughnessAsset: 'assets/textures/pbr/dark_oak/orm.png',
+      metallicRoughnessAssetMobile:
+          'assets/textures/pbr/dark_oak/orm_mobile.png',
+      occlusionAsset: 'assets/textures/pbr/dark_oak/orm.png',
+      occlusionAssetMobile: 'assets/textures/pbr/dark_oak/orm_mobile.png',
+      roughness: .54,
+      normalScale: .58,
+      occlusionStrength: .82,
     ),
     VisualMaterialPreset(
       id: 'walnut',
@@ -110,8 +138,19 @@ class MaterialCatalog {
       category: 'Плитка',
       color: Color(0xFFDADDD8),
       pattern: 'tile',
-      textureAsset: 'assets/textures/tile_light_stone.png',
-      roughness: .39,
+      textureAsset: 'assets/textures/pbr/ivory_tile/basecolor.png',
+      textureAssetMobile:
+          'assets/textures/pbr/ivory_tile/basecolor_mobile.png',
+      normalAsset: 'assets/textures/pbr/ivory_tile/normal.png',
+      normalAssetMobile: 'assets/textures/pbr/ivory_tile/normal_mobile.png',
+      metallicRoughnessAsset: 'assets/textures/pbr/ivory_tile/orm.png',
+      metallicRoughnessAssetMobile:
+          'assets/textures/pbr/ivory_tile/orm_mobile.png',
+      occlusionAsset: 'assets/textures/pbr/ivory_tile/orm.png',
+      occlusionAssetMobile: 'assets/textures/pbr/ivory_tile/orm_mobile.png',
+      roughness: .42,
+      normalScale: .66,
+      occlusionStrength: .86,
     ),
     VisualMaterialPreset(
       id: 'tile-concrete',
@@ -181,6 +220,18 @@ class MaterialCatalog {
       name: 'Краска тёплый белый',
       category: 'Стены',
       color: Color(0xFFF2EFE8),
+      pattern: 'paint',
+      textureAsset: 'assets/textures/pbr/paint/basecolor.png',
+      textureAssetMobile: 'assets/textures/pbr/paint/basecolor_mobile.png',
+      normalAsset: 'assets/textures/pbr/paint/normal.png',
+      normalAssetMobile: 'assets/textures/pbr/paint/normal_mobile.png',
+      metallicRoughnessAsset: 'assets/textures/pbr/paint/orm.png',
+      metallicRoughnessAssetMobile: 'assets/textures/pbr/paint/orm_mobile.png',
+      occlusionAsset: 'assets/textures/pbr/paint/orm.png',
+      occlusionAssetMobile: 'assets/textures/pbr/paint/orm_mobile.png',
+      roughness: .82,
+      normalScale: .34,
+      occlusionStrength: .62,
     ),
     VisualMaterialPreset(
       id: 'paint-cool-white',
