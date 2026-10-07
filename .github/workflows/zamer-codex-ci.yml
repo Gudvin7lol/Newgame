@@ -188,6 +188,11 @@ jobs:
             "$topview_dir"/featured_*.webp \
             "$topview_dir"/kitchen_*.webp
 
+      - name: Replace featured furniture with licensed CC0 GLBs
+        working-directory: zamer-app
+        shell: bash
+        run: bash tool/fetch_cc0_furniture.sh .
+
       - name: Generate Runtime v4 material pack
         working-directory: zamer-app
         shell: bash
