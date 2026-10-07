@@ -242,13 +242,13 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     final isQuality = widget.quality == ZamerRenderQuality.quality;
     scene.environmentSettings = EnvironmentSettings(
       toneMapping: ToneMappingMode.pbrNeutral,
-      environmentIntensity: isQuality ? 1.0 : 0.82,
-      exposure: isQuality ? 1.02 : 0.96,
+      environmentIntensity: isQuality ? 0.86 : 0.78,
+      exposure: isQuality ? 0.92 : 0.90,
       colorGradingEnabled: isQuality,
       brightness: 1.0,
       contrast: isQuality ? 1.025 : 1.0,
       saturation: isQuality ? 1.015 : 1.0,
-      temperature: isQuality ? 0.012 : 0.0,
+      temperature: isQuality ? 0.006 : 0.0,
       ambientOcclusionEnabled: widget.quality.ambientOcclusionEnabled,
       ambientOcclusionRadius: 0.24,
       ambientOcclusionIntensity: isQuality ? 0.64 : 0.45,
@@ -256,17 +256,17 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       ambientOcclusionSampleCount: widget.quality.ambientOcclusionSamples,
       ambientOcclusionHalfResolution: true,
       screenSpaceReflectionsEnabled: widget.quality.reflectionsEnabled,
-      screenSpaceReflectionsIntensity: isQuality ? 0.32 : 0.0,
+      screenSpaceReflectionsIntensity: isQuality ? 0.24 : 0.0,
       screenSpaceReflectionsMaxDistance: 12,
       screenSpaceReflectionsThickness: 0.45,
       screenSpaceReflectionsStride: 4,
-      screenSpaceReflectionsMaxSteps: isQuality ? 48 : 16,
+      screenSpaceReflectionsMaxSteps: isQuality ? 32 : 16,
       screenSpaceReflectionsBlur: 0.22,
       screenSpaceReflectionsResolutionScale:
           widget.quality.reflectionsResolutionScale,
       bloomEnabled: widget.quality.bloomEnabled,
       bloomThreshold: 1.30,
-      bloomIntensity: isQuality ? 0.035 : 0.0,
+      bloomIntensity: isQuality ? 0.020 : 0.0,
       bloomScatter: 0.55,
       vignetteEnabled: false,
       autoExposureEnabled: false,
@@ -281,11 +281,11 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       ..sharpness = isQuality ? 0.18 : 0.10
       ..objectMotion = false
       ..skinnedMotion = false;
-    scene.environmentIntensity = isQuality ? 1.0 : 0.82;
+    scene.environmentIntensity = isQuality ? 0.86 : 0.78;
     scene.directionalLight = DirectionalLight(
       direction: vm.Vector3(-0.45, -1.0, -0.32)..normalize(),
       color: vm.Vector3(1.0, 0.97, 0.92),
-      intensity: isQuality ? 2.75 : 2.35,
+      intensity: isQuality ? 2.20 : 1.95,
       castsShadow: true,
       cacheStaticShadows: false,
       shadowMapResolution: widget.quality.shadowMapResolution,
@@ -302,13 +302,13 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     scene.globalIllumination
       ..enabled = isQuality
       ..volumeMode = IrradianceVolumeMode.fitScene
-      ..resolution = vm.Vector3(12, 6, 12)
-      ..intensity = isQuality ? 0.72 : 0.0
+      ..resolution = vm.Vector3(10, 5, 10)
+      ..intensity = isQuality ? 0.58 : 0.0
       ..hysteresis = 0.93
       ..shadowBias = 0.28
       ..visibility = 0.78
       ..visibilityBias = 0.065
-      ..probeUpdateBudget = isQuality ? 96 : 0
+      ..probeUpdateBudget = isQuality ? 48 : 0
       ..injectionResolution = IrradianceInjectionResolution.eighth
       ..fireflyClamp = 6.0
       ..emissiveGiBoost = 1.35
@@ -322,13 +322,13 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     if (scene == null) return;
     scene.environmentSettings = EnvironmentSettings(
       toneMapping: ToneMappingMode.pbrNeutral,
-      environmentIntensity: 1.15,
-      exposure: 1.06,
+      environmentIntensity: 0.92,
+      exposure: 0.94,
       colorGradingEnabled: true,
-      brightness: 1.01,
-      contrast: 1.04,
-      saturation: 1.025,
-      temperature: 0.025,
+      brightness: 1.0,
+      contrast: 1.06,
+      saturation: 1.0,
+      temperature: 0.008,
       ambientOcclusionEnabled: true,
       ambientOcclusionRadius: 0.28,
       ambientOcclusionIntensity: 0.72,
@@ -345,17 +345,17 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       screenSpaceReflectionsResolutionScale: 1.0,
       bloomEnabled: true,
       bloomThreshold: 1.12,
-      bloomIntensity: 0.09,
+      bloomIntensity: 0.045,
       bloomScatter: 0.62,
       vignetteEnabled: true,
       vignetteIntensity: 0.08,
       vignetteRadius: 0.86,
       vignetteSmoothness: 0.55,
       autoExposureEnabled: true,
-      autoExposureStrength: 0.45,
-      autoExposureCompensation: 0.15,
-      autoExposureMinEv: -1.2,
-      autoExposureMaxEv: 1.8,
+      autoExposureStrength: 0.30,
+      autoExposureCompensation: -0.10,
+      autoExposureMinEv: -1.0,
+      autoExposureMaxEv: 1.1,
     );
     scene.antiAliasingMode = AntiAliasingMode.taa;
     scene.temporalAntiAliasing
@@ -366,11 +366,11 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       ..sharpness = 0.22
       ..objectMotion = false
       ..skinnedMotion = false;
-    scene.environmentIntensity = 1.15;
+    scene.environmentIntensity = 0.92;
     scene.directionalLight = DirectionalLight(
       direction: vm.Vector3(-0.38, -1.0, -0.28)..normalize(),
       color: vm.Vector3(1.0, 0.965, 0.90),
-      intensity: 3.05,
+      intensity: 2.35,
       castsShadow: true,
       cacheStaticShadows: false,
       shadowMapResolution: 2048,
@@ -388,7 +388,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       ..enabled = true
       ..volumeMode = IrradianceVolumeMode.fitScene
       ..resolution = vm.Vector3(16, 8, 16)
-      ..intensity = 0.92
+      ..intensity = 0.78
       ..hysteresis = 0.88
       ..shadowBias = 0.26
       ..visibility = 0.86
@@ -758,9 +758,6 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
           perpY = -perpY;
         }
 
-        final shadeIndex = ((row * 31 + col * 17).abs()) % 4;
-        final shade = const <double>[0.94, 0.975, 1.0, 0.96][shadeIndex];
-
         for (final triangle in roomTriangles) {
           final clipped = _clipPolygonToConvex(boardWorld, triangle);
           if (clipped.length < 3) continue;
@@ -768,11 +765,16 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
           for (final p in clipped) {
             final dx = p.x - p0.x;
             final dy = p.y - p0.y;
-            final u = (dx * alongX + dy * alongY) / plankLength;
-            final v = (dx * perpX + dy * perpY) / plankWidth;
+            var u = (dx * alongX + dy * alongY) / plankLength;
+            var v = (dx * perpX + dy * perpY) / plankWidth;
+            // Keep the actual PBR albedo visible. Vertex greyscale was
+            // replacing/muting the base-color map on some GPUs, which made
+            // the dark oak look like a grey CAD hatch. Mirroring UVs gives
+            // four subtle board variants without altering the wood colour.
+            if (col.isOdd) u = 1 - u;
+            if (row.isOdd) v = 1 - v;
             builder
               ..tangent(vm.Vector4(alongX, 0, alongY, 1))
-              ..color(vm.Vector4(shade, shade, shade, 1))
               ..texCoord(vm.Vector2(u, v));
             vertexIndices.add(
               builder.addVertex(
@@ -1507,13 +1509,13 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
         : isFloor
             ? 7.0
             : isTable
-                ? 7.5
+                ? 5.4
                 : isTrack
-                    ? 22.0
+                    ? 14.0
                     : isPendant
-                        ? 28.0
+                        ? 16.0
                         : isCeiling
-                            ? 20.0
+                            ? 12.0
                             : 8.0;
     final range = isWall
         ? 5.0
@@ -1538,7 +1540,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     if (isTable || isCeiling || isPendant) {
       final spot = SpotLight(
         color: vm.Vector3(1.0, 0.78, 0.54),
-        intensity: isTable ? 9.0 : 13.0,
+        intensity: isTable ? 6.2 : 9.5,
         range: isTable ? 4.5 : 7.5,
         falloffExponent: 2.0,
         direction: vm.Vector3(0, -1, 0),
@@ -1565,7 +1567,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       roughness: 0.18,
     )
       ..emissiveFactor = vm.Vector4(1.0, 0.62, 0.28, 1)
-      ..emissiveStrength = isWall ? 2.8 : 4.8;
+      ..emissiveStrength = isWall ? 2.4 : 3.2;
     final glowRadius = isWall
         ? 0.035
         : isTable
