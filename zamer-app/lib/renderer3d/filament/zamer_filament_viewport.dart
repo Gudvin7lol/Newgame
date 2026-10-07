@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:typed_data';
@@ -11,16 +12,6 @@ import '../render_quality.dart';
 import '../zamer_gpu_viewport.dart';
 import '../zamer_scene_geometry.dart';
 import 'zamer_glb_scene_builder.dart';
-
-Uint8List _buildFilamentGlb(Map<String, dynamic> message) {
-  final floor = FloorPlan.fromJson(
-    Map<String, dynamic>.from(message['floor'] as Map),
-  );
-  return const ZamerGlbSceneBuilder().build(
-    floor,
-    includeCeiling: message['includeCeiling'] as bool? ?? false,
-  );
-}
 
 /// Realtime Zamer viewport backed by Google's Filament on Android.
 ///
@@ -61,6 +52,7 @@ class ZamerFilamentViewport extends StatefulWidget {
 class ZamerFilamentViewportState extends State<ZamerFilamentViewport> {
   MethodChannel? _channel;
   Uint8List? _pendingGlb;
+  bool _buildingGlb = false;
   int _sceneFingerprint = 0;
   int _buildGeneration = 0;
   Object? _error;
@@ -103,26 +95,58 @@ class ZamerFilamentViewportState extends State<ZamerFilamentViewport> {
 
   Future<void> _rebuildGlb() async {
     final generation = ++_buildGeneration;
+    if (mounted) setState(() => _buildingGlb = true);
     try {
-      final bytes = await compute<Map<String, dynamic>, Uint8List>(
-        _buildFilamentGlb,
-        <String, dynamic>{
-          'floor': widget.floor.toJson(),
-          'includeCeiling': widget.walkMode,
-        },
+      // The first Filament prototype used Flutter compute() here. On several
+      // real Android devices the isolate handoff never returned, leaving the
+      // viewport behind an endless spinner even though the native view was
+      // already alive. Scene export is deterministic and small enough for the
+      // current room sizes, so build it directly and yield once before loading.
+      await Future<void>.delayed(Duration.zero);
+      final started = DateTime.now();
+      final bytes = const ZamerGlbSceneBuilder().build(
+        FloorPlan.fromJson(widget.floor.toJson()),
+        includeCeiling: widget.walkMode,
       );
       if (!mounted || generation != _buildGeneration) return;
+
+      if (bytes.isEmpty) {
+        throw StateError('GLB builder returned an empty scene.');
+      }
       _pendingGlb = bytes;
+      _buildingGlb = false;
+      _error = null;
+      setState(() {});
+
       final channel = _channel;
       if (channel != null) {
-        await channel.invokeMethod<void>('loadGlb', {'bytes': bytes});
+        await channel
+            .invokeMethod<void>('loadGlb', {'bytes': bytes})
+            .timeout(const Duration(seconds: 12));
         if (!mounted || generation != _buildGeneration) return;
-        setState(() => _error = null);
         _pushCamera();
       }
-    } catch (error) {
+
+      debugPrint(
+        'Filament GLB ready: ${bytes.length} bytes in '
+        '${DateTime.now().difference(started).inMilliseconds} ms',
+      );
+    } on TimeoutException {
       if (mounted && generation == _buildGeneration) {
-        setState(() => _error = error);
+        setState(() {
+          _buildingGlb = false;
+          _error = StateError(
+            'Filament did not accept the GLB scene within 12 seconds.',
+          );
+        });
+      }
+    } catch (error, stack) {
+      debugPrint('Filament GLB build/load failed: $error\n$stack');
+      if (mounted && generation == _buildGeneration) {
+        setState(() {
+          _buildingGlb = false;
+          _error = error;
+        });
       }
     }
   }
@@ -265,7 +289,7 @@ class ZamerFilamentViewportState extends State<ZamerFilamentViewport> {
           creationParamsCodec: const StandardMessageCodec(),
           onPlatformViewCreated: _onPlatformViewCreated,
         ),
-        if (_pendingGlb == null)
+        if (_buildingGlb && _pendingGlb == null)
           const ColoredBox(
             color: Color(0xFF1C1F22),
             child: Center(child: CircularProgressIndicator()),
