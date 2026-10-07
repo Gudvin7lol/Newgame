@@ -77,21 +77,21 @@ class MaterialCatalog {
       textureAsset: 'assets/textures/pbr12/PAINT_01/quality/basecolor.png',
       textureAssetMobile:
           'assets/textures/pbr12/PAINT_01/performance/basecolor.png',
-      textureAssetPhoto: 'assets/textures/pbr12/PAINT_01/photo/basecolor.png',
+      textureAssetPhoto: 'assets/textures/pbr12/PAINT_01/quality/basecolor.png',
       normalAsset: 'assets/textures/pbr12/PAINT_01/quality/normal.png',
       normalAssetMobile:
           'assets/textures/pbr12/PAINT_01/performance/normal.png',
-      normalAssetPhoto: 'assets/textures/pbr12/PAINT_01/photo/normal.png',
+      normalAssetPhoto: 'assets/textures/pbr12/PAINT_01/quality/normal.png',
       metallicRoughnessAsset:
           'assets/textures/pbr12/PAINT_01/quality/orm.png',
       metallicRoughnessAssetMobile:
           'assets/textures/pbr12/PAINT_01/performance/orm.png',
       metallicRoughnessAssetPhoto:
-          'assets/textures/pbr12/PAINT_01/photo/orm.png',
+          'assets/textures/pbr12/PAINT_01/quality/orm.png',
       occlusionAsset: 'assets/textures/pbr12/PAINT_01/quality/orm.png',
       occlusionAssetMobile:
           'assets/textures/pbr12/PAINT_01/performance/orm.png',
-      occlusionAssetPhoto: 'assets/textures/pbr12/PAINT_01/photo/orm.png',
+      occlusionAssetPhoto: 'assets/textures/pbr12/PAINT_01/quality/orm.png',
       roughness: .80,
       normalScale: .18,
       occlusionStrength: .52,
@@ -107,21 +107,21 @@ class MaterialCatalog {
       textureAsset: 'assets/textures/pbr12/PLASTER_01/quality/basecolor.png',
       textureAssetMobile:
           'assets/textures/pbr12/PLASTER_01/performance/basecolor.png',
-      textureAssetPhoto: 'assets/textures/pbr12/PLASTER_01/photo/basecolor.png',
+      textureAssetPhoto: 'assets/textures/pbr12/PLASTER_01/quality/basecolor.png',
       normalAsset: 'assets/textures/pbr12/PLASTER_01/quality/normal.png',
       normalAssetMobile:
           'assets/textures/pbr12/PLASTER_01/performance/normal.png',
-      normalAssetPhoto: 'assets/textures/pbr12/PLASTER_01/photo/normal.png',
+      normalAssetPhoto: 'assets/textures/pbr12/PLASTER_01/quality/normal.png',
       metallicRoughnessAsset:
           'assets/textures/pbr12/PLASTER_01/quality/orm.png',
       metallicRoughnessAssetMobile:
           'assets/textures/pbr12/PLASTER_01/performance/orm.png',
       metallicRoughnessAssetPhoto:
-          'assets/textures/pbr12/PLASTER_01/photo/orm.png',
+          'assets/textures/pbr12/PLASTER_01/quality/orm.png',
       occlusionAsset: 'assets/textures/pbr12/PLASTER_01/quality/orm.png',
       occlusionAssetMobile:
           'assets/textures/pbr12/PLASTER_01/performance/orm.png',
-      occlusionAssetPhoto: 'assets/textures/pbr12/PLASTER_01/photo/orm.png',
+      occlusionAssetPhoto: 'assets/textures/pbr12/PLASTER_01/quality/orm.png',
       roughness: .82,
       normalScale: .30,
       occlusionStrength: .72,
@@ -137,21 +137,21 @@ class MaterialCatalog {
       textureAsset: 'assets/textures/pbr12/BRICK_01/quality/basecolor.png',
       textureAssetMobile:
           'assets/textures/pbr12/BRICK_01/performance/basecolor.png',
-      textureAssetPhoto: 'assets/textures/pbr12/BRICK_01/photo/basecolor.png',
+      textureAssetPhoto: 'assets/textures/pbr12/BRICK_01/quality/basecolor.png',
       normalAsset: 'assets/textures/pbr12/BRICK_01/quality/normal.png',
       normalAssetMobile:
           'assets/textures/pbr12/BRICK_01/performance/normal.png',
-      normalAssetPhoto: 'assets/textures/pbr12/BRICK_01/photo/normal.png',
+      normalAssetPhoto: 'assets/textures/pbr12/BRICK_01/quality/normal.png',
       metallicRoughnessAsset:
           'assets/textures/pbr12/BRICK_01/quality/orm.png',
       metallicRoughnessAssetMobile:
           'assets/textures/pbr12/BRICK_01/performance/orm.png',
       metallicRoughnessAssetPhoto:
-          'assets/textures/pbr12/BRICK_01/photo/orm.png',
+          'assets/textures/pbr12/BRICK_01/quality/orm.png',
       occlusionAsset: 'assets/textures/pbr12/BRICK_01/quality/orm.png',
       occlusionAssetMobile:
           'assets/textures/pbr12/BRICK_01/performance/orm.png',
-      occlusionAssetPhoto: 'assets/textures/pbr12/BRICK_01/photo/orm.png',
+      occlusionAssetPhoto: 'assets/textures/pbr12/BRICK_01/quality/orm.png',
       roughness: .76,
       normalScale: .60,
       occlusionStrength: .88,
@@ -167,21 +167,21 @@ class MaterialCatalog {
       textureAsset: 'assets/textures/pbr12/TILE_01/quality/basecolor.png',
       textureAssetMobile:
           'assets/textures/pbr12/TILE_01/performance/basecolor.png',
-      textureAssetPhoto: 'assets/textures/pbr12/TILE_01/photo/basecolor.png',
+      textureAssetPhoto: 'assets/textures/pbr12/TILE_01/quality/basecolor.png',
       normalAsset: 'assets/textures/pbr12/TILE_01/quality/normal.png',
       normalAssetMobile:
           'assets/textures/pbr12/TILE_01/performance/normal.png',
-      normalAssetPhoto: 'assets/textures/pbr12/TILE_01/photo/normal.png',
+      normalAssetPhoto: 'assets/textures/pbr12/TILE_01/quality/normal.png',
       metallicRoughnessAsset:
           'assets/textures/pbr12/TILE_01/quality/orm.png',
       metallicRoughnessAssetMobile:
           'assets/textures/pbr12/TILE_01/performance/orm.png',
       metallicRoughnessAssetPhoto:
-          'assets/textures/pbr12/TILE_01/photo/orm.png',
+          'assets/textures/pbr12/TILE_01/quality/orm.png',
       occlusionAsset: 'assets/textures/pbr12/TILE_01/quality/orm.png',
       occlusionAssetMobile:
           'assets/textures/pbr12/TILE_01/performance/orm.png',
-      occlusionAssetPhoto: 'assets/textures/pbr12/TILE_01/photo/orm.png',
+      occlusionAssetPhoto: 'assets/textures/pbr12/TILE_01/quality/orm.png',
       roughness: .56,
       normalScale: .22,
       occlusionStrength: .80,
@@ -197,21 +197,21 @@ class MaterialCatalog {
       textureAsset: 'assets/textures/pbr12/TILE_02/quality/basecolor.png',
       textureAssetMobile:
           'assets/textures/pbr12/TILE_02/performance/basecolor.png',
-      textureAssetPhoto: 'assets/textures/pbr12/TILE_02/photo/basecolor.png',
+      textureAssetPhoto: 'assets/textures/pbr12/TILE_02/quality/basecolor.png',
       normalAsset: 'assets/textures/pbr12/TILE_02/quality/normal.png',
       normalAssetMobile:
           'assets/textures/pbr12/TILE_02/performance/normal.png',
-      normalAssetPhoto: 'assets/textures/pbr12/TILE_02/photo/normal.png',
+      normalAssetPhoto: 'assets/textures/pbr12/TILE_02/quality/normal.png',
       metallicRoughnessAsset:
           'assets/textures/pbr12/TILE_02/quality/orm.png',
       metallicRoughnessAssetMobile:
           'assets/textures/pbr12/TILE_02/performance/orm.png',
       metallicRoughnessAssetPhoto:
-          'assets/textures/pbr12/TILE_02/photo/orm.png',
+          'assets/textures/pbr12/TILE_02/quality/orm.png',
       occlusionAsset: 'assets/textures/pbr12/TILE_02/quality/orm.png',
       occlusionAssetMobile:
           'assets/textures/pbr12/TILE_02/performance/orm.png',
-      occlusionAssetPhoto: 'assets/textures/pbr12/TILE_02/photo/orm.png',
+      occlusionAssetPhoto: 'assets/textures/pbr12/TILE_02/quality/orm.png',
       roughness: .66,
       normalScale: .28,
       occlusionStrength: .82,
@@ -227,21 +227,21 @@ class MaterialCatalog {
       textureAsset: 'assets/textures/pbr12/TILE_03/quality/basecolor.png',
       textureAssetMobile:
           'assets/textures/pbr12/TILE_03/performance/basecolor.png',
-      textureAssetPhoto: 'assets/textures/pbr12/TILE_03/photo/basecolor.png',
+      textureAssetPhoto: 'assets/textures/pbr12/TILE_03/quality/basecolor.png',
       normalAsset: 'assets/textures/pbr12/TILE_03/quality/normal.png',
       normalAssetMobile:
           'assets/textures/pbr12/TILE_03/performance/normal.png',
-      normalAssetPhoto: 'assets/textures/pbr12/TILE_03/photo/normal.png',
+      normalAssetPhoto: 'assets/textures/pbr12/TILE_03/quality/normal.png',
       metallicRoughnessAsset:
           'assets/textures/pbr12/TILE_03/quality/orm.png',
       metallicRoughnessAssetMobile:
           'assets/textures/pbr12/TILE_03/performance/orm.png',
       metallicRoughnessAssetPhoto:
-          'assets/textures/pbr12/TILE_03/photo/orm.png',
+          'assets/textures/pbr12/TILE_03/quality/orm.png',
       occlusionAsset: 'assets/textures/pbr12/TILE_03/quality/orm.png',
       occlusionAssetMobile:
           'assets/textures/pbr12/TILE_03/performance/orm.png',
-      occlusionAssetPhoto: 'assets/textures/pbr12/TILE_03/photo/orm.png',
+      occlusionAssetPhoto: 'assets/textures/pbr12/TILE_03/quality/orm.png',
       roughness: .34,
       normalScale: .10,
       occlusionStrength: .72,
@@ -257,21 +257,21 @@ class MaterialCatalog {
       textureAsset: 'assets/textures/pbr12/LAM_01/quality/basecolor.png',
       textureAssetMobile:
           'assets/textures/pbr12/LAM_01/performance/basecolor.png',
-      textureAssetPhoto: 'assets/textures/pbr12/LAM_01/photo/basecolor.png',
+      textureAssetPhoto: 'assets/textures/pbr12/LAM_01/quality/basecolor.png',
       normalAsset: 'assets/textures/pbr12/LAM_01/quality/normal.png',
       normalAssetMobile:
           'assets/textures/pbr12/LAM_01/performance/normal.png',
-      normalAssetPhoto: 'assets/textures/pbr12/LAM_01/photo/normal.png',
+      normalAssetPhoto: 'assets/textures/pbr12/LAM_01/quality/normal.png',
       metallicRoughnessAsset:
           'assets/textures/pbr12/LAM_01/quality/orm.png',
       metallicRoughnessAssetMobile:
           'assets/textures/pbr12/LAM_01/performance/orm.png',
       metallicRoughnessAssetPhoto:
-          'assets/textures/pbr12/LAM_01/photo/orm.png',
+          'assets/textures/pbr12/LAM_01/quality/orm.png',
       occlusionAsset: 'assets/textures/pbr12/LAM_01/quality/orm.png',
       occlusionAssetMobile:
           'assets/textures/pbr12/LAM_01/performance/orm.png',
-      occlusionAssetPhoto: 'assets/textures/pbr12/LAM_01/photo/orm.png',
+      occlusionAssetPhoto: 'assets/textures/pbr12/LAM_01/quality/orm.png',
       roughness: .58,
       normalScale: .35,
       occlusionStrength: .78,
@@ -287,21 +287,21 @@ class MaterialCatalog {
       textureAsset: 'assets/textures/pbr12/LAM_02/quality/basecolor.png',
       textureAssetMobile:
           'assets/textures/pbr12/LAM_02/performance/basecolor.png',
-      textureAssetPhoto: 'assets/textures/pbr12/LAM_02/photo/basecolor.png',
+      textureAssetPhoto: 'assets/textures/pbr12/LAM_02/quality/basecolor.png',
       normalAsset: 'assets/textures/pbr12/LAM_02/quality/normal.png',
       normalAssetMobile:
           'assets/textures/pbr12/LAM_02/performance/normal.png',
-      normalAssetPhoto: 'assets/textures/pbr12/LAM_02/photo/normal.png',
+      normalAssetPhoto: 'assets/textures/pbr12/LAM_02/quality/normal.png',
       metallicRoughnessAsset:
           'assets/textures/pbr12/LAM_02/quality/orm.png',
       metallicRoughnessAssetMobile:
           'assets/textures/pbr12/LAM_02/performance/orm.png',
       metallicRoughnessAssetPhoto:
-          'assets/textures/pbr12/LAM_02/photo/orm.png',
+          'assets/textures/pbr12/LAM_02/quality/orm.png',
       occlusionAsset: 'assets/textures/pbr12/LAM_02/quality/orm.png',
       occlusionAssetMobile:
           'assets/textures/pbr12/LAM_02/performance/orm.png',
-      occlusionAssetPhoto: 'assets/textures/pbr12/LAM_02/photo/orm.png',
+      occlusionAssetPhoto: 'assets/textures/pbr12/LAM_02/quality/orm.png',
       roughness: .62,
       normalScale: .35,
       occlusionStrength: .76,
@@ -317,21 +317,21 @@ class MaterialCatalog {
       textureAsset: 'assets/textures/pbr12/LAM_03/quality/basecolor.png',
       textureAssetMobile:
           'assets/textures/pbr12/LAM_03/performance/basecolor.png',
-      textureAssetPhoto: 'assets/textures/pbr12/LAM_03/photo/basecolor.png',
+      textureAssetPhoto: 'assets/textures/pbr12/LAM_03/quality/basecolor.png',
       normalAsset: 'assets/textures/pbr12/LAM_03/quality/normal.png',
       normalAssetMobile:
           'assets/textures/pbr12/LAM_03/performance/normal.png',
-      normalAssetPhoto: 'assets/textures/pbr12/LAM_03/photo/normal.png',
+      normalAssetPhoto: 'assets/textures/pbr12/LAM_03/quality/normal.png',
       metallicRoughnessAsset:
           'assets/textures/pbr12/LAM_03/quality/orm.png',
       metallicRoughnessAssetMobile:
           'assets/textures/pbr12/LAM_03/performance/orm.png',
       metallicRoughnessAssetPhoto:
-          'assets/textures/pbr12/LAM_03/photo/orm.png',
+          'assets/textures/pbr12/LAM_03/quality/orm.png',
       occlusionAsset: 'assets/textures/pbr12/LAM_03/quality/orm.png',
       occlusionAssetMobile:
           'assets/textures/pbr12/LAM_03/performance/orm.png',
-      occlusionAssetPhoto: 'assets/textures/pbr12/LAM_03/photo/orm.png',
+      occlusionAssetPhoto: 'assets/textures/pbr12/LAM_03/quality/orm.png',
       roughness: .60,
       normalScale: .35,
       occlusionStrength: .80,
@@ -347,21 +347,21 @@ class MaterialCatalog {
       textureAsset: 'assets/textures/pbr12/CONCRETE_01/quality/basecolor.png',
       textureAssetMobile:
           'assets/textures/pbr12/CONCRETE_01/performance/basecolor.png',
-      textureAssetPhoto: 'assets/textures/pbr12/CONCRETE_01/photo/basecolor.png',
+      textureAssetPhoto: 'assets/textures/pbr12/CONCRETE_01/quality/basecolor.png',
       normalAsset: 'assets/textures/pbr12/CONCRETE_01/quality/normal.png',
       normalAssetMobile:
           'assets/textures/pbr12/CONCRETE_01/performance/normal.png',
-      normalAssetPhoto: 'assets/textures/pbr12/CONCRETE_01/photo/normal.png',
+      normalAssetPhoto: 'assets/textures/pbr12/CONCRETE_01/quality/normal.png',
       metallicRoughnessAsset:
           'assets/textures/pbr12/CONCRETE_01/quality/orm.png',
       metallicRoughnessAssetMobile:
           'assets/textures/pbr12/CONCRETE_01/performance/orm.png',
       metallicRoughnessAssetPhoto:
-          'assets/textures/pbr12/CONCRETE_01/photo/orm.png',
+          'assets/textures/pbr12/CONCRETE_01/quality/orm.png',
       occlusionAsset: 'assets/textures/pbr12/CONCRETE_01/quality/orm.png',
       occlusionAssetMobile:
           'assets/textures/pbr12/CONCRETE_01/performance/orm.png',
-      occlusionAssetPhoto: 'assets/textures/pbr12/CONCRETE_01/photo/orm.png',
+      occlusionAssetPhoto: 'assets/textures/pbr12/CONCRETE_01/quality/orm.png',
       roughness: .69,
       normalScale: .34,
       occlusionStrength: .82,
@@ -377,21 +377,21 @@ class MaterialCatalog {
       textureAsset: 'assets/textures/pbr12/MARBLE_01/quality/basecolor.png',
       textureAssetMobile:
           'assets/textures/pbr12/MARBLE_01/performance/basecolor.png',
-      textureAssetPhoto: 'assets/textures/pbr12/MARBLE_01/photo/basecolor.png',
+      textureAssetPhoto: 'assets/textures/pbr12/MARBLE_01/quality/basecolor.png',
       normalAsset: 'assets/textures/pbr12/MARBLE_01/quality/normal.png',
       normalAssetMobile:
           'assets/textures/pbr12/MARBLE_01/performance/normal.png',
-      normalAssetPhoto: 'assets/textures/pbr12/MARBLE_01/photo/normal.png',
+      normalAssetPhoto: 'assets/textures/pbr12/MARBLE_01/quality/normal.png',
       metallicRoughnessAsset:
           'assets/textures/pbr12/MARBLE_01/quality/orm.png',
       metallicRoughnessAssetMobile:
           'assets/textures/pbr12/MARBLE_01/performance/orm.png',
       metallicRoughnessAssetPhoto:
-          'assets/textures/pbr12/MARBLE_01/photo/orm.png',
+          'assets/textures/pbr12/MARBLE_01/quality/orm.png',
       occlusionAsset: 'assets/textures/pbr12/MARBLE_01/quality/orm.png',
       occlusionAssetMobile:
           'assets/textures/pbr12/MARBLE_01/performance/orm.png',
-      occlusionAssetPhoto: 'assets/textures/pbr12/MARBLE_01/photo/orm.png',
+      occlusionAssetPhoto: 'assets/textures/pbr12/MARBLE_01/quality/orm.png',
       roughness: .30,
       normalScale: .08,
       occlusionStrength: .68,
@@ -407,21 +407,21 @@ class MaterialCatalog {
       textureAsset: 'assets/textures/pbr12/TRAVERTINE_01/quality/basecolor.png',
       textureAssetMobile:
           'assets/textures/pbr12/TRAVERTINE_01/performance/basecolor.png',
-      textureAssetPhoto: 'assets/textures/pbr12/TRAVERTINE_01/photo/basecolor.png',
+      textureAssetPhoto: 'assets/textures/pbr12/TRAVERTINE_01/quality/basecolor.png',
       normalAsset: 'assets/textures/pbr12/TRAVERTINE_01/quality/normal.png',
       normalAssetMobile:
           'assets/textures/pbr12/TRAVERTINE_01/performance/normal.png',
-      normalAssetPhoto: 'assets/textures/pbr12/TRAVERTINE_01/photo/normal.png',
+      normalAssetPhoto: 'assets/textures/pbr12/TRAVERTINE_01/quality/normal.png',
       metallicRoughnessAsset:
           'assets/textures/pbr12/TRAVERTINE_01/quality/orm.png',
       metallicRoughnessAssetMobile:
           'assets/textures/pbr12/TRAVERTINE_01/performance/orm.png',
       metallicRoughnessAssetPhoto:
-          'assets/textures/pbr12/TRAVERTINE_01/photo/orm.png',
+          'assets/textures/pbr12/TRAVERTINE_01/quality/orm.png',
       occlusionAsset: 'assets/textures/pbr12/TRAVERTINE_01/quality/orm.png',
       occlusionAssetMobile:
           'assets/textures/pbr12/TRAVERTINE_01/performance/orm.png',
-      occlusionAssetPhoto: 'assets/textures/pbr12/TRAVERTINE_01/photo/orm.png',
+      occlusionAssetPhoto: 'assets/textures/pbr12/TRAVERTINE_01/quality/orm.png',
       roughness: .64,
       normalScale: .42,
       occlusionStrength: .84,
