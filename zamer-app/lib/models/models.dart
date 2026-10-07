@@ -671,6 +671,7 @@ class RoomMaterialSettings {
     this.laminatePattern = 'straight',
     this.laminateOffsetXMm = 0,
     this.laminateOffsetYMm = 0,
+    this.laminateJointMm = 1.0,
     this.floorDirectionDeg = 0,
     this.underlayMode = 'roll',
     this.underlayRollWidthMm = 1000,
@@ -683,6 +684,7 @@ class RoomMaterialSettings {
     this.tilePattern = 'straight',
     this.tileOffsetXMm = 0,
     this.tileOffsetYMm = 0,
+    this.tileGroutMm = 2.0,
     this.tileMinCutMm = 120,
     this.wallTileWidthMm = 600,
     this.wallTileHeightMm = 300,
@@ -736,6 +738,7 @@ class RoomMaterialSettings {
   String laminatePattern;
   double laminateOffsetXMm;
   double laminateOffsetYMm;
+  double laminateJointMm;
   double floorDirectionDeg;
   String underlayMode;
   double underlayRollWidthMm;
@@ -748,6 +751,7 @@ class RoomMaterialSettings {
   String tilePattern;
   double tileOffsetXMm;
   double tileOffsetYMm;
+  double tileGroutMm;
   double tileMinCutMm;
   double wallTileWidthMm;
   double wallTileHeightMm;
@@ -793,8 +797,14 @@ class RoomMaterialSettings {
     floorDirectionDeg = wrap(floorDirectionDeg, 360);
     laminateOffsetXMm = wrap(laminateOffsetXMm, laminatePlankLengthMm);
     laminateOffsetYMm = wrap(laminateOffsetYMm, laminatePlankWidthMm);
+    laminateJointMm = laminateJointMm.isFinite
+        ? laminateJointMm.clamp(0.2, 8.0).toDouble()
+        : 1.0;
     tileOffsetXMm = wrap(tileOffsetXMm, tileWidthMm);
     tileOffsetYMm = wrap(tileOffsetYMm, tileHeightMm);
+    tileGroutMm = tileGroutMm.isFinite
+        ? tileGroutMm.clamp(0.5, 12.0).toDouble()
+        : 2.0;
     underlayOffsetXMm = wrap(
       underlayOffsetXMm,
       underlayMode == 'sheet' ? underlaySheetWidthMm : underlayRollWidthMm,
@@ -841,6 +851,7 @@ class RoomMaterialSettings {
     'laminatePattern': laminatePattern,
     'laminateOffsetXMm': laminateOffsetXMm,
     'laminateOffsetYMm': laminateOffsetYMm,
+    'laminateJointMm': laminateJointMm,
     'floorDirectionDeg': floorDirectionDeg,
     'underlayMode': underlayMode,
     'underlayRollWidthMm': underlayRollWidthMm,
@@ -853,6 +864,7 @@ class RoomMaterialSettings {
     'tilePattern': tilePattern,
     'tileOffsetXMm': tileOffsetXMm,
     'tileOffsetYMm': tileOffsetYMm,
+    'tileGroutMm': tileGroutMm,
     'tileMinCutMm': tileMinCutMm,
     'wallTileWidthMm': wallTileWidthMm,
     'wallTileHeightMm': wallTileHeightMm,
@@ -908,6 +920,7 @@ class RoomMaterialSettings {
     laminatePattern: json['laminatePattern'] as String? ?? 'straight',
     laminateOffsetXMm: (json['laminateOffsetXMm'] as num?)?.toDouble() ?? 0,
     laminateOffsetYMm: (json['laminateOffsetYMm'] as num?)?.toDouble() ?? 0,
+    laminateJointMm: (json['laminateJointMm'] as num?)?.toDouble() ?? 1.0,
     floorDirectionDeg: (json['floorDirectionDeg'] as num?)?.toDouble() ?? 0,
     underlayMode: json['underlayMode'] as String? ?? 'roll',
     underlayRollWidthMm:
@@ -923,6 +936,7 @@ class RoomMaterialSettings {
     tilePattern: json['tilePattern'] as String? ?? 'straight',
     tileOffsetXMm: (json['tileOffsetXMm'] as num?)?.toDouble() ?? 0,
     tileOffsetYMm: (json['tileOffsetYMm'] as num?)?.toDouble() ?? 0,
+    tileGroutMm: (json['tileGroutMm'] as num?)?.toDouble() ?? 2.0,
     tileMinCutMm: (json['tileMinCutMm'] as num?)?.toDouble() ?? 120,
     wallTileWidthMm: (json['wallTileWidthMm'] as num?)?.toDouble() ?? 600,
     wallTileHeightMm: (json['wallTileHeightMm'] as num?)?.toDouble() ?? 300,

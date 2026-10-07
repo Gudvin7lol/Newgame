@@ -13,6 +13,7 @@ class ObjectCatalogItem {
     required this.heightMm,
     this.elevationMm = 0,
     this.mount = CatalogMount.floor,
+    this.procedural = false,
   });
 
   final String id;
@@ -24,6 +25,7 @@ class ObjectCatalogItem {
   final double heightMm;
   final double elevationMm;
   final CatalogMount mount;
+  final bool procedural;
 
   String get mountLabel => switch (mount) {
     CatalogMount.floor => 'На пол',
@@ -774,6 +776,91 @@ class ObjectCatalog {
       widthMm: 500,
       depthMm: 500,
       heightMm: 1000,
+    ),
+    ObjectCatalogItem(
+      id: 'sofa-sand',
+      name: 'Диван Sand',
+      group: 'Мягкая мебель',
+      type: PlanObjectType.furniture,
+      widthMm: 2400,
+      depthMm: 950,
+      heightMm: 860,
+    ),
+    ObjectCatalogItem(
+      id: 'bed-sand',
+      name: 'Кровать Sand 1800',
+      group: 'Кровати',
+      type: PlanObjectType.furniture,
+      widthMm: 1800,
+      depthMm: 2200,
+      heightMm: 1130,
+    ),
+    ObjectCatalogItem(
+      id: 'armchair-sand',
+      name: 'Кресло Sand',
+      group: 'Мягкая мебель',
+      type: PlanObjectType.furniture,
+      widthMm: 920,
+      depthMm: 900,
+      heightMm: 860,
+    ),
+    ObjectCatalogItem(
+      id: 'table-walnut',
+      name: 'Журнальный стол Walnut',
+      group: 'Столы и стулья',
+      type: PlanObjectType.furniture,
+      widthMm: 900,
+      depthMm: 900,
+      heightMm: 420,
+    ),
+    ObjectCatalogItem(
+      id: 'wardrobe-oak',
+      name: 'Шкаф Oak',
+      group: 'Хранение',
+      type: PlanObjectType.furniture,
+      widthMm: 1212,
+      depthMm: 653,
+      heightMm: 2510,
+    ),
+    ObjectCatalogItem(
+      id: 'tv-console-oak',
+      name: 'ТВ-тумба Oak',
+      group: 'Видео и ТВ',
+      type: PlanObjectType.furniture,
+      widthMm: 1820,
+      depthMm: 468,
+      heightMm: 598,
+    ),
+    ObjectCatalogItem(
+      id: 'rug-textile-2300',
+      name: 'Ковёр текстильный 2300×3000',
+      group: 'Декор',
+      type: PlanObjectType.furniture,
+      widthMm: 2300,
+      depthMm: 3000,
+      heightMm: 18,
+      procedural: true,
+    ),
+    ObjectCatalogItem(
+      id: 'curtain-pair-1800',
+      name: 'Шторы 1800',
+      group: 'Декор',
+      type: PlanObjectType.furniture,
+      widthMm: 1800,
+      depthMm: 140,
+      heightMm: 2550,
+      mount: CatalogMount.wall,
+      procedural: true,
+    ),
+    ObjectCatalogItem(
+      id: 'table-lamp-soft',
+      name: 'Настольная лампа',
+      group: 'Освещение',
+      type: PlanObjectType.lighting,
+      widthMm: 320,
+      depthMm: 320,
+      heightMm: 520,
+      procedural: true,
     ),
   ];
 

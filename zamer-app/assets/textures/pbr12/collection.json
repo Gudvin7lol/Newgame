@@ -1,0 +1,12 @@
+{
+  "collection": "Zamer Base PBR 01",
+  "version": 1,
+  "materials": [
+    "PAINT_01", "PLASTER_01", "BRICK_01",
+    "TILE_01", "TILE_02", "TILE_03",
+    "LAM_01", "LAM_02", "LAM_03",
+    "CONCRETE_01", "MARBLE_01", "TRAVERTINE_01"
+  ],
+  "levels": {"master": 4096, "quality": 2048, "performance": 1024},
+  "notes": "Paint color is user-defined. Tile grout/layout and plank layout are procedural and not baked into textures."
+}

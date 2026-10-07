@@ -1,0 +1,24 @@
+{
+  "id": "MARBLE_01",
+  "name": "Натуральный мрамор",
+  "category": "stone",
+  "type": "marble",
+  "version": 1,
+  "physicalScale": {
+    "unit": "mm",
+    "width": 1000,
+    "height": 1000
+  },
+  "surface": {
+    "roughness": 0.3,
+    "normalStrength": 0.08,
+    "heightStrength": 0.0,
+    "metallic": 0.0
+  },
+  "variants": 8,
+  "quality": {
+    "master": 4096,
+    "quality": 2048,
+    "performance": 1024
+  }
+}

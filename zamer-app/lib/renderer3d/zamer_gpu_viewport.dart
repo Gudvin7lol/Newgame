@@ -4,13 +4,18 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_scene/scene.dart';
+import 'package:flutter_scene/src/texture/basisu/basis_ktx2_loader.dart'
+    as flutter_scene_ktx2;
 import 'package:vector_math/vector_math.dart' as vm;
 
 import '../models/models.dart';
 import '../services/material_catalog.dart';
+import '../services/pbr_material_manifest.dart';
 import '../widgets/floor_3d_painter.dart';
 import 'model_asset_catalog.dart';
+import 'render_quality.dart';
 import 'zamer_scene_geometry.dart';
 
 /// GPU-backed 3D viewport for Zamер.
@@ -31,6 +36,8 @@ class ZamerGpuViewport extends StatefulWidget {
     required this.walkMode,
     required this.walkX,
     required this.walkY,
+    this.walkFovDegrees = 64,
+    this.quality = ZamerRenderQuality.quality,
   });
 
   final FloorPlan floor;
@@ -42,6 +49,8 @@ class ZamerGpuViewport extends StatefulWidget {
   final bool walkMode;
   final double walkX;
   final double walkY;
+  final double walkFovDegrees;
+  final ZamerRenderQuality quality;
 
   @override
   State<ZamerGpuViewport> createState() => ZamerGpuViewportState();
@@ -53,13 +62,19 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
   final Map<String, Node> _modelTemplates = <String, Node>{};
   final List<_WallVisual> _wallVisuals = <_WallVisual>[];
   final List<Node> _ceilingNodes = <Node>[];
+  final List<SpotLight> _shadowSpots = <SpotLight>[];
   final Map<String, Texture2D> _finishTextures = <String, Texture2D>{};
+  final Map<String, Texture2D> _normalTextures = <String, Texture2D>{};
+  final Map<String, Texture2D> _dataTextures = <String, Texture2D>{};
+  final PbrMaterialManifestLibrary _pbrMaterialManifests =
+      PbrMaterialManifestLibrary();
   Texture2D? _concreteTexture;
   Texture2D? _plasterTexture;
 
   ZamerSceneGeometry? _geometry;
   Object? _loadError;
   bool _ready = false;
+  bool _photoRenderOverride = false;
   int _buildGeneration = 0;
   bool _initializing = false;
   int _retryAttempt = 0;
@@ -97,8 +112,13 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
   @override
   void didUpdateWidget(covariant ZamerGpuViewport oldWidget) {
     super.didUpdateWidget(oldWidget);
+    final qualityChanged = oldWidget.quality != widget.quality;
+    if (qualityChanged) {
+      _configureScene();
+    }
     final fingerprint = _floorFingerprint();
-    if (!identical(oldWidget.floor, widget.floor) ||
+    if (qualityChanged ||
+        !identical(oldWidget.floor, widget.floor) ||
         fingerprint != _lastFloorFingerprint) {
       _lastFloorFingerprint = fingerprint;
       _rebuildScene();
@@ -140,6 +160,8 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
         m.laminateOffsetMode,
         m.laminateOffsetXMm,
         m.laminateOffsetYMm,
+        m.laminateJointMm,
+        m.tileGroutMm,
         m.wallMaterialId,
         m.wallPaintColorArgb,
         m.wallTile,
@@ -195,7 +217,6 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       _scene?.removeAll();
       _scene = Scene();
       _configureScene();
-      await _loadFinishTextures();
       await _rebuildScene();
       if (!mounted) return;
       _retryTimer?.cancel();
@@ -220,38 +241,88 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
   void _configureScene() {
     final scene = _scene;
     if (scene == null) return;
+
+    if (widget.quality == ZamerRenderQuality.photo4k) {
+      _configurePhotoLighting();
+      return;
+    }
+
+    final isQuality = widget.quality == ZamerRenderQuality.quality;
     scene.environmentSettings = EnvironmentSettings(
       toneMapping: ToneMappingMode.pbrNeutral,
-      environmentIntensity: 0.90,
-      exposure: 1.0,
-      ambientOcclusionEnabled: false,
-      screenSpaceReflectionsEnabled: false,
-      bloomEnabled: false,
+      environmentIntensity: isQuality ? 0.72 : 0.68,
+      exposure: isQuality ? 0.84 : 0.86,
+      colorGradingEnabled: isQuality,
+      brightness: 1.0,
+      contrast: isQuality ? 1.025 : 1.0,
+      saturation: isQuality ? 1.015 : 1.0,
+      temperature: isQuality ? 0.006 : 0.0,
+      ambientOcclusionEnabled: widget.quality.ambientOcclusionEnabled,
+      ambientOcclusionRadius: 0.18,
+      ambientOcclusionIntensity: isQuality ? 0.82 : 0.48,
+      ambientOcclusionBias: 0.028,
+      ambientOcclusionSampleCount: widget.quality.ambientOcclusionSamples,
+      ambientOcclusionHalfResolution: true,
+      screenSpaceReflectionsEnabled: widget.quality.reflectionsEnabled,
+      screenSpaceReflectionsIntensity: isQuality ? 0.24 : 0.0,
+      screenSpaceReflectionsMaxDistance: 12,
+      screenSpaceReflectionsThickness: 0.45,
+      screenSpaceReflectionsStride: 4,
+      screenSpaceReflectionsMaxSteps: isQuality ? 32 : 16,
+      screenSpaceReflectionsBlur: 0.22,
+      screenSpaceReflectionsResolutionScale:
+          widget.quality.reflectionsResolutionScale,
+      bloomEnabled: widget.quality.bloomEnabled,
+      bloomThreshold: 1.30,
+      bloomIntensity: isQuality ? 0.020 : 0.0,
+      bloomScatter: 0.55,
       vignetteEnabled: false,
       autoExposureEnabled: false,
     );
-    scene.antiAliasingMode = AntiAliasingMode.auto;
-    scene.environmentIntensity = 0.90;
+    scene.antiAliasingMode =
+        isQuality ? AntiAliasingMode.taa : AntiAliasingMode.auto;
+    scene.temporalAntiAliasing
+      ..jitterSequenceLength = isQuality ? 8 : 6
+      ..jitterScale = isQuality ? 0.52 : 0.42
+      ..minimumCurrentWeight = isQuality ? 0.09 : 0.16
+      ..varianceGamma = 1.10
+      ..sharpness = isQuality ? 0.18 : 0.10
+      ..objectMotion = false
+      ..skinnedMotion = false;
+    scene.environmentIntensity = isQuality ? 0.72 : 0.68;
     scene.directionalLight = DirectionalLight(
       direction: vm.Vector3(-0.45, -1.0, -0.32)..normalize(),
-      color: vm.Vector3(1.0, 0.97, 0.92),
-      intensity: 2.45,
+      color: vm.Vector3(1.0, 0.99, 0.97),
+      intensity: isQuality ? 1.35 : 1.20,
       castsShadow: true,
       cacheStaticShadows: false,
-      shadowMapResolution: 512,
-      shadowMaxDistance: 35,
-      shadowSoftness: 0.12,
+      shadowMapResolution: isQuality ? 2048 : widget.quality.shadowMapResolution,
+      shadowMaxDistance: isQuality ? 32 : 26,
+      shadowSoftness: isQuality ? 0.48 : 0.26,
     );
-    // The first GPU version used a fairly expensive mobile AO profile. A
-    // lighter half-resolution profile is much more stable on mid-range Android
-    // GPUs while keeping enough depth to read the room shape.
     scene.ambientOcclusion
-      ..enabled = false
+      ..enabled = widget.quality.ambientOcclusionEnabled
       ..halfResolution = true
-      ..sampleCount = 2
-      ..radius = 0.20
-      ..intensity = 0.55
-      ..bias = 0.04;
+      ..sampleCount = isQuality ? 8 : widget.quality.ambientOcclusionSamples
+      ..radius = 0.18
+      ..intensity = isQuality ? 0.82 : 0.48
+      ..bias = 0.028;
+    scene.globalIllumination
+      ..enabled = isQuality
+      ..volumeMode = IrradianceVolumeMode.fitScene
+      ..resolution = vm.Vector3(10, 5, 10)
+      ..intensity = isQuality ? 0.74 : 0.0
+      ..hysteresis = 0.91
+      ..shadowBias = 0.22
+      ..visibility = 0.84
+      ..visibilityBias = 0.050
+      ..probeUpdateBudget = isQuality ? 64 : 0
+      ..injectionResolution = IrradianceInjectionResolution.eighth
+      ..fireflyClamp = 6.0
+      ..emissiveGiBoost = 1.35
+      ..updateWhenIdleOnly = isQuality
+      ..bakeOnly = false;
+    _configureLocalLightQuality(widget.quality);
   }
 
   void _configurePhotoLighting() {
@@ -259,13 +330,13 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     if (scene == null) return;
     scene.environmentSettings = EnvironmentSettings(
       toneMapping: ToneMappingMode.pbrNeutral,
-      environmentIntensity: 1.15,
-      exposure: 1.06,
+      environmentIntensity: 0.92,
+      exposure: 0.94,
       colorGradingEnabled: true,
-      brightness: 1.01,
-      contrast: 1.04,
-      saturation: 1.025,
-      temperature: 0.025,
+      brightness: 1.0,
+      contrast: 1.06,
+      saturation: 1.0,
+      temperature: 0.008,
       ambientOcclusionEnabled: true,
       ambientOcclusionRadius: 0.28,
       ambientOcclusionIntensity: 0.72,
@@ -282,24 +353,32 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       screenSpaceReflectionsResolutionScale: 1.0,
       bloomEnabled: true,
       bloomThreshold: 1.12,
-      bloomIntensity: 0.09,
+      bloomIntensity: 0.045,
       bloomScatter: 0.62,
       vignetteEnabled: true,
       vignetteIntensity: 0.08,
       vignetteRadius: 0.86,
       vignetteSmoothness: 0.55,
       autoExposureEnabled: true,
-      autoExposureStrength: 0.45,
-      autoExposureCompensation: 0.15,
-      autoExposureMinEv: -1.2,
-      autoExposureMaxEv: 1.8,
+      autoExposureStrength: 0.30,
+      autoExposureCompensation: -0.10,
+      autoExposureMinEv: -1.0,
+      autoExposureMaxEv: 1.1,
     );
-    scene.antiAliasingMode = AntiAliasingMode.auto;
-    scene.environmentIntensity = 1.15;
+    scene.antiAliasingMode = AntiAliasingMode.taa;
+    scene.temporalAntiAliasing
+      ..jitterSequenceLength = 16
+      ..jitterScale = 0.62
+      ..minimumCurrentWeight = 0.055
+      ..varianceGamma = 1.16
+      ..sharpness = 0.22
+      ..objectMotion = false
+      ..skinnedMotion = false;
+    scene.environmentIntensity = 0.92;
     scene.directionalLight = DirectionalLight(
       direction: vm.Vector3(-0.38, -1.0, -0.28)..normalize(),
       color: vm.Vector3(1.0, 0.965, 0.90),
-      intensity: 3.05,
+      intensity: 2.35,
       castsShadow: true,
       cacheStaticShadows: false,
       shadowMapResolution: 2048,
@@ -313,26 +392,179 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       ..radius = 0.30
       ..intensity = 0.82
       ..bias = 0.035;
+    scene.globalIllumination
+      ..enabled = true
+      ..volumeMode = IrradianceVolumeMode.fitScene
+      ..resolution = vm.Vector3(16, 8, 16)
+      ..intensity = 0.78
+      ..hysteresis = 0.88
+      ..shadowBias = 0.26
+      ..visibility = 0.86
+      ..visibilityBias = 0.055
+      ..probeUpdateBudget = 0
+      ..injectionResolution = IrradianceInjectionResolution.quarter
+      ..fireflyClamp = 5.5
+      ..emissiveGiBoost = 1.65
+      ..updateWhenIdleOnly = false
+      ..bakeOnly = false;
+    _configureLocalLightQuality(ZamerRenderQuality.photo4k);
+  }
+
+  void _configureLocalLightQuality(ZamerRenderQuality quality) {
+    final enabled = quality != ZamerRenderQuality.performance;
+    final resolution = quality == ZamerRenderQuality.photo4k ? 1024 : 512;
+    final softness = quality == ZamerRenderQuality.photo4k ? 2.4 : 1.6;
+    for (final light in _shadowSpots) {
+      light
+        ..castsShadow = enabled
+        ..shadowMapResolution = resolution
+        ..shadowNear = 0.055
+        ..shadowNormalBias = 0.025
+        ..shadowDepthBias = 0.00015
+        ..shadowSoftness = softness;
+    }
+  }
+
+  ZamerRenderQuality get _effectiveAssetQuality =>
+      _photoRenderOverride ? ZamerRenderQuality.photo4k : widget.quality;
+
+  bool get _useMobileFinishAssets =>
+      _effectiveAssetQuality == ZamerRenderQuality.performance;
+  bool get _usePhotoFinishAssets =>
+      _effectiveAssetQuality == ZamerRenderQuality.photo4k;
+
+  PbrMaterialManifest? _manifestFor(VisualMaterialPreset preset) =>
+      _pbrMaterialManifests.cached(preset.id);
+
+  PbrMaterialTextureTier? _manifestTexturesFor(VisualMaterialPreset preset) =>
+      _manifestFor(preset)?.texturesFor(
+        mobile: _useMobileFinishAssets,
+        photo: _usePhotoFinishAssets,
+      );
+
+  String? _baseColorAssetFor(VisualMaterialPreset preset) {
+    final manifest = _manifestFor(preset);
+    // Paint colour is authored by the user. Sampling a generated albedo here
+    // was adding visible dirt/speckles and also contaminated the selected tint.
+    // Keep only micro-normal/roughness for paint and let baseColorFactor carry
+    // the actual wall colour.
+    if (preset.pattern == 'paint' || manifest?.tintable == true) return null;
+    return _manifestTexturesFor(preset)?.baseColor ??
+        preset.textureFor(
+          mobile: _useMobileFinishAssets,
+          photo: _usePhotoFinishAssets,
+        );
+  }
+
+  String? _normalAssetFor(VisualMaterialPreset preset) =>
+      _manifestTexturesFor(preset)?.normal ??
+      preset.normalFor(
+        mobile: _useMobileFinishAssets,
+        photo: _usePhotoFinishAssets,
+      );
+
+  String? _ormAssetFor(VisualMaterialPreset preset) =>
+      _manifestTexturesFor(preset)?.orm ??
+      preset.metallicRoughnessFor(
+        mobile: _useMobileFinishAssets,
+        photo: _usePhotoFinishAssets,
+      );
+
+  Future<Texture2D> _loadMaterialTexture(
+    String asset, {
+    TextureContent content = TextureContent.color,
+  }) async {
+    if (!asset.endsWith('.ktx2')) {
+      return Texture2D.fromAsset(asset, content: content);
+    }
+    try {
+      final data = await rootBundle.load(asset);
+      final bytes = data.buffer.asUint8List(
+        data.offsetInBytes,
+        data.lengthInBytes,
+      );
+      final texture = await flutter_scene_ktx2.loadKtx2Texture(
+        bytes,
+        content: content,
+      );
+      if (texture != null) return texture;
+    } catch (_) {
+      // Local checkout may run before CI cooks KTX2.
+    }
+    return Texture2D.fromAsset(
+      asset.substring(0, asset.length - '.ktx2'.length) + '.png',
+      content: content,
+    );
+  }
+
+  Iterable<VisualMaterialPreset> _usedMaterialPresets() sync* {
+    final ids = <String>{};
+    for (final meta in widget.floor.roomMetas) {
+      final m = meta.materials;
+      ids
+        ..add(m.floorMaterialId)
+        ..add(m.wallMaterialId);
+      if (m.wallTile || m.wallTileRunEnabled.values.any((enabled) => enabled)) {
+        ids.add(m.wallTileMaterialId);
+      }
+    }
+    if (ids.isEmpty) {
+      ids
+        ..add('oak-natural')
+        ..add('paint-warm-white')
+        ..add('tile-light-stone');
+    }
+    for (final id in ids) {
+      yield MaterialCatalog.byId(id);
+    }
   }
 
   Future<void> _loadFinishTextures() async {
-    for (final preset in MaterialCatalog.presets) {
-      final asset = preset.textureAsset;
-      if (asset == null) continue;
-      final candidates = <String>{
-        asset,
-        if (preset.pattern == 'wood' && asset.endsWith('.png'))
-          asset.replaceFirst('.png', '_half.png'),
-        if (preset.pattern == 'wood' && asset.endsWith('.png'))
-          asset.replaceFirst('.png', '_third.png'),
-      };
-      for (final candidate in candidates) {
-        if (_finishTextures.containsKey(candidate)) continue;
+    for (final preset in _usedMaterialPresets()) {
+      await _pbrMaterialManifests.load(preset.id);
+
+      final asset = _baseColorAssetFor(preset);
+      if (asset != null) {
+        final candidates = <String>{asset};
+        if (preset.pattern == 'wood' &&
+            !asset.contains('/pbr12/') &&
+            asset.endsWith('.png')) {
+          candidates
+            ..add(asset.replaceFirst('.png', '_half.png'))
+            ..add(asset.replaceFirst('.png', '_third.png'));
+        }
+        for (final candidate in candidates) {
+          if (_finishTextures.containsKey(candidate)) continue;
+          try {
+            _finishTextures[candidate] =
+                await _loadMaterialTexture(candidate);
+          } catch (_) {
+            // One missing decorative map must never take the room down.
+          }
+        }
+      }
+
+      final normalAsset = _normalAssetFor(preset);
+      if (normalAsset != null && !_normalTextures.containsKey(normalAsset)) {
         try {
-          _finishTextures[candidate] = await Texture2D.fromAsset(candidate);
+          _normalTextures[normalAsset] = await _loadMaterialTexture(
+            normalAsset,
+            content: TextureContent.normal,
+          );
         } catch (_) {
-          // Decorative textures are optional; a single missing asset must not
-          // make the complete 3D room fail to initialise.
+          // PBR companions remain optional for legacy presets.
+        }
+      }
+
+      final ormAsset = _ormAssetFor(preset);
+      if (ormAsset != null && !_dataTextures.containsKey(ormAsset)) {
+        try {
+          _dataTextures[ormAsset] = await _loadMaterialTexture(
+            ormAsset,
+            content: TextureContent.data,
+          );
+        } catch (_) {
+          // Base color still renders if ORM is unavailable.
         }
       }
     }
@@ -366,9 +598,12 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
 
     final geometry = ZamerSceneGeometry.fromFloor(widget.floor);
     _geometry = geometry;
+    await _loadFinishTextures();
+    if (generation != _buildGeneration) return;
     scene.removeAll();
     _wallVisuals.clear();
     _ceilingNodes.clear();
+    _shadowSpots.clear();
 
     final floorMaterialCache = <String, PhysicallyBasedMaterial>{};
     for (final surface in geometry.floors) {
@@ -420,18 +655,50 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     final indices = _triangulate(surface.polygonMm);
     if (indices.isEmpty) return null;
 
+    final preset = MaterialCatalog.byId(surface.materialId);
+    if (surface.laminatePattern == 'herringbone' &&
+        preset.pattern == 'wood') {
+      return _buildHerringboneFloorNode(
+        surface,
+        bounds,
+        materialCache,
+        indices,
+      );
+    }
+
+    final isTile = surface.materialMode.toLowerCase().contains('tile') ||
+        surface.materialMode.toLowerCase().contains('плит') ||
+        preset.pattern == 'tile';
+    if (isTile) {
+      return _buildRectangularPatternFloorNode(
+        surface,
+        bounds,
+        materialCache,
+        indices,
+        tile: true,
+      );
+    }
+    if (preset.pattern == 'wood') {
+      return _buildRectangularPatternFloorNode(
+        surface,
+        bounds,
+        materialCache,
+        indices,
+        tile: false,
+      );
+    }
+
     final uvScale = _floorUvScaleMm(surface);
     final effectiveDirection = surface.materialMode.toLowerCase().contains('tile')
         ? surface.directionDeg + (surface.tilePattern == 'diagonal' ? 45 : 0)
         : surface.directionDeg;
     final angle = effectiveDirection * math.pi / 180;
     final ca = math.cos(angle), sa = math.sin(angle);
-    final isTile = surface.materialMode.toLowerCase().contains('tile') ||
-        MaterialCatalog.byId(surface.materialId).pattern == 'tile';
-    final offX = isTile ? surface.tileOffsetXMm : surface.laminateOffsetXMm;
-    final offY = isTile ? surface.tileOffsetYMm : surface.laminateOffsetYMm;
+    final offX = surface.tileOffsetXMm;
+    final offY = surface.tileOffsetYMm;
     final builder = GeometryBuilder(deduplicate: false)
-      ..normal(vm.Vector3(0, 1, 0));
+      ..normal(vm.Vector3(0, 1, 0))
+      ..tangent(vm.Vector4(ca, 0, sa, 1));
     for (final point in surface.polygonMm) {
       final dx = point.x - surface.anchorXMm;
       final dy = point.y - surface.anchorYMm;
@@ -464,6 +731,420 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       ..shadowStatic = true;
   }
 
+  Node _buildRectangularPatternFloorNode(
+    ZamerFloorSurface surface,
+    ZamerSceneBounds bounds,
+    Map<String, PhysicallyBasedMaterial> materialCache,
+    List<int> roomIndices, {
+    required bool tile,
+  }) {
+    final elementWidth = tile
+        ? math.max(60.0, surface.tileWidthMm)
+        : math.max(240.0, surface.plankLengthMm);
+    final elementHeight = tile
+        ? math.max(60.0, surface.tileHeightMm)
+        : math.max(55.0, surface.plankWidthMm);
+    final requestedJoint = tile ? surface.tileGroutMm : surface.laminateJointMm;
+    final joint = requestedJoint
+        .clamp(0.2, math.min(elementWidth, elementHeight) * 0.18)
+        .toDouble();
+
+    final direction = surface.directionDeg +
+        (tile && surface.tilePattern == 'diagonal' ? 45.0 : 0.0);
+    final angle = direction * math.pi / 180;
+    final ca = math.cos(angle);
+    final sa = math.sin(angle);
+
+    math.Point<double> toLocal(math.Point<double> p) {
+      final dx = p.x - surface.anchorXMm;
+      final dy = p.y - surface.anchorYMm;
+      return math.Point<double>(
+        dx * ca + dy * sa,
+        -dx * sa + dy * ca,
+      );
+    }
+
+    math.Point<double> toWorld(math.Point<double> p) => math.Point<double>(
+          surface.anchorXMm + p.x * ca - p.y * sa,
+          surface.anchorYMm + p.x * sa + p.y * ca,
+        );
+
+    final localRoom = surface.polygonMm.map(toLocal).toList(growable: false);
+    var minX = localRoom.first.x;
+    var maxX = minX;
+    var minY = localRoom.first.y;
+    var maxY = minY;
+    for (final p in localRoom.skip(1)) {
+      minX = math.min(minX, p.x);
+      maxX = math.max(maxX, p.x);
+      minY = math.min(minY, p.y);
+      maxY = math.max(maxY, p.y);
+    }
+
+    final roomTriangles = <List<math.Point<double>>>[];
+    for (var i = 0; i < roomIndices.length; i += 3) {
+      roomTriangles.add(<math.Point<double>>[
+        surface.polygonMm[roomIndices[i]],
+        surface.polygonMm[roomIndices[i + 1]],
+        surface.polygonMm[roomIndices[i + 2]],
+      ]);
+    }
+
+    // A receiver just below the finish is visible only through the procedural
+    // joints. The texture itself stays clean: no baked grout or plank seams.
+    final receiverBuilder = GeometryBuilder(deduplicate: false)
+      ..normal(vm.Vector3(0, 1, 0));
+    for (final p in surface.polygonMm) {
+      receiverBuilder
+        ..texCoord(vm.Vector2.zero())
+        ..addVertex(vm.Vector3(_mx(p.x, bounds), 0.004, _mz(p.y, bounds)));
+    }
+    for (var i = 0; i < roomIndices.length; i += 3) {
+      receiverBuilder.addTriangle(
+        roomIndices[i],
+        roomIndices[i + 1],
+        roomIndices[i + 2],
+      );
+    }
+
+    final root = Node(
+      name: tile
+          ? 'floor-tiles:${surface.roomKey}'
+          : 'floor-planks:${surface.roomKey}',
+    );
+    root.add(
+      Node(
+        name: tile
+            ? 'floor-tile-grout:${surface.roomKey}'
+            : 'floor-plank-joints:${surface.roomKey}',
+        mesh: Mesh(
+          receiverBuilder.build(),
+          _pbr(
+            tile
+                ? vm.Vector4(0.56, 0.55, 0.52, 1)
+                : vm.Vector4(0.075, 0.058, 0.045, 1),
+            roughness: tile ? 0.94 : 0.90,
+          )..doubleSided = true,
+        ),
+      )
+        ..castsShadows = false
+        ..shadowStatic = true,
+    );
+
+    final builder = GeometryBuilder(deduplicate: false)
+      ..normal(vm.Vector3(0, 1, 0));
+    final offsetX =
+        (tile ? surface.tileOffsetXMm : surface.laminateOffsetXMm) %
+            elementWidth;
+    final offsetY =
+        (tile ? surface.tileOffsetYMm : surface.laminateOffsetYMm) %
+            elementHeight;
+    final firstRow = ((minY - elementHeight - offsetY) / elementHeight).floor();
+    final lastRow = ((maxY + elementHeight - offsetY) / elementHeight).ceil();
+    final inset = joint / 2;
+    final visibleWidth = math.max(1.0, elementWidth - joint);
+    final visibleHeight = math.max(1.0, elementHeight - joint);
+    var elementCount = 0;
+
+    for (var row = firstRow; row <= lastRow && elementCount < 20000; row++) {
+      var rowShift = 0.0;
+      if (tile && surface.tilePattern == 'half' && row.isOdd) {
+        rowShift = elementWidth / 2;
+      } else if (!tile) {
+        switch (surface.laminateOffsetMode) {
+          case 'half':
+            if (row.isOdd) rowShift = elementWidth / 2;
+            break;
+          case 'third':
+            rowShift = (row % 3) * (elementWidth / 3);
+            break;
+        }
+      }
+
+      final firstCol =
+          ((minX - elementWidth - offsetX - rowShift) / elementWidth).floor();
+      final lastCol =
+          ((maxX + elementWidth - offsetX - rowShift) / elementWidth).ceil();
+      final y = row * elementHeight + offsetY;
+
+      for (var col = firstCol;
+          col <= lastCol && elementCount < 20000;
+          col++) {
+        final x = col * elementWidth + offsetX + rowShift;
+        final elementLocal = <math.Point<double>>[
+          math.Point<double>(x + inset, y + inset),
+          math.Point<double>(x + elementWidth - inset, y + inset),
+          math.Point<double>(
+            x + elementWidth - inset,
+            y + elementHeight - inset,
+          ),
+          math.Point<double>(x + inset, y + elementHeight - inset),
+        ];
+        final elementWorld =
+            elementLocal.map(toWorld).toList(growable: false);
+        final p0 = elementWorld[0];
+        final p1 = elementWorld[1];
+        final p3 = elementWorld[3];
+
+        var alongX = p1.x - p0.x;
+        var alongY = p1.y - p0.y;
+        final alongLength = math.sqrt(alongX * alongX + alongY * alongY);
+        if (alongLength < 0.001) continue;
+        alongX /= alongLength;
+        alongY /= alongLength;
+        var perpX = -alongY;
+        var perpY = alongX;
+        if ((p3.x - p0.x) * perpX + (p3.y - p0.y) * perpY < 0) {
+          perpX = -perpX;
+          perpY = -perpY;
+        }
+
+        for (final triangle in roomTriangles) {
+          final clipped = _clipPolygonToConvex(elementWorld, triangle);
+          if (clipped.length < 3) continue;
+          final vertexIndices = <int>[];
+          for (final p in clipped) {
+            final dx = p.x - p0.x;
+            final dy = p.y - p0.y;
+            var u = (dx * alongX + dy * alongY) / visibleWidth;
+            var v = (dx * perpX + dy * perpY) / visibleHeight;
+
+            // Deterministic flips reduce obvious repetition without baking
+            // a complete floor layout into the source material.
+            if ((row + col).isOdd) u = 1 - u;
+            if (((row * 31 + col * 17) & 2) != 0) v = 1 - v;
+
+            builder
+              ..tangent(vm.Vector4(alongX, 0, alongY, 1))
+              ..texCoord(vm.Vector2(u, v));
+            vertexIndices.add(
+              builder.addVertex(
+                vm.Vector3(_mx(p.x, bounds), 0.008, _mz(p.y, bounds)),
+              ),
+            );
+          }
+          for (var i = 1; i < vertexIndices.length - 1; i++) {
+            builder.addTriangle(
+              vertexIndices[0],
+              vertexIndices[i],
+              vertexIndices[i + 1],
+            );
+          }
+        }
+        elementCount++;
+      }
+    }
+
+    final key =
+        '${surface.materialMode}:${surface.materialId}:${tile ? 'tiles' : 'planks'}';
+    final material = materialCache.putIfAbsent(
+      key,
+      () => _floorMaterial(surface),
+    );
+    root.add(
+      Node(
+        name: tile
+            ? 'floor-tile-faces:${surface.roomKey}'
+            : 'floor-plank-faces:${surface.roomKey}',
+        mesh: Mesh(builder.build(), material),
+      )
+        ..castsShadows = false
+        ..shadowStatic = true,
+    );
+    return root;
+  }
+
+  Node _buildHerringboneFloorNode(
+    ZamerFloorSurface surface,
+    ZamerSceneBounds bounds,
+    Map<String, PhysicallyBasedMaterial> materialCache,
+    List<int> roomIndices,
+  ) {
+    final plankLength = math.max(240.0, surface.plankLengthMm);
+    final plankWidth = math.max(55.0, surface.plankWidthMm);
+    final angle = surface.directionDeg * math.pi / 180;
+    final ca = math.cos(angle);
+    final sa = math.sin(angle);
+
+    math.Point<double> toLocal(math.Point<double> p) {
+      final dx = p.x - surface.anchorXMm;
+      final dy = p.y - surface.anchorYMm;
+      return math.Point<double>(
+        dx * ca + dy * sa,
+        -dx * sa + dy * ca,
+      );
+    }
+
+    math.Point<double> toWorld(math.Point<double> p) => math.Point<double>(
+          surface.anchorXMm + p.x * ca - p.y * sa,
+          surface.anchorYMm + p.x * sa + p.y * ca,
+        );
+
+    final localRoom = surface.polygonMm.map(toLocal).toList(growable: false);
+    var minX = localRoom.first.x;
+    var maxX = minX;
+    var minY = localRoom.first.y;
+    var maxY = minY;
+    for (final p in localRoom.skip(1)) {
+      minX = math.min(minX, p.x);
+      maxX = math.max(maxX, p.x);
+      minY = math.min(minY, p.y);
+      maxY = math.max(maxY, p.y);
+    }
+
+    final roomTriangles = <List<math.Point<double>>>[];
+    for (var i = 0; i < roomIndices.length; i += 3) {
+      roomTriangles.add(<math.Point<double>>[
+        surface.polygonMm[roomIndices[i]],
+        surface.polygonMm[roomIndices[i + 1]],
+        surface.polygonMm[roomIndices[i + 2]],
+      ]);
+    }
+
+    // The dark receiver is only visible through the tiny gaps between planks.
+    // It makes the bevel/joint readable without baking a fake herringbone
+    // pattern into the wood texture.
+    final baseBuilder = GeometryBuilder(deduplicate: false)
+      ..normal(vm.Vector3(0, 1, 0));
+    for (final p in surface.polygonMm) {
+      baseBuilder
+        ..texCoord(vm.Vector2.zero())
+        ..addVertex(vm.Vector3(_mx(p.x, bounds), 0.004, _mz(p.y, bounds)));
+    }
+    for (var i = 0; i < roomIndices.length; i += 3) {
+      baseBuilder.addTriangle(
+        roomIndices[i],
+        roomIndices[i + 1],
+        roomIndices[i + 2],
+      );
+    }
+
+    final root = Node(name: 'floor-herringbone:${surface.roomKey}');
+    root.add(
+      Node(
+        name: 'floor-herringbone-joints:${surface.roomKey}',
+        mesh: Mesh(
+          baseBuilder.build(),
+          _pbr(
+            vm.Vector4(0.075, 0.058, 0.045, 1),
+            roughness: 0.90,
+          )..doubleSided = true,
+        ),
+      )
+        ..castsShadows = false
+        ..shadowStatic = true,
+    );
+
+    final builder = GeometryBuilder(deduplicate: false)
+      ..normal(vm.Vector3(0, 1, 0));
+    final run = plankLength / math.sqrt2;
+    final pitch = plankWidth * math.sqrt2;
+    final ox = surface.laminateOffsetXMm % plankLength;
+    final oy = surface.laminateOffsetYMm % plankWidth;
+    final firstRow = ((minY - plankLength - oy) / pitch).floor();
+    final lastRow = ((maxY + plankLength - oy) / pitch).ceil();
+    final firstCol = ((minX - plankLength - ox) / run).floor();
+    final lastCol = ((maxX + plankLength - ox) / run).ceil();
+    var boardCount = 0;
+
+    for (var row = firstRow; row <= lastRow && boardCount < 20000; row++) {
+      final y = row * pitch + oy;
+      for (var col = firstCol; col <= lastCol && boardCount < 20000; col++) {
+        final x = col * run + ox;
+        final y0 = y + (col.isOdd ? run : 0);
+        final y1 = y + (col.isOdd ? 0 : run);
+        var boardLocal = <math.Point<double>>[
+          math.Point<double>(x, y0),
+          math.Point<double>(x + run, y1),
+          math.Point<double>(x + run, y1 + pitch),
+          math.Point<double>(x, y0 + pitch),
+        ];
+
+        // A sub-percent inset exposes the joint receiver and reads as a bevel
+        // at normal phone viewing distances without exploding vertex count.
+        final centerX =
+            boardLocal.fold<double>(0, (sum, p) => sum + p.x) / 4;
+        final centerY =
+            boardLocal.fold<double>(0, (sum, p) => sum + p.y) / 4;
+        const insetScale = 0.994;
+        boardLocal = boardLocal
+            .map(
+              (p) => math.Point<double>(
+                centerX + (p.x - centerX) * insetScale,
+                centerY + (p.y - centerY) * insetScale,
+              ),
+            )
+            .toList(growable: false);
+
+        final boardWorld = boardLocal.map(toWorld).toList(growable: false);
+        final p0 = boardWorld[0];
+        final p1 = boardWorld[1];
+        final p3 = boardWorld[3];
+        var alongX = p1.x - p0.x;
+        var alongY = p1.y - p0.y;
+        final alongLength = math.sqrt(alongX * alongX + alongY * alongY);
+        if (alongLength < 0.001) continue;
+        alongX /= alongLength;
+        alongY /= alongLength;
+        var perpX = -alongY;
+        var perpY = alongX;
+        if ((p3.x - p0.x) * perpX + (p3.y - p0.y) * perpY < 0) {
+          perpX = -perpX;
+          perpY = -perpY;
+        }
+
+        for (final triangle in roomTriangles) {
+          final clipped = _clipPolygonToConvex(boardWorld, triangle);
+          if (clipped.length < 3) continue;
+          final vertexIndices = <int>[];
+          for (final p in clipped) {
+            final dx = p.x - p0.x;
+            final dy = p.y - p0.y;
+            var u = (dx * alongX + dy * alongY) / plankLength;
+            var v = (dx * perpX + dy * perpY) / plankWidth;
+            // Keep the actual PBR albedo visible. Vertex greyscale was
+            // replacing/muting the base-color map on some GPUs, which made
+            // the dark oak look like a grey CAD hatch. Mirroring UVs gives
+            // four subtle board variants without altering the wood colour.
+            if (col.isOdd) u = 1 - u;
+            if (row.isOdd) v = 1 - v;
+            builder
+              ..tangent(vm.Vector4(alongX, 0, alongY, 1))
+              ..texCoord(vm.Vector2(u, v));
+            vertexIndices.add(
+              builder.addVertex(
+                vm.Vector3(_mx(p.x, bounds), 0.008, _mz(p.y, bounds)),
+              ),
+            );
+          }
+          for (var i = 1; i < vertexIndices.length - 1; i++) {
+            builder.addTriangle(
+              vertexIndices[0],
+              vertexIndices[i],
+              vertexIndices[i + 1],
+            );
+          }
+        }
+        boardCount++;
+      }
+    }
+
+    final key = '${surface.materialMode}:${surface.materialId}:herringbone';
+    final material = materialCache.putIfAbsent(
+      key,
+      () => _floorMaterial(surface),
+    );
+    root.add(
+      Node(
+        name: 'floor-herringbone-planks:${surface.roomKey}',
+        mesh: Mesh(builder.build(), material),
+      )
+        ..castsShadows = false
+        ..shadowStatic = true,
+    );
+    return root;
+  }
+
   PhysicallyBasedMaterial _floorMaterial(ZamerFloorSurface surface) {
     final preset = MaterialCatalog.byId(surface.materialId);
     final mode = surface.materialMode.toLowerCase();
@@ -479,8 +1160,23 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     final tint = texture == null
         ? _vectorColor(preset.color)
         : vm.Vector4(0.98, 0.98, 0.98, 1);
-    final material = _pbr(tint, roughness: roughness, texture: texture)
-      ..doubleSided = true;
+    final normalAsset = _normalAssetFor(preset);
+    final metallicRoughnessAsset = _ormAssetFor(preset);
+    final occlusionAsset = _ormAssetFor(preset);
+    final material = _pbr(
+      tint,
+      roughness: roughness,
+      texture: texture,
+      normalTexture:
+          normalAsset == null ? null : _normalTextures[normalAsset],
+      metallicRoughnessTexture: metallicRoughnessAsset == null
+          ? null
+          : _dataTextures[metallicRoughnessAsset],
+      occlusionTexture:
+          occlusionAsset == null ? null : _dataTextures[occlusionAsset],
+      normalScale: preset.normalScale,
+      occlusionStrength: preset.occlusionStrength,
+    )..doubleSided = true;
     return material;
   }
 
@@ -488,7 +1184,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     ZamerFloorSurface surface,
     VisualMaterialPreset preset,
   ) {
-    final asset = preset.textureAsset;
+    final asset = _baseColorAssetFor(preset);
     if (asset != null && preset.pattern == 'wood' &&
         surface.laminatePattern != 'herringbone') {
       if (surface.laminateOffsetMode == 'half') {
@@ -549,7 +1245,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     );
     final presetColor = finish.tileEnabled
         ? Color(finish.tileTintArgb)
-        : (finish.materialId.startsWith('paint-')
+        : (preset.pattern == 'paint'
             ? (finish.wallColorArgb == 0
                 ? preset.color
                 : Color(finish.wallColorArgb))
@@ -557,19 +1253,21 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     final source = _vectorColor(presetColor);
     final tint = texture == null
         ? source
-        : (finish.tileEnabled
-            ? vm.Vector4(
-                0.28 + source.x * 0.72,
-                0.28 + source.y * 0.72,
-                0.28 + source.z * 0.72,
-                1,
-              )
-            : vm.Vector4(
-                0.92 + source.x * 0.08,
-                0.92 + source.y * 0.08,
-                0.92 + source.z * 0.08,
-                1,
-              ));
+        : (preset.pattern == 'paint'
+            ? source
+            : (finish.tileEnabled
+                ? vm.Vector4(
+                    0.28 + source.x * 0.72,
+                    0.28 + source.y * 0.72,
+                    0.28 + source.z * 0.72,
+                    1,
+                  )
+                : vm.Vector4(
+                    0.92 + source.x * 0.08,
+                    0.92 + source.y * 0.08,
+                    0.92 + source.z * 0.08,
+                    1,
+                  )));
     final material = _pbr(
       tint,
       roughness: preset.roughness ??
@@ -577,22 +1275,56 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
               ? 0.40
               : (preset.pattern == 'concrete' ? 0.90 : 0.82)),
       texture: texture,
+      normalTexture: _normalAssetFor(preset) == null
+          ? null
+          : _normalTextures[_normalAssetFor(preset)!],
+      metallicRoughnessTexture: _ormAssetFor(preset) == null
+          ? null
+          : _dataTextures[_ormAssetFor(preset)!],
+      occlusionTexture: _ormAssetFor(preset) == null
+          ? null
+          : _dataTextures[_ormAssetFor(preset)!],
+      normalScale: preset.normalScale,
+      occlusionStrength: preset.occlusionStrength,
     )..doubleSided = false;
-    if (finish.tileEnabled && texture != null) {
-      final tileW = math.max(20.0, finish.tileWidthMm);
-      final tileH = math.max(20.0, finish.tileHeightMm);
-      material.baseColorTextureTransform = TextureTransform(
+    if (texture != null) {
+      final unitW = finish.tileEnabled
+          ? math.max(20.0, finish.tileWidthMm)
+          : math.max(100.0, preset.physicalWidthMm);
+      final unitH = finish.tileEnabled
+          ? math.max(20.0, finish.tileHeightMm)
+          : math.max(100.0, preset.physicalHeightMm);
+      final mirrored = finish.tileEnabled && finish.tileMirrored;
+      final transform = TextureTransform(
         scale: vm.Vector2(
-          (finish.tileMirrored ? -1.0 : 1.0) *
-              math.max(1.0, wall.lengthMm / tileW),
-          math.max(1.0, wall.heightMm / tileH),
+          (mirrored ? -1.0 : 1.0) *
+              math.max(1.0, wall.lengthMm / unitW),
+          math.max(1.0, wall.heightMm / unitH),
         ),
-        offset: vm.Vector2(
-          finish.tileMirrored
-              ? 1.0 - finish.tileOffsetXMm / tileW
-              : finish.tileOffsetXMm / tileW,
-          -finish.tileOffsetYMm / tileH,
-        ),
+        offset: finish.tileEnabled
+            ? vm.Vector2(
+                mirrored
+                    ? 1.0 - finish.tileOffsetXMm / unitW
+                    : finish.tileOffsetXMm / unitW,
+                -finish.tileOffsetYMm / unitH,
+              )
+            : vm.Vector2.zero(),
+      );
+      material.baseColorTextureTransform = transform;
+      material.normalTextureTransform = TextureTransform(
+        scale: transform.scale.clone(),
+        offset: transform.offset.clone(),
+        rotation: transform.rotation,
+      );
+      material.metallicRoughnessTextureTransform = TextureTransform(
+        scale: transform.scale.clone(),
+        offset: transform.offset.clone(),
+        rotation: transform.rotation,
+      );
+      material.occlusionTextureTransform = TextureTransform(
+        scale: transform.scale.clone(),
+        offset: transform.offset.clone(),
+        rotation: transform.rotation,
       );
     }
     return material;
@@ -602,7 +1334,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     VisualMaterialPreset preset, {
     required String fallbackMode,
   }) {
-    final asset = preset.textureAsset;
+    final asset = _baseColorAssetFor(preset);
     if (asset != null && _finishTextures[asset] != null) {
       return _finishTextures[asset];
     }
@@ -924,20 +1656,73 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
           swingSign * 32 * math.pi / 180,
         );
       final leafMaterial = _pbr(
-        vm.Vector4(0.68, 0.52, 0.36, 1),
-        roughness: 0.62,
+        vm.Vector4(0.88, 0.86, 0.82, 1),
+        roughness: 0.40,
       );
-      hinge.add(
+      final panelMaterial = _pbr(
+        vm.Vector4(0.82, 0.80, 0.76, 1),
+        roughness: 0.46,
+      );
+      final metalMaterial = _pbr(
+        vm.Vector4(0.34, 0.35, 0.36, 1),
+        roughness: 0.24,
+      )..metallicFactor = 0.78;
+
+      final leaf = Node(name: 'door-leaf-root')
+        ..position = vm.Vector3(-hingeSign * leafWidth / 2, leafHeight / 2, 0);
+      leaf.add(
         Node(
           name: 'door-leaf',
           mesh: Mesh(
-            CuboidGeometry(vm.Vector3(leafWidth, leafHeight, 0.038)),
+            CuboidGeometry(vm.Vector3(leafWidth, leafHeight, 0.042)),
             leafMaterial,
           ),
+        )..shadowStatic = true,
+      );
+
+      // Shallow raised rails/stiles break the giant flat slab and read much
+      // closer to a real interior door at phone viewing distance.
+      final panelWidth = math.max(0.12, leafWidth * 0.72);
+      final panelHeight = math.max(0.16, leafHeight * 0.25);
+      for (final y in <double>[-leafHeight * 0.23, leafHeight * 0.18]) {
+        leaf.add(
+          Node(
+            name: 'door-panel',
+            mesh: Mesh(
+              CuboidGeometry(vm.Vector3(panelWidth, panelHeight, 0.010)),
+              panelMaterial,
+            ),
+          )
+            ..position = vm.Vector3(0, y, 0.026)
+            ..shadowStatic = true,
+        );
+      }
+
+      leaf.add(
+        Node(
+          name: 'door-handle',
+          mesh: Mesh(
+            CylinderGeometry(
+              bottomRadius: 0.012,
+              topRadius: 0.012,
+              height: 0.115,
+              radialSegments: 20,
+            ),
+            metalMaterial,
+          ),
         )
-          ..position = vm.Vector3(-hingeSign * leafWidth / 2, leafHeight / 2, 0)
+          ..position = vm.Vector3(
+            hingeSign * leafWidth * 0.36,
+            0.03,
+            0.070,
+          )
+          ..rotation = vm.Quaternion.axisAngle(
+            vm.Vector3(0, 0, 1),
+            math.pi / 2,
+          )
           ..shadowStatic = true,
       );
+      hinge.add(leaf);
       root.add(hinge);
     }
     _markStatic(root);
@@ -1036,8 +1821,9 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       root.add(_fallbackObject(object));
     } else {
       try {
-        final template = _modelTemplates[asset.assetPath] ??=
-            await Node.fromGlbAsset(asset.assetPath);
+        final assetPath = asset.assetPathFor(_effectiveAssetQuality);
+        final template = _modelTemplates[assetPath] ??=
+            await Node.fromGlbAsset(assetPath);
         final model = template.clone(recursive: true);
         importedModel = true;
 
@@ -1101,6 +1887,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     final id = object.catalogId.toLowerCase();
     final isWall = id.startsWith('wall-sconce');
     final isFloor = id.startsWith('floor-lamp');
+    final isTable = id.startsWith('table-lamp');
     final isTrack = id.startsWith('track-');
     final isPendant = id.startsWith('pendant-') || id.startsWith('chandelier-');
     final isCeiling = isTrack || isPendant || id.startsWith('ceiling-');
@@ -1111,7 +1898,9 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
             : isWall
                 ? math.max(0.05, object.heightMm / 1000 * 0.50)
                 : math.max(0.035, object.heightMm / 1000 * 0.20))
-        : math.max(0.02, object.heightMm / 1000 * 0.45);
+        : (isTable
+            ? math.max(0.10, object.heightMm / 1000 * 0.72)
+            : math.max(0.02, object.heightMm / 1000 * 0.45));
 
     final lightNode = Node(name: 'light:${object.id}')
       ..position = vm.Vector3(0, localY, 0);
@@ -1119,18 +1908,22 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
         ? 9.0
         : isFloor
             ? 7.0
-            : isTrack
-                ? 22.0
-                : isPendant
-                    ? 28.0
-                    : isCeiling
-                        ? 20.0
-                        : 8.0;
+            : isTable
+                ? 5.4
+                : isTrack
+                    ? 14.0
+                    : isPendant
+                        ? 16.0
+                        : isCeiling
+                            ? 12.0
+                            : 8.0;
     final range = isWall
         ? 5.0
         : isFloor
             ? 5.5
-            : 9.5;
+            : isTable
+                ? 4.5
+                : 9.5;
     lightNode.addComponent(
       PointLightComponent(
         PointLight(
@@ -1142,6 +1935,30 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       ),
     );
 
+    // A soft downward spot gives interior fixtures real contact shadows in
+    // Quality/Photo. Performance keeps only the cheap point contribution.
+    if (isTable || isCeiling || isPendant) {
+      final spot = SpotLight(
+        color: vm.Vector3(1.0, 0.78, 0.54),
+        intensity: isTable ? 6.2 : 9.5,
+        range: isTable ? 4.5 : 7.5,
+        falloffExponent: 2.0,
+        direction: vm.Vector3(0, -1, 0),
+        innerConeAngle: isTable ? 0.42 : 0.50,
+        outerConeAngle: isTable ? 1.05 : 1.18,
+        castsShadow: widget.quality != ZamerRenderQuality.performance,
+        shadowMapResolution:
+            widget.quality == ZamerRenderQuality.photo4k ? 1024 : 512,
+        shadowNear: 0.055,
+        shadowNormalBias: 0.025,
+        shadowDepthBias: 0.00015,
+        shadowSoftness:
+            widget.quality == ZamerRenderQuality.photo4k ? 2.4 : 1.6,
+      );
+      _shadowSpots.add(spot);
+      lightNode.addComponent(SpotLightComponent(spot));
+    }
+
     // Make the light source itself visibly luminous. A point light can brighten
     // nearby surfaces while the chandelier mesh still looks "off", which is
     // exactly what users were seeing with the ceiling fixtures.
@@ -1150,8 +1967,12 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       roughness: 0.18,
     )
       ..emissiveFactor = vm.Vector4(1.0, 0.62, 0.28, 1)
-      ..emissiveStrength = isWall ? 2.8 : 4.8;
-    final glowRadius = isWall ? 0.035 : (isTrack ? 0.045 : 0.055);
+      ..emissiveStrength = isWall ? 2.4 : 3.2;
+    final glowRadius = isWall
+        ? 0.035
+        : isTable
+            ? 0.028
+            : (isTrack ? 0.045 : 0.055);
     final glow = Node(
       name: 'glow:${object.id}',
       mesh: Mesh(
@@ -1164,24 +1985,163 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
   }
 
   Node _fallbackObject(ZamerObjectPlacement object) {
+    switch (object.catalogId) {
+      case 'rug-textile-2300':
+        return _proceduralRug(object);
+      case 'curtain-pair-1800':
+        return _proceduralCurtain(object);
+      case 'table-lamp-soft':
+        return _proceduralTableLamp(object);
+    }
+
+    final height = math.max(0.05, object.heightMm / 1000);
     final material = _pbr(
       vm.Vector4(0.31, 0.38, 0.45, 1),
       roughness: 0.72,
     );
-    final node = Node(
+    return Node(
       name: 'fallback:${object.id}',
       mesh: Mesh(
         CuboidGeometry(
           vm.Vector3(
             math.max(0.05, object.widthMm / 1000),
-            math.max(0.05, object.heightMm / 1000),
+            height,
             math.max(0.05, object.depthMm / 1000),
           ),
         ),
         material,
       ),
+    )..position = vm.Vector3(0, height / 2, 0);
+  }
+
+  Node _proceduralRug(ZamerObjectPlacement object) {
+    final width = math.max(0.25, object.widthMm / 1000);
+    final depth = math.max(0.25, object.depthMm / 1000);
+    final height = math.max(0.008, object.heightMm / 1000);
+    final material = _pbr(
+      vm.Vector4(0.57, 0.52, 0.45, 1),
+      roughness: 0.97,
     );
-    return node;
+    return Node(
+      name: 'procedural-rug:${object.id}',
+      mesh: Mesh(
+        CuboidGeometry(vm.Vector3(width, height, depth)),
+        material,
+      ),
+    )
+      ..position = vm.Vector3(0, height / 2 + 0.002, 0)
+      ..castsShadows = false
+      ..shadowStatic = true;
+  }
+
+  Node _proceduralCurtain(ZamerObjectPlacement object) {
+    final width = math.max(0.40, object.widthMm / 1000);
+    final depth = math.max(0.05, object.depthMm / 1000);
+    final height = math.max(0.50, object.heightMm / 1000);
+    const folds = 18;
+    final spacing = width / folds;
+    final foldWidth = spacing * 1.10;
+    final root = Node(name: 'procedural-curtain:${object.id}');
+    final materialA = _pbr(
+      vm.Vector4(0.34, 0.32, 0.30, 1),
+      roughness: 0.95,
+    );
+    final materialB = _pbr(
+      vm.Vector4(0.29, 0.28, 0.27, 1),
+      roughness: 0.97,
+    );
+
+    for (var i = 0; i < folds; i++) {
+      final x = -width / 2 + spacing * (i + 0.5);
+      final wave = math.sin(i * math.pi / 2) * depth * 0.18 +
+          (i.isEven ? -depth * 0.12 : depth * 0.12);
+      root.add(
+        Node(
+          name: 'curtain-fold:${object.id}:$i',
+          mesh: Mesh(
+            CuboidGeometry(
+              vm.Vector3(foldWidth, height, math.max(0.025, depth * 0.45)),
+            ),
+            i.isEven ? materialA : materialB,
+          ),
+        )
+          ..position = vm.Vector3(x, height / 2, wave)
+          ..shadowStatic = true,
+      );
+    }
+    return root;
+  }
+
+  Node _proceduralTableLamp(ZamerObjectPlacement object) {
+    final scale = math.max(0.55, object.heightMm / 520);
+    final root = Node(name: 'procedural-table-lamp:${object.id}');
+    final metal = _pbr(
+      vm.Vector4(0.35, 0.24, 0.14, 1),
+      roughness: 0.28,
+    )..metallicFactor = 0.72;
+    final shade = _pbr(
+      vm.Vector4(0.075, 0.07, 0.065, 1),
+      roughness: 0.78,
+    );
+    final warm = _pbr(
+      vm.Vector4(1.0, 0.83, 0.58, 1),
+      roughness: 0.20,
+    )
+      ..emissiveFactor = vm.Vector4(1.0, 0.56, 0.24, 1)
+      ..emissiveStrength = 2.2;
+
+    root.add(
+      Node(
+        name: 'lamp-base:${object.id}',
+        mesh: Mesh(
+          CylinderGeometry(
+            bottomRadius: 0.085 * scale,
+            topRadius: 0.075 * scale,
+            height: 0.026 * scale,
+            radialSegments: 24,
+          ),
+          metal,
+        ),
+      )..position = vm.Vector3(0, 0.013 * scale, 0),
+    );
+    root.add(
+      Node(
+        name: 'lamp-stem:${object.id}',
+        mesh: Mesh(
+          CylinderGeometry(
+            bottomRadius: 0.012 * scale,
+            topRadius: 0.012 * scale,
+            height: 0.24 * scale,
+            radialSegments: 16,
+          ),
+          metal,
+        ),
+      )..position = vm.Vector3(0, 0.145 * scale, 0),
+    );
+    root.add(
+      Node(
+        name: 'lamp-shade:${object.id}',
+        mesh: Mesh(
+          CylinderGeometry(
+            bottomRadius: 0.16 * scale,
+            topRadius: 0.105 * scale,
+            height: 0.20 * scale,
+            radialSegments: 32,
+          ),
+          shade,
+        ),
+      )..position = vm.Vector3(0, 0.39 * scale, 0),
+    );
+    root.add(
+      Node(
+        name: 'lamp-bulb:${object.id}',
+        mesh: Mesh(
+          SphereGeometry(radius: 0.034 * scale, segments: 18, rings: 12),
+          warm,
+        ),
+      )..position = vm.Vector3(0, 0.35 * scale, 0),
+    );
+    return root;
   }
 
   static void _markStatic(Node root) {
@@ -1206,11 +2166,23 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     vm.Vector4 color, {
     required double roughness,
     TextureSource? texture,
+    TextureSource? normalTexture,
+    TextureSource? metallicRoughnessTexture,
+    TextureSource? occlusionTexture,
+    double normalScale = 1.0,
+    double occlusionStrength = 1.0,
   }) {
-    final material = PhysicallyBasedMaterial(baseColorTexture: texture)
+    final material = PhysicallyBasedMaterial(
+      baseColorTexture: texture,
+      normalTexture: normalTexture,
+      metallicRoughnessTexture: metallicRoughnessTexture,
+      occlusionTexture: occlusionTexture,
+    )
       ..baseColorFactor = color
       ..metallicFactor = 0
       ..roughnessFactor = roughness
+      ..normalScale = normalScale
+      ..occlusionStrength = occlusionStrength
       ..doubleSided = false;
     return material;
   }
@@ -1229,7 +2201,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
         1.65,
         _mz(widget.walkY, bounds),
       );
-      final pitch = widget.tilt.clamp(-0.7, 0.7).toDouble();
+      final pitch = widget.tilt.clamp(-1.35, 1.20).toDouble();
       final cp = math.cos(pitch);
       final forward = vm.Vector3(
         math.cos(widget.rotation) * cp,
@@ -1237,7 +2209,8 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
         math.sin(widget.rotation) * cp,
       );
       return PerspectiveCamera(
-        fovRadiansY: 64 * math.pi / 180,
+        fovRadiansY:
+            widget.walkFovDegrees.clamp(50, 82).toDouble() * math.pi / 180,
         position: eye,
         target: eye + forward * 4,
         up: vm.Vector3(0, 1, 0),
@@ -1268,7 +2241,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
         );
 
     return PerspectiveCamera(
-      fovRadiansY: 46 * math.pi / 180,
+      fovRadiansY: 52 * math.pi / 180,
       position: eye,
       target: target,
       up: vm.Vector3(0, 1, 0),
@@ -1317,8 +2290,18 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
   }) async {
     if (width <= 0 || height <= 0) throw ArgumentError('Некорректный размер');
 
+    if (_scene == null || !_ready) {
+      return _renderFallbackPng(width: width, height: height);
+    }
+
+    if (photoQuality) {
+      _photoRenderOverride = true;
+      await _rebuildScene();
+    }
+
     final scene = _scene;
     if (scene == null || !_ready) {
+      _photoRenderOverride = false;
       return _renderFallbackPng(width: width, height: height);
     }
 
@@ -1326,6 +2309,29 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     _applyCutaway(camera);
     if (photoQuality) _configurePhotoLighting();
     try {
+      if (photoQuality) {
+        // Give GI/TAA one real GPU frame to settle before the frame that is
+        // exported. A single cold render produced the same flat look as the
+        // realtime preview even though the Photo settings were enabled.
+        final warmRecorder = ui.PictureRecorder();
+        final warmCanvas = ui.Canvas(warmRecorder);
+        scene.render(
+          camera,
+          warmCanvas,
+          viewport: ui.Rect.fromLTWH(
+            0,
+            0,
+            width.toDouble(),
+            height.toDouble(),
+          ),
+          pixelRatio: 1,
+        );
+        final warmPicture = warmRecorder.endRecording();
+        final warmImage = await warmPicture.toImage(width, height);
+        warmImage.dispose();
+        await Future<void>.delayed(Duration.zero);
+      }
+
       final recorder = ui.PictureRecorder();
       final canvas = ui.Canvas(recorder);
       final background = ui.Paint()
@@ -1354,7 +2360,11 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
         image.dispose();
       }
     } finally {
-      if (photoQuality) _configureScene();
+      if (photoQuality) {
+        _photoRenderOverride = false;
+        await _rebuildScene();
+        _configureScene();
+      }
     }
   }
 
@@ -1447,7 +2457,10 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     _modelTemplates.clear();
     _wallVisuals.clear();
     _ceilingNodes.clear();
+    _shadowSpots.clear();
     _finishTextures.clear();
+    _normalTextures.clear();
+    _dataTextures.clear();
     super.dispose();
   }
 
@@ -1550,6 +2563,62 @@ List<int> _triangulate(List<math.Point<double>> polygon) {
     }
   }
   return result;
+}
+
+List<math.Point<double>> _clipPolygonToConvex(
+  List<math.Point<double>> subject,
+  List<math.Point<double>> clip,
+) {
+  if (subject.isEmpty || clip.length < 3) return const <math.Point<double>>[];
+  var output = List<math.Point<double>>.of(subject);
+  final clipCcw = _signedArea(clip) >= 0;
+
+  bool inside(
+    math.Point<double> p,
+    math.Point<double> a,
+    math.Point<double> b,
+  ) {
+    final cross =
+        (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x);
+    return clipCcw ? cross >= -0.0001 : cross <= 0.0001;
+  }
+
+  math.Point<double> intersection(
+    math.Point<double> s,
+    math.Point<double> e,
+    math.Point<double> a,
+    math.Point<double> b,
+  ) {
+    final dx1 = e.x - s.x;
+    final dy1 = e.y - s.y;
+    final dx2 = b.x - a.x;
+    final dy2 = b.y - a.y;
+    final denominator = dx1 * dy2 - dy1 * dx2;
+    if (denominator.abs() < 0.0000001) return e;
+    final t = ((a.x - s.x) * dy2 - (a.y - s.y) * dx2) / denominator;
+    return math.Point<double>(s.x + dx1 * t, s.y + dy1 * t);
+  }
+
+  for (var edge = 0; edge < clip.length; edge++) {
+    if (output.isEmpty) break;
+    final input = output;
+    output = <math.Point<double>>[];
+    final a = clip[edge];
+    final b = clip[(edge + 1) % clip.length];
+    var s = input.last;
+    for (final e in input) {
+      final eInside = inside(e, a, b);
+      final sInside = inside(s, a, b);
+      if (eInside) {
+        if (!sInside) output.add(intersection(s, e, a, b));
+        output.add(e);
+      } else if (sInside) {
+        output.add(intersection(s, e, a, b));
+      }
+      s = e;
+    }
+  }
+  return output;
 }
 
 double _signedArea(List<math.Point<double>> p) {

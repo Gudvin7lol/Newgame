@@ -1,0 +1,425 @@
+{
+  "version": 1,
+  "materials": {
+    "PAINT_01": {
+      "name": "Универсальная краска",
+      "kind": "paint",
+      "tintable": true,
+      "physicalScale": {
+        "widthMm": 1000,
+        "heightMm": 1000
+      },
+      "surface": {
+        "roughness": 0.8,
+        "normalScale": 0.18,
+        "occlusionStrength": 0.52
+      },
+      "layout": {
+        "procedural": false,
+        "element": "surface"
+      },
+      "tiers": {
+        "performance": {
+          "baseColor": "assets/textures/pbr12/PAINT_01/performance/basecolor.ktx2",
+          "normal": "assets/textures/pbr12/PAINT_01/performance/normal.ktx2",
+          "orm": "assets/textures/pbr12/PAINT_01/performance/orm.ktx2"
+        },
+        "quality": {
+          "baseColor": "assets/textures/pbr12/PAINT_01/quality/basecolor.ktx2",
+          "normal": "assets/textures/pbr12/PAINT_01/quality/normal.ktx2",
+          "orm": "assets/textures/pbr12/PAINT_01/quality/orm.ktx2"
+        },
+        "photo": {
+          "baseColor": "assets/textures/pbr12/PAINT_01/quality/basecolor.ktx2",
+          "normal": "assets/textures/pbr12/PAINT_01/quality/normal.ktx2",
+          "orm": "assets/textures/pbr12/PAINT_01/quality/orm.ktx2"
+        }
+      }
+    },
+    "PLASTER_01": {
+      "name": "Гипсовая штукатурка",
+      "kind": "plaster",
+      "tintable": false,
+      "physicalScale": {
+        "widthMm": 1000,
+        "heightMm": 1000
+      },
+      "surface": {
+        "roughness": 0.82,
+        "normalScale": 0.3,
+        "occlusionStrength": 0.72
+      },
+      "layout": {
+        "procedural": false,
+        "element": "surface"
+      },
+      "tiers": {
+        "performance": {
+          "baseColor": "assets/textures/pbr12/PLASTER_01/performance/basecolor.ktx2",
+          "normal": "assets/textures/pbr12/PLASTER_01/performance/normal.ktx2",
+          "orm": "assets/textures/pbr12/PLASTER_01/performance/orm.ktx2"
+        },
+        "quality": {
+          "baseColor": "assets/textures/pbr12/PLASTER_01/quality/basecolor.ktx2",
+          "normal": "assets/textures/pbr12/PLASTER_01/quality/normal.ktx2",
+          "orm": "assets/textures/pbr12/PLASTER_01/quality/orm.ktx2"
+        },
+        "photo": {
+          "baseColor": "assets/textures/pbr12/PLASTER_01/quality/basecolor.ktx2",
+          "normal": "assets/textures/pbr12/PLASTER_01/quality/normal.ktx2",
+          "orm": "assets/textures/pbr12/PLASTER_01/quality/orm.ktx2"
+        }
+      }
+    },
+    "BRICK_01": {
+      "name": "Красный кирпич",
+      "kind": "brick",
+      "tintable": false,
+      "physicalScale": {
+        "widthMm": 1040,
+        "heightMm": 900
+      },
+      "surface": {
+        "roughness": 0.76,
+        "normalScale": 0.6,
+        "occlusionStrength": 0.88
+      },
+      "layout": {
+        "procedural": false,
+        "element": "surface"
+      },
+      "tiers": {
+        "performance": {
+          "baseColor": "assets/textures/pbr12/BRICK_01/performance/basecolor.ktx2",
+          "normal": "assets/textures/pbr12/BRICK_01/performance/normal.ktx2",
+          "orm": "assets/textures/pbr12/BRICK_01/performance/orm.ktx2"
+        },
+        "quality": {
+          "baseColor": "assets/textures/pbr12/BRICK_01/quality/basecolor.ktx2",
+          "normal": "assets/textures/pbr12/BRICK_01/quality/normal.ktx2",
+          "orm": "assets/textures/pbr12/BRICK_01/quality/orm.ktx2"
+        },
+        "photo": {
+          "baseColor": "assets/textures/pbr12/BRICK_01/quality/basecolor.ktx2",
+          "normal": "assets/textures/pbr12/BRICK_01/quality/normal.ktx2",
+          "orm": "assets/textures/pbr12/BRICK_01/quality/orm.ktx2"
+        }
+      }
+    },
+    "TILE_01": {
+      "name": "Светлый камень",
+      "kind": "tile",
+      "tintable": false,
+      "physicalScale": {
+        "widthMm": 1000,
+        "heightMm": 1000
+      },
+      "surface": {
+        "roughness": 0.56,
+        "normalScale": 0.22,
+        "occlusionStrength": 0.8
+      },
+      "layout": {
+        "procedural": true,
+        "element": "tile"
+      },
+      "tiers": {
+        "performance": {
+          "baseColor": "assets/textures/pbr12/TILE_01/performance/basecolor.ktx2",
+          "normal": "assets/textures/pbr12/TILE_01/performance/normal.ktx2",
+          "orm": "assets/textures/pbr12/TILE_01/performance/orm.ktx2"
+        },
+        "quality": {
+          "baseColor": "assets/textures/pbr12/TILE_01/quality/basecolor.ktx2",
+          "normal": "assets/textures/pbr12/TILE_01/quality/normal.ktx2",
+          "orm": "assets/textures/pbr12/TILE_01/quality/orm.ktx2"
+        },
+        "photo": {
+          "baseColor": "assets/textures/pbr12/TILE_01/quality/basecolor.ktx2",
+          "normal": "assets/textures/pbr12/TILE_01/quality/normal.ktx2",
+          "orm": "assets/textures/pbr12/TILE_01/quality/orm.ktx2"
+        }
+      }
+    },
+    "TILE_02": {
+      "name": "Бетонная плитка",
+      "kind": "tile",
+      "tintable": false,
+      "physicalScale": {
+        "widthMm": 1000,
+        "heightMm": 1000
+      },
+      "surface": {
+        "roughness": 0.66,
+        "normalScale": 0.28,
+        "occlusionStrength": 0.82
+      },
+      "layout": {
+        "procedural": true,
+        "element": "tile"
+      },
+      "tiers": {
+        "performance": {
+          "baseColor": "assets/textures/pbr12/TILE_02/performance/basecolor.ktx2",
+          "normal": "assets/textures/pbr12/TILE_02/performance/normal.ktx2",
+          "orm": "assets/textures/pbr12/TILE_02/performance/orm.ktx2"
+        },
+        "quality": {
+          "baseColor": "assets/textures/pbr12/TILE_02/quality/basecolor.ktx2",
+          "normal": "assets/textures/pbr12/TILE_02/quality/normal.ktx2",
+          "orm": "assets/textures/pbr12/TILE_02/quality/orm.ktx2"
+        },
+        "photo": {
+          "baseColor": "assets/textures/pbr12/TILE_02/quality/basecolor.ktx2",
+          "normal": "assets/textures/pbr12/TILE_02/quality/normal.ktx2",
+          "orm": "assets/textures/pbr12/TILE_02/quality/orm.ktx2"
+        }
+      }
+    },
+    "TILE_03": {
+      "name": "Светлый мрамор",
+      "kind": "tile",
+      "tintable": false,
+      "physicalScale": {
+        "widthMm": 1000,
+        "heightMm": 1000
+      },
+      "surface": {
+        "roughness": 0.34,
+        "normalScale": 0.1,
+        "occlusionStrength": 0.72
+      },
+      "layout": {
+        "procedural": true,
+        "element": "tile"
+      },
+      "tiers": {
+        "performance": {
+          "baseColor": "assets/textures/pbr12/TILE_03/performance/basecolor.ktx2",
+          "normal": "assets/textures/pbr12/TILE_03/performance/normal.ktx2",
+          "orm": "assets/textures/pbr12/TILE_03/performance/orm.ktx2"
+        },
+        "quality": {
+          "baseColor": "assets/textures/pbr12/TILE_03/quality/basecolor.ktx2",
+          "normal": "assets/textures/pbr12/TILE_03/quality/normal.ktx2",
+          "orm": "assets/textures/pbr12/TILE_03/quality/orm.ktx2"
+        },
+        "photo": {
+          "baseColor": "assets/textures/pbr12/TILE_03/quality/basecolor.ktx2",
+          "normal": "assets/textures/pbr12/TILE_03/quality/normal.ktx2",
+          "orm": "assets/textures/pbr12/TILE_03/quality/orm.ktx2"
+        }
+      }
+    },
+    "LAM_01": {
+      "name": "Натуральный дуб",
+      "kind": "wood",
+      "tintable": false,
+      "physicalScale": {
+        "widthMm": 193,
+        "heightMm": 1380
+      },
+      "surface": {
+        "roughness": 0.58,
+        "normalScale": 0.35,
+        "occlusionStrength": 0.78
+      },
+      "layout": {
+        "procedural": true,
+        "element": "plank"
+      },
+      "tiers": {
+        "performance": {
+          "baseColor": "assets/textures/pbr12/LAM_01/performance/basecolor.ktx2",
+          "normal": "assets/textures/pbr12/LAM_01/performance/normal.ktx2",
+          "orm": "assets/textures/pbr12/LAM_01/performance/orm.ktx2"
+        },
+        "quality": {
+          "baseColor": "assets/textures/pbr12/LAM_01/quality/basecolor.ktx2",
+          "normal": "assets/textures/pbr12/LAM_01/quality/normal.ktx2",
+          "orm": "assets/textures/pbr12/LAM_01/quality/orm.ktx2"
+        },
+        "photo": {
+          "baseColor": "assets/textures/pbr12/LAM_01/quality/basecolor.ktx2",
+          "normal": "assets/textures/pbr12/LAM_01/quality/normal.ktx2",
+          "orm": "assets/textures/pbr12/LAM_01/quality/orm.ktx2"
+        }
+      }
+    },
+    "LAM_02": {
+      "name": "Светлый дуб",
+      "kind": "wood",
+      "tintable": false,
+      "physicalScale": {
+        "widthMm": 193,
+        "heightMm": 1380
+      },
+      "surface": {
+        "roughness": 0.62,
+        "normalScale": 0.35,
+        "occlusionStrength": 0.76
+      },
+      "layout": {
+        "procedural": true,
+        "element": "plank"
+      },
+      "tiers": {
+        "performance": {
+          "baseColor": "assets/textures/pbr12/LAM_02/performance/basecolor.ktx2",
+          "normal": "assets/textures/pbr12/LAM_02/performance/normal.ktx2",
+          "orm": "assets/textures/pbr12/LAM_02/performance/orm.ktx2"
+        },
+        "quality": {
+          "baseColor": "assets/textures/pbr12/LAM_02/quality/basecolor.ktx2",
+          "normal": "assets/textures/pbr12/LAM_02/quality/normal.ktx2",
+          "orm": "assets/textures/pbr12/LAM_02/quality/orm.ktx2"
+        },
+        "photo": {
+          "baseColor": "assets/textures/pbr12/LAM_02/quality/basecolor.ktx2",
+          "normal": "assets/textures/pbr12/LAM_02/quality/normal.ktx2",
+          "orm": "assets/textures/pbr12/LAM_02/quality/orm.ktx2"
+        }
+      }
+    },
+    "LAM_03": {
+      "name": "Дымчатый серо-бежевый дуб",
+      "kind": "wood",
+      "tintable": false,
+      "physicalScale": {
+        "widthMm": 193,
+        "heightMm": 1380
+      },
+      "surface": {
+        "roughness": 0.6,
+        "normalScale": 0.35,
+        "occlusionStrength": 0.8
+      },
+      "layout": {
+        "procedural": true,
+        "element": "plank"
+      },
+      "tiers": {
+        "performance": {
+          "baseColor": "assets/textures/pbr12/LAM_03/performance/basecolor.ktx2",
+          "normal": "assets/textures/pbr12/LAM_03/performance/normal.ktx2",
+          "orm": "assets/textures/pbr12/LAM_03/performance/orm.ktx2"
+        },
+        "quality": {
+          "baseColor": "assets/textures/pbr12/LAM_03/quality/basecolor.ktx2",
+          "normal": "assets/textures/pbr12/LAM_03/quality/normal.ktx2",
+          "orm": "assets/textures/pbr12/LAM_03/quality/orm.ktx2"
+        },
+        "photo": {
+          "baseColor": "assets/textures/pbr12/LAM_03/quality/basecolor.ktx2",
+          "normal": "assets/textures/pbr12/LAM_03/quality/normal.ktx2",
+          "orm": "assets/textures/pbr12/LAM_03/quality/orm.ktx2"
+        }
+      }
+    },
+    "CONCRETE_01": {
+      "name": "Архитектурный бетон",
+      "kind": "concrete",
+      "tintable": false,
+      "physicalScale": {
+        "widthMm": 1000,
+        "heightMm": 1000
+      },
+      "surface": {
+        "roughness": 0.69,
+        "normalScale": 0.34,
+        "occlusionStrength": 0.82
+      },
+      "layout": {
+        "procedural": false,
+        "element": "surface"
+      },
+      "tiers": {
+        "performance": {
+          "baseColor": "assets/textures/pbr12/CONCRETE_01/performance/basecolor.ktx2",
+          "normal": "assets/textures/pbr12/CONCRETE_01/performance/normal.ktx2",
+          "orm": "assets/textures/pbr12/CONCRETE_01/performance/orm.ktx2"
+        },
+        "quality": {
+          "baseColor": "assets/textures/pbr12/CONCRETE_01/quality/basecolor.ktx2",
+          "normal": "assets/textures/pbr12/CONCRETE_01/quality/normal.ktx2",
+          "orm": "assets/textures/pbr12/CONCRETE_01/quality/orm.ktx2"
+        },
+        "photo": {
+          "baseColor": "assets/textures/pbr12/CONCRETE_01/quality/basecolor.ktx2",
+          "normal": "assets/textures/pbr12/CONCRETE_01/quality/normal.ktx2",
+          "orm": "assets/textures/pbr12/CONCRETE_01/quality/orm.ktx2"
+        }
+      }
+    },
+    "MARBLE_01": {
+      "name": "Натуральный мрамор",
+      "kind": "tile",
+      "tintable": false,
+      "physicalScale": {
+        "widthMm": 1000,
+        "heightMm": 1000
+      },
+      "surface": {
+        "roughness": 0.3,
+        "normalScale": 0.08,
+        "occlusionStrength": 0.68
+      },
+      "layout": {
+        "procedural": true,
+        "element": "tile"
+      },
+      "tiers": {
+        "performance": {
+          "baseColor": "assets/textures/pbr12/MARBLE_01/performance/basecolor.ktx2",
+          "normal": "assets/textures/pbr12/MARBLE_01/performance/normal.ktx2",
+          "orm": "assets/textures/pbr12/MARBLE_01/performance/orm.ktx2"
+        },
+        "quality": {
+          "baseColor": "assets/textures/pbr12/MARBLE_01/quality/basecolor.ktx2",
+          "normal": "assets/textures/pbr12/MARBLE_01/quality/normal.ktx2",
+          "orm": "assets/textures/pbr12/MARBLE_01/quality/orm.ktx2"
+        },
+        "photo": {
+          "baseColor": "assets/textures/pbr12/MARBLE_01/quality/basecolor.ktx2",
+          "normal": "assets/textures/pbr12/MARBLE_01/quality/normal.ktx2",
+          "orm": "assets/textures/pbr12/MARBLE_01/quality/orm.ktx2"
+        }
+      }
+    },
+    "TRAVERTINE_01": {
+      "name": "Травертин натуральный",
+      "kind": "tile",
+      "tintable": false,
+      "physicalScale": {
+        "widthMm": 1000,
+        "heightMm": 1000
+      },
+      "surface": {
+        "roughness": 0.64,
+        "normalScale": 0.42,
+        "occlusionStrength": 0.86
+      },
+      "layout": {
+        "procedural": true,
+        "element": "tile"
+      },
+      "tiers": {
+        "performance": {
+          "baseColor": "assets/textures/pbr12/TRAVERTINE_01/performance/basecolor.ktx2",
+          "normal": "assets/textures/pbr12/TRAVERTINE_01/performance/normal.ktx2",
+          "orm": "assets/textures/pbr12/TRAVERTINE_01/performance/orm.ktx2"
+        },
+        "quality": {
+          "baseColor": "assets/textures/pbr12/TRAVERTINE_01/quality/basecolor.ktx2",
+          "normal": "assets/textures/pbr12/TRAVERTINE_01/quality/normal.ktx2",
+          "orm": "assets/textures/pbr12/TRAVERTINE_01/quality/orm.ktx2"
+        },
+        "photo": {
+          "baseColor": "assets/textures/pbr12/TRAVERTINE_01/quality/basecolor.ktx2",
+          "normal": "assets/textures/pbr12/TRAVERTINE_01/quality/normal.ktx2",
+          "orm": "assets/textures/pbr12/TRAVERTINE_01/quality/orm.ktx2"
+        }
+      }
+    }
+  }
+}

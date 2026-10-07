@@ -1,0 +1,116 @@
+name: Zamer render-core APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/render-core-quality-foundation
+    paths:
+      - 'zamer-app/**'
+      - '.github/workflows/zamer-render-core-apk.yml'
+
+concurrency:
+  group: zamer-render-core-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Import premium 3D assets once
+        if: ${{ !hashFiles('zamer-app/assets/models/zamer_premium/bed_sand_high.glb') }}
+        env:
+          PREMIUM_ASSET_URL: 'https://sdmntprdenmarkeast.oaiusercontent.com/files/00000000-1238-8210-8b44-a5c29ea3791b/raw?se=2026-10-07T05%3A12%3A05Z&sp=r&sv=2026-02-06&sr=b&scid=9d9701a6-23d2-5277-9533-64f54c0a5cff&skoid=1d6acb5b-b3f4-43ec-a5ec-b05c4a7708c8&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-10-07T05%3A00%3A30Z&ske=2026-10-08T05%3A00%3A30Z&sks=b&skv=2026-02-06&sig=qD50/93L0rADxeaea/5feo53axUVWlFAoAatAyu3zrE%3D'
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 3 "$PREMIUM_ASSET_URL" -o "$RUNNER_TEMP/zamer-premium-assets.zip"
+          unzip -qo "$RUNNER_TEMP/zamer-premium-assets.zip" -d .
+          test -f zamer-app/assets/models/zamer_premium/bed_sand_high.glb
+          test -f zamer-app/assets/textures/pbr/dark_oak/basecolor.png
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add zamer-app/assets/models/zamer_premium zamer-app/assets/textures/pbr
+          if ! git diff --cached --quiet; then
+            git commit -m "assets: import premium 3d models and pbr materials"
+            git push origin HEAD:feature/render-core-quality-foundation
+          fi
+
+      - name: Import PBR12 material library once
+        if: ${{ !hashFiles('zamer-app/assets/textures/pbr12/PAINT_01/photo/basecolor.png') }}
+        env:
+          PBR12_ASSET_URL: 'https://sdmntprnortheu.oaiusercontent.com/files/00000000-e038-81f4-a722-972e8a690022/raw?se=2026-10-07T15%3A40%3A42Z&sp=r&sv=2026-02-06&sr=b&scid=7661b850-8e59-50b9-a6d4-89b6d09979a4&skoid=1d6acb5b-b3f4-43ec-a5ec-b05c4a7708c8&sktid=a48cca56-e6da-484e-a814-9c849652bcb3&skt=2026-10-07T05%3A53%3A48Z&ske=2026-10-08T05%3A53%3A48Z&sks=b&skv=2026-02-06&sig=/C2mhzVeogaLCTAqnUElbpfNmy3bcdezYxn8QpY2M6o%3D'
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 3 "$PBR12_ASSET_URL" -o "$RUNNER_TEMP/zamer-pbr12.zip"
+          unzip -qo "$RUNNER_TEMP/zamer-pbr12.zip" -d .
+          test -f zamer-app/assets/textures/pbr12/PAINT_01/photo/basecolor.png
+          test -f zamer-app/assets/textures/pbr12/TRAVERTINE_01/quality/orm.png
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add zamer-app/assets/textures/pbr12
+          if ! git diff --cached --quiet; then
+            git commit -m "assets: import 12-material PBR library"
+            git push origin HEAD:feature/render-core-quality-foundation
+          fi
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+
+      - name: Install Khronos KTX tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://github.com/KhronosGroup/KTX-Software/releases/download/v4.4.2/KTX-Software-4.4.2-Linux-x86_64.deb"
+          deb="$RUNNER_TEMP/ktx-4.4.2.deb"
+          curl -L --fail --retry 3 "$url" -o "$deb"
+          echo "ca635ed489d8bf54fac8d7687056c651193de0740830a7738cc034adc63e3027  $deb" | sha256sum -c -
+          sudo dpkg --install "$deb"
+          ktx --version
+
+      - name: Cook PBR12 KTX2 runtime textures
+        working-directory: zamer-app
+        run: bash tool/cook_pbr_ktx2.sh
+
+      - name: Get packages
+        working-directory: zamer-app
+        run: flutter pub get
+
+      - name: Build standalone 3D Lab debug APK
+        working-directory: zamer-app
+        env:
+          ZAMER_RENDER_LAB: "1"
+        run: flutter build apk --debug
+
+      - name: Prepare artifact
+        run: |
+          cp zamer-app/build/app/outputs/flutter-apk/app-debug.apk             "$RUNNER_TEMP/Zamer-3D-Lab-debug.apk"
+          sha256sum "$RUNNER_TEMP/Zamer-3D-Lab-debug.apk"             > "$RUNNER_TEMP/Zamer-3D-Lab-debug.apk.sha256"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Zamer-3D-Lab-APK
+          path: |
+            ${{ runner.temp }}/Zamer-3D-Lab-debug.apk
+            ${{ runner.temp }}/Zamer-3D-Lab-debug.apk.sha256
+          retention-days: 14

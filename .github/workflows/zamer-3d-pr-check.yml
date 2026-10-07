@@ -1,0 +1,56 @@
+name: Zamer 3D PR check
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'zamer-app/**'
+      - '.github/workflows/zamer-3d-pr-check.yml'
+
+concurrency:
+  group: zamer-3d-pr-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+
+      - name: Get packages
+        working-directory: zamer-app
+        run: flutter pub get
+
+      - name: Analyze
+        working-directory: zamer-app
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      - name: 3D core regression tests
+        working-directory: zamer-app
+        run: |
+          flutter test \
+            test/render_quality_test.dart \
+            test/benchmark_project_test.dart \
+            test/zamer_scene_geometry_test.dart \
+            test/model_asset_catalog_test.dart \
+            test/material_catalog_texture_test.dart

@@ -1,3 +1,5 @@
+val isRenderLab = System.getenv("ZAMER_RENDER_LAB") == "1"
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
@@ -6,7 +8,7 @@ plugins {
 
 android {
     namespace = "ru.zamer.zamer_app"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -16,7 +18,13 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "ru.zamer.zamer_app"
+        applicationId = if (isRenderLab) {
+            "ru.zamer.zamer_app.renderlab"
+        } else {
+            "ru.zamer.zamer_app"
+        }
+        manifestPlaceholders["appLabel"] =
+            if (isRenderLab) "Замер 3D Lab" else "Замер"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
@@ -49,4 +57,11 @@ kotlin {
 
 flutter {
     source = "../.."
+}
+
+
+dependencies {
+    implementation("com.google.android.filament:filament-android:1.77.1")
+    implementation("com.google.android.filament:gltfio-android:1.77.1")
+    implementation("com.google.android.filament:filament-utils-android:1.77.1")
 }

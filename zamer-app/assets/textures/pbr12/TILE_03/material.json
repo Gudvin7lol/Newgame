@@ -1,0 +1,28 @@
+{
+  "id": "TILE_03",
+  "name": "Светлый мрамор",
+  "category": "tile",
+  "type": "marble_tile",
+  "version": 1,
+  "layout": {
+    "procedural": true,
+    "defaultWidth": 600,
+    "defaultHeight": 1200,
+    "defaultJoint": 2
+  },
+  "grout": {
+    "separate": true,
+    "editableColor": true
+  },
+  "surface": {
+    "roughness": 0.34,
+    "normalStrength": 0.1,
+    "metallic": 0.0
+  },
+  "variants": 8,
+  "quality": {
+    "master": 4096,
+    "quality": 2048,
+    "performance": 1024
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "id": "TILE_01",
+  "name": "Светлый камень",
+  "category": "tile",
+  "type": "stone_tile",
+  "version": 1,
+  "layout": {
+    "procedural": true,
+    "defaultWidth": 600,
+    "defaultHeight": 600,
+    "defaultJoint": 2
+  },
+  "grout": {
+    "separate": true,
+    "editableColor": true
+  },
+  "surface": {
+    "roughness": 0.56,
+    "normalStrength": 0.22,
+    "metallic": 0.0
+  },
+  "variants": 6,
+  "quality": {
+    "master": 4096,
+    "quality": 2048,
+    "performance": 1024
+  }
+}
