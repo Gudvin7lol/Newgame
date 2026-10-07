@@ -1116,3 +1116,4 @@ class _MaterialsMasterScreenState extends State<MaterialsMasterScreen> {
     );
 
 }
+}
