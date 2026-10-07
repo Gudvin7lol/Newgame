@@ -404,7 +404,7 @@ class _MaterialsScreenState extends State<MaterialsScreen> {
                         setModal(() {});
                       },
                     ),
-                    if (s.wallMaterialId.startsWith('paint-'))
+                    if (MaterialCatalog.byId(s.wallMaterialId).pattern == 'paint')
                       ListTile(
                         leading: Container(
                           width: 34,
