@@ -2139,17 +2139,27 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
         final model = template.clone(recursive: true);
         importedModel = true;
 
-        final sx = _safeRatio(object.widthMm, asset.nativeWidthMm);
-        final sy = _safeRatio(object.heightMm, asset.nativeHeightMm);
-        final sz = _safeRatio(object.depthMm, asset.nativeDepthMm);
         final localBounds = model.combinedLocalBounds;
+        var sx = _safeRatio(object.widthMm, asset.nativeWidthMm);
+        var sy = _safeRatio(object.heightMm, asset.nativeHeightMm);
+        var sz = _safeRatio(object.depthMm, asset.nativeDepthMm);
+
+        if (localBounds != null) {
+          // External GLBs rarely share our authored catalogue dimensions.
+          // Normalize the geometry that was actually imported, in metres,
+          // against the requested plan dimensions before applying the anchor.
+          final sourceWidthM = localBounds.max.x - localBounds.min.x;
+          final sourceHeightM = localBounds.max.y - localBounds.min.y;
+          final sourceDepthM = localBounds.max.z - localBounds.min.z;
+          sx = _safeRatio(object.widthMm / 1000, sourceWidthM);
+          sy = _safeRatio(object.heightMm / 1000, sourceHeightM);
+          sz = _safeRatio(object.depthMm / 1000, sourceDepthM);
+        }
+
         model.scale = vm.Vector3(sx, sy, sz);
         if (localBounds != null) {
           // Every plan object uses its footprint centre as the X/Y anchor.
-          // Imported GLBs are not all authored around that same origin (wall
-          // lights in particular start at the wall plane). Rebase the model to
-          // its actual bounds so plan and 3D positions are mathematically the
-          // same instead of merely looking close for centred assets.
+          // Rebase from the real imported bounds after scaling.
           model.position = vm.Vector3(
             -localBounds.center.x * sx,
             -localBounds.min.y * sy,
