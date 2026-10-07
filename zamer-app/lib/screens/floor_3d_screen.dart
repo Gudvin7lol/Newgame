@@ -773,12 +773,12 @@ class _RealtimeQualitySelector extends StatelessWidget {
         segments: const <ButtonSegment<ZamerRenderQuality>>[
           ButtonSegment(
             value: ZamerRenderQuality.performance,
-            label: Text('Performance'),
+            label: Text('Быстро'),
             icon: Icon(Icons.speed),
           ),
           ButtonSegment(
             value: ZamerRenderQuality.quality,
-            label: Text('Quality'),
+            label: Text('Качество'),
             icon: Icon(Icons.auto_awesome),
           ),
         ],
