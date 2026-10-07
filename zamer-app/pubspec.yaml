@@ -59,3 +59,4 @@ flutter:
     - assets/textures/pbr12/MARBLE_01/quality/
     - assets/textures/pbr12/TRAVERTINE_01/performance/
     - assets/textures/pbr12/TRAVERTINE_01/quality/
+    - assets/textures/pbr12/material.json
