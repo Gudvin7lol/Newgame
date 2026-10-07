@@ -19,17 +19,18 @@ void main() {
 
       final model = ZamerModelAssetCatalog.byId(item.id);
       expect(model, isNotNull, reason: 'No model mapping for ${item.id}');
+      final resolved = model!;
       for (final quality in ZamerRenderQuality.values) {
-        final path = model!.assetPathFor(quality);
+        final path = resolved.assetPathFor(quality);
         expect(
           File(path).existsSync(),
           isTrue,
           reason: 'Missing ${quality.name} GLB for ${item.id}: $path',
         );
       }
-      expect(model.nativeWidthMm, greaterThan(0));
-      expect(model.nativeDepthMm, greaterThan(0));
-      expect(model.nativeHeightMm, greaterThan(0));
+      expect(resolved.nativeWidthMm, greaterThan(0));
+      expect(resolved.nativeDepthMm, greaterThan(0));
+      expect(resolved.nativeHeightMm, greaterThan(0));
     }
   });
 
