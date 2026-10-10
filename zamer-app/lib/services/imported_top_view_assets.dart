@@ -16,6 +16,8 @@ class ImportedTopViewAssets extends ChangeNotifier {
   static const _assetByCatalogId = <String, String>{
     // +107: these views are rendered from the same LOD0 GLBs used in 3D.
     'sofa-3': 'featured_sofa_3',
+    // +126 uses the same licensed model geometry for both sizes.
+    'bed-160': 'featured_bed_180',
     'bed-180': 'featured_bed_180',
     'armchair': 'featured_armchair',
     'coffee-table': 'featured_coffee_table',
@@ -57,7 +59,15 @@ class ImportedTopViewAssets extends ChangeNotifier {
 
   Future<void> _load() async {
     var loadedAny = false;
+    // Some catalogue IDs intentionally share one physically identical model.
+    // Decode each WebP once to avoid duplicate GPU images and wasted memory.
+    final decodedByFile = <String, ui.Image>{};
     for (final entry in _assetByCatalogId.entries) {
+      final cached = decodedByFile[entry.value];
+      if (cached != null) {
+        _images[entry.key] = cached;
+        continue;
+      }
       try {
         final data = await rootBundle.load('$_root/${entry.value}.webp');
         final bytes = data.buffer.asUint8List(
@@ -67,6 +77,7 @@ class ImportedTopViewAssets extends ChangeNotifier {
         final codec = await ui.instantiateImageCodec(bytes);
         try {
           final frame = await codec.getNextFrame();
+          decodedByFile[entry.value] = frame.image;
           _images[entry.key] = frame.image;
           loadedAny = true;
         } finally {
