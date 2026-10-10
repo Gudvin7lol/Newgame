@@ -1529,9 +1529,10 @@ class _PlanningPainter extends CustomPainter {
     final name =
         selected.label.isEmpty ? selected.type.label : selected.label;
     final snapped = snapAngleDeg != null;
+    final angle = selected.rotationDeg.round();
     final label = snapped
-        ? '$'+'name • $'+'{selected.rotationDeg.round()}° • 90°'
-        : '$'+'name • $'+'{selected.rotationDeg.round()}°';
+        ? '$name • $angle° • 90°'
+        : '$name • $angle°';
     final tp = TextPainter(
       text: TextSpan(
         text: label,
