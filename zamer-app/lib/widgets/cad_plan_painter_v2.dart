@@ -15,6 +15,15 @@ import 'top_view_object_renderer.dart';
 /// sizes, tile sizes, offsets, direction and layout mode. Furniture is rendered
 /// by [TopViewObjectRenderer] with detailed top-view symbols instead of generic
 /// rectangles.
+/// A renderer can use imported top-view artwork and return true when painted.
+/// A false result falls back to the shared vector symbol.
+typedef ObjectTopViewPainter = bool Function(
+  Canvas canvas,
+  PlanObject object,
+  Offset center,
+  double mmToPx,
+);
+
 class CadPlanPainterV2 extends CustomPainter {
   CadPlanPainterV2({
     required this.floor,
@@ -23,6 +32,7 @@ class CadPlanPainterV2 extends CustomPainter {
     this.selectedWallId,
     this.showGrid = true,
     this.showDimensions = true,
+    this.drawTopView,
     Set<ProjectLayer>? visibleLayers,
   }) : visibleLayers = visibleLayers ?? ProjectLayer.values.toSet();
 
@@ -32,6 +42,7 @@ class CadPlanPainterV2 extends CustomPainter {
   final String? selectedWallId;
   final bool showGrid;
   final bool showDimensions;
+  final ObjectTopViewPainter? drawTopView;
   final Set<ProjectLayer> visibleLayers;
 
   Offset _p(PlanNode n) => origin + Offset(n.xMm * mmToPx, n.yMm * mmToPx);
@@ -495,11 +506,19 @@ class CadPlanPainterV2 extends CustomPainter {
 
   void _objects(Canvas canvas) {
     for (final object in floor.planObjects) {
-      if (!visibleLayers.contains(object.layer) || object.elevationMm > 2300) continue;
+      if (!visibleLayers.contains(object.layer) || object.elevationMm > 2300) {
+        continue;
+      }
+      final center = origin + Offset(object.xMm * mmToPx, object.yMm * mmToPx);
+      // Paint only one representation per object, in the same draw pass.
+      // Room names and dimension chains must remain above furniture artwork.
+      if (drawTopView?.call(canvas, object, center, mmToPx) == true) {
+        continue;
+      }
       TopViewObjectRenderer.draw(
         canvas,
         object,
-        center: origin + Offset(object.xMm * mmToPx, object.yMm * mmToPx),
+        center: center,
         mmToPx: mmToPx,
       );
     }
