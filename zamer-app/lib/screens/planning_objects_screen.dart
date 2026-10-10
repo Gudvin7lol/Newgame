@@ -11,7 +11,6 @@ import '../services/object_catalog.dart';
 import '../services/geometry_service.dart';
 import '../services/imported_top_view_assets.dart';
 import '../services/space_check_service.dart';
-import '../widgets/model_thumbnail.dart';
 import '../widgets/cad_plan_painter.dart';
 
 enum _ObjectMode { add, select }
@@ -816,7 +815,9 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
       (size - 12) / item.widthMm,
       (size - 12) / item.depthMm,
     );
-    final fallback = ClipRRect(
+    // Catalogue thumbnails use the exact same top-view image as the live plan.
+    // The old 3D snapshot changed perspective and material style between tabs.
+    return ClipRRect(
       borderRadius: BorderRadius.circular(8),
       child: SizedBox.square(
         dimension: size,
@@ -829,11 +830,6 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
           ),
         ),
       ),
-    );
-    return ZamerModelThumbnail(
-      catalogId: item.id,
-      size: size,
-      fallback: fallback,
     );
   }
 
