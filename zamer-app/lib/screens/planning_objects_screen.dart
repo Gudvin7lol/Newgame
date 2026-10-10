@@ -9,8 +9,10 @@ import '../models/models.dart';
 import '../services/angle_snap_service.dart';
 import '../services/object_catalog.dart';
 import '../services/geometry_service.dart';
+import '../services/imported_top_view_assets.dart';
 import '../services/space_check_service.dart';
 import '../widgets/model_thumbnail.dart';
+import '../widgets/cad_plan_painter.dart';
 
 enum _ObjectMode { add, select }
 
@@ -1451,380 +1453,90 @@ class _EquipmentChip extends StatelessWidget {
   }
 }
 
+/// The equipment workspace and the main plan must use the SAME renderer.
+/// All furniture, finishes, openings and top-view raster art are painted by
+/// CadPlanPainter. Only selection / angle-guide chrome lives in this overlay.
 class _PlanningPainter extends CustomPainter {
-  const _PlanningPainter({
+  _PlanningPainter({
     required this.floor,
     required this.scale,
     required this.origin,
     this.selectedId,
     this.snapAngleDeg,
     this.darkPreview = false,
-  });
+  }) : super(repaint: ImportedTopViewAssets.instance);
+
   final FloorPlan floor;
   final double scale;
   final Offset origin;
   final String? selectedId;
   final double? snapAngleDeg;
   final bool darkPreview;
-  Offset p(double x, double y) => origin + Offset(x * scale, y * scale);
 
   @override
   void paint(Canvas canvas, Size size) {
-    canvas.drawRect(
-      Offset.zero & size,
-      Paint()
-        ..color = darkPreview
-            ? const Color(0xFF10181B)
-            : const Color(0xFF0B1115),
-    );
-    for (final w in floor.walls) {
-      final a = floor.nodeById(w.startNodeId), b = floor.nodeById(w.endNodeId);
-      if (a == null || b == null) continue;
-      final color = w.demolition || w.projectLayer == ProjectLayer.demolition
-          ? const Color(0xFFD85B68)
-          : w.projectLayer == ProjectLayer.proposed
-          ? const Color(0xFF55B98C)
-          : const Color(0xFFD6DEE1);
-      canvas.drawLine(
-        p(a.xMm, a.yMm),
-        p(b.xMm, b.yMm),
-        Paint()
-          ..color = color
-          ..strokeWidth = math.max(2, w.thicknessMm * scale)
-          ..strokeCap = StrokeCap.square,
-      );
-    }
-    if (selectedId != null && snapAngleDeg != null) {
-      PlanObject? active;
-      for (final object in floor.planObjects) {
-        if (object.id == selectedId) {
-          active = object;
-          break;
-        }
-      }
-      if (active != null) {
-        final c = p(active.xMm, active.yMm);
-        final guide = Paint()
-          ..color = const Color(0xFF18A979).withValues(alpha: .48)
-          ..strokeWidth = 1.2;
-        canvas.drawLine(Offset(0, c.dy), Offset(size.width, c.dy), guide);
-        canvas.drawLine(Offset(c.dx, 0), Offset(c.dx, size.height), guide);
-      }
-    }
-    for (final o in floor.planObjects) _object(canvas, o, size);
-  }
+    // Same 2D pipeline as the Plan screen, including LOD0 top-view previews,
+    // shared fallback symbols, finish patterns, wall thickness and openings.
+    // CadPlanPainter ensures the optional asset pack is loaded asynchronously;
+    // our repaint listener updates this workspace when its images arrive.
+    CadPlanPainter(
+      floor: floor,
+      mmToPx: scale,
+      origin: origin,
+      showGrid: !darkPreview,
+      showDimensions: !darkPreview,
+    ).paint(canvas, size);
 
-  void _object(Canvas canvas, PlanObject o, Size size) {
-    final c = p(o.xMm, o.yMm);
-    final selected = o.id == selectedId;
-    final color = switch (o.layer) {
-      ProjectLayer.existing => const Color(0xFF64717D),
-      ProjectLayer.demolition => const Color(0xFFC04E5A),
-      ProjectLayer.proposed => const Color(0xFFB88862),
-    };
-    final fill = Paint()..color = color.withValues(alpha: 0.12);
-    final stroke = Paint()
-      ..color = selected ? ZamerColors.accent : color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = selected ? 2.5 : 1.5;
+    if (selectedId == null) return;
+    PlanObject? selected;
+    for (final object in floor.planObjects) {
+      if (object.id == selectedId) {
+        selected = object;
+        break;
+      }
+    }
+    if (selected == null) return;
+
+    final center = origin + Offset(selected.xMm * scale, selected.yMm * scale);
+    final width = math.max(1.0, selected.widthMm * scale);
+    final depth = math.max(1.0, selected.depthMm * scale);
+
+    if (snapAngleDeg != null) {
+      final guide = Paint()
+        ..color = const Color(0xFF18A979).withValues(alpha: .48)
+        ..strokeWidth = 1.2;
+      canvas.drawLine(Offset(0, center.dy), Offset(size.width, center.dy), guide);
+      canvas.drawLine(Offset(center.dx, 0), Offset(center.dx, size.height), guide);
+    }
+
+    // The highlight is intentionally separate from the model. Selection
+    // never changes its physical footprint, rotation or raster appearance.
     canvas.save();
-    canvas.translate(c.dx, c.dy);
-    canvas.rotate(o.rotationDeg * math.pi / 180);
-    final w = math.max(12.0, o.widthMm * scale),
-        d = math.max(12.0, o.depthMm * scale);
-    final r = Rect.fromCenter(center: Offset.zero, width: w, height: d);
-    final id = o.catalogId;
-
-    if (id.startsWith('bed-')) {
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(r, const Radius.circular(4)),
-        fill,
-      );
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(r, const Radius.circular(4)),
-        stroke,
-      );
-      final pillowW = w * .34, pillowH = d * .16;
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(-w * .42, -d * .42, pillowW, pillowH),
-          const Radius.circular(3),
-        ),
-        stroke,
-      );
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(w * .08, -d * .42, pillowW, pillowH),
-          const Radius.circular(3),
-        ),
-        stroke,
-      );
-      canvas.drawLine(
-        Offset(-w / 2, -d * .30),
-        Offset(w / 2, -d * .30),
-        stroke,
-      );
-    } else if (id.startsWith('sofa-')) {
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(r, Radius.circular(math.min(w, d) * .12)),
-        fill,
-      );
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(r, Radius.circular(math.min(w, d) * .12)),
-        stroke,
-      );
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(-w * .45, -d * .42, w * .90, d * .18),
-          const Radius.circular(3),
-        ),
-        stroke,
-      );
-      final seats = id == 'sofa-2' ? 2 : 3;
-      for (var i = 1; i < seats; i++) {
-        final x = -w * .40 + w * .80 * i / seats;
-        canvas.drawLine(Offset(x, -d * .18), Offset(x, d * .40), stroke);
-      }
-    } else if (id == 'armchair') {
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(r, Radius.circular(math.min(w, d) * .18)),
-        fill,
-      );
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(r, Radius.circular(math.min(w, d) * .18)),
-        stroke,
-      );
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(-w * .32, -d * .28, w * .64, d * .55),
-          const Radius.circular(4),
-        ),
-        stroke,
-      );
-    } else if (id == 'kitchen-sink') {
-      canvas.drawRect(r, fill);
-      canvas.drawRect(r, stroke);
-      final basin = Rect.fromCenter(
-        center: const Offset(0, 2),
-        width: w * .68,
-        height: d * .58,
-      );
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(basin, Radius.circular(math.min(w, d) * .08)),
-        stroke,
-      );
-      canvas.drawCircle(Offset(0, d * .10), math.min(w, d) * .045, stroke);
-      canvas.drawCircle(Offset(0, -d * .35), math.min(w, d) * .025, stroke);
-    } else if (id == 'kitchen-oven') {
-      canvas.drawRect(r, fill);
-      canvas.drawRect(r, stroke);
-      canvas.drawRect(
-        Rect.fromCenter(
-          center: Offset(0, d * .08),
-          width: w * .75,
-          height: d * .58,
-        ),
-        stroke,
-      );
-      for (var i = -1; i <= 1; i++) {
-        canvas.drawCircle(
-          Offset(i * w * .23, -d * .34),
-          math.min(w, d) * .045,
-          stroke,
-        );
-      }
-    } else if (id == 'washer' || id == 'dryer' || id == 'dishwasher') {
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(r, const Radius.circular(3)),
-        fill,
-      );
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(r, const Radius.circular(3)),
-        stroke,
-      );
-      if (id == 'dishwasher') {
-        canvas.drawLine(
-          Offset(-w * .4, -d * .3),
-          Offset(w * .4, -d * .3),
-          stroke,
-        );
-        canvas.drawCircle(
-          Offset(w * .3, -d * .4),
-          math.min(w, d) * .025,
-          stroke,
-        );
-      } else {
-        canvas.drawCircle(Offset(0, d * .05), math.min(w, d) * .32, stroke);
-        canvas.drawCircle(Offset(0, d * .05), math.min(w, d) * .24, stroke);
-        canvas.drawLine(
-          Offset(-w * .4, -d * .35),
-          Offset(w * .4, -d * .35),
-          stroke,
-        );
-      }
-    } else if (id.startsWith('wardrobe-') ||
-        id == 'fridge' ||
-        id.startsWith('kitchen-base') ||
-        id == 'kitchen-tall' ||
-        id == 'kitchen-upper') {
-      canvas.drawRect(r, fill);
-      canvas.drawRect(r, stroke);
-      final doors = id == 'wardrobe-3'
-          ? 3
-          : (id.startsWith('wardrobe') ? 2 : 1);
-      for (var i = 1; i < doors; i++) {
-        final x = -w / 2 + w * i / doors;
-        canvas.drawLine(Offset(x, -d / 2), Offset(x, d / 2), stroke);
-      }
-      if (id == 'fridge')
-        canvas.drawLine(
-          Offset(-w / 2, -d * .10),
-          Offset(w / 2, -d * .10),
-          stroke,
-        );
-      if (id.startsWith('wardrobe-') || id.startsWith('kitchen-')) {
-        for (var i = 0; i < doors; i++) {
-          final x = -w / 2 + w * (i + .5) / doors;
-          canvas.drawLine(Offset(x, d * .21), Offset(x, d * .38), stroke);
-        }
-      }
-    } else if (id == 'table-round') {
-      canvas.drawOval(r, fill);
-      canvas.drawOval(r, stroke);
-      canvas.drawCircle(Offset.zero, math.min(w, d) * .08, stroke);
-    } else if (id == 'table-rect') {
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(r, const Radius.circular(4)),
-        fill,
-      );
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(r, const Radius.circular(4)),
-        stroke,
-      );
-    } else if (id == 'chair') {
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(r, const Radius.circular(3)),
-        fill,
-      );
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(r, const Radius.circular(3)),
-        stroke,
-      );
-      canvas.drawLine(
-        Offset(-w / 2, -d * .28),
-        Offset(w / 2, -d * .28),
-        stroke,
-      );
-    } else if (id == 'toilet') {
-      canvas.drawOval(
-        Rect.fromCenter(
-          center: Offset(0, d * .10),
-          width: w * .72,
-          height: d * .66,
-        ),
-        fill,
-      );
-      canvas.drawOval(
-        Rect.fromCenter(
-          center: Offset(0, d * .10),
-          width: w * .72,
-          height: d * .66,
-        ),
-        stroke,
-      );
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromCenter(
-            center: Offset(0, -d * .34),
-            width: w * .75,
-            height: d * .25,
-          ),
-          const Radius.circular(3),
-        ),
-        stroke,
-      );
-    } else if (id == 'sink') {
-      canvas.drawOval(
-        Rect.fromCenter(center: Offset.zero, width: w * .92, height: d * .82),
-        fill,
-      );
-      canvas.drawOval(
-        Rect.fromCenter(center: Offset.zero, width: w * .92, height: d * .82),
-        stroke,
-      );
-      canvas.drawCircle(Offset(0, -d * .16), math.min(w, d) * .06, stroke);
-    } else if (id == 'bath') {
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(r, Radius.circular(d * .35)),
-        fill,
-      );
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(r, Radius.circular(d * .35)),
-        stroke,
-      );
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromCenter(center: Offset.zero, width: w * .84, height: d * .64),
-          Radius.circular(d * .28),
-        ),
-        stroke,
-      );
-    } else if (id == 'shower') {
-      canvas.drawRect(r, fill);
-      canvas.drawRect(r, stroke);
-      canvas.drawCircle(
-        Offset(-w * .30, -d * .30),
-        math.min(w, d) * .06,
-        stroke,
-      );
-      canvas.drawArc(
-        Rect.fromLTWH(-w * .42, -d * .42, w * .84, d * .84),
-        0,
-        math.pi / 2,
-        false,
-        stroke,
-      );
-      canvas.drawLine(
-        Offset(w * .42, -d * .42),
-        Offset(w * .42, d * .42),
-        stroke,
-      );
-    } else if (id == 'radiator') {
-      canvas.drawRect(r, fill);
-      canvas.drawRect(r, stroke);
-      for (var i = 1; i < 7; i++) {
-        final x = -w / 2 + w * i / 7;
-        canvas.drawLine(Offset(x, -d / 2), Offset(x, d / 2), stroke);
-      }
-    } else if ({
-      PlanObjectType.waterPoint,
-      PlanObjectType.drainPoint,
-    }.contains(o.type)) {
-      canvas.drawCircle(Offset.zero, 9, fill);
-      canvas.drawCircle(Offset.zero, 9, stroke);
-    } else {
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(r, const Radius.circular(4)),
-        fill,
-      );
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(r, const Radius.circular(4)),
-        stroke,
-      );
-    }
+    canvas.translate(center.dx, center.dy);
+    canvas.rotate(selected.rotationDeg * math.pi / 180);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(center: Offset.zero, width: width, height: depth),
+        const Radius.circular(4),
+      ),
+      Paint()
+        ..color = ZamerColors.accent
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2,
+    );
     canvas.restore();
 
-    if (!selected) return;
-    final name = o.label.isEmpty ? o.type.label : o.label;
+    final name =
+        selected.label.isEmpty ? selected.type.label : selected.label;
     final snapped = snapAngleDeg != null;
     final label = snapped
-        ? '$name • ${o.rotationDeg.round()}° • 90°'
-        : '$name • ${o.rotationDeg.round()}°';
+        ? '$'+'name • $'+'{selected.rotationDeg.round()}° • 90°'
+        : '$'+'name • $'+'{selected.rotationDeg.round()}°';
     final tp = TextPainter(
       text: TextSpan(
         text: label,
         style: TextStyle(
-          fontSize: 9,
+          fontSize: 10,
           fontWeight: FontWeight.w700,
           color: snapped ? const Color(0xFF087A5B) : const Color(0xFF30363D),
         ),
@@ -1832,20 +1544,21 @@ class _PlanningPainter extends CustomPainter {
       textDirection: TextDirection.ltr,
       maxLines: 1,
       ellipsis: '…',
-    )..layout(maxWidth: math.min(160.0, math.max(80.0, size.width - 24)));
-    final x = (c.dx - tp.width / 2)
+    )..layout(maxWidth: math.min(180.0, math.max(80.0, size.width - 24)));
+    final x = (center.dx - tp.width / 2)
         .clamp(8.0, math.max(8.0, size.width - tp.width - 8))
         .toDouble();
-    final y = (c.dy - d / 2 - 25)
+    final y = (center.dy - depth / 2 - 25)
         .clamp(8.0, math.max(8.0, size.height - tp.height - 8))
         .toDouble();
-    final labelRect = Rect.fromLTWH(x - 4, y - 2, tp.width + 8, tp.height + 4);
     canvas.drawRRect(
-      RRect.fromRectAndRadius(labelRect, const Radius.circular(4)),
-      Paint()
-        ..color = snapAngleDeg != null
-            ? const Color(0xFFE5F7F0)
-            : const Color(0xFFF7F8FA),
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(x - 4, y - 2, tp.width + 8, tp.height + 4),
+        const Radius.circular(4),
+      ),
+      Paint()..color = snapped
+          ? const Color(0xFFE5F7F0)
+          : const Color(0xFFF7F8FA),
     );
     tp.paint(canvas, Offset(x, y));
   }
