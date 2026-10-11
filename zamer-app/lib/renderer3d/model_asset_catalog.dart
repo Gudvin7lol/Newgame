@@ -110,6 +110,25 @@ class ZamerModelAssetCatalog {
         'wall-sconce-updown': (180, 150, 300),
       };
 
+  /// +131 adds approved *2D artwork* for these catalog entries but does
+  /// not yet ship nine new GLB meshes. Keep the GPU renderer functional by
+  /// resolving their 3D paths to existing, bundled models until their own 3D
+  /// assets are authored. Do not use this mapping for the 2D atlas lookup.
+  ///
+  /// In particular: the round rug and the child bed still use generic 3D
+  /// representations, not their final silhouettes.
+  static const _curated131GlbFallbackIds = <String, String>{
+    'sofa-olive': 'sofa-3',
+    'ottoman-round': 'ottoman',
+    'coffee-table-marble': 'coffee-table',
+    'coffee-table-oval': 'coffee-table',
+    'coffee-table-dark': 'coffee-table',
+    'bed-child': 'bed-160',
+    'rug-gray': 'rug-2000x1400',
+    'rug-pattern': 'rug-2000x1400',
+    'rug-round': 'rug-2000x1400',
+  };
+
   static ZamerModelAsset? byId(String id) {
     if (id.isEmpty) return null;
     final matches = ObjectCatalog.items.where((e) => e.id == id);
@@ -119,8 +138,9 @@ class ZamerModelAssetCatalog {
     // +82: the approved 2D catalog id is now the canonical key. When a
     // production entry is linked to it, the live 3D renderer consumes that
     // exact GLB. Items not migrated yet keep the safe legacy path.
-    final production = ZamerProductionCatalog.byPlanCatalogId(id);
-    final legacyBasePath = 'assets/models/zamer_catalog/$id';
+    final geometryId = _curated131GlbFallbackIds[id] ?? id;
+    final production = ZamerProductionCatalog.byPlanCatalogId(geometryId);
+    final legacyBasePath = 'assets/models/zamer_catalog/$geometryId';
     final assetPath = production?.model3d ?? '$legacyBasePath.glb';
     final assetStem = assetPath.endsWith('.glb')
         ? assetPath.substring(0, assetPath.length - 4)
