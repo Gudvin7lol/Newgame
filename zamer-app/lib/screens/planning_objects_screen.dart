@@ -830,6 +830,11 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
         ),
       ),
     );
+    // Curated +130 objects must be identical in the catalogue and CAD canvas.
+    // The separate 3D-camera thumbnail uses a different look and angle.
+    if (ImportedTopViewAssets.approvedRects.containsKey(item.id)) {
+      return fallback;
+    }
     return ZamerModelThumbnail(
       catalogId: item.id,
       size: size,
