@@ -70,7 +70,7 @@ class ImportedTopViewAssets extends ChangeNotifier {
     'coffee-table-dark': ui.Rect.fromLTRB(221, 126, 308, 216),
     'table-rect': ui.Rect.fromLTRB(318, 126, 450, 203),
     'table-round': ui.Rect.fromLTRB(460, 126, 547, 214),
-    'dining-table-1800': ui.Rect.fromLTRB(557, 126, 659, 227),
+    'dining-table-1800': ui.Rect.fromLTRB(318, 126, 450, 203), // Tabletop only: no unapproved chairs.
     'bed-160': ui.Rect.fromLTRB(669, 126, 815, 320),
     'bed-180': ui.Rect.fromLTRB(825, 126, 953, 321),
     'bed-child': ui.Rect.fromLTRB(963, 126, 1063, 321),
