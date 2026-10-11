@@ -51,6 +51,19 @@ class ImportedTopViewAssets extends ChangeNotifier {
   };
 
   final Map<String, ui.Image> _images = <String, ui.Image>{};
+  ui.Image? _approvedAtlas;
+
+  /// Physical silhouettes cropped from the transparent 384px +130 atlas.
+  /// One decoder and one GPU texture are shared by the four catalog IDs.
+  static const approvedRects = <String, ui.Rect>{
+    'sofa-3': ui.Rect.fromLTRB(5, 56, 188, 138),
+    'sofa-corner': ui.Rect.fromLTRB(196, 31, 380, 162),
+    'armchair': ui.Rect.fromLTRB(4, 201, 189, 372),
+    'nightstand': ui.Rect.fromLTRB(201, 205, 375, 360),
+  };
+
+  ui.Image? get approvedAtlas => _approvedAtlas;
+  ui.Rect? approvedRectForCatalog(String id) => approvedRects[id];
   Future<void>? _loadFuture;
 
   ui.Image? imageForCatalog(String catalogId) => _images[catalogId];
@@ -59,6 +72,24 @@ class ImportedTopViewAssets extends ChangeNotifier {
 
   Future<void> _load() async {
     var loadedAny = false;
+
+    try {
+      final data = await rootBundle.load('$_root/approved_130_atlas.webp');
+      final bytes = data.buffer.asUint8List(
+        data.offsetInBytes,
+        data.lengthInBytes,
+      );
+      final codec = await ui.instantiateImageCodec(bytes);
+      try {
+        _approvedAtlas = (await codec.getNextFrame()).image;
+        loadedAny = true;
+        notifyListeners();
+      } finally {
+        codec.dispose();
+      }
+    } catch (_) {
+      // An older asset pack can still use the existing raster/vector fallback.
+    }
     // Some catalogue IDs intentionally share one physically identical model.
     // Decode each WebP once to avoid duplicate GPU images and wasted memory.
     final decodedByFile = <String, ui.Image>{};
