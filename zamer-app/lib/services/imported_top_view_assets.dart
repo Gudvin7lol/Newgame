@@ -53,6 +53,43 @@ class ImportedTopViewAssets extends ChangeNotifier {
   final Map<String, ui.Image> _images = <String, ui.Image>{};
   ui.Image? _approvedAtlas;
 
+  // +131: one compressed WebP atlas for all approved furniture categories.
+  ui.Image? _curated131Atlas;
+  static const curated131Rects = <String, ui.Rect>{
+    'sofa-3': ui.Rect.fromLTRB(8, 8, 274, 107),
+    'sofa-2': ui.Rect.fromLTRB(284, 8, 439, 116),
+    'sofa-modular': ui.Rect.fromLTRB(449, 8, 654, 114),
+    'sofa-olive': ui.Rect.fromLTRB(664, 8, 879, 108),
+    'armchair': ui.Rect.fromLTRB(889, 8, 966, 98),
+    'lounge-chair': ui.Rect.fromLTRB(976, 8, 1060, 99),
+    'ottoman': ui.Rect.fromLTRB(1070, 8, 1127, 67),
+    'ottoman-round': ui.Rect.fromLTRB(1137, 8, 1191, 63),
+    'coffee-table': ui.Rect.fromLTRB(1201, 8, 1264, 92),
+    'coffee-table-marble': ui.Rect.fromLTRB(8, 126, 105, 209),
+    'coffee-table-oval': ui.Rect.fromLTRB(115, 126, 211, 208),
+    'coffee-table-dark': ui.Rect.fromLTRB(221, 126, 308, 216),
+    'table-rect': ui.Rect.fromLTRB(318, 126, 450, 203),
+    'table-round': ui.Rect.fromLTRB(460, 126, 547, 214),
+    'dining-table-1800': ui.Rect.fromLTRB(557, 126, 659, 227),
+    'bed-160': ui.Rect.fromLTRB(669, 126, 815, 320),
+    'bed-180': ui.Rect.fromLTRB(825, 126, 953, 321),
+    'bed-child': ui.Rect.fromLTRB(963, 126, 1063, 321),
+    'bath': ui.Rect.fromLTRB(1073, 126, 1153, 291),
+    'shower': ui.Rect.fromLTRB(1163, 126, 1259, 295),
+    'toilet': ui.Rect.fromLTRB(8, 331, 64, 423),
+    'sink': ui.Rect.fromLTRB(74, 331, 161, 391),
+    'bidet': ui.Rect.fromLTRB(171, 331, 212, 403),
+    'vanity-800': ui.Rect.fromLTRB(222, 331, 312, 364),
+    'basin-round': ui.Rect.fromLTRB(322, 331, 381, 397),
+    'rug-2000x1400': ui.Rect.fromLTRB(391, 331, 522, 435),
+    'rug-gray': ui.Rect.fromLTRB(532, 331, 670, 436),
+    'rug-pattern': ui.Rect.fromLTRB(680, 331, 842, 438),
+    'rug-round': ui.Rect.fromLTRB(852, 331, 960, 443),
+  };
+
+  ui.Image? get curated131Atlas => _curated131Atlas;
+  ui.Rect? curated131RectForCatalog(String id) => curated131Rects[id];
+
   /// Physical silhouettes cropped from the transparent 640px +130 atlas.
   /// One decoder and one GPU texture are shared by the four catalog IDs.
   static const approvedRects = <String, ui.Rect>{
@@ -72,6 +109,24 @@ class ImportedTopViewAssets extends ChangeNotifier {
 
   Future<void> _load() async {
     var loadedAny = false;
+
+    // Load approved 2D art once. Failure never hides an object: the +130
+    // atlas, production previews and vector fallbacks remain available.
+    try {
+      final data = await rootBundle.load('$_root/approved_131_atlas.webp');
+      final codec = await ui.instantiateImageCodec(
+        data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
+      );
+      try {
+        _curated131Atlas = (await codec.getNextFrame()).image;
+        loadedAny = true;
+        notifyListeners();
+      } finally {
+        codec.dispose();
+      }
+    } catch (_) {
+      // No asset pack on legacy installations: retain deterministic fallback.
+    }
 
     try {
       final data = await rootBundle.load('$_root/approved_130_atlas.webp');
