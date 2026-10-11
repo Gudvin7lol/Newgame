@@ -43,5 +43,13 @@ void main() {
     expect(painter.contains('image = assets.imageForCatalog(object.catalogId)'),
         isTrue);
     expect(screen.contains('CadPlanPainter('), isTrue);
+    // Curated furniture must bypass the unrelated 3D thumbnail widget,
+    // otherwise the catalogue still differs from Plan and Equipment.
+    expect(
+      screen.contains(
+        'ImportedTopViewAssets.approvedRects.containsKey(item.id)',
+      ),
+      isTrue,
+    );
   });
 }
