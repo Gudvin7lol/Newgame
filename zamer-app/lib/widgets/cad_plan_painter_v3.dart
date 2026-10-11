@@ -53,12 +53,35 @@ class CadPlanPainterV3 extends CustomPainter {
     Offset center,
     double mmToPx,
   ) {
-    final image = ImportedTopViewAssets.instance.imageForCatalog(object.catalogId);
-    if (image == null) return false;
+    final assets = ImportedTopViewAssets.instance;
     final width = object.widthMm * mmToPx;
     final depth = object.depthMm * mmToPx;
     if (width < 8 || depth < 8) return false;
 
+    // Use the approved top-down photograph before production-model previews.
+    // A fixed catalog ID keeps Plan / Equipment / Catalog visually identical.
+    final atlas = assets.approvedAtlas;
+    final sprite = assets.approvedRectForCatalog(object.catalogId);
+    if (atlas != null && sprite != null) {
+      canvas.save();
+      canvas.translate(center.dx, center.dy);
+      canvas.rotate(object.rotationDeg * 3.141592653589793 / 180);
+      canvas.drawImageRect(
+        atlas,
+        sprite,
+        Rect.fromCenter(
+          center: Offset.zero,
+          width: width,
+          height: depth,
+        ),
+        Paint()..filterQuality = FilterQuality.high,
+      );
+      canvas.restore();
+      return true;
+    }
+
+    final image = assets.imageForCatalog(object.catalogId);
+    if (image == null) return false;
     canvas.save();
     canvas.translate(center.dx, center.dy);
     canvas.rotate(object.rotationDeg * 3.141592653589793 / 180);
