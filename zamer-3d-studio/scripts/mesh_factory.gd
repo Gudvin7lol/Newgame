@@ -38,12 +38,12 @@ static func soft_box(w:float,h:float,d:float,round_radius:float,fullness:float,s
                 var position:=near+outward*radius
                 var falloff:=pow(maxf(0.0,1.0-u*u),2.0)*pow(maxf(0.0,1.0-v*v),2.0)
                 if axis_n.y>0.5:
-                    position.y+=(0.004+0.013*fullness)*falloff
+                    position.y+=(0.002+0.005*fullness)*falloff
                     position.y+=sin(8.0*u+seed)*sin(7.0*v+seed)*0.0009*falloff
                 elif absf(axis_n.z)>0.5:
-                    position.z+=axis_n.z*(0.003+0.009*fullness)*falloff
+                    position.z+=axis_n.z*(0.001+0.003*fullness)*falloff
                 elif absf(axis_n.x)>0.5:
-                    position.x+=axis_n.x*0.005*fullness*falloff
+                    position.x+=axis_n.x*0.003*fullness*falloff
                 vtx.append(position)
                 nrm.append(outward)
                 uv.append(Vector2((u+1.0)*eu.length()*4.2,(v+1.0)*ev.length()*4.2))
