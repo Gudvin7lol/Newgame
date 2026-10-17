@@ -71,7 +71,6 @@ func _create_ui() -> void:
     outer.add_child(surface)
     view = SubViewport.new()
     view.size = Vector2i(540, 620)
-    view.usage = SubViewport.USAGE_3D
     view.render_target_update_mode = SubViewport.UPDATE_ALWAYS
     surface.add_child(view)
 
