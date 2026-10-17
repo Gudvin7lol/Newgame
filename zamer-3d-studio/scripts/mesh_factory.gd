@@ -8,10 +8,10 @@ static func soft_box(w: float, h: float, d: float, round_radius: float, fullness
     var radius := minf(round_radius, minf(half.x,minf(half.y,half.z))*0.9)
     var core := half - Vector3(radius,radius,radius)
     var axes := [
-        [Vector3.RIGHT, Vector3.BACK, Vector3.UP],
-        [Vector3.LEFT, Vector3.FORWARD, Vector3.UP],
-        [Vector3.UP, Vector3.RIGHT, Vector3.BACK],
-        [Vector3.DOWN, Vector3.RIGHT, Vector3.FORWARD],
+        [Vector3.RIGHT, Vector3.FORWARD, Vector3.UP],
+        [Vector3.LEFT, Vector3.BACK, Vector3.UP],
+        [Vector3.UP, Vector3.RIGHT, Vector3.FORWARD],
+        [Vector3.DOWN, Vector3.RIGHT, Vector3.BACK],
         [Vector3.BACK, Vector3.RIGHT, Vector3.UP],
         [Vector3.FORWARD, Vector3.LEFT, Vector3.UP]
     ]

@@ -509,7 +509,7 @@ func _camera_move() -> void:
     if rig == null: return
     rig.rotation=Vector3(orbit_x,orbit_y,0)
     camera.position=Vector3(0,0,zoom)
-    camera.look_at(Vector3.ZERO)
+    camera.look_at(Vector3(0,0.55,0))
 
 func _lighting() -> void:
     if lights.size()<3: return
