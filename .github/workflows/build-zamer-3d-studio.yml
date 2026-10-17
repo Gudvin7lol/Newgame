@@ -52,6 +52,14 @@ jobs:
           EOF
       - name: Import resources and check scripts
         run: godot --headless --editor --path zamer-3d-studio --import
+      - name: Launch app scene and detect script errors
+        run: |
+          set -o pipefail
+          godot --headless --path zamer-3d-studio --quit-after 20 2>&1 | tee /tmp/zamer-scene.log
+          if grep -E "SCRIPT ERROR|Parse Error|Failed to load script|Invalid call|ERROR:" /tmp/zamer-scene.log; then
+            echo "The scene has errors; refuse to publish this APK."
+            exit 1
+          fi
       - name: Test geometry
         run: godot --headless --path zamer-3d-studio --script res://tests/smoke.gd
       - name: Build APK

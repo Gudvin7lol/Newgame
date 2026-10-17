@@ -79,7 +79,6 @@ func _create_ui() -> void:
     root.add_child(stage)
     view=SubViewport.new()
     view.size=Vector2i(620,820)
-    view.usage=SubViewport.USAGE_3D
     view.render_target_update_mode=SubViewport.UPDATE_ALWAYS
     stage.add_child(view)
 
