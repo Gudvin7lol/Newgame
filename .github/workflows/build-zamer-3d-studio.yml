@@ -57,7 +57,7 @@ jobs:
       - name: Build APK
         run: |
           mkdir -p build
-          godot --headless --path zamer-3d-studio --export-debug "Android" "$GITHUB_WORKSPACE/build/ZAMER-3D-Studio-0.3-debug.apk"
+          godot --headless --verbose --path zamer-3d-studio --export-debug "Android" "$GITHUB_WORKSPACE/build/ZAMER-3D-Studio-0.3-debug.apk"
           test -s build/ZAMER-3D-Studio-0.3-debug.apk
       - name: Upload APK
         uses: actions/upload-artifact@v4
