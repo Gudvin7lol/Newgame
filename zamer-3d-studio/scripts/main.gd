@@ -27,7 +27,7 @@ var softness := 0.7
 var fabric_id := 0
 var orbit_y := 0.5
 var orbit_x := -0.20
-var zoom := 4.4
+var zoom := 3.9
 var pointers: Dictionary = {}
 var upholstery: StandardMaterial3D
 var timber: StandardMaterial3D
@@ -65,7 +65,7 @@ func _create_ui() -> void:
     heading.add_theme_color_override("font_color",WHITE)
     header.add_child(heading)
     var version := Label.new()
-    version.text="WORKSHOP  0.4"
+    version.text="WORKSHOP  0.5"
     version.add_theme_font_size_override("font_size",11)
     version.add_theme_color_override("font_color",MINT)
     header.add_child(version)
@@ -253,7 +253,7 @@ func _set_fabric(id: int) -> void:
 func _set_light(id: int) -> void:
     light_style=id
     if lights.size()<3: return
-    var levels: Array = [[1.15,0.8,1.0],[1.6,1.0,1.5],[2.0,0.35,1.85]]
+    var levels: Array = [[0.90,0.40,0.55],[1.05,0.52,0.70],[1.25,0.20,0.92]]
     for i in range(3):
         lights[i].light_energy=levels[id][i]
     _notify("Настройки света применены")
@@ -271,46 +271,48 @@ func _create_scene() -> void:
     world.add_child(sky)
     var ambience := Environment.new()
     ambience.background_mode = Environment.BG_COLOR
-    ambience.background_color = Color("#182433")
+    ambience.background_color = Color("#1a2734")
     ambience.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
     ambience.ambient_light_color = Color("#b8c9df")
-    ambience.ambient_light_energy = 0.45
+    ambience.ambient_light_energy = 0.34
     sky.environment = ambience
 
     model = Node3D.new()
     model.name = "ExportableFurniture"
     world.add_child(model)
     var floor_material := StandardMaterial3D.new()
-    floor_material.albedo_color = Color("#171e29")
+    floor_material.albedo_color = Color("#222f3c")
     floor_material.roughness = 0.92
     var plane := PlaneMesh.new()
-    plane.size = Vector2(15,15)
+    plane.size = Vector2(200,200)
     _part(world, "Studio backdrop", plane, Vector3(0,-0.03,0), floor_material)
 
     var sun := DirectionalLight3D.new()
     sun.rotation_degrees = Vector3(-48,32,0)
-    sun.light_energy = 1.6
+    sun.light_energy = 0.90
+    sun.shadow_bias = 0.09
+    sun.shadow_normal_bias = 2.4
     sun.shadow_enabled = true
     world.add_child(sun)
     lights.append(sun)
     var fill := OmniLight3D.new()
     fill.position = Vector3(-2.6,3.8,2.7)
-    fill.light_energy = 1.2
+    fill.light_energy = 0.40
     fill.omni_range = 10.0
     world.add_child(fill)
     lights.append(fill)
     var rim := OmniLight3D.new()
     rim.position = Vector3(3.5,3.0,-2.5)
-    rim.light_energy = 1.5
+    rim.light_energy = 0.55
     rim.omni_range = 12.0
     world.add_child(rim)
     lights.append(rim)
 
     rig = Node3D.new()
-    rig.position = Vector3(0,0.65,0)
+    rig.position = Vector3(0,0.52,0)
     world.add_child(rig)
     camera = Camera3D.new()
-    camera.fov = 45.0
+    camera.fov = 42.0
     camera.current = true
     rig.add_child(camera)
 
@@ -356,12 +358,12 @@ func _wood_texture() -> Texture2D:
     return ImageTexture.create_from_image(img)
 
 func _create_materials() -> void:
-    var colors := [Color("#958879"),Color("#454d56"),Color("#63725f"),Color("#935a3a")]
+    var colors := [Color("#867a70"),Color("#454c58"),Color("#6b7768"),Color("#815239")]
     upholstery=StandardMaterial3D.new()
     upholstery.albedo_texture=_fabric_texture(colors[fabric_id],fabric_id)
-    upholstery.roughness=0.9 if fabric_id!=3 else 0.68
+    upholstery.roughness=0.91 if fabric_id!=3 else 0.73
     upholstery.normal_enabled=true
-    upholstery.normal_scale=0.28 if fabric_id!=3 else 0.17
+    upholstery.normal_scale=0.13 if fabric_id!=3 else 0.09
     upholstery.normal_texture=_fabric_normal()
     upholstery.texture_filter=BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
 
@@ -405,8 +407,8 @@ func _sofa() -> void:
     var seat_height:=0.165
     var seat_depth:=d*0.70
     var seat_z:=d*0.11
-    _round("Upholstered foundation",Vector3(w-0.07,0.255,d-0.065),Vector3(0,0.265,0),0.052,0.07,3.0,upholstery)
-    _round("Continuous back shell",Vector3(w-0.055,0.48,0.19),Vector3(0,0.59,-d*0.39),0.057,0.35,2.0,upholstery)
+    _round("Upholstered foundation",Vector3(w-0.06,0.235,d-0.065),Vector3(0,0.285,0),0.040,0.07,3.0,upholstery)
+    _round("Continuous back shell",Vector3(w-0.055,maxf(0.44,h-0.29),0.20),Vector3(0,0.56,-d*0.39),0.055,0.20,2.0,upholstery)
     for side in [-1.0,1.0]:
         _round("Upholstered arm",Vector3(arm,0.46,d*0.92),Vector3(side*(w*0.5-arm*0.5),0.54,0),0.057,0.58,4.0+side,upholstery)
     var sections:=3
@@ -417,7 +419,7 @@ func _sofa() -> void:
         var xx:=-inside*0.5+(float(i)+0.5)*pad_w+float(i)*gap
         _round("Seat cushion %d" % (i+1),Vector3(pad_w*0.985,seat_height,seat_depth),Vector3(xx,main_seat_y,seat_z),0.052,softness,float(i)+2.0,upholstery)
         _round("Back cushion %d" % (i+1),Vector3(pad_w*0.99,back_h,0.22),Vector3(xx,h-back_h*0.5-0.018,-d*0.295),0.055,softness,float(i)+9.0,upholstery)
-        _part(model,"Front seam %d" % (i+1),Factory.welt(pad_w*0.80),Vector3(xx,main_seat_y+0.020,seat_z+seat_depth*0.5-0.006),edge_mat)
+        # Removed intersecting welt geometry: caused z-fighting / black dotted seams.
     for sx in [-1.0,1.0]:
         for sz in [-1.0,1.0]:
             var leg:=CylinderMesh.new()
@@ -508,7 +510,7 @@ func _camera_move() -> void:
     if rig == null: return
     rig.rotation=Vector3(orbit_x,orbit_y,0)
     camera.position=Vector3(0,0,zoom)
-    camera.look_at(Vector3(0,0.55,0))
+    camera.look_at(Vector3.ZERO)
 
 func _lighting() -> void:
     if lights.size()<3: return

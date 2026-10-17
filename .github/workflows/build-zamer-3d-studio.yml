@@ -65,11 +65,11 @@ jobs:
       - name: Build APK
         run: |
           mkdir -p build
-          godot --headless --verbose --path zamer-3d-studio --export-debug "Android" "$GITHUB_WORKSPACE/build/ZAMER-3D-Studio-0.4-debug.apk"
-          test -s build/ZAMER-3D-Studio-0.4-debug.apk
+          godot --headless --verbose --path zamer-3d-studio --export-debug "Android" "$GITHUB_WORKSPACE/build/ZAMER-3D-Studio-0.5-debug.apk"
+          test -s build/ZAMER-3D-Studio-0.5-debug.apk
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: ZAMER-3D-Studio-Android-APK
-          path: build/ZAMER-3D-Studio-0.4-debug.apk
+          path: build/ZAMER-3D-Studio-0.5-debug.apk
           if-no-files-found: error
