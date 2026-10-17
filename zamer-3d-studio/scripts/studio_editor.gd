@@ -427,12 +427,12 @@ func _transform_ui() -> void:
     for mode in ["pos", "rot", "size"]:
         var row := HBoxContainer.new()
         inspector.add_child(row)
-        var title := {"pos":"Позиция", "rot":"Поворот", "size":"Размер"}[mode]
+        var title: String = {"pos":"Позиция", "rot":"Поворот", "size":"Размер"}[mode]
         var label := _text(str(title), 12, SUBTLE)
         label.custom_minimum_size.x = 72
         row.add_child(label)
         for axis in range(3):
-            var axis_name := ["X", "Y", "Z"][axis]
+            var axis_name: String = ["X", "Y", "Z"][axis]
             _btn(row, "%s −" % axis_name, _nudge.bind(mode, axis, -1))
             _btn(row, "%s +" % axis_name, _nudge.bind(mode, axis, 1))
     inspector.add_child(_text("Шаг: 10 мм для позиции/размера, 5° для поворота.", 11, SUBTLE))
