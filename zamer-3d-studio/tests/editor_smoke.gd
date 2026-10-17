@@ -44,6 +44,7 @@ func _run() -> void:
         push_error("Delete failed")
         quit(7)
         return
+    editor._choose(int(editor.data[0]["id"]))
     editor._assign_material(3)
     if int(editor.data[0]["mat"]) != 3:
         push_error("Material assignment failed")
