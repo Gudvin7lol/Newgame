@@ -682,10 +682,17 @@ func _load_file() -> void:
 
 func _export_glb() -> void:
     DirAccess.make_dir_recursive_absolute("user://exports")
+    # Selection guides are editor-only. Remove them from the exported scene.
+    var parent: Node = null
+    if selection_overlay != null and is_instance_valid(selection_overlay):
+        parent = selection_overlay.get_parent()
+        parent.remove_child(selection_overlay)
     var exporter := GLTFDocument.new()
     var state := GLTFState.new()
     var err := exporter.append_from_scene(model_root, state)
     if err == OK: err = exporter.write_to_filesystem(state, "user://exports/studio_mesh.glb")
+    if parent != null and is_instance_valid(parent) and is_instance_valid(selection_overlay):
+        parent.add_child(selection_overlay)
     _note("GLB сохранён во внутреннюю память" if err == OK else "GLB: ошибка %d" % err)
 
 func _export_png() -> void:

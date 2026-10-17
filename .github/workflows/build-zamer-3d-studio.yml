@@ -60,16 +60,23 @@ jobs:
             echo "The scene has errors; refuse to publish this APK."
             exit 1
           fi
+      - name: Verify real editor operations
+        run: |
+          set -o pipefail
+          godot --headless --path zamer-3d-studio --script res://tests/editor_smoke.gd 2>&1 | tee /tmp/studio-editor-tests.log
+          if grep -E "SCRIPT ERROR|Parse Error|Invalid call|ERROR:" /tmp/studio-editor-tests.log; then
+            exit 1
+          fi
       - name: Test geometry
         run: godot --headless --path zamer-3d-studio --script res://tests/smoke.gd
       - name: Build APK
         run: |
           mkdir -p build
-          godot --headless --verbose --path zamer-3d-studio --export-debug "Android" "$GITHUB_WORKSPACE/build/ZAMER-3D-Studio-0.5-debug.apk"
-          test -s build/ZAMER-3D-Studio-0.5-debug.apk
+          godot --headless --verbose --path zamer-3d-studio --export-debug "Android" "$GITHUB_WORKSPACE/build/ZAMER-3D-Studio-0.6-debug.apk"
+          test -s build/ZAMER-3D-Studio-0.6-debug.apk
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: ZAMER-3D-Studio-Android-APK
-          path: build/ZAMER-3D-Studio-0.5-debug.apk
+          path: build/ZAMER-3D-Studio-0.6-debug.apk
           if-no-files-found: error
