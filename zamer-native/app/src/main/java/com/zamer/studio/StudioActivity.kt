@@ -24,6 +24,7 @@ class StudioActivity : Activity() {
     private var previousY = 0f
     private var previousPinch = 0f
     private var translation = false
+    private var firstRenderReport = true
     private val bg = Color.rgb(11, 18, 29)
     private val panel = Color.rgb(20, 33, 48)
     private val accent = Color.rgb(59, 219, 196)
@@ -54,6 +55,7 @@ class StudioActivity : Activity() {
             setRenderer(object : GLSurfaceView.Renderer {
                 override fun onSurfaceCreated(gl: javax.microedition.khronos.opengles.GL10?,
                                               config: javax.microedition.khronos.egl.EGLConfig?) {
+                    firstRenderReport = true
                     Native.initGl(engine)
                     val status = Native.graphicsStatus(engine)
                     runOnUiThread { graphicsStatus.text = status }
@@ -65,6 +67,11 @@ class StudioActivity : Activity() {
                 }
                 override fun onDrawFrame(gl: javax.microedition.khronos.opengles.GL10?) {
                     Native.draw(engine)
+                    if (firstRenderReport) {
+                        firstRenderReport = false
+                        val report = Native.graphicsStatus(engine)
+                        runOnUiThread { graphicsStatus.text = report }
+                    }
                 }
             })
             renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY

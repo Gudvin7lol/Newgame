@@ -172,5 +172,11 @@ void Renderer::draw(){
  drawGrid(projection,view,eye);
  for(size_t i=0;i<scene.objects.size();i++)drawItem(scene.objects[i],int(i),projection,view,eye);
  glBindBuffer(GL_ARRAY_BUFFER,0);
+ GLenum glError=glGetError();
+ if(glError!=GL_NO_ERROR){
+    state="GPU DRAW ERROR: "+std::to_string(int(glError));
+ } else if (state.rfind("GPU OK:",0)==0){
+    state="GPU DRAW OK: "+std::to_string(scene.objects.size())+" objects";
+ }
 }
 } // namespace zamer
