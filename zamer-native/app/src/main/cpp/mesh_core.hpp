@@ -43,6 +43,8 @@ struct Object {
     float yaw=0.f;
     int material=0;
     int selectedFace=2;
+    int selectedVertex=-1;
+    int selectedEdgeA=-1,selectedEdgeB=-1;
     int type=0;
     unsigned int gpuBuffer=0;
     int gpuVertices=0;
@@ -64,6 +66,7 @@ public:
     void selectNext();
     void move(float x,float z);
     bool transform(int mode,int axis,float amount);
+    bool moveComponent(int mode,int axis,float metres);
     bool inset(float fraction);
     bool extrude(float metres);
     void subdivide();

@@ -287,6 +287,26 @@ void Scene::subdivide(){
     if(o.mesh.faces.size()>1000)return;
     o.mesh.subdivide();o.selectedFace=0;o.dirty=true;
 }
+bool Scene::moveComponent(int mode,int axis,float metres){
+    if(selected<0 || size_t(selected)>=objects.size() || axis<0 || axis>2 ||
+       !std::isfinite(metres) || std::fabs(metres)>5.f)return false;
+    Object&o=objects[size_t(selected)];
+    if(mode!=1&&mode!=2)return false; // vertex or edge only
+    int a=(mode==1)?o.selectedVertex:o.selectedEdgeA;
+    int b=(mode==2)?o.selectedEdgeB:-1;
+    if(a<0 || size_t(a)>=o.mesh.vertices.size())return false;
+    if(mode==2 && (b<0 || size_t(b)>=o.mesh.vertices.size() || a==b))return false;
+    // Project a WORLD axis motion into mesh-local axes, accounting for object yaw and scale.
+    const float c=std::cos(o.yaw),s=std::sin(o.yaw);
+    Vec3 delta{};
+    if(axis==0)delta={c*metres/o.scale.x,0.f,s*metres/o.scale.z};
+    else if(axis==1)delta={0.f,metres/o.scale.y,0.f};
+    else delta={-s*metres/o.scale.x,0.f,c*metres/o.scale.z};
+    o.mesh.vertices[size_t(a)]+=delta;
+    if(mode==2)o.mesh.vertices[size_t(b)]+=delta;
+    o.dirty=true;
+    return true;
+}
 void Scene::setMaterial(int id){
     if(selected<0||size_t(selected)>=objects.size())return;
     auto&o=objects[size_t(selected)];
@@ -299,6 +319,8 @@ std::string Scene::describe() const{
     if(selected>=0&&size_t(selected)<objects.size()){
         auto&o=objects[size_t(selected)];
         stream<<"  |  №"<<selected+1<<" • грань "<<o.selectedFace+1<<"/"<<o.mesh.faces.size()<<" • "<<o.mesh.vertices.size()<<" вершин";
+        if(o.selectedVertex>=0)stream<<" • вершина "<<o.selectedVertex;
+        if(o.selectedEdgeA>=0)stream<<" • ребро "<<o.selectedEdgeA<<"-"<<o.selectedEdgeB;
     }
     return stream.str();
 }

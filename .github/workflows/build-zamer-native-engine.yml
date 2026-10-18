@@ -46,6 +46,10 @@ jobs:
         run: |
           g++ -std=c++17 -Wall -Wextra -Werror zamer-native/tests/gizmo_math_test.cpp zamer-native/app/src/main/cpp/gizmo_math.cpp zamer-native/app/src/main/cpp/mesh_core.cpp -I zamer-native/app/src/main/cpp -o /tmp/zamer-gizmo-tests
           /tmp/zamer-gizmo-tests
+      - name: Test topology editing
+        run: |
+          g++ -std=c++17 -Wall -Wextra -Werror zamer-native/tests/mesh_edit_test.cpp zamer-native/app/src/main/cpp/mesh_core.cpp zamer-native/app/src/main/cpp/mesh_edit.cpp -I zamer-native/app/src/main/cpp -o /tmp/zamer-edit-tests
+          /tmp/zamer-edit-tests
       - name: Build Kotlin + C++ APK
         working-directory: zamer-native
         run: gradle :app:assembleDebug --no-daemon --stacktrace
