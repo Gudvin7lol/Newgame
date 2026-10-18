@@ -2,12 +2,13 @@ import 'dart:math' as math;
 
 import '../models/models.dart';
 
-enum NodeSnapKind { none, node, wall, ortho, angle45, alignX, alignY, grid }
+enum NodeSnapKind { none, node, midpoint, wall, ortho, angle45, alignX, alignY, grid }
 
 extension NodeSnapKindLabel on NodeSnapKind {
   String get label => switch (this) {
     NodeSnapKind.none => 'Без привязки',
     NodeSnapKind.node => 'Узел',
+    NodeSnapKind.midpoint => 'Середина стены',
     NodeSnapKind.wall => 'Стена',
     NodeSnapKind.ortho => '90°',
     NodeSnapKind.angle45 => '45°',
@@ -639,10 +640,67 @@ class GeometryService {
     double wallThresholdMm = 100,
     double guideThresholdMm = 80,
     double gridMm = 10,
+    NodeSnapResult? previousSnap,
+    double? releaseThresholdMm,
   }) {
     final moving = floor.nodeById(movingNodeId);
     if (moving == null || !enabled) {
       return NodeSnapResult(point: raw, kind: NodeSnapKind.none);
+    }
+
+    // Retain a captured geometric target until the finger crosses a larger
+    // release radius. Without hysteresis the vertex jumps between coincident
+    // wall/point targets as a finger moves by a single screen pixel.
+    final release = releaseThresholdMm ??
+        math.max(nodeThresholdMm, wallThresholdMm) * 1.5;
+    if (previousSnap != null && release > 0) {
+      final nodeId = previousSnap.targetNodeId;
+      if (nodeId != null && nodeId != movingNodeId) {
+        final target = floor.nodeById(nodeId);
+        if (target != null) {
+          final point = math.Point<double>(target.xMm, target.yMm);
+          final distance = _pointDistance(raw, point);
+          if (distance <= release) {
+            return NodeSnapResult(
+              point: point,
+              kind: NodeSnapKind.node,
+              targetNodeId: nodeId,
+              distanceMm: distance,
+            );
+          }
+        }
+      }
+      final wallId = previousSnap.targetWallId;
+      if (wallId != null) {
+        final wall = floor.wallById(wallId);
+        if (wall != null &&
+            wall.startNodeId != movingNodeId &&
+            wall.endNodeId != movingNodeId) {
+          final a = floor.nodeById(wall.startNodeId);
+          final b = floor.nodeById(wall.endNodeId);
+          if (a != null && b != null) {
+            final start = math.Point<double>(a.xMm, a.yMm);
+            final end = math.Point<double>(b.xMm, b.yMm);
+            final point = previousSnap.kind == NodeSnapKind.midpoint
+                ? math.Point<double>((start.x + end.x) / 2,
+                    (start.y + end.y) / 2)
+                : _projectPointToSegment(raw, start, end).point;
+            final projection = _projectPointToSegment(raw, start, end);
+            final distance = _pointDistance(raw, point);
+            if (distance <= release &&
+                projection.t > 0.015 && projection.t < 0.985) {
+              return NodeSnapResult(
+                point: point,
+                kind: previousSnap.kind == NodeSnapKind.midpoint
+                    ? NodeSnapKind.midpoint
+                    : NodeSnapKind.wall,
+                targetWallId: wallId,
+                distanceMm: distance,
+              );
+            }
+          }
+        }
+      }
     }
 
     PlanNode? nearest;
@@ -661,6 +719,38 @@ class GeometryService {
         kind: NodeSnapKind.node,
         targetNodeId: nearest.id,
         distanceMm: nearestDistance,
+      );
+    }
+
+    // Midpoint is a distinct semantic snap. It still carries a wall id so
+    // finalizeNodeMove can split the wall into a genuine T-junction.
+    PlanWall? midpointWall;
+    math.Point<double>? midpoint;
+    var midpointDistance = math.min(nodeThresholdMm, wallThresholdMm);
+    for (final wall in floor.walls) {
+      if (wall.isCurved ||
+          wall.startNodeId == movingNodeId ||
+          wall.endNodeId == movingNodeId) continue;
+      final a = floor.nodeById(wall.startNodeId);
+      final b = floor.nodeById(wall.endNodeId);
+      if (a == null || b == null) continue;
+      final middle = math.Point<double>(
+        (a.xMm + b.xMm) / 2,
+        (a.yMm + b.yMm) / 2,
+      );
+      final distance = _pointDistance(raw, middle);
+      if (distance < midpointDistance) {
+        midpointDistance = distance;
+        midpoint = middle;
+        midpointWall = wall;
+      }
+    }
+    if (midpointWall != null) {
+      return NodeSnapResult(
+        point: midpoint!,
+        kind: NodeSnapKind.midpoint,
+        targetWallId: midpointWall.id,
+        distanceMm: midpointDistance,
       );
     }
 
