@@ -45,3 +45,5 @@ int pickObject(const Scene& scene,Vec3 origin,Vec3 direction) {
     }
     return found;
 }
+
+} // namespace zamer
