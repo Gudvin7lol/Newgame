@@ -2,7 +2,13 @@
 
 Furniture assets must have explicit commercial-use and redistribution rights.
 
-## +126 CI-fetched CC0 assets
+## +132 deterministic build fallback
+
+By default, CI uses 3D meshes generated from the repository's own featured-model source scripts. These are not labelled or presented as vendor CC0 assets. For compatibility, the `bed-160` GLB and its two LODs temporarily reuse the generated `bed-180` geometry. The generated `bed-180` and `sofa-3` preserve their own LOD meshes and matching top-view previews.
+
+External CC0 models are optional: set `ZAMER_USE_REMOTE_CC0=1` in a build environment. Only when both external downloads succeed are the generated meshes replaced. If the CDN is unreachable, CI keeps the local models and can still build the APK. This avoids broken builds without misrepresenting asset origin.
+
+## +126 CI-fetched CC0 assets (opt-in for +132)
 
 | Zamer ID | Source | Licence | Notes |
 | --- | --- | --- | --- |
