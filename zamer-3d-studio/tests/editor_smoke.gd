@@ -107,5 +107,15 @@ func _run() -> void:
         push_error("Round trip GLB contains invalid geometry")
         quit(17)
         return
+    editor._set_exact(1450.0,"size",0)
+    if absf(float(editor.data[-1]["size"][0])-1.45)>0.0001:
+        push_error("Millimetre input did not convert to metres")
+        quit(18)
+        return
+    editor._camera_preset("top")
+    if absf(editor.orbit_x + PI*0.499)>0.002:
+        push_error("Top camera preset failed")
+        quit(19)
+        return
     print("EDITOR SMOKE OK: vertex edit, undo/redo, extrude, inset, bevel, GLB roundtrip")
     quit(0)
