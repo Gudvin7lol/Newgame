@@ -28,6 +28,12 @@ jobs:
         run: |
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018" "cmake;3.22.1"
+      - name: Install offline GLSL validator
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq glslang-tools
+      - name: Validate GLSL ES shaders
+        run: python3 zamer-native/tests/validate_shader.py
       - name: Validate C++ mesh kernel
         run: |
           g++ -std=c++17 -Wall -Wextra -Werror zamer-native/tests/mesh_core_test.cpp zamer-native/app/src/main/cpp/mesh_core.cpp -I zamer-native/app/src/main/cpp -o /tmp/zamer-mesh-tests

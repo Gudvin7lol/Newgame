@@ -60,11 +60,11 @@ precision highp float;
 in vec3 nWorld,pWorld;
 uniform vec3 eyePos,baseColor;
 uniform float metallic,roughness;
-uniform int isSelected,flat;
+uniform int isSelected,uFlatMode;
 out vec4 outColor;
 const float PI=3.14159265;
 void main(){
- if(flat==1){outColor=vec4(baseColor,1.0);return;}
+ if(uFlatMode==1){outColor=vec4(baseColor,1.0);return;}
  vec3 n=normalize(nWorld),v=normalize(eyePos-pWorld);
  vec3 l=normalize(vec3(-0.4,0.85,0.44)),h=normalize(v+l);
  float nl=max(dot(n,l),0.0),nv=max(dot(n,v),0.0);
@@ -109,7 +109,7 @@ void Renderer::initGl(){
  mvpLoc=glGetUniformLocation(program,"mvp");modelLoc=glGetUniformLocation(program,"model");
  cameraLoc=glGetUniformLocation(program,"eyePos");colorLoc=glGetUniformLocation(program,"baseColor");
  metalLoc=glGetUniformLocation(program,"metallic");roughLoc=glGetUniformLocation(program,"roughness");
- selectLoc=glGetUniformLocation(program,"isSelected");flatLoc=glGetUniformLocation(program,"flat");
+ selectLoc=glGetUniformLocation(program,"isSelected");flatLoc=glGetUniformLocation(program,"uFlatMode");
  glGenBuffers(1,&gridBuffer);
  for(auto&o:scene.objects){o.gpuBuffer=0;o.dirty=true;}
  glEnable(GL_DEPTH_TEST);glDepthFunc(GL_LEQUAL);glDisable(GL_CULL_FACE);
