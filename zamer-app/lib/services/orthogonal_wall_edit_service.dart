@@ -214,12 +214,13 @@ class OrthogonalWallEditService {
         _intersectionEpsilon * math.max(1, _distance(a, b))) {
       return false;
     }
-    return p.x > math.min(a.x, b.x) + _intersectionEpsilon &&
-        p.x < math.max(a.x, b.x) - _intersectionEpsilon ||
-        p.y > math.min(a.y, b.y) + _intersectionEpsilon &&
-        p.y < math.max(a.y, b.y) - _intersectionEpsilon &&
-        p.x >= math.min(a.x, b.x) - _intersectionEpsilon &&
-        p.x <= math.max(a.x, b.x) + _intersectionEpsilon;
+    final dx = b.x - a.x;
+    final dy = b.y - a.y;
+    final lengthSquared = dx * dx + dy * dy;
+    if (lengthSquared < _intersectionEpsilon) return false;
+    final t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / lengthSquared;
+    final edgeFraction = _intersectionEpsilon / math.sqrt(lengthSquared);
+    return t > edgeFraction && t < 1 - edgeFraction;
   }
 
   static bool _conflict(
