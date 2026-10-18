@@ -58,6 +58,8 @@ public:
     void add(int type);
     void selectNext();
     void move(float x,float z);
+    bool transform(int mode,int axis,float amount);
+    bool inset(float fraction);
     bool extrude(float metres);
     void subdivide();
     void setMaterial(int id);

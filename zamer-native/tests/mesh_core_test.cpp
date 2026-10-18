@@ -26,6 +26,16 @@ int main(){
     assert(scene.extrude(0.05f));
     scene.subdivide();
     scene.move(0.10f,0.03f);
+    assert(scene.inset(0.10f));
+    assert(scene.objects[0].mesh.isClosed());
+    const float oldX=scene.objects[0].position.x;
+    assert(scene.transform(0,0,0.125f));
+    assert(std::fabs(scene.objects[0].position.x-oldX-0.125f)<0.0001f);
+    assert(scene.transform(1,1,0.20f));
+    assert(!scene.transform(1,0,0.20f));
+    const float oldScale=scene.objects[0].scale.z;
+    assert(scene.transform(2,2,0.25f));
+    assert(std::fabs(scene.objects[0].scale.z-oldScale-0.25f)<0.0001f);
     scene.add(1);
     scene.add(2);
     const std::string saved=scene.serialize();

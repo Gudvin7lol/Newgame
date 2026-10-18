@@ -216,10 +216,39 @@ void Scene::move(float x,float z){
     if(selected<0||size_t(selected)>=objects.size())return;
     objects[size_t(selected)].position+=Vec3{x,0.f,z};
 }
+bool Scene::transform(int mode,int axis,float amount){
+    if(selected<0||size_t(selected)>=objects.size()||!std::isfinite(amount))return false;
+    if(axis<0||axis>2)return false;
+    auto&o=objects[size_t(selected)];
+    if(mode==0){
+        if(axis==0)o.position.x+=amount;
+        else if(axis==1)o.position.y+=amount;
+        else o.position.z+=amount;
+    }else if(mode==1){
+        // First modeling milestone: rotation around vertical (Y) axis only.
+        if(axis!=1)return false;
+        o.yaw+=amount;
+    }else if(mode==2){
+        if(axis==0)o.scale.x=std::clamp(o.scale.x+amount,0.05f,100.f);
+        else if(axis==1)o.scale.y=std::clamp(o.scale.y+amount,0.05f,100.f);
+        else o.scale.z=std::clamp(o.scale.z+amount,0.05f,100.f);
+    }else return false;
+    return true;
+}
+bool Scene::inset(float fraction){
+    if(selected<0||size_t(selected)>=objects.size())return false;
+    auto&o=objects[size_t(selected)];
+    if(o.mesh.faces.empty()||o.mesh.faces.size()>30000)return false;
+    const int f=std::clamp(o.selectedFace,0,int(o.mesh.faces.size())-1);
+    if(!o.mesh.extrude(f,0.f,fraction))return false;
+    o.selectedFace=int(o.mesh.faces.size())-1;
+    o.dirty=true;
+    return true;
+}
 bool Scene::extrude(float metres){
     if(selected<0||size_t(selected)>=objects.size())return false;
     auto&o=objects[size_t(selected)];
-    if(o.type!=0)return false; // preview kernel restricts extrusion to cuboids
+    if(o.mesh.faces.size()>30000)return false;
     int f=std::clamp(o.selectedFace,0,int(o.mesh.faces.size())-1);
     Vec3 n=o.mesh.faceNormal(f);
     float scale=std::fabs(n.x)*o.scale.x+std::fabs(n.y)*o.scale.y+std::fabs(n.z)*o.scale.z;
@@ -244,7 +273,7 @@ std::string Scene::describe() const{
     stream<<"C++ MESH ENGINE  •  "<<objects.size()<<" объектов";
     if(selected>=0&&size_t(selected)<objects.size()){
         auto&o=objects[size_t(selected)];
-        stream<<"  |  №"<<selected+1<<" • "<<o.mesh.vertices.size()<<" вершин, "<<o.mesh.faces.size()<<" граней";
+        stream<<"  |  №"<<selected+1<<" • грань "<<o.selectedFace+1<<"/"<<o.mesh.faces.size()<<" • "<<o.mesh.vertices.size()<<" вершин";
     }
     return stream.str();
 }

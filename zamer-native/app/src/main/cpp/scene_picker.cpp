@@ -25,25 +25,29 @@ float rayTriangle(Vec3 ro,Vec3 rd,Vec3 a,Vec3 b,Vec3 c) {
     return distance>0.0001f?distance:std::numeric_limits<float>::infinity();
 }
 }
-int pickObject(const Scene& scene,Vec3 origin,Vec3 direction) {
-    if(direction.length()<1e-6f)return -1;
+SurfaceHit pickSurface(const Scene& scene,Vec3 origin,Vec3 direction) {
+    SurfaceHit found{};
+    if(direction.length()<1e-6f)return found;
     direction=direction.normalized();
     float nearest=std::numeric_limits<float>::infinity();
-    int found=-1;
     for(size_t objIndex=0;objIndex<scene.objects.size();objIndex++){
         const Object&obj=scene.objects[objIndex];
-        for(const auto&face:obj.mesh.faces) {
+        for(size_t fi=0;fi<obj.mesh.faces.size();fi++) {
+            const auto&face=obj.mesh.faces[fi];
             if(face.size()<3)continue;
             const Vec3 a=toWorld(obj.mesh.vertices[size_t(face[0])],obj);
             for(size_t i=1;i+1<face.size();i++){
                 float distance=rayTriangle(origin,direction,a,
                     toWorld(obj.mesh.vertices[size_t(face[i])],obj),
                     toWorld(obj.mesh.vertices[size_t(face[i+1])],obj));
-                if(distance<nearest){nearest=distance;found=int(objIndex);}
+                if(distance<nearest){nearest=distance;found={int(objIndex),int(fi),distance};}
             }
         }
     }
     return found;
+}
+int pickObject(const Scene& scene,Vec3 origin,Vec3 direction){
+    return pickSurface(scene,origin,direction).object;
 }
 
 } // namespace zamer
