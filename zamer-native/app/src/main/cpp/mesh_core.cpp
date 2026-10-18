@@ -195,6 +195,31 @@ std::vector<float> Mesh::interleavedTriangles(bool smooth) const{
     return out;
 }
 Scene::Scene()=default;
+void Scene::checkpoint(){
+    std::string state=serialize();
+    if(!undoHistory.empty()&&undoHistory.back()==state)return;
+    undoHistory.push_back(std::move(state));
+    if(undoHistory.size()>24)undoHistory.erase(undoHistory.begin());
+    redoHistory.clear();
+}
+bool Scene::undo(){
+    if(undoHistory.empty())return false;
+    const std::string current=serialize();
+    const std::string previous=undoHistory.back();
+    if(!restore(previous))return false;
+    undoHistory.pop_back();
+    redoHistory.push_back(current);
+    return true;
+}
+bool Scene::redo(){
+    if(redoHistory.empty())return false;
+    const std::string current=serialize();
+    const std::string next=redoHistory.back();
+    if(!restore(next))return false;
+    redoHistory.pop_back();
+    undoHistory.push_back(current);
+    return true;
+}
 void Scene::add(int type){
     if(objects.size()>63)return;
     Object o;

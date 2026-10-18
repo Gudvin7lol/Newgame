@@ -54,6 +54,11 @@ public:
     std::vector<Object> objects;
     int selected=-1;
     int activeMaterial=0;
+    std::vector<std::string> undoHistory;
+    std::vector<std::string> redoHistory;
+    void checkpoint();
+    bool undo();
+    bool redo();
     Scene();
     void add(int type);
     void selectNext();

@@ -36,7 +36,15 @@ int main(){
     const float oldScale=scene.objects[0].scale.z;
     assert(scene.transform(2,2,0.25f));
     assert(std::fabs(scene.objects[0].scale.z-oldScale-0.25f)<0.0001f);
+    scene.checkpoint();
     scene.add(1);
+    assert(scene.objects.size()==2);
+    assert(scene.undo() && scene.objects.size()==1);
+    assert(scene.redo() && scene.objects.size()==2);
+    scene.checkpoint();
+    assert(scene.transform(0,0,0.45f));
+    assert(scene.undo());
+    assert(scene.redo());
     scene.add(2);
     const std::string saved=scene.serialize();
     Scene restore;
