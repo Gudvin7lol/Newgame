@@ -67,6 +67,8 @@ public:
     void move(float x,float z);
     bool transform(int mode,int axis,float amount);
     bool moveComponent(int mode,int axis,float metres);
+    bool splitSelectedEdge();
+    bool loopCutSelectedEdge();
     bool inset(float fraction);
     bool extrude(float metres);
     void subdivide();

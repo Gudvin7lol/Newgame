@@ -1,4 +1,5 @@
 #include "mesh_core.hpp"
+#include "mesh_edit.hpp"
 #include <algorithm>
 #include <iomanip>
 #include <limits>
@@ -305,6 +306,26 @@ bool Scene::moveComponent(int mode,int axis,float metres){
     o.mesh.vertices[size_t(a)]+=delta;
     if(mode==2)o.mesh.vertices[size_t(b)]+=delta;
     o.dirty=true;
+    return true;
+}
+bool Scene::splitSelectedEdge(){
+    if(selected<0||size_t(selected)>=objects.size())return false;
+    Object&obj=objects[size_t(selected)];
+    int midpoint=splitEdge(obj.mesh,obj.selectedEdgeA,obj.selectedEdgeB);
+    if(midpoint<0)return false;
+    obj.selectedVertex=midpoint;
+    obj.selectedEdgeA=-1;obj.selectedEdgeB=-1;
+    obj.selectedFace=0;obj.dirty=true;
+    return true;
+}
+bool Scene::loopCutSelectedEdge(){
+    if(selected<0||size_t(selected)>=objects.size())return false;
+    Object&obj=objects[size_t(selected)];
+    int midpoint=loopCut(obj.mesh,obj.selectedEdgeA,obj.selectedEdgeB);
+    if(midpoint<0)return false;
+    obj.selectedVertex=midpoint;
+    obj.selectedEdgeA=-1;obj.selectedEdgeB=-1;
+    obj.selectedFace=0;obj.dirty=true;
     return true;
 }
 void Scene::setMaterial(int id){

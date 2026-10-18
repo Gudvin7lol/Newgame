@@ -31,5 +31,34 @@ int main(){
     assert(!scene.moveComponent(2,2,10.f));
     next.selectedEdgeB=-1;
     assert(!scene.moveComponent(2,2,0.01f));
+
+    // Full closed quad loop around cuboid, preserving manifold and dimensions.
+    Mesh loopMesh=Mesh::cube();
+    const int oldFaceCount=int(loopMesh.faces.size());
+    const int midpoint=loopCut(loopMesh,0,1);
+    assert(midpoint>=8);
+    assert(loopMesh.faces.size()==size_t(oldFaceCount+4));
+    assert(loopMesh.vertices.size()==12);
+    assert(loopMesh.valid()&&loopMesh.isClosed());
+    const auto savedFaces=loopMesh.faces;
+    assert(loopCut(loopMesh,-1,100)==-1);
+    assert(loopMesh.faces==savedFaces); // failing tools never mutate source
+    Mesh splitMesh=Mesh::cube();
+    const int splitMid=splitEdge(splitMesh,0,1);
+    assert(splitMid==8 && splitMesh.isClosed());
+    assert(splitMesh.faces.size()==6 && splitMesh.vertices.size()==9);
+    // Loop cut cannot pass through an ngon left by an isolated edge split.
+    assert(loopCut(splitMesh,0,splitMid)==-1);
+    assert(splitMesh.isClosed());
+    Scene cutting;cutting.add(0);
+    cutting.objects[0].selectedEdgeA=0;cutting.objects[0].selectedEdgeB=1;
+    cutting.checkpoint();
+    assert(cutting.loopCutSelectedEdge());
+    assert(cutting.objects[0].mesh.isClosed());
+    assert(cutting.undo());
+    assert(cutting.objects[0].mesh.faces.size()==6);
+    cutting.objects[0].selectedEdgeA=0;cutting.objects[0].selectedEdgeB=1;
+    assert(cutting.splitSelectedEdge());
+    assert(cutting.objects[0].mesh.isClosed());
     std::cout<<"MESH EDIT TESTS OK: shared edges, precision vertex/edge moves, undo\n";
 }
