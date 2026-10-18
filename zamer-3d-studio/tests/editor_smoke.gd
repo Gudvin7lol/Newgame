@@ -157,5 +157,21 @@ func _run() -> void:
         push_error("Edited topology failed GLB round-trip")
         quit(25)
         return
+    editor._choose(editable_id)
+    editor._set_transform_tool("translate")
+    editor._lock_axis(0)
+    var origin_x:float=float(editor.data[-1]["pos"][0])
+    editor._apply_drag_transform(Vector2(65,0))
+    if absf(float(editor.data[-1]["pos"][0])-origin_x)<0.0005:
+        push_error("Touch MOVE tool did not change the selected object")
+        quit(26)
+        return
+    editor._set_transform_tool("rotate")
+    var old_rot:float=float(editor.data[-1]["rot"][0])
+    editor._apply_drag_transform(Vector2(20,0))
+    if absf(float(editor.data[-1]["rot"][0])-old_rot)<0.02:
+        push_error("Touch ROTATE tool did not update rotation")
+        quit(27)
+        return
     print("EDITOR SMOKE OK: vertex edit, undo/redo, extrude, inset, bevel, GLB roundtrip")
     quit(0)
