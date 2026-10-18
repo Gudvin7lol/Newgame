@@ -11,6 +11,7 @@ object Native {
     external fun draw(engine: Long)
     external fun orbit(engine: Long, dx: Float, dy: Float)
     external fun zoom(engine: Long, factor: Float)
+    external fun pick(engine: Long, x: Float, y: Float): Int
     external fun add(engine: Long, type: Int)
     external fun selectNext(engine: Long)
     external fun move(engine: Long, dx: Float, dz: Float)

@@ -25,7 +25,7 @@ struct Mesh {
     std::vector<Vec3> vertices;
     std::vector<std::vector<int>> faces;
     static Mesh cube();
-    static Mesh sphere(int segments=24,int rings=12);
+    static Mesh sphere(int segments=48,int rings=24);
     static Mesh cylinder(int segments=32);
     Vec3 faceNormal(int face) const;
     bool moveVertex(int index,Vec3 delta);
@@ -33,7 +33,7 @@ struct Mesh {
     void subdivide();
     bool isClosed() const;
     bool valid() const;
-    std::vector<float> interleavedTriangles() const; // pos.xyz, normal.xyz
+    std::vector<float> interleavedTriangles(bool smooth=false) const; // pos.xyz, normal.xyz
 };
 
 struct Object {

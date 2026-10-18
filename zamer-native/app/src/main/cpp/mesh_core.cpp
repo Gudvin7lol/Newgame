@@ -178,7 +178,7 @@ bool Mesh::isClosed() const{
     for(auto &edge:edgeUse)if(edge.second!=2)return false;
     return true;
 }
-std::vector<float> Mesh::interleavedTriangles() const{
+std::vector<float> Mesh::interleavedTriangles(bool smooth) const{
     std::vector<float>out;
     out.reserve(faces.size()*6*6);
     for(size_t i=0;i<faces.size();i++){
@@ -187,7 +187,8 @@ std::vector<float> Mesh::interleavedTriangles() const{
         for(size_t k=1;k+1<face.size();k++){
             for(int idx:{face[0],face[k],face[k+1]}){
                 Vec3 p=vertices[size_t(idx)];
-                out.insert(out.end(),{p.x,p.y,p.z,n.x,n.y,n.z});
+                Vec3 shadingNormal=smooth?p.normalized():n;
+                out.insert(out.end(),{p.x,p.y,p.z,shadingNormal.x,shadingNormal.y,shadingNormal.z});
             }
         }
     }

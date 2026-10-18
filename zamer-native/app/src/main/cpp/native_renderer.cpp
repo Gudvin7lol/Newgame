@@ -1,4 +1,5 @@
 #include "native_renderer.hpp"
+#include "scene_picker.hpp"
 #include <android/log.h>
 #include <algorithm>
 #include <array>
@@ -141,7 +142,7 @@ void Renderer::drawItem(Object&o,int index,const M&p,const M&v,Vec3 eye){
  if(o.gpuBuffer==0){glGenBuffers(1,&o.gpuBuffer);o.dirty=true;}
  glBindBuffer(GL_ARRAY_BUFFER,o.gpuBuffer);
  if(o.dirty){
-  auto vertices=o.mesh.interleavedTriangles();
+  auto vertices=o.mesh.interleavedTriangles(o.type==1);
   o.gpuVertices=int(vertices.size()/6);
   glBufferData(GL_ARRAY_BUFFER,GLsizeiptr(vertices.size()*sizeof(float)),vertices.data(),GL_DYNAMIC_DRAW);
   o.dirty=false;
@@ -157,6 +158,21 @@ void Renderer::drawItem(Object&o,int index,const M&p,const M&v,Vec3 eye){
  glUniform1f(metalLoc,m.metal);glUniform1f(roughLoc,m.rough);
  glUniform1i(selectLoc,index==scene.selected?1:0);
  glDrawArrays(GL_TRIANGLES,0,o.gpuVertices);
+}
+int Renderer::pick(float x,float y){
+    const float aspect=float(width)/float(std::max(1,height));
+    const float yFovTan=std::tan(46.f*PI/360.f);
+    Vec3 target{0.f,0.8f,0.f};
+    Vec3 eye=target+Vec3{distance*std::sin(yaw)*std::cos(pitch),distance*std::sin(pitch),distance*std::cos(yaw)*std::cos(pitch)};
+    Vec3 forward=(target-eye).normalized();
+    Vec3 right=cross(forward,{0,1,0}).normalized();
+    Vec3 up=cross(right,forward).normalized();
+    const float dx=(2.f*x/float(std::max(1,width))-1.f)*aspect*yFovTan;
+    const float dy=(1.f-2.f*y/float(std::max(1,height)))*yFovTan;
+    Vec3 direction=(forward+right*dx+up*dy).normalized();
+    int found=pickObject(scene,eye,direction);
+    if(found>=0)scene.selected=found;
+    return found;
 }
 void Renderer::draw(){
  glViewport(0,0,width,height);glClearColor(0.11f,0.18f,0.25f,1);
@@ -175,7 +191,7 @@ void Renderer::draw(){
  GLenum glError=glGetError();
  if(glError!=GL_NO_ERROR){
     state="GPU DRAW ERROR: "+std::to_string(int(glError));
- } else if (state.rfind("GPU OK:",0)==0){
+ } else {
     state="GPU DRAW OK: "+std::to_string(scene.objects.size())+" objects";
  }
 }

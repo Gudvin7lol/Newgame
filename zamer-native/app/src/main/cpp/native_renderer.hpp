@@ -9,6 +9,7 @@ public:
  Scene scene;
  void initGl();void resize(int w,int h);void draw();
  void orbit(float x,float y);void zoom(float factor);
+ int pick(float x,float y);
  std::string graphicsStatus() const;
  float yaw=0.45f,pitch=0.23f,distance=5.5f;
 private:

@@ -25,6 +25,10 @@ class StudioActivity : Activity() {
     private var previousPinch = 0f
     private var translation = false
     private var firstRenderReport = true
+    private var frames: Int = 0
+    private var moved: Boolean = false
+    private var startX = 0f
+    private var startY = 0f
     private val bg = Color.rgb(11, 18, 29)
     private val panel = Color.rgb(20, 33, 48)
     private val accent = Color.rgb(59, 219, 196)
@@ -40,7 +44,7 @@ class StudioActivity : Activity() {
             setBackgroundColor(bg)
         }
         val brand = TextView(this).apply {
-            text = "Z / ENGINE    •    CORE 0.2"
+            text = "Z / ENGINE    •    CORE 0.3"
             setTextColor(Color.WHITE)
             textSize = 17f
             setPadding(18.dp(), 9.dp(), 12.dp(), 9.dp())
@@ -67,7 +71,7 @@ class StudioActivity : Activity() {
                 }
                 override fun onDrawFrame(gl: javax.microedition.khronos.opengles.GL10?) {
                     Native.draw(engine)
-                    if (firstRenderReport) {
+                    if (firstRenderReport || (++frames % 45 == 0)) {
                         firstRenderReport = false
                         val report = Native.graphicsStatus(engine)
                         runOnUiThread { graphicsStatus.text = report }
@@ -90,10 +94,27 @@ class StudioActivity : Activity() {
                     MotionEvent.ACTION_DOWN -> {
                         previousX = event.x
                         previousY = event.y
+                        startX = event.x
+                        startY = event.y
+                        moved = false
+                    }
+                    MotionEvent.ACTION_UP -> {
+                        if (!moved && !translation) {
+                            val px = event.x
+                            val py = event.y
+                            queueEvent {
+                                val selected = Native.pick(engine, px, py)
+                                val info = Native.sceneInfo(engine)
+                                runOnUiThread {
+                                    inspector.text = if (selected >= 0) info else "Коснись объекта для выделения"
+                                }
+                            }
+                        }
                     }
                     MotionEvent.ACTION_MOVE -> {
                         val dx = event.x - previousX
                         val dy = event.y - previousY
+                        if (hypot(event.x - startX, event.y - startY) > 8.dp()) moved = true
                         previousX = event.x
                         previousY = event.y
                         queueEvent {
@@ -133,13 +154,14 @@ class StudioActivity : Activity() {
             for ((title, action) in items) {
                 val button = Button(this).apply {
                     text = title
-                    textSize = 11f
+                    textSize = 10f
+                    setPadding(0,0,0,0)
                     setTextColor(Color.WHITE)
                     setBackgroundColor(Color.rgb(34, 55, 72))
                     setOnClickListener { action() }
                 }
-                row.addView(button, LinearLayout.LayoutParams(0, 56.dp(), 1f).apply {
-                    setMargins(3.dp(), 3.dp(), 3.dp(), 3.dp())
+                row.addView(button, LinearLayout.LayoutParams(0, 44.dp(), 1f).apply {
+                    setMargins(2.dp(), 2.dp(), 2.dp(), 2.dp())
                 })
             }
             root.addView(row)

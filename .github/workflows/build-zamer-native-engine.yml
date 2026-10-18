@@ -38,6 +38,10 @@ jobs:
         run: |
           g++ -std=c++17 -Wall -Wextra -Werror zamer-native/tests/mesh_core_test.cpp zamer-native/app/src/main/cpp/mesh_core.cpp -I zamer-native/app/src/main/cpp -o /tmp/zamer-mesh-tests
           /tmp/zamer-mesh-tests
+      - name: Validate native touch ray picking
+        run: |
+          g++ -std=c++17 -Wall -Wextra -Werror zamer-native/tests/scene_picker_test.cpp zamer-native/app/src/main/cpp/mesh_core.cpp zamer-native/app/src/main/cpp/scene_picker.cpp -I zamer-native/app/src/main/cpp -o /tmp/zamer-pick-tests
+          /tmp/zamer-pick-tests
       - name: Build Kotlin + C++ APK
         working-directory: zamer-native
         run: gradle :app:assembleDebug --no-daemon --stacktrace
