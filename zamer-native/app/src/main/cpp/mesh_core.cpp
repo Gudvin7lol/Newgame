@@ -278,7 +278,7 @@ bool Scene::restore(const std::string&source){
         for(auto &v:o.mesh.vertices)if(!(f>>v.x>>v.y>>v.z))return false;
         for(size_t j=0;j<fc;j++){
             int n=0;if(!(f>>n)||n<3||n>128)return false;
-            std::vector<int>face{size_t(n)};
+            std::vector<int>face(static_cast<size_t>(n));
             for(int &index:face)if(!(f>>index))return false;
             o.mesh.faces.push_back(std::move(face));
         }
