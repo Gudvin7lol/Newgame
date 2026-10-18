@@ -92,14 +92,20 @@ GLuint Renderer::compile(GLenum kind,const char*source){
   glDeleteShader(shader);return 0;}
  return shader;
 }
+std::string Renderer::graphicsStatus() const {
+ return state+" | "+std::to_string(width)+"x"+std::to_string(height);
+}
 void Renderer::initGl(){
+ const GLubyte* version=glGetString(GL_VERSION);
+ if(!version){state="GPU: контекст отсутствует";return;}
+ state=std::string("GPU: ")+reinterpret_cast<const char*>(version);
  GLuint vertex=compile(GL_VERTEX_SHADER,vShader),fragment=compile(GL_FRAGMENT_SHADER,fShader);
- if(!vertex||!fragment)return;
+ if(!vertex||!fragment){state="GPU: ошибка компиляции GLSL";return;}
  program=glCreateProgram();glAttachShader(program,vertex);glAttachShader(program,fragment);
  glLinkProgram(program);glDeleteShader(vertex);glDeleteShader(fragment);
  GLint ok=GL_FALSE;glGetProgramiv(program,GL_LINK_STATUS,&ok);
  if(ok==GL_FALSE){__android_log_print(ANDROID_LOG_ERROR,"ZamerEngine","Program link error");
-  glDeleteProgram(program);program=0;return;}
+  state="GPU: ошибка линковки шейдеров";glDeleteProgram(program);program=0;return;}
  mvpLoc=glGetUniformLocation(program,"mvp");modelLoc=glGetUniformLocation(program,"model");
  cameraLoc=glGetUniformLocation(program,"eyePos");colorLoc=glGetUniformLocation(program,"baseColor");
  metalLoc=glGetUniformLocation(program,"metallic");roughLoc=glGetUniformLocation(program,"roughness");
@@ -107,6 +113,8 @@ void Renderer::initGl(){
  glGenBuffers(1,&gridBuffer);
  for(auto&o:scene.objects){o.gpuBuffer=0;o.dirty=true;}
  glEnable(GL_DEPTH_TEST);glDepthFunc(GL_LEQUAL);glDisable(GL_CULL_FACE);
+ const GLubyte* driver=glGetString(GL_RENDERER);
+ state=driver?std::string("GPU OK: ")+reinterpret_cast<const char*>(driver):"GPU OK";
 }
 void Renderer::resize(int w,int h){width=std::max(1,w);height=std::max(1,h);glViewport(0,0,width,height);}
 void Renderer::orbit(float dx,float dy){yaw-=dx;pitch=std::clamp(pitch-dy,-1.25f,1.25f);}
@@ -151,7 +159,7 @@ void Renderer::drawItem(Object&o,int index,const M&p,const M&v,Vec3 eye){
  glDrawArrays(GL_TRIANGLES,0,o.gpuVertices);
 }
 void Renderer::draw(){
- glViewport(0,0,width,height);glClearColor(0.045f,0.067f,0.105f,1);
+ glViewport(0,0,width,height);glClearColor(0.11f,0.18f,0.25f,1);
  glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
  if(program==0)return;
  glUseProgram(program);

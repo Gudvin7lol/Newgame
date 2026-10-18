@@ -199,7 +199,9 @@ void Scene::add(int type){
     Object o;
     o.type=std::clamp(type,0,2);
     o.mesh=(o.type==1?Mesh::sphere():(o.type==2?Mesh::cylinder():Mesh::cube()));
-    o.position={float(objects.size()%4)*1.55f-1.8f,0.85f,float(objects.size()/4)*1.15f};
+    size_t index=objects.size();
+    o.position={float(index%3)*1.5f-1.5f,0.8f,float(index/3)*1.2f};
+    if(index==0)o.position.x=0.f;
     o.scale=(o.type==0?Vec3{1.25f,0.75f,0.85f}:Vec3{0.9f,0.9f,0.9f});
     o.material=(type+int(objects.size()))%5;
     objects.push_back(std::move(o));

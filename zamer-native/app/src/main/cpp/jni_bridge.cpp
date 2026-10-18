@@ -4,9 +4,17 @@
 using zamer::Renderer;
 static Renderer* engine(jlong p){return reinterpret_cast<Renderer*>(p);}
 extern "C" {
-JNIEXPORT jlong JNICALL Java_com_zamer_studio_Native_create(JNIEnv*,jobject){return reinterpret_cast<jlong>(new Renderer());}
+JNIEXPORT jlong JNICALL Java_com_zamer_studio_Native_create(JNIEnv*,jobject){
+ auto* renderer=new Renderer();
+ renderer->scene.add(0);
+ return reinterpret_cast<jlong>(renderer);
+}
 JNIEXPORT void JNICALL Java_com_zamer_studio_Native_destroy(JNIEnv*,jobject,jlong p){delete engine(p);}
 JNIEXPORT void JNICALL Java_com_zamer_studio_Native_initGl(JNIEnv*,jobject,jlong p){if(p)engine(p)->initGl();}
+JNIEXPORT jstring JNICALL Java_com_zamer_studio_Native_graphicsStatus(JNIEnv*e,jobject,jlong p){
+ std::string s=p?engine(p)->graphicsStatus():"GPU: нет ядра";
+ return e->NewStringUTF(s.c_str());
+}
 JNIEXPORT void JNICALL Java_com_zamer_studio_Native_resize(JNIEnv*,jobject,jlong p,jint w,jint h){if(p)engine(p)->resize(int(w),int(h));}
 JNIEXPORT void JNICALL Java_com_zamer_studio_Native_draw(JNIEnv*,jobject,jlong p){if(p)engine(p)->draw();}
 JNIEXPORT void JNICALL Java_com_zamer_studio_Native_orbit(JNIEnv*,jobject,jlong p,jfloat x,jfloat y){if(p)engine(p)->orbit(x,y);}

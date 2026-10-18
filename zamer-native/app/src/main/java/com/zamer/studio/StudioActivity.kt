@@ -4,6 +4,8 @@ import android.app.Activity
 import android.graphics.Color
 import android.opengl.GLSurfaceView
 import android.os.Bundle
+import android.os.Build
+import android.view.WindowInsets
 import android.view.MotionEvent
 import android.view.View
 import android.widget.Button
@@ -16,6 +18,7 @@ import kotlin.math.hypot
 class StudioActivity : Activity() {
     private lateinit var surface: GLSurfaceView
     private lateinit var inspector: TextView
+    private lateinit var graphicsStatus: TextView
     private var engine: Long = 0L
     private var previousX = 0f
     private var previousY = 0f
@@ -36,24 +39,29 @@ class StudioActivity : Activity() {
             setBackgroundColor(bg)
         }
         val brand = TextView(this).apply {
-            text = "Z / ENGINE   •   NATIVE CORE 0.1"
+            text = "Z / ENGINE    •    CORE 0.2"
             setTextColor(Color.WHITE)
             textSize = 17f
-            setPadding(22, 24, 12, 20)
+            setPadding(18.dp(), 9.dp(), 12.dp(), 9.dp())
         }
         root.addView(brand)
 
         surface = GLSurfaceView(this).apply {
             setEGLContextClientVersion(3)
-            setEGLConfigChooser(8, 8, 8, 8, 24, 8)
+            // Widely supported RGB888 / depth16 EGL config.
+            setEGLConfigChooser(8, 8, 8, 0, 16, 0)
             preserveEGLContextOnPause = true
             setRenderer(object : GLSurfaceView.Renderer {
                 override fun onSurfaceCreated(gl: javax.microedition.khronos.opengles.GL10?,
                                               config: javax.microedition.khronos.egl.EGLConfig?) {
                     Native.initGl(engine)
+                    val status = Native.graphicsStatus(engine)
+                    runOnUiThread { graphicsStatus.text = status }
                 }
                 override fun onSurfaceChanged(gl: javax.microedition.khronos.opengles.GL10?, width: Int, height: Int) {
                     Native.resize(engine, width, height)
+                    val status = Native.graphicsStatus(engine)
+                    runOnUiThread { graphicsStatus.text = status }
                 }
                 override fun onDrawFrame(gl: javax.microedition.khronos.opengles.GL10?) {
                     Native.draw(engine)
@@ -91,6 +99,15 @@ class StudioActivity : Activity() {
             }
         }
         root.addView(surface, LinearLayout.LayoutParams(-1, 0, 1f))
+
+        graphicsStatus = TextView(this).apply {
+            text = "GPU: ожидание OpenGL ES 3.0"
+            setTextColor(accent)
+            textSize = 11f
+            setPadding(12.dp(), 5.dp(), 12.dp(), 6.dp())
+            setBackgroundColor(Color.rgb(18, 36, 52))
+        }
+        root.addView(graphicsStatus)
 
         inspector = TextView(this).apply {
             text = "3D-сцена • C++ геометрия • OpenGL ES 3"
@@ -158,6 +175,23 @@ class StudioActivity : Activity() {
             }
         )
         setContentView(root)
+        // Android 15/16 enforce edge-to-edge. Reserve both system-bar insets.
+        root.setOnApplyWindowInsetsListener { _, insets ->
+            val top: Int
+            val bottom: Int
+            if (Build.VERSION.SDK_INT >= 30) {
+                top = insets.getInsets(WindowInsets.Type.statusBars()).top
+                bottom = insets.getInsets(WindowInsets.Type.navigationBars()).bottom
+            } else {
+                @Suppress("DEPRECATION")
+                top = insets.systemWindowInsetTop
+                @Suppress("DEPRECATION")
+                bottom = insets.systemWindowInsetBottom
+            }
+            root.setPadding(0, top, 0, bottom)
+            insets
+        }
+        root.requestApplyInsets()
         surface.queueEvent {
             val text = Native.sceneInfo(engine)
             runOnUiThread { inspector.text = text }

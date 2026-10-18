@@ -6,6 +6,7 @@ object Native {
     external fun create(): Long
     external fun destroy(engine: Long)
     external fun initGl(engine: Long)
+    external fun graphicsStatus(engine: Long): String
     external fun resize(engine: Long, width: Int, height: Int)
     external fun draw(engine: Long)
     external fun orbit(engine: Long, dx: Float, dy: Float)
