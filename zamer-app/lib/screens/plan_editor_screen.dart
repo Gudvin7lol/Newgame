@@ -51,6 +51,7 @@ class _PlanEditorScreenState extends State<PlanEditorScreen> {
   String? _selectedNodeId;
   String? _dragNodeId;
   NodeSnapResult? _lastNodeSnap;
+  math.Point<double> _dragFingerOffsetMm = const math.Point(0, 0);
   bool _dragUndoPushed = false;
   String? _dragOpeningWallId;
   String? _dragOpeningId;
@@ -187,14 +188,22 @@ class _PlanEditorScreenState extends State<PlanEditorScreen> {
         _selectedNodeId = null;
         _dragNodeId = null;
         _lastNodeSnap = null;
+        _dragFingerOffsetMm = const math.Point(0, 0);
       });
       return;
     }
+    final touch = _toMm(details.localPosition);
     setState(() {
       _selectedNodeId = node.id;
       _dragNodeId = node.id;
       _dragUndoPushed = false;
       _lastNodeSnap = null;
+      // Preserve the node-to-finger offset: grabbing a small handle at its
+      // edge must not teleport a precisely positioned vertex.
+      _dragFingerOffsetMm = math.Point(
+        node.xMm - touch.x,
+        node.yMm - touch.y,
+      );
     });
   }
 
@@ -206,12 +215,26 @@ class _PlanEditorScreenState extends State<PlanEditorScreen> {
       _pushUndo();
       _dragUndoPushed = true;
     }
+    final touch = _toMm(details.localPosition);
+    final raw = math.Point<double>(
+      touch.x + _dragFingerOffsetMm.x,
+      touch.y + _dragFingerOffsetMm.y,
+    );
+    // Thresholds are expressed in device-independent screen pixels and
+    // converted to world mm using the active zoom. A snap now feels equally
+    // strong at 25% and 400% zoom.
+    final mmPerScreenPixel = 1 / (_mmToPx * _viewScale);
     final snap = GeometryService.snapMoveTarget(
       floor,
       movingNodeId: node.id,
-      raw: _toMm(details.localPosition),
+      raw: raw,
       enabled: _snappingEnabled,
       angleStepRadians: _moveAngleStep,
+      nodeThresholdMm: 14 * mmPerScreenPixel,
+      wallThresholdMm: 11 * mmPerScreenPixel,
+      guideThresholdMm: 8 * mmPerScreenPixel,
+      previousSnap: _lastNodeSnap,
+      releaseThresholdMm: 22 * mmPerScreenPixel,
     );
     node.xMm = snap.point.x;
     node.yMm = snap.point.y;
@@ -243,6 +266,7 @@ class _PlanEditorScreenState extends State<PlanEditorScreen> {
       setState(() {
         _dragNodeId = null;
         _lastNodeSnap = null;
+        _dragFingerOffsetMm = const math.Point(0, 0);
         _dragUndoPushed = false;
       });
     }
