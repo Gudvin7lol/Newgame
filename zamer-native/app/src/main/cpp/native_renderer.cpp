@@ -1,5 +1,6 @@
 #include "native_renderer.hpp"
 #include "scene_picker.hpp"
+#include "gizmo_math.hpp"
 #include <android/log.h>
 #include <algorithm>
 #include <array>
@@ -113,6 +114,7 @@ void Renderer::initGl(){
  selectLoc=glGetUniformLocation(program,"isSelected");flatLoc=glGetUniformLocation(program,"uFlatMode");
  glGenBuffers(1,&gridBuffer);
  glGenBuffers(1,&faceBuffer);
+ glGenBuffers(1,&gizmoBuffer);
  for(auto&o:scene.objects){o.gpuBuffer=0;o.dirty=true;}
  glEnable(GL_DEPTH_TEST);glDepthFunc(GL_LEQUAL);glDisable(GL_CULL_FACE);
  const GLubyte* driver=glGetString(GL_RENDERER);
@@ -181,6 +183,63 @@ int Renderer::pickAt(float x,float y,bool face){
     return face?hit.face:hit.object;
 }
 int Renderer::pick(float x,float y){return pickAt(x,y,false);}
+void Renderer::setGizmoMode(int mode){
+    gizmoMode=std::clamp(mode,0,3);
+    activeAxis=-1;
+    dragCheckpointed=false;
+}
+int Renderer::beginGizmo(float x,float y){
+    activeAxis=-1;
+    dragCheckpointed=false;
+    if((gizmoMode!=1&&gizmoMode!=3)||scene.selected<0||size_t(scene.selected)>=scene.objects.size())return -1;
+    const float aspect=float(width)/float(std::max(1,height));
+    const float yfov=std::tan(46.f*PI/360.f);
+    Vec3 target{0.f,0.8f,0.f};
+    Vec3 eye=target+Vec3{distance*std::sin(yaw)*std::cos(pitch),distance*std::sin(pitch),distance*std::cos(yaw)*std::cos(pitch)};
+    Vec3 forward=(target-eye).normalized(),right=cross(forward,{0,1,0}).normalized(),up=cross(right,forward).normalized();
+    float dx=(2.f*x/float(std::max(1,width))-1.f)*aspect*yfov;
+    float dy=(1.f-2.f*y/float(std::max(1,height)))*yfov;
+    Vec3 ray=(forward+right*dx+up*dy).normalized();
+    const Vec3 center=scene.objects[size_t(scene.selected)].position;
+    activeAxis=pickGizmoAxis(eye,ray,center,distance*0.18f,distance*0.017f);
+    return activeAxis;
+}
+bool Renderer::dragGizmo(float dx,float dy){
+    if(activeAxis<0||scene.selected<0||size_t(scene.selected)>=scene.objects.size())return false;
+    Vec3 target{0.f,0.8f,0.f};
+    Vec3 eye=target+Vec3{distance*std::sin(yaw)*std::cos(pitch),distance*std::sin(pitch),distance*std::cos(yaw)*std::cos(pitch)};
+    Vec3 forward=(target-eye).normalized(),right=cross(forward,{0,1,0}).normalized(),up=cross(right,forward).normalized();
+    Vec3 axis=activeAxis==0?Vec3{1,0,0}:(activeAxis==1?Vec3{0,1,0}:Vec3{0,0,1});
+    // Dot gesture with projected axis, normalized against camera angle.
+    float sx=dot(axis,right),sy=-dot(axis,up);
+    float screenLength=sx*sx+sy*sy;
+    if(screenLength<0.02f)return false;
+    float metresPerPixel=2.f*distance*std::tan(46.f*PI/360.f)/float(std::max(1,height));
+    float delta=(dx*sx+dy*sy)/screenLength*metresPerPixel;
+    if(!std::isfinite(delta)||std::fabs(delta)<0.0000001f)return false;
+    if(!dragCheckpointed){
+        scene.checkpoint();
+        dragCheckpointed=true;
+    }
+    return scene.transform(gizmoMode==1?0:2,activeAxis,delta);
+}
+void Renderer::endGizmo(){activeAxis=-1;dragCheckpointed=false;}
+void Renderer::discardBuffers(){
+    for(auto&o:scene.objects){
+        if(o.gpuBuffer!=0)glDeleteBuffers(1,&o.gpuBuffer);
+        o.gpuBuffer=0;o.dirty=true;
+    }
+}
+bool Renderer::undoScene(){discardBuffers();return scene.undo();}
+bool Renderer::redoScene(){discardBuffers();return scene.redo();}
+bool Renderer::restoreScene(const std::string&str){
+    // Scene::restore is transactional. Delete current GL buffers only on success.
+    Scene temporary;
+    if(!temporary.restore(str))return false;
+    discardBuffers();
+    return scene.restore(str);
+}
+
 int Renderer::pickFace(float x,float y){return pickAt(x,y,true);}
 void Renderer::drawFaceOutline(const M&p,const M&v,Vec3 eye){
     if(scene.selected<0||size_t(scene.selected)>=scene.objects.size())return;
@@ -214,6 +273,45 @@ void Renderer::drawFaceOutline(const M&p,const M&v,Vec3 eye){
     glUniform1i(flatLoc,0);
 }
 
+void Renderer::drawGizmo(const M&p,const M&v,Vec3 eye){
+    if(gizmoMode==0||scene.selected<0||size_t(scene.selected)>=scene.objects.size())return;
+    const Vec3 c=scene.objects[size_t(scene.selected)].position;
+    const float length=distance*0.18f;
+    const Vec3 axisDirs[3]={{1,0,0},{0,1,0},{0,0,1}};
+    const Vec3 colors[3]={{0.98f,0.32f,0.34f},{0.36f,0.98f,0.49f},{0.30f,0.57f,0.99f}};
+    M identityModel=identity(),mvp=mul(p,mul(v,identityModel));
+    glUniformMatrix4fv(mvpLoc,1,GL_FALSE,mvp.data());
+    glUniformMatrix4fv(modelLoc,1,GL_FALSE,identityModel.data());
+    glUniform3f(cameraLoc,eye.x,eye.y,eye.z);
+    glUniform1i(selectLoc,0);
+    glUniform1i(flatLoc,1);
+    glDisable(GL_DEPTH_TEST);
+    glBindBuffer(GL_ARRAY_BUFFER,gizmoBuffer);
+    glEnableVertexAttribArray(0);glEnableVertexAttribArray(1);
+    for(int i=0;i<3;i++){
+        const Vec3 d=axisDirs[i];
+        const Vec3 perp=(i==1?Vec3{1,0,0}:Vec3{0,1,0});
+        const Vec3 endpoint=c+d*length;
+        const Vec3 left=endpoint-d*(length*0.14f)+perp*(length*0.07f);
+        const Vec3 right=endpoint-d*(length*0.14f)-perp*(length*0.07f);
+        const Vec3 pts[6]={c,endpoint,left,endpoint,right,endpoint};
+        std::vector<float> vertices;
+        for(const Vec3& pt:pts){
+            vertices.insert(vertices.end(),{pt.x,pt.y,pt.z,0.f,1.f,0.f});
+        }
+        glBufferData(GL_ARRAY_BUFFER,GLsizeiptr(vertices.size()*sizeof(float)),vertices.data(),GL_DYNAMIC_DRAW);
+        glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,6*sizeof(float),nullptr);
+        glVertexAttribPointer(1,3,GL_FLOAT,GL_FALSE,6*sizeof(float),reinterpret_cast<void*>(3*sizeof(float)));
+        const Vec3 col=colors[i];
+        glUniform3f(colorLoc,col.x,col.y,col.z);
+        glLineWidth(i==activeAxis?4.f:2.f);
+        glDrawArrays(GL_LINES,0,6);
+    }
+    glLineWidth(1.f);
+    glEnable(GL_DEPTH_TEST);
+    glUniform1i(flatLoc,0);
+}
+
 void Renderer::draw(){
  glViewport(0,0,width,height);glClearColor(0.11f,0.18f,0.25f,1);
  glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
@@ -228,6 +326,7 @@ void Renderer::draw(){
  drawGrid(projection,view,eye);
  for(size_t i=0;i<scene.objects.size();i++)drawItem(scene.objects[i],int(i),projection,view,eye);
  drawFaceOutline(projection,view,eye);
+ drawGizmo(projection,view,eye);
  glBindBuffer(GL_ARRAY_BUFFER,0);
  GLenum glError=glGetError();
  if(glError!=GL_NO_ERROR){
