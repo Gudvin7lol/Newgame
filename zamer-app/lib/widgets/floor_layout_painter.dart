@@ -179,8 +179,18 @@ class FloorLayoutPainter extends CustomPainter {
     final boardW = math.max(0.5, settings.laminatePlankWidthMm * scale);
     final run = boardL / math.sqrt2;
     final pitch = boardW * math.sqrt2;
-    final offX = settings.laminateOffsetXMm % run;
-    final offY = settings.laminateOffsetYMm % pitch;
+    final repeat = LayoutService.laminateOffsetPeriod(settings);
+    // Settings store millimetres; the painter operates in screen pixels.
+    // Previously the mm offsets were reduced modulo a pixel-sized repeat,
+    // producing a different pattern phase at every preview zoom.
+    final offX = LayoutService.normalizedPatternOffset(
+      settings.laminateOffsetXMm,
+      repeat.xMm,
+    ) * scale;
+    final offY = LayoutService.normalizedPatternOffset(
+      settings.laminateOffsetYMm,
+      repeat.yMm,
+    ) * scale;
     final clip = canvas.getLocalClipBounds().inflate(boardL + boardW);
     final outline = Paint()
       ..color = const Color(0xFF79685D)

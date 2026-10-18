@@ -302,19 +302,14 @@ class _LayoutsScreenState extends State<LayoutsScreen> {
   }
 
   double _wrapped(double offset, double module) =>
-      module > 0 ? offset % module : offset;
+      LayoutService.normalizedPatternOffset(offset, module);
 
   void _normalizeOffsets(RoomMaterialSettings s) {
     switch (_kind) {
       case FloorLayoutKind.laminate:
-        s.laminateOffsetXMm = _wrapped(
-          s.laminateOffsetXMm,
-          s.laminatePlankLengthMm,
-        );
-        s.laminateOffsetYMm = _wrapped(
-          s.laminateOffsetYMm,
-          s.laminatePlankWidthMm,
-        );
+        final repeat = LayoutService.laminateOffsetPeriod(s);
+        s.laminateOffsetXMm = _wrapped(s.laminateOffsetXMm, repeat.xMm);
+        s.laminateOffsetYMm = _wrapped(s.laminateOffsetYMm, repeat.yMm);
       case FloorLayoutKind.underlay:
         s.underlayOffsetXMm = _wrapped(
           s.underlayOffsetXMm,
