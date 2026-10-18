@@ -541,12 +541,14 @@ func _mesh_ui() -> void:
         _btn(details,"Inset −",_edit_profile.bind("inset",-0.02))
         _btn(details,"Фаска +",_edit_profile.bind("bevel",0.01))
         _btn(details,"Фаска −",_edit_profile.bind("bevel",-0.01))
+        var extrusion_axis: int = int(item.get("extrude_face",2)) / 2
+        var physical_depth_mm: float = float(item.get("extrude_depth",0.0))*float(item["size"][extrusion_axis])*1000.0
         inspector.add_child(_text(
-            "Грань %s  •  глубина %.0f мм  •  inset %.0f мм  •  фаска %.0f мм" %
+            "Грань %s  •  выдавливание %.0f мм  •  inset %.0f%%  •  фаска %.0f%%" %
             [face_names[clampi(int(item.get("extrude_face",2)),0,5)],
-            float(item.get("extrude_depth",0.0))*1000.0,
-            float(item.get("inset",0.10))*1000.0,
-            float(item.get("bevel",0.0))*1000.0],11,SUBTLE))
+            physical_depth_mm,
+            float(item.get("inset",0.10))*100.0,
+            float(item.get("bevel",0.0))*100.0],11,SUBTLE))
     inspector.add_child(_text("ВЕРШИНЫ / РУЧНАЯ ПРАВКА", 11, SUBTLE))
     var row := HBoxContainer.new()
     inspector.add_child(row)
@@ -577,8 +579,10 @@ func _edit_profile(property: String, delta: float) -> void:
     var previous := float(item.get(property,0.0))
     match property:
         "extrude_depth":
-            item[property] = clampf(previous+delta,-0.40,0.75)
-            if absf(float(item[property]))<0.001: item[property]=0.0
+            var axis: int = int(item.get("extrude_face",2)) / 2
+            var physical_size: float = maxf(0.05,float(item["size"][axis]))
+            item[property] = clampf(previous+delta/physical_size,-0.40/physical_size,0.75/physical_size)
+            if absf(float(item[property])*physical_size)<0.001: item[property]=0.0
         "inset": item[property]=clampf(previous+delta,0.01,0.38)
         "bevel": item[property]=clampf(previous+delta,0.0,0.13)
     _sync_scene()
