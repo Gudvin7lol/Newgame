@@ -18,7 +18,7 @@ import kotlin.math.hypot
 
 /** Offline native modeling sandbox. No Godot, browser, Three.js or external runtime. */
 class StudioActivity : Activity() {
-    private enum class Tool { CAMERA, OBJECT, FACE, MOVE, ROTATE, SCALE }
+    private enum class Tool { CAMERA, OBJECT, FACE, VERTEX, EDGE, MOVE, ROTATE, SCALE }
     private var tool = Tool.OBJECT
     private var axis = 0
     private var amountInput: EditText? = null
@@ -49,7 +49,7 @@ class StudioActivity : Activity() {
             setBackgroundColor(bg)
         }
         val brand = TextView(this).apply {
-            text = "Z / ENGINE    •    CORE 0.5"
+            text = "Z / ENGINE    •    CORE 0.6"
             setTextColor(Color.WHITE)
             textSize = 17f
             setPadding(18.dp(), 9.dp(), 12.dp(), 9.dp())
@@ -134,8 +134,12 @@ class StudioActivity : Activity() {
                             val px = event.x
                             val py = event.y
                             queueEvent {
-                                val selected = if (tool == Tool.FACE) Native.pickFace(engine, px, py)
-                                               else Native.pick(engine, px, py)
+                                val selected = when (tool) {
+                                    Tool.FACE -> Native.pickFace(engine, px, py)
+                                    Tool.VERTEX -> Native.pickElement(engine, px, py, 1)
+                                    Tool.EDGE -> Native.pickElement(engine, px, py, 2)
+                                    else -> Native.pick(engine, px, py)
+                                }
                                 val info = Native.sceneInfo(engine)
                                 runOnUiThread {
                                     inspector.text = if (selected >= 0) info else "Коснись объекта для выделения"
@@ -224,11 +228,21 @@ class StudioActivity : Activity() {
                 Tool.SCALE -> 3
                 else -> 0
             }
-            surface.queueEvent { Native.setGizmoMode(engine, gizmoMode) }
+            val elementMode = when(mode) {
+                Tool.VERTEX -> 1
+                Tool.EDGE -> 2
+                else -> 0
+            }
+            surface.queueEvent {
+                Native.setGizmoMode(engine, gizmoMode)
+                Native.setElementMode(engine, elementMode)
+            }
             inspector.text = when(mode) {
                 Tool.CAMERA -> "Камера: вращение пальцем, приближение двумя."
                 Tool.OBJECT -> "Выбери объект одним касанием."
                 Tool.FACE -> "Выбери конкретную грань касанием."
+                Tool.VERTEX -> "Вершины: выбери точку на модели. Для сдвига открой «Трансформ.»."
+                Tool.EDGE -> "Рёбра: выбери линию сетки. Для сдвига открой «Трансформ.»."
                 Tool.MOVE -> "Move: захвати цветную стрелку X / Y / Z и потяни."
                 Tool.SCALE -> "Scale: захвати цветную ось на модели и потяни."
                 Tool.ROTATE -> "Rotate: поворот только вокруг оси Y."
@@ -247,8 +261,13 @@ class StudioActivity : Activity() {
                 Tool.SCALE -> 2
                 else -> -1
             }
+            if (tool == Tool.VERTEX || tool == Tool.EDGE) {
+                val selectedAxis = axis
+                act { Native.nudgeElement(engine, selectedAxis, value / 1000f * sign) }
+                return
+            }
             if(mode < 0) {
-                inspector.text = "Выбери Move, Rotate Y или Scale."
+                inspector.text = "Выбери Move, Rotate Y, Scale, Вершину или Ребро."
                 return
             }
             val targetAxis = if(mode==1) 1 else axis
@@ -264,13 +283,15 @@ class StudioActivity : Activity() {
                     controls(actions,
                         "Блок" to { act { Native.add(engine, 0) } },
                         "Сфера" to { act { Native.add(engine, 1) } },
-                        "Цилиндр" to { act { Native.add(engine, 2) } }
+                        "Цилиндр" to { act { Native.add(engine, 2) } },
+                        "След." to { act { Native.selectNext(engine) } }
                     )
                     controls(actions,
                         "Объект" to { activate(Tool.OBJECT) },
                         "Грань" to { activate(Tool.FACE) },
-                        "Камера" to { activate(Tool.CAMERA) },
-                        "Следующий" to { act { Native.selectNext(engine) } }
+                        "Вершина" to { activate(Tool.VERTEX) },
+                        "Ребро" to { activate(Tool.EDGE) },
+                        "Камера" to { activate(Tool.CAMERA) }
                     )
                     controls(actions,
                         "Extrude +" to { act { Native.extrude(engine, 0.05f) } },
@@ -284,7 +305,8 @@ class StudioActivity : Activity() {
                         "Move" to { activate(Tool.MOVE) },
                         "Rotate Y" to { axis = 1; activate(Tool.ROTATE) },
                         "Scale" to { activate(Tool.SCALE) },
-                        "Камера" to { activate(Tool.CAMERA) }
+                        "Вершина" to { activate(Tool.VERTEX) },
+                        "Ребро" to { activate(Tool.EDGE) }
                     )
                     controls(actions,
                         "Ось X" to { axis = 0; inspector.text = "Выбрана ось X" },
