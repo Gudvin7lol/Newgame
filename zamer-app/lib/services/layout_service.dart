@@ -37,6 +37,29 @@ class BalancedTileOffset {
 }
 
 class LayoutService {
+  /// A herringbone layout repeats on a different pitch from straight planks.
+  /// Preview, drag normalization and exact numeric input must use the same
+  /// period, otherwise the pattern suddenly jumps after each gesture.
+  static ({double xMm, double yMm}) laminateOffsetPeriod(
+    RoomMaterialSettings settings,
+  ) {
+    if (settings.laminatePattern == 'herringbone') {
+      return (
+        xMm: settings.laminatePlankLengthMm / math.sqrt2,
+        yMm: settings.laminatePlankWidthMm * math.sqrt2,
+      );
+    }
+    return (
+      xMm: settings.laminatePlankLengthMm,
+      yMm: settings.laminatePlankWidthMm,
+    );
+  }
+
+  static double normalizedPatternOffset(double value, double module) {
+    if (!value.isFinite || !module.isFinite || module <= 0) return 0;
+    return ((value % module) + module) % module;
+  }
+
   static void copyFloorPattern(
     RoomMaterialSettings from,
     RoomMaterialSettings to,
