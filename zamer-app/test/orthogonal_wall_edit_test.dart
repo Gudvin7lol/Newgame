@@ -74,7 +74,7 @@ void main() {
     expect(floor.toJson().toString(), original);
   });
 
-  test('T-junctions are rejected instead of silently deforming another room', () {
+  test('collinear branch at a junction is rejected before any geometry changes', () {
     final floor = rectangularFloor();
     // A parallel branch is a four-way/collinear constraint problem,
     // not a shared orthogonal partition end.
@@ -89,7 +89,7 @@ void main() {
       offsetMm: 500,
     );
     expect(result.isValid, isFalse);
-    expect(result.message, contains('узел'));
+    expect(result.message, contains('перпендикулярны'));
     expect(floor.toJson().toString(), original);
   });
 
