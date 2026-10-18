@@ -726,7 +726,10 @@ class GeometryService {
     // finalizeNodeMove can split the wall into a genuine T-junction.
     PlanWall? midpointWall;
     math.Point<double>? midpoint;
-    var midpointDistance = math.min(nodeThresholdMm, wallThresholdMm);
+    // Keep midpoint capture narrower than a regular wall snap. Otherwise
+    // a drag near the middle (but not exactly on it) unexpectedly jumps to
+    // the center instead of attaching to the point below the finger.
+    var midpointDistance = math.min(nodeThresholdMm, wallThresholdMm) * 0.30;
     for (final wall in floor.walls) {
       if (wall.isCurved ||
           wall.startNodeId == movingNodeId ||
