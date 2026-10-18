@@ -29,6 +29,8 @@ var instances: Dictionary = {}
 var selection_id: int = -1
 var vertex_index: int = -1
 var polygon_face: int = -1
+var transform_axis: int = 0
+var transform_dragged: bool = false
 var next_id: int = 1
 var undo_stack: Array[String] = []
 var redo_stack: Array[String] = []
@@ -455,6 +457,17 @@ func _transform_ui() -> void:
     if item.is_empty():
         inspector.add_child(_text("Выбери объект касанием в 3D-сцене.", 13, SUBTLE))
         return
+    inspector.add_child(_text("ИНСТРУМЕНТЫ ТРАНСФОРМАЦИИ", 11, TEAL))
+    var actions:=HBoxContainer.new()
+    inspector.add_child(actions)
+    _btn(actions,"Move",_set_transform_tool.bind("translate"),tool_mode=="translate")
+    _btn(actions,"Rotate",_set_transform_tool.bind("rotate"),tool_mode=="rotate")
+    _btn(actions,"Scale",_set_transform_tool.bind("scale"),tool_mode=="scale")
+    var axes:=HBoxContainer.new()
+    inspector.add_child(axes)
+    for axis in range(3):
+        _btn(axes,["X","Y","Z"][axis],_lock_axis.bind(axis),transform_axis==axis)
+    inspector.add_child(_text("Включи инструмент и тяни объект одним пальцем по оси.",11,SUBTLE))
     inspector.add_child(_text("ТОЧНЫЕ ПАРАМЕТРЫ  /  X  Y  Z", 11, TEAL))
     for field in ["pos","rot","size"]:
         var line := HBoxContainer.new()
@@ -475,6 +488,49 @@ func _transform_ui() -> void:
             number.value_changed.connect(_set_exact.bind(field,axis))
             line.add_child(number)
     inspector.add_child(_text("Изменения в миллиметрах и градусах. Не масштабируй детали на глаз.",11,SUBTLE))
+
+func _set_transform_tool(mode:String)->void:
+    tool_mode=mode
+    _show_outline()
+    _refresh_panel()
+    _note("Режим %s: проведи по объекту одним пальцем." % mode)
+
+func _lock_axis(axis:int)->void:
+    transform_axis=clampi(axis,0,2)
+    _refresh_panel()
+    _note("Ось %s" % ["X","Y","Z"][transform_axis])
+
+func _apply_drag_transform(relative:Vector2)->void:
+    var item:=_selected_item()
+    if item.is_empty() or not instances.has(selection_id): return
+    var node:MeshInstance3D=instances[selection_id]
+    var axis:=transform_axis
+    var field: String = {"translate":"pos","rotate":"rot","scale":"size"}.get(tool_mode,"pos")
+    var values: Array=item[field]
+    var previous: float=float(values[axis])
+    var updated: float=previous
+    if tool_mode=="translate":
+        var world_axis:=Vector3.ZERO
+        world_axis[axis]=1.0
+        var center:=node.global_position
+        var center_screen:Vector2=view_camera.unproject_position(center)
+        var next_screen:Vector2=view_camera.unproject_position(center+world_axis)
+        var vector:Vector2=next_screen-center_screen
+        if vector.length_squared()<8.0:
+            _note("Камера смотрит вдоль этой оси. Поверни сцену.")
+            return
+        updated=previous+relative.dot(vector)/vector.length_squared()
+    elif tool_mode=="rotate":
+        updated=previous+(relative.x-relative.y)*0.008
+    elif tool_mode=="scale":
+        updated=maxf(0.05,previous+(relative.x-relative.y)*0.004)
+    values[axis]=updated
+    item[field]=values
+    match field:
+        "pos": node.position=_v(values)
+        "rot": node.rotation=_v(values)
+        "size": node.scale=_v(values)
+    _update_selection_text()
 
 func _set_exact(value: float, field: String, axis: int) -> void:
     var item := _selected_item()
@@ -752,20 +808,28 @@ func _process(_delta: float) -> void:
 func _on_view_event(event: InputEvent) -> void:
     if event is InputEventScreenTouch:
         if event.pressed:
-            pointers[event.index] = event.position
-            touch_origin = event.position
-            dragged = false
+            pointers[event.index]=event.position
+            touch_origin=event.position
+            dragged=false
+            transform_dragged=false
         else:
-            if not dragged and pointers.size() <= 1:
+            if not dragged and pointers.size()<=1:
                 _tap(event.position)
+            if transform_dragged:
+                _refresh_panel()
             pointers.erase(event.index)
     elif event is InputEventScreenDrag:
         if event.position.distance_to(touch_origin) > 8.0: dragged = true
-        if pointers.size() > 1:
-            orbit_distance = clampf(orbit_distance - event.relative.y * 0.02, 1.25, 12.0)
+        if pointers.size()>1:
+            orbit_distance=clampf(orbit_distance-event.relative.y*0.02,1.25,12.0)
+        elif tool_mode in ["translate","rotate","scale"] and selection_id>=0:
+            if not transform_dragged:
+                _history()
+                transform_dragged=true
+            _apply_drag_transform(event.relative)
         else:
-            orbit_y -= event.relative.x * 0.008
-            orbit_x = clampf(orbit_x - event.relative.y * 0.008, -1.3, 0.25)
+            orbit_y -= event.relative.x*0.008
+            orbit_x = clampf(orbit_x-event.relative.y*0.008,-1.3,0.25)
         pointers[event.index] = event.position
         _camera_update()
     elif event is InputEventMouseButton and event.pressed:
