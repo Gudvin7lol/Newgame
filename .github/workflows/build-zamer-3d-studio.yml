@@ -67,16 +67,23 @@ jobs:
           if grep -E "SCRIPT ERROR|Parse Error|Invalid call|ERROR:" /tmp/studio-editor-tests.log; then
             exit 1
           fi
+      - name: Test polygon topology
+        run: |
+          set -o pipefail
+          godot --headless --path zamer-3d-studio --script res://tests/topology_smoke.gd 2>&1 | tee /tmp/topology-test.log
+          if grep -E "SCRIPT ERROR|Parse Error|Invalid call|ERROR:" /tmp/topology-test.log; then
+            exit 1
+          fi
       - name: Test geometry
         run: godot --headless --path zamer-3d-studio --script res://tests/smoke.gd
       - name: Build APK
         run: |
           mkdir -p build
-          godot --headless --verbose --path zamer-3d-studio --export-debug "Android" "$GITHUB_WORKSPACE/build/ZAMER-3D-Studio-0.7-debug.apk"
-          test -s build/ZAMER-3D-Studio-0.7-debug.apk
+          godot --headless --verbose --path zamer-3d-studio --export-debug "Android" "$GITHUB_WORKSPACE/build/ZAMER-3D-Studio-0.8-debug.apk"
+          test -s build/ZAMER-3D-Studio-0.8-debug.apk
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: ZAMER-3D-Studio-Android-APK
-          path: build/ZAMER-3D-Studio-0.7-debug.apk
+          path: build/ZAMER-3D-Studio-0.8-debug.apk
           if-no-files-found: error

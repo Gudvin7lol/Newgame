@@ -124,5 +124,38 @@ func _run() -> void:
         push_error("Top camera preset failed")
         quit(19)
         return
+    editor._add_item("editable")
+    var editable_id:int=editor.selection_id
+    var polygon_before:int=editor.data[-1]["mesh_data"]["faces"].size()
+    editor.polygon_face=2
+    editor._topology_extrude(0.05,0.10)
+    if editor.data[-1]["mesh_data"]["faces"].size()<=polygon_before:
+        push_error("Editable face extrusion failed")
+        quit(21)
+        return
+    var face_after:int=editor.polygon_face
+    editor._topology_extrude(0.04,0.0)
+    if editor.polygon_face==face_after:
+        push_error("Repeated face extrusion did not continue to cap")
+        quit(22)
+        return
+    editor._topology_subdivide()
+    if editor.data[-1]["mesh_data"]["faces"].size()<20:
+        push_error("Topology subdivide did not change the mesh")
+        quit(23)
+        return
+    editor._save()
+    editor._load_file()
+    if not editor.instances.has(editable_id) or not editor.data[-1].has("mesh_data"):
+        push_error("Editable polygon document lost on save/load")
+        quit(24)
+        return
+    editor._export_glb()
+    var gltf_new:=GLTFDocument.new()
+    var gltf_new_state:=GLTFState.new()
+    if gltf_new.append_from_file("user://exports/studio_mesh.glb",gltf_new_state)!=OK:
+        push_error("Edited topology failed GLB round-trip")
+        quit(25)
+        return
     print("EDITOR SMOKE OK: vertex edit, undo/redo, extrude, inset, bevel, GLB roundtrip")
     quit(0)
