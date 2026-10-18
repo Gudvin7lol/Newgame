@@ -1,6 +1,7 @@
 #include "native_renderer.hpp"
 #include "scene_picker.hpp"
 #include "gizmo_math.hpp"
+#include "mesh_edit.hpp"
 #include <android/log.h>
 #include <algorithm>
 #include <array>
@@ -50,12 +51,14 @@ precision highp float;
 layout(location=0) in vec3 aPos;
 layout(location=1) in vec3 aNormal;
 uniform mat4 mvp,model;
+uniform float markerSize;
 out vec3 nWorld,pWorld;
 void main(){
  vec4 w=model*vec4(aPos,1.0);
  pWorld=w.xyz;
  nWorld=normalize(transpose(inverse(mat3(model)))*aNormal);
  gl_Position=mvp*vec4(aPos,1.0);
+ gl_PointSize=markerSize;
 })shader";
 const char* fShader=R"shader(#version 300 es
 precision highp float;
@@ -112,6 +115,7 @@ void Renderer::initGl(){
  cameraLoc=glGetUniformLocation(program,"eyePos");colorLoc=glGetUniformLocation(program,"baseColor");
  metalLoc=glGetUniformLocation(program,"metallic");roughLoc=glGetUniformLocation(program,"roughness");
  selectLoc=glGetUniformLocation(program,"isSelected");flatLoc=glGetUniformLocation(program,"uFlatMode");
+ markerLoc=glGetUniformLocation(program,"markerSize");
  glGenBuffers(1,&gridBuffer);
  glGenBuffers(1,&faceBuffer);
  glGenBuffers(1,&gizmoBuffer);
@@ -320,11 +324,141 @@ void Renderer::drawGizmo(const M&p,const M&v,Vec3 eye){
     glUniform1i(flatLoc,0);
 }
 
+namespace {
+Vec3 transformPoint(const M&m,Vec3 p){
+    return {m[0]*p.x+m[4]*p.y+m[8]*p.z+m[12],
+            m[1]*p.x+m[5]*p.y+m[9]*p.z+m[13],
+            m[2]*p.x+m[6]*p.y+m[10]*p.z+m[14]};
+}
+bool toScreen(const M&m,Vec3 p,int w,int h,float&x,float&y,float&z){
+    const float clipX=m[0]*p.x+m[4]*p.y+m[8]*p.z+m[12];
+    const float clipY=m[1]*p.x+m[5]*p.y+m[9]*p.z+m[13];
+    const float clipZ=m[2]*p.x+m[6]*p.y+m[10]*p.z+m[14];
+    const float clipW=m[3]*p.x+m[7]*p.y+m[11]*p.z+m[15];
+    if(clipW<=0.001f)return false;
+    z=clipZ/clipW;
+    if(z< -1.f || z>1.f)return false;
+    x=(clipX/clipW*0.5f+0.5f)*float(w);
+    y=(0.5f-clipY/clipW*0.5f)*float(h);
+    return true;
+}
+float segmentDistance(float x,float y,float ax,float ay,float bx,float by){
+    const float dx=bx-ax,dy=by-ay;
+    float t=((x-ax)*dx+(y-ay)*dy)/std::max(0.00001f,dx*dx+dy*dy);
+    t=std::clamp(t,0.f,1.f);
+    const float px=ax+dx*t,py=ay+dy*t;
+    return std::hypot(x-px,y-py);
+}
+}
+void Renderer::setElementMode(int mode){
+    elementMode=std::clamp(mode,0,2);
+    if(scene.selected<0)return;
+    auto&o=scene.objects[size_t(scene.selected)];
+    o.selectedVertex=-1;
+    o.selectedEdgeA=-1;o.selectedEdgeB=-1;
+}
+int Renderer::pickElement(float x,float y,int mode){
+    if((mode!=1&&mode!=2)||scene.selected<0 || size_t(scene.selected)>=scene.objects.size())return -1;
+    auto&o=scene.objects[size_t(scene.selected)];
+    const float aspect=float(width)/float(std::max(1,height));
+    const Vec3 target{0,0.8f,0};
+    const Vec3 eye=target+Vec3{distance*std::sin(yaw)*std::cos(pitch),
+                               distance*std::sin(pitch),
+                               distance*std::cos(yaw)*std::cos(pitch)};
+    const M vp=mul(perspective(46.f,aspect),lookAt(eye,target));
+    const M mvp=mul(vp,objectMatrix(o));
+    int found=-1;
+    float best=mode==1?25.f:20.f;
+    float bestDepth=1.f;
+    if(mode==1){
+        if(o.mesh.vertices.size()>20000)return -1;
+        for(size_t i=0;i<o.mesh.vertices.size();i++){
+            float sx,sy,depth;
+            if(!toScreen(mvp,o.mesh.vertices[i],width,height,sx,sy,depth))continue;
+            float dist=std::hypot(x-sx,y-sy);
+            if(dist+0.5f<best || (std::fabs(dist-best)<0.5f && depth<bestDepth)){
+                found=int(i);best=dist;bestDepth=depth;
+            }
+        }
+        o.selectedVertex=found;o.selectedEdgeA=-1;o.selectedEdgeB=-1;
+    }else{
+        const auto edges=uniqueEdges(o.mesh);
+        if(edges.size()>25000)return -1;
+        for(size_t i=0;i<edges.size();i++){
+            float ax,ay,az,bx,by,bz;
+            if(!toScreen(mvp,o.mesh.vertices[size_t(edges[i].first)],width,height,ax,ay,az)||
+               !toScreen(mvp,o.mesh.vertices[size_t(edges[i].second)],width,height,bx,by,bz))continue;
+            float dist=segmentDistance(x,y,ax,ay,bx,by);
+            float depth=(az+bz)*0.5f;
+            if(dist+0.5f<best || (std::fabs(dist-best)<0.5f && depth<bestDepth)){
+                found=int(i);best=dist;bestDepth=depth;
+            }
+        }
+        o.selectedVertex=-1;
+        o.selectedEdgeA=found>=0?edges[size_t(found)].first:-1;
+        o.selectedEdgeB=found>=0?edges[size_t(found)].second:-1;
+    }
+    return found;
+}
+bool Renderer::nudgeElement(int axis,float metres){
+    if(scene.selected<0||size_t(scene.selected)>=scene.objects.size()||elementMode==0)return false;
+    scene.checkpoint();
+    return scene.moveComponent(elementMode,axis,metres);
+}
+void Renderer::drawElementOverlay(const M&p,const M&v,Vec3 eye){
+    if(elementMode==0||scene.selected<0||size_t(scene.selected)>=scene.objects.size())return;
+    const auto&o=scene.objects[size_t(scene.selected)];
+    const M world=objectMatrix(o),mvp=mul(p,mul(v,world));
+    glUniformMatrix4fv(mvpLoc,1,GL_FALSE,mvp.data());
+    glUniformMatrix4fv(modelLoc,1,GL_FALSE,world.data());
+    glUniform3f(cameraLoc,eye.x,eye.y,eye.z);
+    glUniform1i(selectLoc,0);glUniform1i(flatLoc,1);
+    glDisable(GL_DEPTH_TEST);
+    glBindBuffer(GL_ARRAY_BUFFER,faceBuffer);
+    glEnableVertexAttribArray(0);glEnableVertexAttribArray(1);
+    auto drawMesh=[&](const std::vector<Vec3>&pts,GLenum primitive,Vec3 color,float size){
+        if(pts.empty())return;
+        std::vector<float>values;
+        values.reserve(pts.size()*6);
+        for(Vec3 pt:pts)values.insert(values.end(),{pt.x,pt.y,pt.z,0.f,1.f,0.f});
+        glBufferData(GL_ARRAY_BUFFER,GLsizeiptr(values.size()*sizeof(float)),values.data(),GL_DYNAMIC_DRAW);
+        glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,6*sizeof(float),nullptr);
+        glVertexAttribPointer(1,3,GL_FLOAT,GL_FALSE,6*sizeof(float),reinterpret_cast<void*>(3*sizeof(float)));
+        glUniform3f(colorLoc,color.x,color.y,color.z);
+        glUniform1f(markerLoc,size);
+        glDrawArrays(primitive,0,GLsizei(pts.size()));
+    };
+    if(elementMode==1){
+        if(o.mesh.vertices.size()<3500){
+            drawMesh(o.mesh.vertices,GL_POINTS,{0.23f,0.87f,0.98f},5.f);
+        }
+        if(o.selectedVertex>=0&&size_t(o.selectedVertex)<o.mesh.vertices.size()){
+            drawMesh({o.mesh.vertices[size_t(o.selectedVertex)]},GL_POINTS,{1.f,0.69f,0.20f},17.f);
+        }
+    }else{
+        auto edges=uniqueEdges(o.mesh);
+        if(edges.size()<1600){
+            std::vector<Vec3>lines;
+            lines.reserve(edges.size()*2);
+            for(auto e:edges){lines.push_back(o.mesh.vertices[size_t(e.first)]);lines.push_back(o.mesh.vertices[size_t(e.second)]);}
+            drawMesh(lines,GL_LINES,{0.29f,0.70f,0.78f},1.f);
+        }
+        if(o.selectedEdgeA>=0&&o.selectedEdgeB>=0){
+            drawMesh({o.mesh.vertices[size_t(o.selectedEdgeA)],o.mesh.vertices[size_t(o.selectedEdgeB)]},
+                    GL_LINES,{1.f,0.72f,0.19f},1.f);
+        }
+    }
+    glUniform1f(markerLoc,5.f);
+    glEnable(GL_DEPTH_TEST);
+    glUniform1i(flatLoc,0);
+}
+
 void Renderer::draw(){
  glViewport(0,0,width,height);glClearColor(0.11f,0.18f,0.25f,1);
  glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
  if(program==0)return;
  glUseProgram(program);
+ glUniform1f(markerLoc,5.f);
  M projection=perspective(46.f,float(width)/float(height));
  Vec3 target{0,0.8f,0},eye=target+Vec3{
   distance*std::sin(yaw)*std::cos(pitch),
@@ -335,6 +469,7 @@ void Renderer::draw(){
  for(size_t i=0;i<scene.objects.size();i++)drawItem(scene.objects[i],int(i),projection,view,eye);
  drawFaceOutline(projection,view,eye);
  drawGizmo(projection,view,eye);
+ drawElementOverlay(projection,view,eye);
  glBindBuffer(GL_ARRAY_BUFFER,0);
  GLenum glError=glGetError();
  if(glError!=GL_NO_ERROR){

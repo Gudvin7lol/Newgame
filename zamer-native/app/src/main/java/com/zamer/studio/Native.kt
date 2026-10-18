@@ -13,6 +13,9 @@ object Native {
     external fun zoom(engine: Long, factor: Float)
     external fun pick(engine: Long, x: Float, y: Float): Int
     external fun pickFace(engine: Long, x: Float, y: Float): Int
+    external fun setElementMode(engine: Long, mode: Int)
+    external fun pickElement(engine: Long, x: Float, y: Float, mode: Int): Int
+    external fun nudgeElement(engine: Long, axis: Int, metres: Float): Boolean
     /** Call from GL thread. Mode 1=Move XYZ, 3=Scale XYZ, 0=none. */
     external fun setGizmoMode(engine: Long, mode: Int)
     external fun beginGizmo(engine: Long, x: Float, y: Float): Int

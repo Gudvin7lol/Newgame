@@ -22,6 +22,9 @@ JNIEXPORT jint JNICALL Java_com_zamer_studio_Native_pick(JNIEnv*,jobject,jlong p
 JNIEXPORT jint JNICALL Java_com_zamer_studio_Native_pickFace(JNIEnv*,jobject,jlong p,jfloat x,jfloat y){return p?engine(p)->pickFace(x,y):-1;}
 JNIEXPORT jboolean JNICALL Java_com_zamer_studio_Native_transform(JNIEnv*,jobject,jlong p,jint mode,jint axis,jfloat amount){if(!p)return JNI_FALSE;engine(p)->scene.checkpoint();return engine(p)->scene.transform(mode,axis,amount)?JNI_TRUE:JNI_FALSE;}
 JNIEXPORT jboolean JNICALL Java_com_zamer_studio_Native_inset(JNIEnv*,jobject,jlong p,jfloat fraction){if(!p)return JNI_FALSE;engine(p)->scene.checkpoint();return engine(p)->scene.inset(fraction)?JNI_TRUE:JNI_FALSE;}
+JNIEXPORT void JNICALL Java_com_zamer_studio_Native_setElementMode(JNIEnv*,jobject,jlong p,jint mode){if(p)engine(p)->setElementMode(int(mode));}
+JNIEXPORT jint JNICALL Java_com_zamer_studio_Native_pickElement(JNIEnv*,jobject,jlong p,jfloat x,jfloat y,jint mode){return p?engine(p)->pickElement(x,y,int(mode)):-1;}
+JNIEXPORT jboolean JNICALL Java_com_zamer_studio_Native_nudgeElement(JNIEnv*,jobject,jlong p,jint axis,jfloat value){return p&&engine(p)->nudgeElement(int(axis),float(value))?JNI_TRUE:JNI_FALSE;}
 JNIEXPORT void JNICALL Java_com_zamer_studio_Native_setGizmoMode(JNIEnv*,jobject,jlong p,jint mode){if(p)engine(p)->setGizmoMode(mode);}
 JNIEXPORT jint JNICALL Java_com_zamer_studio_Native_beginGizmo(JNIEnv*,jobject,jlong p,jfloat x,jfloat y){return p?engine(p)->beginGizmo(x,y):-1;}
 JNIEXPORT jboolean JNICALL Java_com_zamer_studio_Native_dragGizmo(JNIEnv*,jobject,jlong p,jfloat dx,jfloat dy){return p&&engine(p)->dragGizmo(dx,dy)?JNI_TRUE:JNI_FALSE;}
