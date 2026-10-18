@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../models/models.dart';
 import '../services/geometry_service.dart';
+import '../services/orthogonal_wall_edit_service.dart';
 import '../widgets/floor_plan_painter.dart';
 
 enum PlanMode {
@@ -756,7 +757,10 @@ class _PlanEditorScreenState extends State<PlanEditorScreen> {
         content: TextField(
           controller: c,
           autofocus: true,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          keyboardType: const TextInputType.numberWithOptions(
+            decimal: true,
+            signed: true,
+          ),
           decoration: InputDecoration(labelText: label, suffixText: suffix),
         ),
         actions: [
@@ -774,6 +778,47 @@ class _PlanEditorScreenState extends State<PlanEditorScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _parallelWallShift(
+    PlanWall wall,
+    StateSetter modalSetState,
+  ) async {
+    final a = floor.nodeById(wall.startNodeId);
+    final b = floor.nodeById(wall.endNodeId);
+    if (a == null || b == null) return;
+    final vertical = (a.xMm - b.xMm).abs() < 0.5;
+    final offset = await _numberDialog(
+      'Параллельный сдвиг стены',
+      vertical ? 'ΔX: вправо +, влево −' : 'ΔY: вниз +, вверх −',
+      '0',
+      'мм',
+    );
+    if (offset == null || offset == 0 || !mounted) return;
+    final preview = OrthogonalWallEditService.preview(
+      floor,
+      wallId: wall.id,
+      offsetMm: offset,
+    );
+    if (!preview.isValid) {
+      _toast(preview.message);
+      return;
+    }
+    _pushUndo();
+    final result = OrthogonalWallEditService.move(
+      floor,
+      wallId: wall.id,
+      offsetMm: offset,
+    );
+    if (!result.isValid) {
+      // Preview was successful, but the plan may have changed while the
+      // dialog was open. Undo the extra empty history snapshot.
+      if (_undo.isNotEmpty) _undo.removeLast();
+      _toast(result.message);
+      return;
+    }
+    await _changed();
+    if (mounted) modalSetState(() {});
   }
 
   Future<void> _wallSheet(PlanWall wall) async {
@@ -858,6 +903,37 @@ class _PlanEditorScreenState extends State<PlanEditorScreen> {
                           ),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 8),
+                    Builder(
+                      builder: (context) {
+                        final eligible = OrthogonalWallEditService.preview(
+                          floor,
+                          wallId: wall.id,
+                          offsetMm: 0,
+                        );
+                        final a = floor.nodeById(wall.startNodeId);
+                        final b = floor.nodeById(wall.endNodeId);
+                        final vertical = a != null &&
+                            b != null &&
+                            (a.xMm - b.xMm).abs() < 0.5;
+                        return ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(Icons.open_with),
+                          title: const Text('Сдвинуть стену без перекоса'),
+                          subtitle: Text(
+                            eligible.isValid
+                                ? vertical
+                                    ? 'Точное ΔX: вся стена и оба угла вправо/влево'
+                                    : 'Точное ΔY: вся стена и оба угла вверх/вниз'
+                                : eligible.message,
+                          ),
+                          enabled: eligible.isValid,
+                          onTap: eligible.isValid
+                              ? () => _parallelWallShift(wall, modalSetState)
+                              : null,
+                        );
+                      },
                     ),
                     const SizedBox(height: 8),
                     SegmentedButton<WallType>(
