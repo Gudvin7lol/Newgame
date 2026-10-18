@@ -3,6 +3,7 @@ extends Control
 # ZAMER 3D Studio: native modeling workspace, not the furniture demo.
 # Scene document stores editable objects, modifiers and per-vertex operations.
 const Factory = preload("res://scripts/mesh_factory.gd")
+const Solid = preload("res://scripts/solid_modeler.gd")
 const BG = Color("#0a111b")
 const SURFACE = Color("#111e2b")
 const PANEL = Color("#182737")
@@ -41,6 +42,7 @@ var touch_origin: Vector2 = Vector2.ZERO
 var dragged: bool = false
 var materials: Array[StandardMaterial3D] = []
 var selection_overlay: MeshInstance3D
+var selected_face: int = 2
 
 func _ready() -> void:
     _make_materials()
@@ -94,7 +96,7 @@ func _build_interface() -> void:
     var brand := _text("Z / STUDIO", 19)
     brand.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     header_row.add_child(brand)
-    header_row.add_child(_text("MESH LAB  0.6", 11, TEAL))
+    header_row.add_child(_text("MESH LAB  0.7", 11, TEAL))
     _btn(header_row, "↶", _undo)
     _btn(header_row, "↷", _redo)
 
@@ -235,6 +237,16 @@ func _make_materials() -> void:
 func _mesh_for(item: Dictionary) -> Mesh:
     var type_name := str(item.get("shape", "box"))
     match type_name:
+        "box":
+            var extrude_depth := float(item.get("extrude_depth",0.0))
+            var bevel := float(item.get("bevel",0.0))
+            if absf(extrude_depth)>0.0001:
+                return Solid.build(int(item.get("extrude_face",2)),extrude_depth,float(item.get("inset",0.10)),bevel)
+            if bevel>0.0001:
+                return Factory.soft_box(1.0,1.0,1.0,bevel,0.0,0.0)
+            var base := BoxMesh.new()
+            base.size=Vector3.ONE
+            return base
         "sphere":
             var sphere := SphereMesh.new()
             sphere.radial_segments = 48
@@ -324,7 +336,8 @@ func _add_item(shape: String) -> void:
     _history()
     var item := {"id": next_id, "name": _shape_title(shape) + " %d" % next_id,
         "shape": shape, "pos": [0.0, 0.68, 0.0], "rot": [0.0, 0.0, 0.0],
-        "size": [1.2, 0.6, 0.7], "mat": 0, "vertex_ops": []}
+        "size": [1.2, 0.6, 0.7], "mat": 0, "vertex_ops": [],
+        "extrude_depth": 0.0, "extrude_face": 2, "inset": 0.10, "bevel": 0.0}
     next_id += 1
     data.append(item)
     selection_id = int(item["id"])
@@ -452,22 +465,79 @@ func _nudge(field: String, axis: int, direction: int) -> void:
 func _mesh_ui() -> void:
     var item := _selected_item()
     if item.is_empty():
-        inspector.add_child(_text("Выбери объект. Затем перейди к редактированию вершин.", 12, SUBTLE))
+        inspector.add_child(_text("Выбери объект. Затем открой сетку для редактирования.", 12, SUBTLE))
         return
-    inspector.add_child(_text("РЕДАКТИРОВАНИЕ СЕТКИ / VERTEX", 11, SUBTLE))
+    if str(item.get("shape","")) == "box":
+        inspector.add_child(_text("FACE EDITOR  /  ГРАНИ И ФАСКИ", 11, TEAL))
+        var face_row := HBoxContainer.new()
+        inspector.add_child(face_row)
+        var face_names := ["X+", "X−", "Y+", "Y−", "Z+", "Z−"]
+        for i in range(6):
+            _btn(face_row, face_names[i], _set_face.bind(i), int(item.get("extrude_face",2))==i)
+        var values := HBoxContainer.new()
+        inspector.add_child(values)
+        _btn(values, "Выдавить +", _edit_profile.bind("extrude_depth",0.05))
+        _btn(values, "Вдавить −", _edit_profile.bind("extrude_depth",-0.05))
+        _btn(values, "Сброс", _reset_profile)
+        var details := HBoxContainer.new()
+        inspector.add_child(details)
+        _btn(details,"Inset +",_edit_profile.bind("inset",0.02))
+        _btn(details,"Inset −",_edit_profile.bind("inset",-0.02))
+        _btn(details,"Фаска +",_edit_profile.bind("bevel",0.01))
+        _btn(details,"Фаска −",_edit_profile.bind("bevel",-0.01))
+        inspector.add_child(_text(
+            "Грань %s  •  глубина %.0f мм  •  inset %.0f мм  •  фаска %.0f мм" %
+            [face_names[clampi(int(item.get("extrude_face",2)),0,5)],
+            float(item.get("extrude_depth",0.0))*1000.0,
+            float(item.get("inset",0.10))*1000.0,
+            float(item.get("bevel",0.0))*1000.0],11,SUBTLE))
+    inspector.add_child(_text("ВЕРШИНЫ / РУЧНАЯ ПРАВКА", 11, SUBTLE))
     var row := HBoxContainer.new()
     inspector.add_child(row)
-    _btn(row, "Выбрать вершину", _vertex_mode, true)
-    _btn(row, "Объект", _object_mode)
-    if vertex_index < 0:
-        inspector.add_child(_text("Режим вершин: коснись точки на поверхности объекта.", 12, SUBTLE))
-    else:
-        inspector.add_child(_text("Вершина #%d • шаг перемещения 5 мм в локальных координатах" % vertex_index, 12, TEAL))
+    _btn(row,"Выбрать вершину",_vertex_mode)
+    _btn(row,"Объект",_object_mode)
+    if vertex_index >= 0:
         var controls := HBoxContainer.new()
         inspector.add_child(controls)
         for axis in range(3):
-            _btn(controls, ["X−","Y−","Z−"][axis], _move_vertex.bind(axis, -1))
-            _btn(controls, ["X+","Y+","Z+"][axis], _move_vertex.bind(axis, 1))
+            _btn(controls, ["X−","Y−","Z−"][axis], _move_vertex.bind(axis,-1))
+            _btn(controls, ["X+","Y+","Z+"][axis], _move_vertex.bind(axis,1))
+    else:
+        inspector.add_child(_text("Чтобы двигать отдельную вершину, включи выбор и коснись её.",11,SUBTLE))
+
+func _set_face(face: int) -> void:
+    var item := _selected_item()
+    if item.is_empty(): return
+    _history()
+    item["extrude_face"] = clampi(face,0,5)
+    selected_face = face
+    _sync_scene()
+    _refresh_panel()
+
+func _edit_profile(property: String, delta: float) -> void:
+    var item := _selected_item()
+    if item.is_empty() or str(item.get("shape",""))!="box": return
+    _history()
+    var previous := float(item.get(property,0.0))
+    match property:
+        "extrude_depth":
+            item[property] = clampf(previous+delta,-0.40,0.75)
+            if absf(float(item[property]))<0.001: item[property]=0.0
+        "inset": item[property]=clampf(previous+delta,0.01,0.38)
+        "bevel": item[property]=clampf(previous+delta,0.0,0.13)
+    _sync_scene()
+    _refresh_panel()
+    _note("Изменена реальная геометрия выбранной грани.")
+
+func _reset_profile() -> void:
+    var item := _selected_item()
+    if item.is_empty(): return
+    _history()
+    item["extrude_depth"]=0.0
+    item["inset"]=0.10
+    item["bevel"]=0.0
+    _sync_scene()
+    _refresh_panel()
 
 func _vertex_mode() -> void:
     tool_mode = "vertex"
