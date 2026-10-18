@@ -123,6 +123,14 @@ func _build_interface() -> void:
     overlay_label = _text("СЦЕНА  /  ОБЪЕКТЫ: 0", 11, TEAL)
     overlay.add_child(overlay_label)
 
+    var viewpoints := HBoxContainer.new()
+    root.add_child(viewpoints)
+    _btn(viewpoints, "3D", _camera_preset.bind("3d"))
+    _btn(viewpoints, "Сверху", _camera_preset.bind("top"))
+    _btn(viewpoints, "Спереди", _camera_preset.bind("front"))
+    _btn(viewpoints, "Справа", _camera_preset.bind("right"))
+    _btn(viewpoints, "Фокус", _frame_selected)
+
     var controls := PanelContainer.new()
     controls.add_theme_stylebox_override("panel", _style(SURFACE, 12))
     root.add_child(controls)
@@ -435,20 +443,68 @@ func _objects_ui() -> void:
 func _transform_ui() -> void:
     var item := _selected_item()
     if item.is_empty():
-        inspector.add_child(_text("Выбери модель касанием в 3D-сцене.", 13, SUBTLE))
+        inspector.add_child(_text("Выбери объект касанием в 3D-сцене.", 13, SUBTLE))
         return
-    for mode in ["pos", "rot", "size"]:
-        var row := HBoxContainer.new()
-        inspector.add_child(row)
-        var title: String = {"pos":"Позиция", "rot":"Поворот", "size":"Размер"}[mode]
-        var label := _text(str(title), 12, SUBTLE)
-        label.custom_minimum_size.x = 72
-        row.add_child(label)
+    inspector.add_child(_text("ТОЧНЫЕ ПАРАМЕТРЫ  /  X  Y  Z", 11, TEAL))
+    for field in ["pos","rot","size"]:
+        var line := HBoxContainer.new()
+        inspector.add_child(line)
+        var title := {"pos":"Позиция, мм","rot":"Угол, °","size":"Размер, мм"}[field]
+        var lbl := _text(title,11,SUBTLE)
+        lbl.custom_minimum_size.x = 96
+        line.add_child(lbl)
         for axis in range(3):
-            var axis_name: String = ["X", "Y", "Z"][axis]
-            _btn(row, "%s −" % axis_name, _nudge.bind(mode, axis, -1))
-            _btn(row, "%s +" % axis_name, _nudge.bind(mode, axis, 1))
-    inspector.add_child(_text("Шаг: 10 мм для позиции/размера, 5° для поворота.", 11, SUBTLE))
+            var number := SpinBox.new()
+            number.custom_minimum_size.x = 65
+            number.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+            number.min_value = 50.0 if field=="size" else (-360.0 if field=="rot" else -15000.0)
+            number.max_value = 10000.0 if field=="size" else (360.0 if field=="rot" else 15000.0)
+            number.step = 1.0 if field=="rot" else 5.0
+            var current: float = float(item[field][axis])
+            number.value = rad_to_deg(current) if field=="rot" else current*1000.0
+            number.value_changed.connect(_set_exact.bind(field,axis))
+            line.add_child(number)
+    inspector.add_child(_text("Изменения в миллиметрах и градусах. Не масштабируй детали на глаз.",11,SUBTLE))
+
+func _set_exact(value: float, field: String, axis: int) -> void:
+    var item := _selected_item()
+    if item.is_empty(): return
+    var new_val: float = deg_to_rad(value) if field=="rot" else value/1000.0
+    if absf(float(item[field][axis])-new_val)<0.00001: return
+    _history()
+    var numbers: Array = item[field].duplicate()
+    numbers[axis] = maxf(new_val,0.05) if field=="size" else new_val
+    item[field] = numbers
+    _sync_scene()
+    _note("Точные координаты применены")
+
+func _camera_preset(name: String) -> void:
+    match name:
+        "top":
+            orbit_x = -PI*0.499
+            orbit_y = 0.0
+        "front":
+            orbit_x = 0.0
+            orbit_y = 0.0
+        "right":
+            orbit_x = 0.0
+            orbit_y = PI*0.5
+        _:
+            orbit_x = -0.23
+            orbit_y = 0.42
+    _camera_update()
+    _note("Вид: "+name)
+
+func _frame_selected() -> void:
+    if not instances.has(selection_id):
+        focus = Vector3(0,0.85,0)
+        orbit_distance = 4.8
+    else:
+        var target: MeshInstance3D = instances[selection_id]
+        focus = target.global_position
+        var size: Vector3 = target.mesh.get_aabb().size * target.scale
+        orbit_distance = clampf(size.length()*1.7,1.8,12.0)
+    _camera_update()
 
 func _nudge(field: String, axis: int, direction: int) -> void:
     var item := _selected_item()
