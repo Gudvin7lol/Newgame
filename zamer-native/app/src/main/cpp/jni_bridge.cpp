@@ -25,6 +25,8 @@ JNIEXPORT jboolean JNICALL Java_com_zamer_studio_Native_inset(JNIEnv*,jobject,jl
 JNIEXPORT void JNICALL Java_com_zamer_studio_Native_setElementMode(JNIEnv*,jobject,jlong p,jint mode){if(p)engine(p)->setElementMode(int(mode));}
 JNIEXPORT jint JNICALL Java_com_zamer_studio_Native_pickElement(JNIEnv*,jobject,jlong p,jfloat x,jfloat y,jint mode){return p?engine(p)->pickElement(x,y,int(mode)):-1;}
 JNIEXPORT jboolean JNICALL Java_com_zamer_studio_Native_nudgeElement(JNIEnv*,jobject,jlong p,jint axis,jfloat value){return p&&engine(p)->nudgeElement(int(axis),float(value))?JNI_TRUE:JNI_FALSE;}
+JNIEXPORT jboolean JNICALL Java_com_zamer_studio_Native_splitEdge(JNIEnv*,jobject,jlong p){return p&&engine(p)->splitSelectedEdge()?JNI_TRUE:JNI_FALSE;}
+JNIEXPORT jboolean JNICALL Java_com_zamer_studio_Native_loopCut(JNIEnv*,jobject,jlong p){return p&&engine(p)->loopCutSelectedEdge()?JNI_TRUE:JNI_FALSE;}
 JNIEXPORT void JNICALL Java_com_zamer_studio_Native_setGizmoMode(JNIEnv*,jobject,jlong p,jint mode){if(p)engine(p)->setGizmoMode(mode);}
 JNIEXPORT jint JNICALL Java_com_zamer_studio_Native_beginGizmo(JNIEnv*,jobject,jlong p,jfloat x,jfloat y){return p?engine(p)->beginGizmo(x,y):-1;}
 JNIEXPORT jboolean JNICALL Java_com_zamer_studio_Native_dragGizmo(JNIEnv*,jobject,jlong p,jfloat dx,jfloat dy){return p&&engine(p)->dragGizmo(dx,dy)?JNI_TRUE:JNI_FALSE;}

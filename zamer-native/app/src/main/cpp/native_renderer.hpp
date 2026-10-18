@@ -13,6 +13,8 @@ public:
  void setElementMode(int mode);
  int pickElement(float x,float y,int mode);
  bool nudgeElement(int axis,float metres);
+ bool splitSelectedEdge();
+ bool loopCutSelectedEdge();
  int pick(float x,float y);
  void setGizmoMode(int mode);
  int beginGizmo(float x,float y);

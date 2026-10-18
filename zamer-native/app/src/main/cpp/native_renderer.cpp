@@ -351,11 +351,14 @@ float segmentDistance(float x,float y,float ax,float ay,float bx,float by){
 }
 }
 void Renderer::setElementMode(int mode){
-    elementMode=std::clamp(mode,0,2);
+    int next=std::clamp(mode,0,2);
+    if(next==elementMode)return; // moving between panels must not erase selections
+    elementMode=next;
     if(scene.selected<0)return;
     auto&o=scene.objects[size_t(scene.selected)];
-    o.selectedVertex=-1;
-    o.selectedEdgeA=-1;o.selectedEdgeB=-1;
+    // Leaving edit mode hides points but preserves selection for later editing.
+    if(next==1){o.selectedEdgeA=-1;o.selectedEdgeB=-1;}
+    if(next==2)o.selectedVertex=-1;
 }
 int Renderer::pickElement(float x,float y,int mode){
     if((mode!=1&&mode!=2)||scene.selected<0 || size_t(scene.selected)>=scene.objects.size())return -1;
@@ -399,6 +402,28 @@ int Renderer::pickElement(float x,float y,int mode){
         o.selectedEdgeB=found>=0?edges[size_t(found)].second:-1;
     }
     return found;
+}
+bool Renderer::splitSelectedEdge(){
+    if(scene.selected<0||size_t(scene.selected)>=scene.objects.size())return false;
+    auto&obj=scene.objects[size_t(scene.selected)];
+    Mesh preview=obj.mesh;
+    if(splitEdge(preview,obj.selectedEdgeA,obj.selectedEdgeB)<0)return false;
+    scene.checkpoint();
+    discardBuffers();
+    const bool ok=scene.splitSelectedEdge();
+    if(ok)elementMode=1;
+    return ok;
+}
+bool Renderer::loopCutSelectedEdge(){
+    if(scene.selected<0||size_t(scene.selected)>=scene.objects.size())return false;
+    auto&obj=scene.objects[size_t(scene.selected)];
+    Mesh preview=obj.mesh;
+    if(loopCut(preview,obj.selectedEdgeA,obj.selectedEdgeB)<0)return false;
+    scene.checkpoint();
+    discardBuffers();
+    const bool ok=scene.loopCutSelectedEdge();
+    if(ok)elementMode=1;
+    return ok;
 }
 bool Renderer::nudgeElement(int axis,float metres){
     if(scene.selected<0||size_t(scene.selected)>=scene.objects.size()||elementMode==0)return false;

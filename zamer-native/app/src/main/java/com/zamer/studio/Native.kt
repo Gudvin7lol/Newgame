@@ -16,6 +16,8 @@ object Native {
     external fun setElementMode(engine: Long, mode: Int)
     external fun pickElement(engine: Long, x: Float, y: Float, mode: Int): Int
     external fun nudgeElement(engine: Long, axis: Int, metres: Float): Boolean
+    external fun splitEdge(engine: Long): Boolean
+    external fun loopCut(engine: Long): Boolean
     /** Call from GL thread. Mode 1=Move XYZ, 3=Scale XYZ, 0=none. */
     external fun setGizmoMode(engine: Long, mode: Int)
     external fun beginGizmo(engine: Long, x: Float, y: Float): Int

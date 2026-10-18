@@ -49,7 +49,7 @@ class StudioActivity : Activity() {
             setBackgroundColor(bg)
         }
         val brand = TextView(this).apply {
-            text = "Z / ENGINE    •    CORE 0.6"
+            text = "Z / ENGINE    •    CORE 0.7"
             setTextColor(Color.WHITE)
             textSize = 17f
             setPadding(18.dp(), 9.dp(), 12.dp(), 9.dp())
@@ -298,6 +298,30 @@ class StudioActivity : Activity() {
                         "Extrude −" to { act { Native.extrude(engine, -0.05f) } },
                         "Inset" to { act { Native.inset(engine, 0.10f) } },
                         "Subdivide" to { act { Native.subdivide(engine) } }
+                    )
+                    controls(actions,
+                        "Loop Cut" to {
+                            surface.queueEvent {
+                                val success = Native.loopCut(engine)
+                                val state = Native.sceneInfo(engine)
+                                runOnUiThread {
+                                    if (success) tool = Tool.VERTEX
+                                    inspector.text = if (success) "Loop Cut выполнен. Выбрана новая вершина.\n$state"
+                                        else "Loop Cut: выбери ребро замкнутой цепочки четырёхугольников."
+                                }
+                            }
+                        },
+                        "Split Edge" to {
+                            surface.queueEvent {
+                                val success = Native.splitEdge(engine)
+                                val state = Native.sceneInfo(engine)
+                                runOnUiThread {
+                                    if (success) tool = Tool.VERTEX
+                                    inspector.text = if (success) "Ребро разделено на два.\n$state"
+                                        else "Split Edge: сначала выбери ребро замкнутой сетки."
+                                }
+                            }
+                        }
                     )
                 }
                 1 -> {
