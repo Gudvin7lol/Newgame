@@ -2,6 +2,8 @@ package com.zamer.studio
 
 import android.app.Activity
 import android.graphics.Color
+import android.text.InputType
+import android.widget.EditText
 import android.opengl.GLSurfaceView
 import android.os.Bundle
 import android.os.Build
@@ -16,6 +18,10 @@ import kotlin.math.hypot
 
 /** Offline native modeling sandbox. No Godot, browser, Three.js or external runtime. */
 class StudioActivity : Activity() {
+    private enum class Tool { CAMERA, OBJECT, FACE, MOVE, ROTATE, SCALE }
+    private var tool = Tool.OBJECT
+    private var axis = 0
+    private var amountInput: EditText? = null
     private lateinit var surface: GLSurfaceView
     private lateinit var inspector: TextView
     private lateinit var graphicsStatus: TextView
@@ -23,7 +29,6 @@ class StudioActivity : Activity() {
     private var previousX = 0f
     private var previousY = 0f
     private var previousPinch = 0f
-    private var translation = false
     private var firstRenderReport = true
     private var frames: Int = 0
     private var moved: Boolean = false
@@ -44,7 +49,7 @@ class StudioActivity : Activity() {
             setBackgroundColor(bg)
         }
         val brand = TextView(this).apply {
-            text = "Z / ENGINE    •    CORE 0.3"
+            text = "Z / ENGINE    •    CORE 0.4"
             setTextColor(Color.WHITE)
             textSize = 17f
             setPadding(18.dp(), 9.dp(), 12.dp(), 9.dp())
@@ -99,11 +104,12 @@ class StudioActivity : Activity() {
                         moved = false
                     }
                     MotionEvent.ACTION_UP -> {
-                        if (!moved && !translation) {
+                        if (!moved) {
                             val px = event.x
                             val py = event.y
                             queueEvent {
-                                val selected = Native.pick(engine, px, py)
+                                val selected = if (tool == Tool.FACE) Native.pickFace(engine, px, py)
+                                               else Native.pick(engine, px, py)
                                 val info = Native.sceneInfo(engine)
                                 runOnUiThread {
                                     inspector.text = if (selected >= 0) info else "Коснись объекта для выделения"
@@ -117,9 +123,16 @@ class StudioActivity : Activity() {
                         if (hypot(event.x - startX, event.y - startY) > 8.dp()) moved = true
                         previousX = event.x
                         previousY = event.y
+                        val activeTool = tool
+                        val lockedAxis = axis
                         queueEvent {
-                            if (translation) Native.move(engine, dx*0.003f, -dy*0.003f)
-                            else Native.orbit(engine, dx*0.008f, dy*0.008f)
+                            when (activeTool) {
+                                Tool.MOVE -> Native.transform(engine, 0, lockedAxis,
+                                    if (lockedAxis == 1) -dy*0.003f else dx*0.003f)
+                                Tool.ROTATE -> Native.transform(engine, 1, 1, (dx-dy)*0.008f)
+                                Tool.SCALE -> Native.transform(engine, 2, lockedAxis, (dx-dy)*0.002f)
+                                else -> Native.orbit(engine, dx*0.008f, dy*0.008f)
+                            }
                         }
                     }
                 }
@@ -146,7 +159,7 @@ class StudioActivity : Activity() {
         }
         root.addView(inspector)
 
-        fun controls(vararg items: Pair<String, () -> Unit>) {
+        fun controls(parent: LinearLayout, vararg items: Pair<String, () -> Unit>) {
             val row = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 setBackgroundColor(panel)
@@ -164,7 +177,7 @@ class StudioActivity : Activity() {
                     setMargins(2.dp(), 2.dp(), 2.dp(), 2.dp())
                 })
             }
-            root.addView(row)
+            parent.addView(row)
         }
         fun act(action: () -> Unit) {
             surface.queueEvent {
@@ -173,36 +186,142 @@ class StudioActivity : Activity() {
                 runOnUiThread { inspector.text = text }
             }
         }
-        controls(
-            "Блок" to { act { Native.add(engine, 0) } },
-            "Сфера" to { act { Native.add(engine, 1) } },
-            "Цилиндр" to { act { Native.add(engine, 2) } }
-        )
-        controls(
-            "Выбрать" to { act { Native.selectNext(engine) } },
-            "Выдавить" to { act { Native.extrude(engine, 0.05f) } },
-            "Subdivide" to { act { Native.subdivide(engine) } }
-        )
-        controls(
-            "Двигать" to { translation = !translation; inspector.text = if (translation) "Режим перемещения" else "Режим камеры" },
-            "Материал" to { act { Native.material(engine, 1) } },
-            "Сохранить" to {
-                surface.queueEvent {
-                    val project = Native.serialize(engine)
-                    runOnUiThread {
-                        File(filesDir, "project.zms").writeText(project)
-                        inspector.text = "Проект сохранён • private Android storage"
-                    }
-                }
-            },
-            "Открыть" to {
-                val file = File(filesDir, "project.zms")
-                if (file.exists()) {
-                    val project = file.readText()
-                    act { Native.restore(engine, project) }
-                } else inspector.text = "Нет сохранённого проекта"
+        val tabs = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val actions = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        root.addView(tabs)
+        root.addView(actions)
+
+        fun activate(mode: Tool) {
+            tool = mode
+            inspector.text = when(mode) {
+                Tool.CAMERA -> "Камера: вращение пальцем, приближение двумя."
+                Tool.OBJECT -> "Выбери объект одним касанием."
+                Tool.FACE -> "Выбери конкретную грань касанием."
+                Tool.MOVE -> "Move: проведи пальцем, выбрав ось X / Y / Z."
+                Tool.SCALE -> "Scale: проведи пальцем вдоль выбранной оси."
+                Tool.ROTATE -> "Rotate: поворот только вокруг оси Y."
             }
+        }
+
+        fun exact(sign: Int) {
+            val value = amountInput?.text?.toString()?.toFloatOrNull()
+            if (value == null || !value.isFinite() || value < -10000f || value > 10000f) {
+                inspector.text = "Нужен числовой шаг от −10000 до 10000."
+                return
+            }
+            val mode = when(tool) {
+                Tool.MOVE -> 0
+                Tool.ROTATE -> 1
+                Tool.SCALE -> 2
+                else -> -1
+            }
+            if(mode < 0) {
+                inspector.text = "Выбери Move, Rotate Y или Scale."
+                return
+            }
+            val targetAxis = if(mode==1) 1 else axis
+            val amount = if(mode==1) Math.toRadians(value.toDouble()).toFloat()
+                         else value/1000f
+            act { Native.transform(engine, mode, targetAxis, amount*sign) }
+        }
+
+        fun page(index: Int) {
+            actions.removeAllViews()
+            when(index) {
+                0 -> {
+                    controls(actions,
+                        "Блок" to { act { Native.add(engine, 0) } },
+                        "Сфера" to { act { Native.add(engine, 1) } },
+                        "Цилиндр" to { act { Native.add(engine, 2) } }
+                    )
+                    controls(actions,
+                        "Объект" to { activate(Tool.OBJECT) },
+                        "Грань" to { activate(Tool.FACE) },
+                        "Камера" to { activate(Tool.CAMERA) },
+                        "Следующий" to { act { Native.selectNext(engine) } }
+                    )
+                    controls(actions,
+                        "Extrude +" to { act { Native.extrude(engine, 0.05f) } },
+                        "Extrude −" to { act { Native.extrude(engine, -0.05f) } },
+                        "Inset" to { act { Native.inset(engine, 0.10f) } },
+                        "Subdivide" to { act { Native.subdivide(engine) } }
+                    )
+                }
+                1 -> {
+                    controls(actions,
+                        "Move" to { activate(Tool.MOVE) },
+                        "Rotate Y" to { axis = 1; activate(Tool.ROTATE) },
+                        "Scale" to { activate(Tool.SCALE) },
+                        "Камера" to { activate(Tool.CAMERA) }
+                    )
+                    controls(actions,
+                        "Ось X" to { axis = 0; inspector.text = "Выбрана ось X" },
+                        "Ось Y" to { axis = 1; inspector.text = "Выбрана ось Y" },
+                        "Ось Z" to { axis = 2; inspector.text = "Выбрана ось Z" }
+                    )
+                    val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+                    row.addView(TextView(this).apply {
+                        text = "Шаг, мм/°"
+                        setTextColor(accent)
+                        textSize = 12f
+                    }, LinearLayout.LayoutParams(94.dp(), 38.dp()))
+                    val field = EditText(this).apply {
+                        setText("10")
+                        setTextColor(Color.WHITE)
+                        textSize = 13f
+                        setSingleLine(true)
+                        inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL or InputType.TYPE_NUMBER_FLAG_SIGNED
+                    }
+                    amountInput = field
+                    row.addView(field, LinearLayout.LayoutParams(0, 42.dp(), 1f))
+                    row.addView(Button(this).apply {
+                        text = "−"
+                        setOnClickListener { exact(-1) }
+                    }, LinearLayout.LayoutParams(55.dp(), 42.dp()))
+                    row.addView(Button(this).apply {
+                        text = "+"
+                        setOnClickListener { exact(1) }
+                    }, LinearLayout.LayoutParams(55.dp(), 42.dp()))
+                    actions.addView(row)
+                }
+                else -> {
+                    controls(actions,
+                        "Материал" to { act { Native.material(engine, -1) } },
+                        "Сохранить" to {
+                            surface.queueEvent {
+                                val project = Native.serialize(engine)
+                                runOnUiThread {
+                                    try {
+                                        File(filesDir, "project.zms").writeText(project)
+                                        inspector.text = "Проект сохранён во внутренней памяти."
+                                    } catch(error: Exception) {
+                                        inspector.text = "Ошибка записи проекта."
+                                    }
+                                }
+                            }
+                        },
+                        "Открыть" to {
+                            val f = File(filesDir, "project.zms")
+                            if(f.exists()) {
+                                try {
+                                    val project = f.readText()
+                                    act { Native.restore(engine, project) }
+                                } catch(error: Exception) {
+                                    inspector.text = "Ошибка чтения проекта."
+                                }
+                            } else inspector.text = "Сохранённый проект не найден."
+                        }
+                    )
+                }
+            }
+        }
+
+        controls(tabs,
+            "Модель" to { page(0) },
+            "Трансформ." to { page(1) },
+            "Файлы" to { page(2) }
         )
+        page(0)
         setContentView(root)
         // Android 15/16 enforce edge-to-edge. Reserve both system-bar insets.
         root.setOnApplyWindowInsetsListener { _, insets ->
