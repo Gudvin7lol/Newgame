@@ -924,8 +924,8 @@ class _PlanEditorScreenState extends State<PlanEditorScreen> {
                           subtitle: Text(
                             eligible.isValid
                                 ? vertical
-                                    ? 'Точное ΔX: вся стена и оба угла вправо/влево'
-                                    : 'Точное ΔY: вся стена и оба угла вверх/вниз'
+                                    ? 'Точное ΔX: сохранение углов и смежных комнат'
+                                    : 'Точное ΔY: сохранение углов и смежных комнат'
                                 : eligible.message,
                           ),
                           enabled: eligible.isValid,
