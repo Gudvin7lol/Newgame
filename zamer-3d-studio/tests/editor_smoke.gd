@@ -65,5 +65,47 @@ func _run() -> void:
         push_error("GLB file empty")
         quit(11)
         return
-    print("EDITOR SMOKE OK: add, transform, vertex edit, undo, duplicate, delete, material, save, glb")
+    # Real topology change: selected face extrusion must create more geometry.
+    editor._choose(int(editor.data[0]["id"]))
+    # The remaining item is a soft object; add an editable cuboid.
+    editor._add_item("box")
+    var box_id: int = editor.selection_id
+    var base_mesh: Mesh = editor.instances[box_id].mesh
+    var base_faces: int = base_mesh.get_faces().size()
+    editor._set_face(2)
+    editor._edit_profile("extrude_depth",0.15)
+    var extruded_mesh: Mesh = editor.instances[box_id].mesh
+    var extrusion_faces: int = extruded_mesh.get_faces().size()
+    if extrusion_faces <= base_faces:
+        push_error("Extrude did not add real mesh geometry")
+        quit(12)
+        return
+    if extruded_mesh.get_aabb().size.y <= base_mesh.get_aabb().size.y:
+        push_error("Extrude did not change solid dimensions")
+        quit(13)
+        return
+    editor._edit_profile("bevel",0.035)
+    if float(editor.data[-1]["bevel"]) < 0.03:
+        push_error("Chamfer parameter not updated")
+        quit(14)
+        return
+    editor._undo()
+    if float(editor.data[-1]["bevel"]) > 0.0001:
+        push_error("Undo did not restore face profile")
+        quit(15)
+        return
+    editor._redo()
+    if float(editor.data[-1]["bevel"]) < 0.03:
+        push_error("Redo did not restore bevel")
+        quit(16)
+        return
+    editor._export_glb()
+    var gltf := GLTFDocument.new()
+    var state := GLTFState.new()
+    var load_err := gltf.append_from_file("user://exports/studio_mesh.glb",state)
+    if load_err != OK or state.get_meshes().size() < 2:
+        push_error("Round trip GLB contains invalid geometry")
+        quit(17)
+        return
+    print("EDITOR SMOKE OK: vertex edit, undo/redo, extrude, inset, bevel, GLB roundtrip")
     quit(0)
