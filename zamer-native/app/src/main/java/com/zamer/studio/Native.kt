@@ -12,6 +12,10 @@ object Native {
     external fun orbit(engine: Long, dx: Float, dy: Float)
     external fun zoom(engine: Long, factor: Float)
     external fun pick(engine: Long, x: Float, y: Float): Int
+    external fun pickFace(engine: Long, x: Float, y: Float): Int
+    /** 0=translate XYZ metres; 1=rotate Y radians; 2=scale XYZ metres */
+    external fun transform(engine: Long, mode: Int, axis: Int, amount: Float): Boolean
+    external fun inset(engine: Long, fraction: Float): Boolean
     external fun add(engine: Long, type: Int)
     external fun selectNext(engine: Long)
     external fun move(engine: Long, dx: Float, dz: Float)

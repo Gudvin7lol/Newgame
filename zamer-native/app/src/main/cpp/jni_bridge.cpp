@@ -19,6 +19,9 @@ JNIEXPORT void JNICALL Java_com_zamer_studio_Native_resize(JNIEnv*,jobject,jlong
 JNIEXPORT void JNICALL Java_com_zamer_studio_Native_draw(JNIEnv*,jobject,jlong p){if(p)engine(p)->draw();}
 JNIEXPORT void JNICALL Java_com_zamer_studio_Native_orbit(JNIEnv*,jobject,jlong p,jfloat x,jfloat y){if(p)engine(p)->orbit(x,y);}
 JNIEXPORT jint JNICALL Java_com_zamer_studio_Native_pick(JNIEnv*,jobject,jlong p,jfloat x,jfloat y){return p?engine(p)->pick(x,y):-1;}
+JNIEXPORT jint JNICALL Java_com_zamer_studio_Native_pickFace(JNIEnv*,jobject,jlong p,jfloat x,jfloat y){return p?engine(p)->pickFace(x,y):-1;}
+JNIEXPORT jboolean JNICALL Java_com_zamer_studio_Native_transform(JNIEnv*,jobject,jlong p,jint mode,jint axis,jfloat amount){return p&&engine(p)->scene.transform(mode,axis,amount)?JNI_TRUE:JNI_FALSE;}
+JNIEXPORT jboolean JNICALL Java_com_zamer_studio_Native_inset(JNIEnv*,jobject,jlong p,jfloat fraction){return p&&engine(p)->scene.inset(fraction)?JNI_TRUE:JNI_FALSE;}
 JNIEXPORT void JNICALL Java_com_zamer_studio_Native_zoom(JNIEnv*,jobject,jlong p,jfloat s){if(p)engine(p)->zoom(s);}
 JNIEXPORT void JNICALL Java_com_zamer_studio_Native_add(JNIEnv*,jobject,jlong p,jint type){if(p)engine(p)->scene.add(int(type));}
 JNIEXPORT void JNICALL Java_com_zamer_studio_Native_selectNext(JNIEnv*,jobject,jlong p){if(p)engine(p)->scene.selectNext();}

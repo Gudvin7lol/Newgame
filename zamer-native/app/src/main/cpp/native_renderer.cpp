@@ -112,6 +112,7 @@ void Renderer::initGl(){
  metalLoc=glGetUniformLocation(program,"metallic");roughLoc=glGetUniformLocation(program,"roughness");
  selectLoc=glGetUniformLocation(program,"isSelected");flatLoc=glGetUniformLocation(program,"uFlatMode");
  glGenBuffers(1,&gridBuffer);
+ glGenBuffers(1,&faceBuffer);
  for(auto&o:scene.objects){o.gpuBuffer=0;o.dirty=true;}
  glEnable(GL_DEPTH_TEST);glDepthFunc(GL_LEQUAL);glDisable(GL_CULL_FACE);
  const GLubyte* driver=glGetString(GL_RENDERER);
@@ -159,21 +160,60 @@ void Renderer::drawItem(Object&o,int index,const M&p,const M&v,Vec3 eye){
  glUniform1i(selectLoc,index==scene.selected?1:0);
  glDrawArrays(GL_TRIANGLES,0,o.gpuVertices);
 }
-int Renderer::pick(float x,float y){
+int Renderer::pickAt(float x,float y,bool face){
     const float aspect=float(width)/float(std::max(1,height));
-    const float yFovTan=std::tan(46.f*PI/360.f);
+    const float yfov=std::tan(46.f*PI/360.f);
     Vec3 target{0.f,0.8f,0.f};
-    Vec3 eye=target+Vec3{distance*std::sin(yaw)*std::cos(pitch),distance*std::sin(pitch),distance*std::cos(yaw)*std::cos(pitch)};
+    Vec3 eye=target+Vec3{distance*std::sin(yaw)*std::cos(pitch),
+                         distance*std::sin(pitch),
+                         distance*std::cos(yaw)*std::cos(pitch)};
     Vec3 forward=(target-eye).normalized();
     Vec3 right=cross(forward,{0,1,0}).normalized();
     Vec3 up=cross(right,forward).normalized();
-    const float dx=(2.f*x/float(std::max(1,width))-1.f)*aspect*yFovTan;
-    const float dy=(1.f-2.f*y/float(std::max(1,height)))*yFovTan;
+    float dx=(2.f*x/float(std::max(1,width))-1.f)*aspect*yfov;
+    float dy=(1.f-2.f*y/float(std::max(1,height)))*yfov;
     Vec3 direction=(forward+right*dx+up*dy).normalized();
-    int found=pickObject(scene,eye,direction);
-    if(found>=0)scene.selected=found;
-    return found;
+    const SurfaceHit hit=pickSurface(scene,eye,direction);
+    if(hit.object>=0){
+        scene.selected=hit.object;
+        if(face)scene.objects[size_t(hit.object)].selectedFace=hit.face;
+    }
+    return face?hit.face:hit.object;
 }
+int Renderer::pick(float x,float y){return pickAt(x,y,false);}
+int Renderer::pickFace(float x,float y){return pickAt(x,y,true);}
+void Renderer::drawFaceOutline(const M&p,const M&v,Vec3 eye){
+    if(scene.selected<0||size_t(scene.selected)>=scene.objects.size())return;
+    const Object&o=scene.objects[size_t(scene.selected)];
+    if(o.mesh.faces.empty())return;
+    const int face=std::clamp(o.selectedFace,0,int(o.mesh.faces.size())-1);
+    const auto& ring=o.mesh.faces[size_t(face)];
+    if(ring.size()<3)return;
+    const Vec3 faceNormal=o.mesh.faceNormal(face);
+    std::vector<float>positions;positions.reserve(ring.size()*12);
+    for(size_t i=0;i<ring.size();i++){
+        for(int id:{ring[i],ring[(i+1)%ring.size()]}){
+            const Vec3 pt=o.mesh.vertices[size_t(id)]+faceNormal*0.003f;
+            positions.insert(positions.end(),{pt.x,pt.y,pt.z,0.f,1.f,0.f});
+        }
+    }
+    glBindBuffer(GL_ARRAY_BUFFER,faceBuffer);
+    glBufferData(GL_ARRAY_BUFFER,GLsizeiptr(positions.size()*sizeof(float)),positions.data(),GL_DYNAMIC_DRAW);
+    glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,6*sizeof(float),nullptr);
+    glVertexAttribPointer(1,3,GL_FLOAT,GL_FALSE,6*sizeof(float),reinterpret_cast<void*>(3*sizeof(float)));
+    glEnableVertexAttribArray(0);glEnableVertexAttribArray(1);
+    M world=objectMatrix(o),mvp=mul(p,mul(v,world));
+    glUniformMatrix4fv(mvpLoc,1,GL_FALSE,mvp.data());
+    glUniformMatrix4fv(modelLoc,1,GL_FALSE,world.data());
+    glUniform3f(cameraLoc,eye.x,eye.y,eye.z);
+    glUniform3f(colorLoc,0.14f,0.95f,0.79f);
+    glUniform1i(flatLoc,1);
+    glDisable(GL_DEPTH_TEST);
+    glDrawArrays(GL_LINES,0,GLsizei(positions.size()/6));
+    glEnable(GL_DEPTH_TEST);
+    glUniform1i(flatLoc,0);
+}
+
 void Renderer::draw(){
  glViewport(0,0,width,height);glClearColor(0.11f,0.18f,0.25f,1);
  glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
@@ -187,6 +227,7 @@ void Renderer::draw(){
  M view=lookAt(eye,target);
  drawGrid(projection,view,eye);
  for(size_t i=0;i<scene.objects.size();i++)drawItem(scene.objects[i],int(i),projection,view,eye);
+ drawFaceOutline(projection,view,eye);
  glBindBuffer(GL_ARRAY_BUFFER,0);
  GLenum glError=glGetError();
  if(glError!=GL_NO_ERROR){
