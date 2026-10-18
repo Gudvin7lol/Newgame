@@ -5,9 +5,12 @@ import '../models/models.dart';
 /// A narrowly scoped, predictable CAD edit for orthogonal room outlines.
 ///
 /// Moves one entire axis-aligned wall parallel to itself. Its two adjacent
-/// perpendicular walls are stretched/shortened, not rotated. Junctions with
-/// more than two walls and curves are deliberately rejected: propagating such
-/// moves across several rooms requires a full constraint graph.
+/// perpendicular walls are stretched/shortened, not rotated. Shared walls
+/// between two rectangular rooms are supported when each end has at most
+/// three incident walls and every other incident wall is perpendicular.
+/// Curves, cross-junctions and wall branches that are not perpendicular
+/// remain unsupported. Wall-mounted electrical points follow their wall;
+/// independent furniture and plumbing positions remain unchanged.
 class OrthogonalWallMoveResult {
   const OrthogonalWallMoveResult._(this.isValid, this.message);
 
@@ -59,6 +62,13 @@ class OrthogonalWallEditService {
     for (final entry in planned.openingOffsets.entries) {
       entry.key.offsetFromStartMm = entry.value;
     }
+    for (final entry in planned.devicePositions.entries) {
+      entry.key.xMm = entry.value.x;
+      entry.key.yMm = entry.value.y;
+    }
+    for (final entry in planned.deviceOffsets.entries) {
+      entry.key.wallOffsetMm = entry.value;
+    }
     return OrthogonalWallMoveResult.success;
   }
 
@@ -86,26 +96,30 @@ class OrthogonalWallEditService {
       return reject('Требуется прямая горизонтальная или вертикальная стена.');
     }
 
-    // Both corners must have exactly one perpendicular neighbour.
+    // Degree-three T-junctions represent the ends of a shared partition.
+    // Keep every attached wall orthogonal and preserve the shared node IDs.
+    // Degree-four crossings require more extensive constraint propagation.
     for (final n in <PlanNode>[a, b]) {
       final attached = floor.walls
           .where((w) => w.startNodeId == n.id || w.endNodeId == n.id)
           .toList();
-      if (attached.length != 2) {
+      if (attached.length < 2 || attached.length > 3 ||
+          attached.where((w) => w.id == wallId).length != 1) {
         return reject('На конце стены есть сложный узел или ответвление.');
       }
-      final other = attached.firstWhere((w) => w.id != wallId);
-      if (other.isCurved) {
-        return reject('Примыкающая стена является дуговой.');
-      }
-      final next = floor.nodeById(
-        other.startNodeId == n.id ? other.endNodeId : other.startNodeId,
-      );
-      if (next == null || floor.wallLengthMm(other) < _minimumWallMm) {
-        return reject('Примыкающая стена не имеет корректной геометрии.');
-      }
-      if (vertical ? !_same(n.yMm, next.yMm) : !_same(n.xMm, next.xMm)) {
-        return reject('Примыкающие стены должны быть перпендикулярны.');
+      for (final other in attached.where((w) => w.id != wallId)) {
+        if (other.isCurved) {
+          return reject('Примыкающая стена является дуговой.');
+        }
+        final next = floor.nodeById(
+          other.startNodeId == n.id ? other.endNodeId : other.startNodeId,
+        );
+        if (next == null || floor.wallLengthMm(other) < _minimumWallMm) {
+          return reject('Примыкающая стена не имеет корректной геометрии.');
+        }
+        if (vertical ? !_same(n.yMm, next.yMm) : !_same(n.xMm, next.xMm)) {
+          return reject('Примыкающие стены должны быть перпендикулярны.');
+        }
       }
     }
 
@@ -121,6 +135,8 @@ class OrthogonalWallEditService {
         (floor.nodeById(id) == null ? null : _point(floor.nodeById(id)!));
 
     final openingOffsets = <WallOpening, double>{};
+    final deviceOffsets = <ElectricalPoint, double>{};
+    final devicePositions = <ElectricalPoint, math.Point<double>>{};
     final movedWalls = <String>{};
 
     for (final wall in floor.walls) {
@@ -170,6 +186,47 @@ class OrthogonalWallEditService {
         }
         if (affected) openingOffsets[opening] = nextOffset;
       }
+
+      // A device with a wallId is wall-attached; preserve its position
+      // along the physical wall. If both endpoints translate, it follows
+      // the wall. If one endpoint moves along its axis, the offset adjusts
+      // without changing the device's world position.
+      if (affected) {
+        final nextUnitX = (e1.x - s1.x) / nextLength;
+        final nextUnitY = (e1.y - s1.y) / nextLength;
+        for (final device in floor.electricalPoints.where(
+          (e) => e.wallId == wall.id,
+        )) {
+          if (!device.xMm.isFinite || !device.yMm.isFinite) {
+            return reject('У электроточки заданы неверные координаты.');
+          }
+          final originalOffset = device.wallOffsetMm ??
+              ((device.xMm - s0.x) * unitX +
+                  (device.yMm - s0.y) * unitY);
+          if (!originalOffset.isFinite) {
+            return reject('Невозможно определить привязку электроточки.');
+          }
+          final nextOffset = originalOffset -
+              movedStart.x * unitX - movedStart.y * unitY;
+          if (nextOffset < -_intersectionEpsilon ||
+              nextOffset > nextLength + _intersectionEpsilon) {
+            return reject('Электроточка выйдет за пределы стены.');
+          }
+          final previousAnchor = math.Point<double>(
+            s0.x + unitX * originalOffset,
+            s0.y + unitY * originalOffset,
+          );
+          final nextAnchor = math.Point<double>(
+            s1.x + nextUnitX * nextOffset,
+            s1.y + nextUnitY * nextOffset,
+          );
+          deviceOffsets[device] = nextOffset.clamp(0.0, nextLength).toDouble();
+          devicePositions[device] = math.Point<double>(
+            device.xMm + nextAnchor.x - previousAnchor.x,
+            device.yMm + nextAnchor.y - previousAnchor.y,
+          );
+        }
+      }
     }
 
     // Check new collisions only for edges whose positions changed. Existing
@@ -195,6 +252,8 @@ class OrthogonalWallEditService {
       OrthogonalWallMoveResult.success,
       positions: positions,
       openingOffsets: openingOffsets,
+      deviceOffsets: deviceOffsets,
+      devicePositions: devicePositions,
     );
   }
 
@@ -258,10 +317,16 @@ class _WallMovePlan {
     this.result, {
     Map<String, math.Point<double>>? positions,
     Map<WallOpening, double>? openingOffsets,
+    Map<ElectricalPoint, double>? deviceOffsets,
+    Map<ElectricalPoint, math.Point<double>>? devicePositions,
   }) : positions = positions ?? const {},
-       openingOffsets = openingOffsets ?? const {};
+       openingOffsets = openingOffsets ?? const {},
+       deviceOffsets = deviceOffsets ?? const {},
+       devicePositions = devicePositions ?? const {};
 
   final OrthogonalWallMoveResult result;
   final Map<String, math.Point<double>> positions;
   final Map<WallOpening, double> openingOffsets;
+  final Map<ElectricalPoint, double> deviceOffsets;
+  final Map<ElectricalPoint, math.Point<double>> devicePositions;
 }
