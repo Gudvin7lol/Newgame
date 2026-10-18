@@ -449,7 +449,7 @@ func _transform_ui() -> void:
     for field in ["pos","rot","size"]:
         var line := HBoxContainer.new()
         inspector.add_child(line)
-        var title := {"pos":"Позиция, мм","rot":"Угол, °","size":"Размер, мм"}[field]
+        var title: String = {"pos":"Позиция, мм","rot":"Угол, °","size":"Размер, мм"}[field]
         var lbl := _text(title,11,SUBTLE)
         lbl.custom_minimum_size.x = 96
         line.add_child(lbl)
