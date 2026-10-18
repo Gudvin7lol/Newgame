@@ -113,7 +113,7 @@ static func subdivide(doc: Dictionary) -> void:
                 doc["vertices"].append(array3((point(doc,a)+point(doc,b))*0.5))
             mids.append(midpoint[key])
         for i in range(face.size()):
-            var previous := (i-1+face.size())%face.size()
+            var previous: int = (i-1+face.size())%face.size()
             new_faces.append([mids[previous],face[i],mids[i],center_idx])
     doc["faces"]=new_faces
 
