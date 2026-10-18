@@ -99,6 +99,13 @@ func _run() -> void:
         push_error("Redo did not restore bevel")
         quit(16)
         return
+    editor._reset_profile()
+    editor._edit_profile("extrude_depth",0.05)
+    var physical_height: float = float(editor.data[-1]["extrude_depth"])*float(editor.data[-1]["size"][1])
+    if absf(physical_height-0.05)>0.0005:
+        push_error("Physical extrusion is not 50 mm")
+        quit(20)
+        return
     editor._export_glb()
     var gltf := GLTFDocument.new()
     var state := GLTFState.new()
