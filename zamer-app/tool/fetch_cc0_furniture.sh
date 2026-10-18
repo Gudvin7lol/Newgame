@@ -169,28 +169,83 @@ install_all_lods() {
   cp "$CATALOG_DIR/$id.glb" "$CATALOG_DIR/${id}_lod2.glb"
 }
 
-# CC0 1.0 Universal.
-# Source: https://3dassets.dev/assets/hotel-and-resort-operations-bed-king-upholstered-819ff50d
-fetch_glb "bed-160" "https://cdn.3dassets.dev/assets/25738/v1/model.glb"
-normalize_glb_bounds "$CATALOG_DIR/bed-160.glb" 1.80 1.05 2.15
-install_all_lods "bed-160"
-
-cp "$CATALOG_DIR/bed-160.glb" "$CATALOG_DIR/bed-180.glb"
-normalize_glb_bounds "$CATALOG_DIR/bed-180.glb" 1.80 1.13 2.20
-install_all_lods "bed-180"
-
-# CC0 1.0 Universal.
-# Source: https://3dassets.dev/assets/hotel-and-resort-operations-lobby-sofa-79174bf1
-fetch_glb "sofa-3" "https://cdn.3dassets.dev/assets/25866/v1/model.glb"
-normalize_glb_bounds "$CATALOG_DIR/sofa-3.glb" 2.20 0.85 0.95
-install_all_lods "sofa-3"
-
-# Keep the 2D equipment preview derived from the exact GLB used in 3D.
-if [ -f "$APP_ROOT/tool/featured_models/render_glb_topview.py" ]; then
-  python3 "$APP_ROOT/tool/featured_models/render_glb_topview.py" \
-    "$CATALOG_DIR/bed-180.glb" "$TOPVIEW_DIR/featured_bed_180.webp" --size 512
-  python3 "$APP_ROOT/tool/featured_models/render_glb_topview.py" \
-    "$CATALOG_DIR/sofa-3.glb" "$TOPVIEW_DIR/featured_sofa_3.webp" --size 512
+# The build has fully local, procedurally authored featured furniture from
+# tool/featured_models/build_models.py. Do not make APK availability depend
+# on a third-party CDN. External CC0 replacements are opt-in.
+#
+# Set ZAMER_USE_REMOTE_CC0=1 to request the vendor variants. Both files
+# must download before any generated asset is replaced. On DNS/network
+# failure the pre-generated local models remain usable.
+use_remote="${ZAMER_USE_REMOTE_CC0:-0}"
+vendor_installed=0
+if [[ "$use_remote" == "1" ]]; then
+  staging="$(mktemp -d)"
+  trap 'rm -rf "$staging"' EXIT
+  echo "[cc0-furniture] remote CC0 replacements requested"
+  if curl --fail --location --silent --show-error --retry 2 \
+      --connect-timeout 8 --max-time 45 \
+      "https://cdn.3dassets.dev/assets/25738/v1/model.glb" \
+      -o "$staging/bed.glb" \
+      && curl --fail --location --silent --show-error --retry 2 \
+      --connect-timeout 8 --max-time 45 \
+      "https://cdn.3dassets.dev/assets/25866/v1/model.glb" \
+      -o "$staging/sofa.glb" \
+      && test -s "$staging/bed.glb" \
+      && test -s "$staging/sofa.glb"; then
+    cp "$staging/bed.glb" "$CATALOG_DIR/bed-160.glb"
+    normalize_glb_bounds "$CATALOG_DIR/bed-160.glb" 1.80 1.05 2.15
+    install_all_lods "bed-160"
+    cp "$staging/bed.glb" "$CATALOG_DIR/bed-180.glb"
+    normalize_glb_bounds "$CATALOG_DIR/bed-180.glb" 1.80 1.13 2.20
+    install_all_lods "bed-180"
+    cp "$staging/sofa.glb" "$CATALOG_DIR/sofa-3.glb"
+    normalize_glb_bounds "$CATALOG_DIR/sofa-3.glb" 2.20 0.85 0.95
+    install_all_lods "sofa-3"
+    vendor_installed=1
+  else
+    echo "[cc0-furniture] CDN unavailable, retaining repository-generated models" >&2
+  fi
+  rm -rf "$staging"
+  trap - EXIT
 fi
 
-echo "[cc0-furniture] installed normalized bed-160, bed-180 and sofa-3"
+if [[ "$vendor_installed" == "0" ]]; then
+  # CI creates these using the repo's own generation scripts immediately
+  # before this step. Missing files are an actual build error, not an
+  # invitation to ship empty, invisible placeholder GLBs.
+  for id in bed-180 sofa-3; do
+    for suffix in '' _lod1 _lod2; do
+      file="$CATALOG_DIR/${id}${suffix}.glb"
+      if [[ ! -s "$file" ]]; then
+        echo "[cc0-furniture] missing generated source: $file" >&2
+        exit 1
+      fi
+    done
+  done
+  # The bed-160 catalogue entry temporarily reuses the locally generated
+  # bed-180 mesh, as +131 already does for some 2D-only curated variants.
+  # Preserve its LOD chain and asset id for backwards-compatible projects.
+  for suffix in '' _lod1 _lod2; do
+    cp "$CATALOG_DIR/bed-180${suffix}.glb" \
+       "$CATALOG_DIR/bed-160${suffix}.glb"
+  done
+  echo "[cc0-furniture] local generated bed-180/sofa-3 retained; bed-160 fallback installed"
+fi
+
+# Keep the 2D equipment preview derived from the exact GLB used in 3D.
+# The standard CI also renders its generated models before this script runs.
+if [ -f "$APP_ROOT/tool/featured_models/render_glb_topview.py" ]; then
+  if [[ "$vendor_installed" == "1" ]]; then
+    python3 "$APP_ROOT/tool/featured_models/render_glb_topview.py" \
+      "$CATALOG_DIR/bed-180.glb" "$TOPVIEW_DIR/featured_bed_180.webp" --size 512
+    python3 "$APP_ROOT/tool/featured_models/render_glb_topview.py" \
+      "$CATALOG_DIR/sofa-3.glb" "$TOPVIEW_DIR/featured_sofa_3.webp" --size 512
+  fi
+fi
+
+for id in bed-160 bed-180 sofa-3; do
+  test -s "$CATALOG_DIR/$id.glb"
+  test -s "$CATALOG_DIR/${id}_lod1.glb"
+  test -s "$CATALOG_DIR/${id}_lod2.glb"
+done
+echo "[cc0-furniture] featured model chains verified (vendor=$vendor_installed)"
