@@ -4,6 +4,7 @@ extends Control
 # Scene document stores editable objects, modifiers and per-vertex operations.
 const Factory = preload("res://scripts/mesh_factory.gd")
 const Solid = preload("res://scripts/solid_modeler.gd")
+const Topology = preload("res://scripts/topology_mesh.gd")
 const BG = Color("#0a111b")
 const SURFACE = Color("#111e2b")
 const PANEL = Color("#182737")
@@ -27,6 +28,7 @@ var data: Array[Dictionary] = []
 var instances: Dictionary = {}
 var selection_id: int = -1
 var vertex_index: int = -1
+var polygon_face: int = -1
 var next_id: int = 1
 var undo_stack: Array[String] = []
 var redo_stack: Array[String] = []
@@ -243,6 +245,8 @@ func _make_materials() -> void:
         materials.append(m)
 
 func _mesh_for(item: Dictionary) -> Mesh:
+    if item.has("mesh_data"):
+        return Topology.mesh(item["mesh_data"])
     var type_name := str(item.get("shape", "box"))
     match type_name:
         "box":
@@ -284,8 +288,9 @@ func _build_one(item: Dictionary) -> void:
     mesh_node.material_override = materials[clampi(int(item["mat"]), 0, materials.size() - 1)]
     model_root.add_child(mesh_node)
     instances[int(item["id"])] = mesh_node
-    for op in item.get("vertex_ops", []):
-        _apply_vertex_delta(mesh_node, _v(op["at"]), _v(op["delta"]))
+    if not item.has("mesh_data"):
+        for op in item.get("vertex_ops", []):
+            _apply_vertex_delta(mesh_node, _v(op["at"]), _v(op["delta"]))
 
 func _sync_scene() -> void:
     for child in model_root.get_children():
@@ -346,10 +351,13 @@ func _add_item(shape: String) -> void:
         "shape": shape, "pos": [0.0, 0.68, 0.0], "rot": [0.0, 0.0, 0.0],
         "size": [1.2, 0.6, 0.7], "mat": 0, "vertex_ops": [],
         "extrude_depth": 0.0, "extrude_face": 2, "inset": 0.10, "bevel": 0.0}
+    if shape == "editable":
+        item["mesh_data"] = Topology.cube()
     next_id += 1
     data.append(item)
     selection_id = int(item["id"])
     vertex_index = -1
+    polygon_face = -1
     _sync_scene()
     _refresh_panel()
     _note("Создан новый объект. Теперь изменяй геометрию.")
@@ -359,6 +367,7 @@ func _shape_title(shape: String) -> String:
         "sphere": return "Сфера"
         "cylinder": return "Цилиндр"
         "soft": return "Мягкая форма"
+        "editable": return "Полигональная сетка"
         _: return "Блок"
 
 func _duplicate() -> void:
@@ -392,6 +401,7 @@ func _delete_selected() -> void:
 func _choose(id: int) -> void:
     selection_id = id
     vertex_index = -1
+    polygon_face = -1
     _show_outline()
     _update_selection_text()
     _refresh_panel()
@@ -422,7 +432,7 @@ func _objects_ui() -> void:
     inspector.add_child(label)
     var row := HBoxContainer.new()
     inspector.add_child(row)
-    _btn(row, "Блок", _add_item.bind("box"))
+    _btn(row, "Полигон", _add_item.bind("editable"), true)
     _btn(row, "Сфера", _add_item.bind("sphere"))
     _btn(row, "Цилиндр", _add_item.bind("cylinder"))
     _btn(row, "Мягкая", _add_item.bind("soft"))
@@ -523,6 +533,10 @@ func _mesh_ui() -> void:
     if item.is_empty():
         inspector.add_child(_text("Выбери объект. Затем открой сетку для редактирования.", 12, SUBTLE))
         return
+    if item.has("mesh_data"):
+        _topology_ui(item)
+        return
+
     if str(item.get("shape","")) == "box":
         inspector.add_child(_text("FACE EDITOR  /  ГРАНИ И ФАСКИ", 11, TEAL))
         var face_row := HBoxContainer.new()
@@ -563,6 +577,85 @@ func _mesh_ui() -> void:
     else:
         inspector.add_child(_text("Чтобы двигать отдельную вершину, включи выбор и коснись её.",11,SUBTLE))
 
+func _topology_ui(item: Dictionary) -> void:
+    inspector.add_child(_text("POLY EDIT  /  РЕДАКТИРУЕМАЯ СЕТКА", 11, TEAL))
+    var doc: Dictionary=item["mesh_data"]
+    var polygon_count: int=doc["faces"].size()
+    inspector.add_child(_text("%d вершин • %d граней • грань: %s" % [
+        doc["vertices"].size(),polygon_count,("№%d" % (polygon_face+1)) if polygon_face>=0 else "не выбрана"],11,SUBTLE))
+    var row:=HBoxContainer.new()
+    inspector.add_child(row)
+    _btn(row,"Выбрать грань",_face_mode,true)
+    _btn(row,"Вершины",_vertex_mode)
+    _btn(row,"Объект",_object_mode)
+    var operations:=HBoxContainer.new()
+    inspector.add_child(operations)
+    _btn(operations,"Extrude +50",_topology_extrude.bind(0.05,0.0))
+    _btn(operations,"Inset 10%",_topology_extrude.bind(0.0,0.10))
+    _btn(operations,"Вдавить −50",_topology_extrude.bind(-0.05,0.0))
+    var secondary:=HBoxContainer.new()
+    inspector.add_child(secondary)
+    _btn(secondary,"Subdivide",_topology_subdivide)
+    _btn(secondary,"Выделить верх",_select_first_top_face)
+    inspector.add_child(_text("Сначала выбери грань касанием. Extrude и Inset изменяют настоящую топологию.",11,SUBTLE))
+    if vertex_index>=0:
+        var movers:=HBoxContainer.new()
+        inspector.add_child(movers)
+        for axis in range(3):
+            _btn(movers,["X−","Y−","Z−"][axis],_move_vertex.bind(axis,-1))
+            _btn(movers,["X+","Y+","Z+"][axis],_move_vertex.bind(axis,1))
+
+func _face_mode() -> void:
+    tool_mode="face"
+    _show_outline()
+    _note("Коснись поверхности выбранного объекта, чтобы выделить грань.")
+
+func _select_first_top_face() -> void:
+    var item:=_selected_item()
+    if item.is_empty() or not item.has("mesh_data"): return
+    var doc:Dictionary=item["mesh_data"]
+    var winner:=-1
+    var y:float=-1.0
+    for i in range(doc["faces"].size()):
+        var n:Vector3=Topology.normal(doc,i)
+        if n.y>y:
+            winner=i
+            y=n.y
+    polygon_face=winner
+    _face_mode()
+    _refresh_panel()
+
+func _topology_extrude(distance_m:float,inset:float) -> void:
+    var item:=_selected_item()
+    if item.is_empty() or not item.has("mesh_data"): return
+    if polygon_face<0 or polygon_face>=item["mesh_data"]["faces"].size():
+        _note("Сначала выбери грань касанием или кнопкой «Выделить верх».")
+        return
+    _history()
+    var n:Vector3=Topology.normal(item["mesh_data"],polygon_face)
+    var node:MeshInstance3D=instances[selection_id]
+    var length:float=maxf((node.global_transform.basis*n).length(),0.001)
+    var depth:float=distance_m/length
+    polygon_face=Topology.extrude(item["mesh_data"],polygon_face,depth,inset)
+    vertex_index=-1
+    _sync_scene()
+    _refresh_panel()
+    _note("Полигональная грань изменена, сетка перестроена.")
+
+func _topology_subdivide() -> void:
+    var item:=_selected_item()
+    if item.is_empty() or not item.has("mesh_data"): return
+    if item["mesh_data"]["faces"].size()>1000:
+        _note("Лимит мобильной сетки: не более 1000 граней перед Subdivide.")
+        return
+    _history()
+    Topology.subdivide(item["mesh_data"])
+    polygon_face=-1
+    vertex_index=-1
+    _sync_scene()
+    _refresh_panel()
+    _note("Subdivide: настоящие новые полигоны.")
+
 func _set_face(face: int) -> void:
     var item := _selected_item()
     if item.is_empty(): return
@@ -601,10 +694,12 @@ func _reset_profile() -> void:
 
 func _vertex_mode() -> void:
     tool_mode = "vertex"
+    _show_outline()
     _note("Режим вершин: коснись вершины выделенной модели.")
 
 func _object_mode() -> void:
     tool_mode = "select"
+    _show_outline()
     vertex_index = -1
     _note("Режим выделения объектов.")
     _refresh_panel()
@@ -701,6 +796,8 @@ func _tap(point: Vector2) -> void:
             if distance < nearest:
                 nearest = distance
                 found = int(id)
+    if tool_mode == "face" and selection_id >= 0:
+        if _pick_face(point): return
     if tool_mode == "vertex" and selection_id >= 0:
         if _pick_vertex(point): return
     if found >= 0:
@@ -708,10 +805,32 @@ func _tap(point: Vector2) -> void:
     else:
         _choose(-1)
 
+func _pick_face(screen:Vector2) -> bool:
+    var item:=_selected_item()
+    if item.is_empty() or not item.has("mesh_data") or not instances.has(selection_id): return false
+    var node:MeshInstance3D=instances[selection_id]
+    var origin:Vector3=view_camera.project_ray_origin(screen)
+    var direction:Vector3=view_camera.project_ray_normal(screen)
+    var local_origin:Vector3=node.to_local(origin)
+    var local_direction:Vector3=(node.to_local(origin+direction*20.0)-local_origin).normalized()
+    var hit:Dictionary=Topology.hit_face(item["mesh_data"],local_origin,local_direction)
+    if int(hit["face"])<0: return false
+    polygon_face=int(hit["face"])
+    _show_outline()
+    _refresh_panel()
+    _note("Выделена грань №%d" % (polygon_face+1))
+    return true
+
 func _pick_vertex(point: Vector2) -> bool:
     if not instances.has(selection_id): return false
     var node: MeshInstance3D = instances[selection_id]
-    var vertices: PackedVector3Array = node.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+    var item:=_selected_item()
+    var vertices: PackedVector3Array = PackedVector3Array()
+    if item.has("mesh_data"):
+        for p in item["mesh_data"]["vertices"]:
+            vertices.append(_v(p))
+    else:
+        vertices=node.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
     var closest := 26.0
     var found := -1
     for i in range(vertices.size()):
@@ -728,18 +847,28 @@ func _pick_vertex(point: Vector2) -> bool:
     _note("Выделена вершина #%d. Используй X/Y/Z." % found)
     return true
 
-func _move_vertex(axis: int, direction: int) -> void:
-    var item := _selected_item()
-    if item.is_empty() or vertex_index < 0: return
-    var node: MeshInstance3D = instances[selection_id]
-    var verts: PackedVector3Array = node.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
-    if vertex_index >= verts.size(): return
-    _history()
-    var offset := Vector3.ZERO
-    offset[axis] = 0.005 * direction
-    var ops: Array = item.get("vertex_ops", [])
-    ops.append({"at": _arr(verts[vertex_index]), "delta": _arr(offset)})
-    item["vertex_ops"] = ops
+func _move_vertex(axis:int,direction:int) -> void:
+    var item:=_selected_item()
+    if item.is_empty() or vertex_index<0: return
+    if item.has("mesh_data"):
+        var doc:Dictionary=item["mesh_data"]
+        if vertex_index>=doc["vertices"].size(): return
+        _history()
+        var move:=Vector3.ZERO
+        var object_scale:float=maxf(absf(float(item["size"][axis])),0.001)
+        move[axis]=float(direction)*0.005/object_scale
+        Topology.move_vertex(doc,vertex_index,move)
+    else:
+        var node:MeshInstance3D=instances[selection_id]
+        var verts:PackedVector3Array=node.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+        if vertex_index>=verts.size(): return
+        _history()
+        var delta:=Vector3.ZERO
+        delta[axis]=0.005
+        delta*=float(direction)
+        var ops:Array=item.get("vertex_ops",[])
+        ops.append({"at":_arr(verts[vertex_index]),"delta":_arr(delta)})
+        item["vertex_ops"]=ops
     _sync_scene()
     _refresh_panel()
     _note("Вершина перемещена на 5 мм.")
@@ -758,29 +887,39 @@ func _apply_vertex_delta(node: MeshInstance3D, original: Vector3, delta: Vector3
 func _show_outline() -> void:
     if selection_overlay != null and is_instance_valid(selection_overlay):
         selection_overlay.queue_free()
-        selection_overlay = null
+        selection_overlay=null
     if not instances.has(selection_id): return
-    var node: MeshInstance3D = instances[selection_id]
-    var bounds := node.mesh.get_aabb()
-    var lo := bounds.position
-    var hi := bounds.position + bounds.size
-    var points := [
-        Vector3(lo.x,lo.y,lo.z), Vector3(hi.x,lo.y,lo.z), Vector3(hi.x,lo.y,hi.z), Vector3(lo.x,lo.y,hi.z),
-        Vector3(lo.x,hi.y,lo.z), Vector3(hi.x,hi.y,lo.z), Vector3(hi.x,hi.y,hi.z), Vector3(lo.x,hi.y,hi.z)
+    var node:MeshInstance3D=instances[selection_id]
+    var bounds:=node.mesh.get_aabb()
+    var lo:=bounds.position
+    var hi:=bounds.position+bounds.size
+    var points:=[
+        Vector3(lo.x,lo.y,lo.z),Vector3(hi.x,lo.y,lo.z),
+        Vector3(hi.x,lo.y,hi.z),Vector3(lo.x,lo.y,hi.z),
+        Vector3(lo.x,hi.y,lo.z),Vector3(hi.x,hi.y,lo.z),
+        Vector3(hi.x,hi.y,hi.z),Vector3(lo.x,hi.y,hi.z)
     ]
-    var edges := [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]]
-    var line_mesh := ImmediateMesh.new()
-    var mat := StandardMaterial3D.new()
-    mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-    mat.albedo_color = TEAL
-    line_mesh.surface_begin(Mesh.PRIMITIVE_LINES, mat)
-    for edge in edges:
-        line_mesh.surface_add_vertex(points[edge[0]])
-        line_mesh.surface_add_vertex(points[edge[1]])
-    line_mesh.surface_end()
-    selection_overlay = MeshInstance3D.new()
-    selection_overlay.name = "SELECTION_GUIDES_NOT_EXPORTED"
-    selection_overlay.mesh = line_mesh
+    var edges:=[[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]]
+    var overlay:=ImmediateMesh.new()
+    var line_mat:=StandardMaterial3D.new()
+    line_mat.shading_mode=BaseMaterial3D.SHADING_MODE_UNSHADED
+    line_mat.albedo_color=TEAL
+    overlay.surface_begin(Mesh.PRIMITIVE_LINES,line_mat)
+    for e in edges:
+        overlay.surface_add_vertex(points[e[0]])
+        overlay.surface_add_vertex(points[e[1]])
+    var item:=_selected_item()
+    if tool_mode=="face" and item.has("mesh_data"):
+        if polygon_face>=0 and polygon_face<item["mesh_data"]["faces"].size():
+            var f:Array=item["mesh_data"]["faces"][polygon_face]
+            var n:Vector3=Topology.normal(item["mesh_data"],polygon_face)
+            for i in range(f.size()):
+                overlay.surface_add_vertex(Topology.point(item["mesh_data"],int(f[i]))+n*0.003)
+                overlay.surface_add_vertex(Topology.point(item["mesh_data"],int(f[(i+1)%f.size()]))+n*0.003)
+    overlay.surface_end()
+    selection_overlay=MeshInstance3D.new()
+    selection_overlay.name="EDITOR_SELECTION_NOT_EXPORTED"
+    selection_overlay.mesh=overlay
     node.add_child(selection_overlay)
 
 func _save() -> void:
