@@ -36,15 +36,15 @@ jobs:
         run: python3 zamer-native/tests/validate_shader.py
       - name: Validate C++ mesh kernel
         run: |
-          g++ -std=c++17 -Wall -Wextra -Werror zamer-native/tests/mesh_core_test.cpp zamer-native/app/src/main/cpp/mesh_core.cpp -I zamer-native/app/src/main/cpp -o /tmp/zamer-mesh-tests
+          g++ -std=c++17 -Wall -Wextra -Werror zamer-native/tests/mesh_core_test.cpp zamer-native/app/src/main/cpp/mesh_core.cpp zamer-native/app/src/main/cpp/mesh_edit.cpp -I zamer-native/app/src/main/cpp -o /tmp/zamer-mesh-tests
           /tmp/zamer-mesh-tests
       - name: Validate native touch ray picking
         run: |
-          g++ -std=c++17 -Wall -Wextra -Werror zamer-native/tests/scene_picker_test.cpp zamer-native/app/src/main/cpp/mesh_core.cpp zamer-native/app/src/main/cpp/scene_picker.cpp -I zamer-native/app/src/main/cpp -o /tmp/zamer-pick-tests
+          g++ -std=c++17 -Wall -Wextra -Werror zamer-native/tests/scene_picker_test.cpp zamer-native/app/src/main/cpp/mesh_core.cpp zamer-native/app/src/main/cpp/scene_picker.cpp zamer-native/app/src/main/cpp/mesh_edit.cpp -I zamer-native/app/src/main/cpp -o /tmp/zamer-pick-tests
           /tmp/zamer-pick-tests
       - name: Test C++ gizmo picking
         run: |
-          g++ -std=c++17 -Wall -Wextra -Werror zamer-native/tests/gizmo_math_test.cpp zamer-native/app/src/main/cpp/gizmo_math.cpp zamer-native/app/src/main/cpp/mesh_core.cpp -I zamer-native/app/src/main/cpp -o /tmp/zamer-gizmo-tests
+          g++ -std=c++17 -Wall -Wextra -Werror zamer-native/tests/gizmo_math_test.cpp zamer-native/app/src/main/cpp/gizmo_math.cpp zamer-native/app/src/main/cpp/mesh_core.cpp zamer-native/app/src/main/cpp/mesh_edit.cpp -I zamer-native/app/src/main/cpp -o /tmp/zamer-gizmo-tests
           /tmp/zamer-gizmo-tests
       - name: Test topology editing
         run: |
