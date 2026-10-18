@@ -14,6 +14,7 @@ public:
  void setGizmoMode(int mode);
  int beginGizmo(float x,float y);
  bool dragGizmo(float dx,float dy);
+ bool dragRotate(float dx,float dy);
  void endGizmo();
  bool undoScene();bool redoScene();bool restoreScene(const std::string&);
  void discardBuffers();

@@ -49,12 +49,30 @@ class StudioActivity : Activity() {
             setBackgroundColor(bg)
         }
         val brand = TextView(this).apply {
-            text = "Z / ENGINE    •    CORE 0.4"
+            text = "Z / ENGINE    •    CORE 0.5"
             setTextColor(Color.WHITE)
             textSize = 17f
             setPadding(18.dp(), 9.dp(), 12.dp(), 9.dp())
         }
-        root.addView(brand)
+        val toolbar = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        toolbar.addView(brand, LinearLayout.LayoutParams(0, 42.dp(), 1f))
+        fun historyButton(title: String, redo: Boolean): Button = Button(this).apply {
+            text = title
+            textSize = 13f
+            setTextColor(accent)
+            setPadding(0, 0, 0, 0)
+            setBackgroundColor(panel)
+            setOnClickListener {
+                surface.queueEvent {
+                    val ok = if (redo) Native.redo(engine) else Native.undo(engine)
+                    val info = Native.sceneInfo(engine)
+                    runOnUiThread { inspector.text = if (ok) info else "История пуста" }
+                }
+            }
+        }
+        toolbar.addView(historyButton("↶", false), LinearLayout.LayoutParams(48.dp(), 42.dp()))
+        toolbar.addView(historyButton("↷", true), LinearLayout.LayoutParams(48.dp(), 42.dp()))
+        root.addView(toolbar)
 
         surface = GLSurfaceView(this).apply {
             setEGLContextClientVersion(3)
@@ -102,8 +120,16 @@ class StudioActivity : Activity() {
                         startX = event.x
                         startY = event.y
                         moved = false
+                        if (tool == Tool.MOVE || tool == Tool.SCALE) {
+                            val px = event.x
+                            val py = event.y
+                            queueEvent { Native.beginGizmo(engine, px, py) }
+                        } else {
+                            queueEvent { Native.endGizmo(engine) }
+                        }
                     }
                     MotionEvent.ACTION_UP -> {
+                        queueEvent { Native.endGizmo(engine) }
                         if (!moved) {
                             val px = event.x
                             val py = event.y
@@ -127,10 +153,9 @@ class StudioActivity : Activity() {
                         val lockedAxis = axis
                         queueEvent {
                             when (activeTool) {
-                                Tool.MOVE -> Native.transform(engine, 0, lockedAxis,
-                                    if (lockedAxis == 1) -dy*0.003f else dx*0.003f)
-                                Tool.ROTATE -> Native.transform(engine, 1, 1, (dx-dy)*0.008f)
-                                Tool.SCALE -> Native.transform(engine, 2, lockedAxis, (dx-dy)*0.002f)
+                                Tool.MOVE -> Native.dragGizmo(engine, dx, dy)
+                                Tool.ROTATE -> Native.dragRotate(engine, dx, dy)
+                                Tool.SCALE -> Native.dragGizmo(engine, dx, dy)
                                 else -> Native.orbit(engine, dx*0.008f, dy*0.008f)
                             }
                         }
@@ -193,12 +218,19 @@ class StudioActivity : Activity() {
 
         fun activate(mode: Tool) {
             tool = mode
+            val gizmoMode = when(mode) {
+                Tool.MOVE -> 1
+                Tool.ROTATE -> 2
+                Tool.SCALE -> 3
+                else -> 0
+            }
+            surface.queueEvent { Native.setGizmoMode(engine, gizmoMode) }
             inspector.text = when(mode) {
                 Tool.CAMERA -> "Камера: вращение пальцем, приближение двумя."
                 Tool.OBJECT -> "Выбери объект одним касанием."
                 Tool.FACE -> "Выбери конкретную грань касанием."
-                Tool.MOVE -> "Move: проведи пальцем, выбрав ось X / Y / Z."
-                Tool.SCALE -> "Scale: проведи пальцем вдоль выбранной оси."
+                Tool.MOVE -> "Move: захвати цветную стрелку X / Y / Z и потяни."
+                Tool.SCALE -> "Scale: захвати цветную ось на модели и потяни."
                 Tool.ROTATE -> "Rotate: поворот только вокруг оси Y."
             }
         }

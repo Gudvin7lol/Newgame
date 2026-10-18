@@ -11,8 +11,8 @@ android {
         applicationId = "com.zamer.studio.native"
         minSdk = 26
         targetSdk = 35
-        versionCode = 4
-        versionName = "0.4-native-engine"
+        versionCode = 5
+        versionName = "0.5-native-engine"
         ndk {
             abiFilters += listOf("arm64-v8a")
         }

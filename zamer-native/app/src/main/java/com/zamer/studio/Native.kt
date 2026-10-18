@@ -17,6 +17,7 @@ object Native {
     external fun setGizmoMode(engine: Long, mode: Int)
     external fun beginGizmo(engine: Long, x: Float, y: Float): Int
     external fun dragGizmo(engine: Long, dx: Float, dy: Float): Boolean
+    external fun dragRotate(engine: Long, dx: Float, dy: Float): Boolean
     external fun endGizmo(engine: Long)
     external fun undo(engine: Long): Boolean
     external fun redo(engine: Long): Boolean

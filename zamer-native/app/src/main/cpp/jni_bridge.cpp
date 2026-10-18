@@ -25,6 +25,7 @@ JNIEXPORT jboolean JNICALL Java_com_zamer_studio_Native_inset(JNIEnv*,jobject,jl
 JNIEXPORT void JNICALL Java_com_zamer_studio_Native_setGizmoMode(JNIEnv*,jobject,jlong p,jint mode){if(p)engine(p)->setGizmoMode(mode);}
 JNIEXPORT jint JNICALL Java_com_zamer_studio_Native_beginGizmo(JNIEnv*,jobject,jlong p,jfloat x,jfloat y){return p?engine(p)->beginGizmo(x,y):-1;}
 JNIEXPORT jboolean JNICALL Java_com_zamer_studio_Native_dragGizmo(JNIEnv*,jobject,jlong p,jfloat dx,jfloat dy){return p&&engine(p)->dragGizmo(dx,dy)?JNI_TRUE:JNI_FALSE;}
+JNIEXPORT jboolean JNICALL Java_com_zamer_studio_Native_dragRotate(JNIEnv*,jobject,jlong p,jfloat dx,jfloat dy){return p&&engine(p)->dragRotate(dx,dy)?JNI_TRUE:JNI_FALSE;}
 JNIEXPORT void JNICALL Java_com_zamer_studio_Native_endGizmo(JNIEnv*,jobject,jlong p){if(p)engine(p)->endGizmo();}
 JNIEXPORT jboolean JNICALL Java_com_zamer_studio_Native_undo(JNIEnv*,jobject,jlong p){return p&&engine(p)->undoScene()?JNI_TRUE:JNI_FALSE;}
 JNIEXPORT jboolean JNICALL Java_com_zamer_studio_Native_redo(JNIEnv*,jobject,jlong p){return p&&engine(p)->redoScene()?JNI_TRUE:JNI_FALSE;}

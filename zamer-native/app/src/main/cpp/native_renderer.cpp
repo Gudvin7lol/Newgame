@@ -223,6 +223,13 @@ bool Renderer::dragGizmo(float dx,float dy){
     }
     return scene.transform(gizmoMode==1?0:2,activeAxis,delta);
 }
+bool Renderer::dragRotate(float dx,float dy){
+    if(gizmoMode!=2||scene.selected<0||size_t(scene.selected)>=scene.objects.size())return false;
+    const float rotation=(dx-dy)*0.008f;
+    if(std::fabs(rotation)<0.000001f)return false;
+    if(!dragCheckpointed){scene.checkpoint();dragCheckpointed=true;}
+    return scene.transform(1,1,rotation);
+}
 void Renderer::endGizmo(){activeAxis=-1;dragCheckpointed=false;}
 void Renderer::discardBuffers(){
     for(auto&o:scene.objects){
@@ -289,6 +296,7 @@ void Renderer::drawGizmo(const M&p,const M&v,Vec3 eye){
     glBindBuffer(GL_ARRAY_BUFFER,gizmoBuffer);
     glEnableVertexAttribArray(0);glEnableVertexAttribArray(1);
     for(int i=0;i<3;i++){
+        if(gizmoMode==2&&i!=1)continue;
         const Vec3 d=axisDirs[i];
         const Vec3 perp=(i==1?Vec3{1,0,0}:Vec3{0,1,0});
         const Vec3 endpoint=c+d*length;
