@@ -228,8 +228,13 @@ if [[ "$vendor_installed" == "0" ]]; then
   for suffix in '' _lod1 _lod2; do
     cp "$CATALOG_DIR/bed-180${suffix}.glb" \
        "$CATALOG_DIR/bed-160${suffix}.glb"
+    # +131's catalogue lists bed-160 as 1.80 x 1.05 x 2.15 m,
+    # whereas the generated bed-180 is 1.80 x 1.13 x 2.20 m.
+    # Retarget all LOD bounds, not just the filename. Frustum culling,
+    # placement and scale validation rely on those real dimensions.
+    normalize_glb_bounds "$CATALOG_DIR/bed-160${suffix}.glb" 1.80 1.05 2.15
   done
-  echo "[cc0-furniture] local generated bed-180/sofa-3 retained; bed-160 fallback installed"
+  echo "[cc0-furniture] local bed-160 LOD bounds matched to catalogue; other generated assets retained"
 fi
 
 # Keep the 2D equipment preview derived from the exact GLB used in 3D.
