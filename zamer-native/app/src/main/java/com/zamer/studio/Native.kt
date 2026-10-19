@@ -41,6 +41,9 @@ object Native {
     external fun extrude(engine: Long, metres: Float)
     external fun subdivide(engine: Long)
     external fun material(engine: Long, index: Int)
+    external fun setPbr(engine: Long, rgb: Int, metallic: Float, roughness: Float): Boolean
+    external fun setSmooth(engine: Long, enabled: Boolean): Boolean
+    external fun materialState(engine: Long): String
     external fun sceneInfo(engine: Long): String
     external fun serialize(engine: Long): String
     external fun restore(engine: Long, serialized: String): Boolean

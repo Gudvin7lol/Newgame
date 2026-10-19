@@ -38,14 +38,7 @@ M objectMatrix(const Object&o){
  m[12]=o.position.x;m[13]=o.position.y;m[14]=o.position.z;
  return m;
 }
-struct Finish{Vec3 c;float metal,rough;};
-const std::array<Finish,5> finishes={{
- {{0.62f,0.55f,0.46f},0.0f,0.85f},
- {{0.25f,0.34f,0.42f},0.0f,0.67f},
- {{0.64f,0.36f,0.21f},0.0f,0.65f},
- {{0.68f,0.73f,0.75f},0.82f,0.27f},
- {{0.39f,0.50f,0.36f},0.0f,0.77f}
-}};
+
 const char* vShader=R"shader(#version 300 es
 precision highp float;
 layout(location=0) in vec3 aPos;
@@ -82,7 +75,11 @@ void main(){
  vec3 F=f0+(1.0-f0)*pow(1.0-max(dot(v,h),0.0),5.0);
  vec3 spec=D*G*F/max(4.0*nv*nl,0.0001);
  vec3 diff=(1.0-F)*(1.0-metallic)*a/PI;
- vec3 x=(diff+spec)*vec3(3.4,3.5,3.65)*nl+a*0.20;
+ vec3 fillDir=normalize(vec3(0.65,0.38,-0.65));
+ float nf=max(dot(n,fillDir),0.0);
+ vec3 x=(diff+spec)*vec3(3.0,3.08,3.18)*nl;
+ x+=diff*vec3(0.75,0.88,1.05)*nf;
+ x+=a*0.15;
  x=(x*(2.51*x+0.03))/(x*(2.43*x+0.59)+0.14);
  x=pow(clamp(x,0.0,1.0),vec3(1.0/2.2));
  if(isSelected==1)x=mix(x,vec3(0.18,0.91,0.79),0.16);
@@ -149,7 +146,7 @@ void Renderer::drawItem(Object&o,int index,const M&p,const M&v,Vec3 eye){
  if(o.gpuBuffer==0){glGenBuffers(1,&o.gpuBuffer);o.dirty=true;}
  glBindBuffer(GL_ARRAY_BUFFER,o.gpuBuffer);
  if(o.dirty){
-  auto vertices=o.mesh.interleavedTriangles(o.type==1);
+  auto vertices=o.mesh.interleavedTriangles(o.smoothShading);
   o.gpuVertices=int(vertices.size()/6);
   glBufferData(GL_ARRAY_BUFFER,GLsizeiptr(vertices.size()*sizeof(float)),vertices.data(),GL_DYNAMIC_DRAW);
   o.dirty=false;
@@ -160,9 +157,9 @@ void Renderer::drawItem(Object&o,int index,const M&p,const M&v,Vec3 eye){
  M model=objectMatrix(o),mvp=mul(p,mul(v,model));
  glUniformMatrix4fv(mvpLoc,1,GL_FALSE,mvp.data());glUniformMatrix4fv(modelLoc,1,GL_FALSE,model.data());
  glUniform3f(cameraLoc,eye.x,eye.y,eye.z);
- auto m=finishes[size_t(std::clamp(o.material,0,4))];
- glUniform3f(colorLoc,m.c.x,m.c.y,m.c.z);
- glUniform1f(metalLoc,m.metal);glUniform1f(roughLoc,m.rough);
+ const auto&m=o.pbr;
+ glUniform3f(colorLoc,m.color.x,m.color.y,m.color.z);
+ glUniform1f(metalLoc,m.metallic);glUniform1f(roughLoc,m.roughness);
  glUniform1i(selectLoc,index==scene.selected?1:0);
  glDrawArrays(GL_TRIANGLES,0,o.gpuVertices);
 }

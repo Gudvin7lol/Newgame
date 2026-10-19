@@ -1,6 +1,9 @@
 #include "native_renderer.hpp"
 #include <jni.h>
 #include <string>
+#include <algorithm>
+#include <cmath>
+#include <cstdio>
 using zamer::Renderer;
 static Renderer* engine(jlong p){return reinterpret_cast<Renderer*>(p);}
 extern "C" {
@@ -30,6 +33,30 @@ JNIEXPORT jboolean JNICALL Java_com_zamer_studio_Native_loopCut(JNIEnv*,jobject,
 JNIEXPORT jboolean JNICALL Java_com_zamer_studio_Native_bevelEdge(JNIEnv*,jobject,jlong p,jfloat metres,jint segments){return p&&engine(p)->bevelSelectedEdge(float(metres),int(segments))?JNI_TRUE:JNI_FALSE;}
 JNIEXPORT jboolean JNICALL Java_com_zamer_studio_Native_duplicate(JNIEnv*,jobject,jlong p){return p&&engine(p)->duplicateSelected()?JNI_TRUE:JNI_FALSE;}
 JNIEXPORT jboolean JNICALL Java_com_zamer_studio_Native_deleteSelected(JNIEnv*,jobject,jlong p){return p&&engine(p)->deleteSelected()?JNI_TRUE:JNI_FALSE;}
+JNIEXPORT jboolean JNICALL Java_com_zamer_studio_Native_setPbr(JNIEnv*,jobject,jlong p,jint rgb,jfloat metal,jfloat rough){
+    if(!p)return JNI_FALSE;
+    auto*r=engine(p);
+    if(r->scene.selected<0||size_t(r->scene.selected)>=r->scene.objects.size())return JNI_FALSE;
+    const unsigned int raw=static_cast<unsigned int>(rgb);
+    const zamer::Vec3 color={float((raw>>16)&255u)/255.f,float((raw>>8)&255u)/255.f,float(raw&255u)/255.f};
+    return r->scene.setCustomMaterial(color,float(metal),float(rough))?JNI_TRUE:JNI_FALSE;
+}
+JNIEXPORT jboolean JNICALL Java_com_zamer_studio_Native_setSmooth(JNIEnv*,jobject,jlong p,jboolean smooth){
+    return p&&engine(p)->scene.setSmoothShading(smooth==JNI_TRUE)?JNI_TRUE:JNI_FALSE;
+}
+JNIEXPORT jstring JNICALL Java_com_zamer_studio_Native_materialState(JNIEnv*env,jobject,jlong p){
+    if(!p)return env->NewStringUTF("");
+    const auto&r=engine(p)->scene;
+    if(r.selected<0||size_t(r.selected)>=r.objects.size())return env->NewStringUTF("");
+    const auto&o=r.objects[size_t(r.selected)];
+    auto c=[](float f)->unsigned{return unsigned(std::round(std::clamp(f,0.f,1.f)*255.f));};
+    char buf[120];
+    std::snprintf(buf,sizeof(buf),"%02X%02X%02X|%.4f|%.4f|%d|%d",
+       c(o.pbr.color.x),c(o.pbr.color.y),c(o.pbr.color.z),
+       double(o.pbr.metallic),double(o.pbr.roughness),
+       int(o.smoothShading),int(o.customMaterial));
+    return env->NewStringUTF(buf);
+}
 JNIEXPORT jboolean JNICALL Java_com_zamer_studio_Native_markBridgeFace(JNIEnv*,jobject,jlong p){return p&&engine(p)->markBridgeFace()?JNI_TRUE:JNI_FALSE;}
 JNIEXPORT jboolean JNICALL Java_com_zamer_studio_Native_bridgeFaces(JNIEnv*,jobject,jlong p){return p&&engine(p)->bridgeMarkedFaces()?JNI_TRUE:JNI_FALSE;}
 JNIEXPORT void JNICALL Java_com_zamer_studio_Native_setGizmoMode(JNIEnv*,jobject,jlong p,jint mode){if(p)engine(p)->setGizmoMode(mode);}
