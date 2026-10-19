@@ -1602,14 +1602,16 @@ class _PlanEditorScreenState extends State<PlanEditorScreen> {
                   ),
                   child: Row(
                     children: [
-                      IconButton(
-                        onPressed: _undo.isEmpty ? null : _undoAction,
-                        icon: const Icon(Icons.undo),
-                      ),
-                      IconButton(
-                        onPressed: _redo.isEmpty ? null : _redoAction,
-                        icon: const Icon(Icons.redo),
-                      ),
+                      if (!widget.embedded) ...[
+                        IconButton(
+                          onPressed: _undo.isEmpty ? null : _undoAction,
+                          icon: const Icon(Icons.undo),
+                        ),
+                        IconButton(
+                          onPressed: _redo.isEmpty ? null : _redoAction,
+                          icon: const Icon(Icons.redo),
+                        ),
+                      ],
                       IconButton(
                         onPressed: () =>
                             setState(() => _showDimensions = !_showDimensions),
