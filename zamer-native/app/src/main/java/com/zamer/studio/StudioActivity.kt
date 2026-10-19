@@ -13,6 +13,9 @@ import android.view.MotionEvent
 import android.view.View
 import android.widget.Button
 import android.widget.LinearLayout
+import android.widget.FrameLayout
+import android.widget.ScrollView
+import android.graphics.drawable.GradientDrawable
 import android.widget.CheckBox
 import android.widget.SeekBar
 import android.widget.TextView
@@ -56,10 +59,10 @@ class StudioActivity : Activity() {
             setBackgroundColor(bg)
         }
         val brand = TextView(this).apply {
-            text = "Z / ENGINE    •    CORE 1.2"
+            text = "Z / STUDIO  •  1.3"
             setTextColor(Color.WHITE)
-            textSize = 17f
-            setPadding(18.dp(), 9.dp(), 12.dp(), 9.dp())
+            textSize = 16f
+            setPadding(14.dp(), 6.dp(), 12.dp(), 6.dp())
         }
         val toolbar = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         toolbar.addView(brand, LinearLayout.LayoutParams(0, 42.dp(), 1f))
@@ -181,7 +184,9 @@ class StudioActivity : Activity() {
                 true
             }
         }
-        root.addView(surface, LinearLayout.LayoutParams(-1, 0, 1f))
+        val workingArea = FrameLayout(this)
+        root.addView(workingArea, LinearLayout.LayoutParams(-1, 0, 1f))
+        workingArea.addView(surface, FrameLayout.LayoutParams(-1, -1))
 
         graphicsStatus = TextView(this).apply {
             text = "GPU: ожидание OpenGL ES 3.0"
@@ -190,16 +195,22 @@ class StudioActivity : Activity() {
             setPadding(12.dp(), 5.dp(), 12.dp(), 6.dp())
             setBackgroundColor(Color.rgb(18, 36, 52))
         }
-        root.addView(graphicsStatus)
+        // Diagnostics remain available internally, not as a permanent screen row.
 
         inspector = TextView(this).apply {
             text = "3D-сцена • C++ геометрия • OpenGL ES 3"
-            textSize = 12f
-            setTextColor(accent)
-            setPadding(18, 16, 16, 12)
-            setBackgroundColor(panel)
+            textSize = 11f
+            setTextColor(Color.rgb(228,237,242))
+            maxLines = 2
+            setPadding(10.dp(), 6.dp(), 10.dp(), 6.dp())
+            background = GradientDrawable().apply {
+                setColor(Color.argb(225, 17, 27, 39))
+                cornerRadius = 9.dp().toFloat()
+            }
         }
-        root.addView(inspector)
+        workingArea.addView(inspector, FrameLayout.LayoutParams(-1, -2, android.view.Gravity.TOP).apply {
+            setMargins(9.dp(), 9.dp(), 9.dp(), 0)
+        })
 
         fun controls(parent: LinearLayout, vararg items: Pair<String, () -> Unit>) {
             val row = LinearLayout(this).apply {
@@ -215,7 +226,7 @@ class StudioActivity : Activity() {
                     setBackgroundColor(Color.rgb(34, 55, 72))
                     setOnClickListener { action() }
                 }
-                row.addView(button, LinearLayout.LayoutParams(0, 44.dp(), 1f).apply {
+                row.addView(button, LinearLayout.LayoutParams(0, 35.dp(), 1f).apply {
                     setMargins(2.dp(), 2.dp(), 2.dp(), 2.dp())
                 })
             }
@@ -228,10 +239,62 @@ class StudioActivity : Activity() {
                 runOnUiThread { inspector.text = text }
             }
         }
-        val tabs = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val tabs = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(bg)
+        }
         val actions = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val quickTools = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            background = GradientDrawable().apply {
+                setColor(Color.argb(235, 20, 32, 44))
+                cornerRadius = 12.dp().toFloat()
+            }
+        }
+        workingArea.addView(quickTools, FrameLayout.LayoutParams(-1, -2,
+            android.view.Gravity.BOTTOM).apply { setMargins(10.dp(), 0, 10.dp(), 12.dp()) })
+        var activePage = -1
+        val sheetContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(10.dp(), 7.dp(), 10.dp(), 7.dp())
+            background = GradientDrawable().apply {
+                setColor(Color.rgb(23, 35, 48))
+                cornerRadius = 15.dp().toFloat()
+                setStroke(1.dp(), Color.rgb(52, 69, 82))
+            }
+            visibility = View.GONE
+        }
+        val sheetHeader = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+        }
+        val sheetTitle = TextView(this).apply {
+            text = "Инструменты"
+            textSize = 14f
+            setTextColor(Color.WHITE)
+            setPadding(8.dp(), 0, 8.dp(), 0)
+        }
+        sheetHeader.addView(sheetTitle, LinearLayout.LayoutParams(0, 38.dp(), 1f))
+        sheetHeader.addView(Button(this).apply {
+            text = "✕"
+            textSize = 14f
+            setTextColor(accent)
+            setPadding(0, 0, 0, 0)
+            setBackgroundColor(Color.rgb(31, 47, 62))
+            setOnClickListener {
+                sheetContainer.visibility = View.GONE
+                quickTools.visibility = View.VISIBLE
+                activePage = -1
+            }
+        }, LinearLayout.LayoutParams(41.dp(), 35.dp()))
+        sheetContainer.addView(sheetHeader)
+        val scroll = ScrollView(this).apply { isVerticalScrollBarEnabled = false }
+        scroll.addView(actions)
+        sheetContainer.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+        val sheetHeight = minOf(305.dp(), (resources.displayMetrics.heightPixels * 0.40f).toInt())
+        workingArea.addView(sheetContainer,
+            FrameLayout.LayoutParams(-1, sheetHeight, android.view.Gravity.BOTTOM))
         root.addView(tabs)
-        root.addView(actions)
 
         fun activate(mode: Tool) {
             tool = mode
@@ -262,6 +325,12 @@ class StudioActivity : Activity() {
             }
         }
 
+        controls(quickTools,
+            "Выбор" to { activate(Tool.OBJECT) },
+            "Move" to { activate(Tool.MOVE) },
+            "Грань" to { activate(Tool.FACE) },
+            "Ребро" to { activate(Tool.EDGE) }
+        )
         fun exact(sign: Int) {
             val value = amountInput?.text?.toString()?.toFloatOrNull()
             if (value == null || !value.isFinite() || value < -10000f || value > 10000f) {
@@ -290,6 +359,22 @@ class StudioActivity : Activity() {
         }
 
         fun page(index: Int) {
+            if (activePage == index) {
+                activePage = -1
+                sheetContainer.visibility = View.GONE
+                quickTools.visibility = View.VISIBLE
+                return
+            }
+            activePage = index
+            sheetContainer.visibility = View.VISIBLE
+            quickTools.visibility = View.GONE
+            sheetTitle.text = when(index) {
+                0 -> "Объекты"
+                1 -> "Трансформации"
+                2 -> "Файлы и экспорт"
+                3 -> "Инструменты сетки"
+                else -> "Материал объекта"
+            }
             actions.removeAllViews()
             when(index) {
                 0 -> {
@@ -598,6 +683,14 @@ class StudioActivity : Activity() {
                             }
                         }
                     }.toTypedArray())
+                    val advancedUv = LinearLayout(this).apply {
+                        orientation = LinearLayout.VERTICAL
+                        visibility = View.GONE
+                    }
+                    controls(actions, "UV / дополнительные параметры ▾" to {
+                        advancedUv.visibility = if (advancedUv.visibility == View.GONE) View.VISIBLE else View.GONE
+                    })
+                    actions.addView(advancedUv)
                     val uvRow=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL }
                     uvRow.addView(TextView(this).apply {
                         text="UV масштаб"
@@ -634,8 +727,8 @@ class StudioActivity : Activity() {
                         isAllCaps=false
                         setOnClickListener { applyPattern(pattern) }
                     },LinearLayout.LayoutParams(110.dp(),42.dp()))
-                    actions.addView(uvRow)
-                    controls(actions,
+                    advancedUv.addView(uvRow)
+                    controls(advancedUv,
                         "Без" to { applyPattern(0) },
                         "Ткань" to { applyPattern(1) },
                         "Дерево" to { applyPattern(2) },
@@ -668,7 +761,7 @@ class StudioActivity : Activity() {
                     val uvOffsetX=uvField("U","0.0")
                     val uvOffsetY=uvField("V","0.0")
                     val uvDegrees=uvField("°","0.0")
-                    actions.addView(uvTransformRow)
+                    advancedUv.addView(uvTransformRow)
                     controls(actions,
                         "UV: применить смещение и угол" to {
                             val x=uvOffsetX.text.toString().toFloatOrNull()
@@ -759,7 +852,6 @@ class StudioActivity : Activity() {
             "Материал" to { page(4) },
             "Файлы" to { page(2) }
         )
-        page(0)
         setContentView(root)
         // Android 15/16 enforce edge-to-edge. Reserve both system-bar insets.
         root.setOnApplyWindowInsetsListener { _, insets ->
