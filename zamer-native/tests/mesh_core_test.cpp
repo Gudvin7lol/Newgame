@@ -121,7 +121,6 @@ int main(){
     // Previous project v2 supports user-authored material and smoothing.
     std::string oldV2=matRestored.serialize();
     oldV2.replace(0,std::string("ZAMER_NATIVE_MESH_3").size(),"ZAMER_NATIVE_MESH_2");
-    const size_t uvLine=oldV2.find("\n",oldV2.find("\n",oldV2.find("\n",oldV2.find("\n")+1)+1)+1);
     // Construct a v2 file by removing the extra pattern/scale metadata line.
     const size_t materialEnd=oldV2.find('\n',oldV2.find('\n',oldV2.find('\n',oldV2.find('\n')+1)+1)+1);
     const size_t pStart=materialEnd+1,pEnd=oldV2.find('\n',pStart);
