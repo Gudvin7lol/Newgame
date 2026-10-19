@@ -15,7 +15,11 @@ void main() {
 
     expect(workspace.contains('MeasureUnifiedWorkspaceScreen('), isTrue);
     expect(measure.contains('PlanEditorProductionScreen('), isTrue);
-    expect(workspace.contains("title: 'Расширенный редактор'"), isTrue);
+    expect(workspace.contains("title: 'Расширенный редактор'"), isFalse);
+    expect(measure.contains('PlanEditorScreen('), isTrue,
+        reason: 'legacy CAD operations must be embedded in main Measure');
+    expect(measure.contains('PlanGeometryToolsScreen('), isTrue,
+        reason: 'precision radius and node tools must be embedded');
     expect(route.contains('PlanEditorMasterV4Screen('), isTrue);
     expect(route.contains('PlanEditorMasterV3Screen('), isFalse);
     expect(editor.contains('_ToolRail('), isTrue);

@@ -106,7 +106,10 @@ void main() {
     expect(measure.contains('ZMeasureViewMode.ar'), isFalse);
     expect(measure.contains('enabledModes: const ['), isTrue);
     expect(measure.contains('widget.onOpenReview'), isTrue);
-    expect(measure.contains('widget.onOpenGeometry'), isTrue);
+    expect(measure.contains('MeasurePlanTool.precision'), isTrue);
+    expect(measure.contains('_planToolbar()'), isTrue,
+        reason: 'precision geometry belongs to the main Measure toolbar');
+    expect(measure.contains('PlanGeometryToolsScreen('), isTrue);
     expect(measure.contains('widget.onOpenFloors'), isTrue);
     expect(measure.contains('ZWorkspacePrimaryNav('), isTrue);
   });

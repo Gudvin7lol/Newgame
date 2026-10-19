@@ -10,7 +10,7 @@ class PlanEditorProductionScreen extends StatelessWidget {
     required this.onChanged,
     required this.onOpenObjects,
     required this.onOpenReview,
-    required this.onOpenAdvanced,
+    required this.onOpenPlanGeometry,
     this.onOpen3D,
     this.onOpenFloors,
     this.onOpenSettings,
@@ -25,7 +25,7 @@ class PlanEditorProductionScreen extends StatelessWidget {
   final Future<void> Function() onChanged;
   final VoidCallback onOpenObjects;
   final VoidCallback onOpenReview;
-  final VoidCallback onOpenAdvanced;
+  final VoidCallback onOpenPlanGeometry;
   final VoidCallback? onOpen3D;
   final VoidCallback? onOpenFloors;
   final VoidCallback? onOpenSettings;
@@ -42,11 +42,11 @@ class PlanEditorProductionScreen extends StatelessWidget {
       onChanged: onChanged,
       onOpenObjects: onOpenObjects,
       onOpenReview: onOpenReview,
-      onOpenGeometry: onOpenAdvanced,
-      onOpen3D: onOpen3D ?? onOpenAdvanced,
-      onOpenFloors: onOpenFloors ?? onOpenAdvanced,
-      onOpenSettings: onOpenSettings ?? onOpenAdvanced,
-      onOpenMaterials: onOpenMaterials ?? onOpenAdvanced,
+      onOpenGeometry: onOpenPlanGeometry,
+      onOpen3D: onOpen3D ?? onOpenPlanGeometry,
+      onOpenFloors: onOpenFloors ?? onOpenPlanGeometry,
+      onOpenSettings: onOpenSettings ?? onOpenPlanGeometry,
+      onOpenMaterials: onOpenMaterials ?? onOpenPlanGeometry,
       onUndo: onUndo,
       onRedo: onRedo,
       canUndo: canUndo,

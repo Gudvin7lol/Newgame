@@ -387,7 +387,7 @@ class _MeasureConceptWorkspaceScreenState
                 onChanged: widget.onChanged,
                 onOpenObjects: widget.onOpenObjects,
                 onOpenReview: widget.onOpenReview,
-                onOpenAdvanced: widget.onOpenGeometry,
+                onOpenPlanGeometry: widget.onOpenGeometry,
                 onOpen3D: widget.onOpen3D,
                 onOpenFloors: widget.onOpenFloors,
                 onOpenSettings: _showMeasureSettings,

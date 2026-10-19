@@ -26,9 +26,16 @@ class PlanEditorScreen extends StatefulWidget {
     super.key,
     required this.floor,
     required this.onChanged,
+    this.mode,
+    this.embedded = false,
   });
   final FloorPlan floor;
   final Future<void> Function() onChanged;
+
+  /// When embedded in the unified Measure page the tool is chosen by its
+  /// shared toolbar. Standalone callers keep the existing built-in picker.
+  final PlanMode? mode;
+  final bool embedded;
 
   @override
   State<PlanEditorScreen> createState() => _PlanEditorScreenState();
@@ -65,6 +72,31 @@ class _PlanEditorScreenState extends State<PlanEditorScreen> {
   Size _viewport = Size.zero;
 
   FloorPlan get floor => widget.floor;
+
+  @override
+  void initState() {
+    super.initState();
+    _mode = widget.mode ?? PlanMode.exterior;
+  }
+
+  @override
+  void didUpdateWidget(covariant PlanEditorScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.mode != null && widget.mode != _mode) {
+      // A mode change must never continue a partly drawn wall or an active
+      // node drag from the previous tool.
+      _mode = widget.mode!;
+      _activeNodeId = null;
+      _measureStartNodeId = null;
+      _selectedNodeId = null;
+      _dragNodeId = null;
+      _lastNodeSnap = null;
+      _dragUndoPushed = false;
+      _dragOpeningWallId = null;
+      _dragOpeningId = null;
+      _openingDragUndoPushed = false;
+    }
+  }
 
   @override
   void dispose() {
@@ -1570,14 +1602,16 @@ class _PlanEditorScreenState extends State<PlanEditorScreen> {
                   ),
                   child: Row(
                     children: [
-                      IconButton(
-                        onPressed: _undo.isEmpty ? null : _undoAction,
-                        icon: const Icon(Icons.undo),
-                      ),
-                      IconButton(
-                        onPressed: _redo.isEmpty ? null : _redoAction,
-                        icon: const Icon(Icons.redo),
-                      ),
+                      if (!widget.embedded) ...[
+                        IconButton(
+                          onPressed: _undo.isEmpty ? null : _undoAction,
+                          icon: const Icon(Icons.undo),
+                        ),
+                        IconButton(
+                          onPressed: _redo.isEmpty ? null : _redoAction,
+                          icon: const Icon(Icons.redo),
+                        ),
+                      ],
                       IconButton(
                         onPressed: () =>
                             setState(() => _showDimensions = !_showDimensions),
@@ -1669,11 +1703,12 @@ class _PlanEditorScreenState extends State<PlanEditorScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Row(
-                            children: [
-                              _modeButton(
+                        if (!widget.embedded)
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: [
+                                _modeButton(
                                 PlanMode.select,
                                 Icons.pan_tool_alt_outlined,
                                 'Обзор',
@@ -1720,9 +1755,9 @@ class _PlanEditorScreenState extends State<PlanEditorScreen> {
                                 Icons.square_foot_outlined,
                                 'Размеры',
                               ),
-                            ],
+                              ],
+                            ),
                           ),
-                        ),
                         if (_mode == PlanMode.exterior ||
                             _mode == PlanMode.partition ||
                             _mode == PlanMode.arc) ...[

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 
 import '../design_system/zamer_measure_chrome.dart';
@@ -13,7 +14,24 @@ import 'master_equipment_screen.dart';
 import 'materials_master_screen.dart';
 import 'measure_floor_plan_layer_screen.dart';
 import 'plan_editor_production_screen.dart';
+import 'plan_editor_screen.dart';
+import 'plan_geometry_tools_screen.dart';
 import 'planning_objects_screen.dart';
+
+/// Every plan operation is available in the same Measure workspace.
+/// No basic/advanced editor navigation or duplicate app-level section.
+enum MeasurePlanTool {
+  overview,
+  select,
+  nodes,
+  exterior,
+  partition,
+  arc,
+  precision,
+  openings,
+  demolition,
+  dimensions,
+}
 
 /// The field-first Measure workspace.
 ///
@@ -33,8 +51,11 @@ class MeasureUnifiedWorkspaceScreen extends StatefulWidget {
     required this.onOpen3D,
     required this.onOpenPhoto,
     required this.onOpenReview,
-    required this.onOpenGeometry,
+    required this.planToolRequest,
     required this.onOpenFloors,
+    required this.onOpenRooms,
+    required this.onScanPlan,
+    required this.onExportPdf,
     required this.onHome,
     required this.onCatalog,
     required this.onProfile,
@@ -52,8 +73,11 @@ class MeasureUnifiedWorkspaceScreen extends StatefulWidget {
   final VoidCallback onOpen3D;
   final VoidCallback onOpenPhoto;
   final VoidCallback onOpenReview;
-  final VoidCallback onOpenGeometry;
+  final ValueListenable<MeasurePlanTool> planToolRequest;
   final VoidCallback onOpenFloors;
+  final VoidCallback onOpenRooms;
+  final VoidCallback onScanPlan;
+  final VoidCallback onExportPdf;
   final VoidCallback onHome;
   final VoidCallback onCatalog;
   final VoidCallback onProfile;
@@ -68,6 +92,134 @@ class _MeasureUnifiedWorkspaceScreenState
     extends State<MeasureUnifiedWorkspaceScreen> {
   int _layer = 0;
   ZMeasureViewMode _view = ZMeasureViewMode.twoD;
+  MeasurePlanTool _planTool = MeasurePlanTool.overview;
+
+  static const _planTools = <(MeasurePlanTool, String, IconData)>[
+    (MeasurePlanTool.overview, 'Обзор', Icons.dashboard_customize_outlined),
+    (MeasurePlanTool.select, 'Выбрать', Icons.ads_click_outlined),
+    (MeasurePlanTool.nodes, 'Узлы', Icons.adjust_rounded),
+    (MeasurePlanTool.exterior, 'Стены', Icons.home_work_outlined),
+    (MeasurePlanTool.partition, 'Перегородки', Icons.view_week_outlined),
+    (MeasurePlanTool.arc, 'Дуги', Icons.architecture_outlined),
+    (MeasurePlanTool.precision, 'Радиусы', Icons.radio_button_unchecked_outlined),
+    (MeasurePlanTool.openings, 'Проёмы', Icons.door_front_door_outlined),
+    (MeasurePlanTool.demolition, 'Демонтаж', Icons.auto_delete_outlined),
+    (MeasurePlanTool.dimensions, 'Размеры', Icons.square_foot_outlined),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _planTool = widget.planToolRequest.value;
+    widget.planToolRequest.addListener(_handlePlanToolRequest);
+  }
+
+  @override
+  void didUpdateWidget(covariant MeasureUnifiedWorkspaceScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.planToolRequest != widget.planToolRequest) {
+      oldWidget.planToolRequest.removeListener(_handlePlanToolRequest);
+      widget.planToolRequest.addListener(_handlePlanToolRequest);
+      _handlePlanToolRequest();
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.planToolRequest.removeListener(_handlePlanToolRequest);
+    super.dispose();
+  }
+
+  void _handlePlanToolRequest() {
+    _selectPlanTool(widget.planToolRequest.value);
+  }
+
+  void _selectPlanTool(MeasurePlanTool tool) {
+    if (!mounted) return;
+    setState(() {
+      _planTool = tool;
+      _view = ZMeasureViewMode.twoD;
+      _layer = 0;
+    });
+  }
+
+  PlanMode get _legacyPlanMode => switch (_planTool) {
+    MeasurePlanTool.select => PlanMode.select,
+    MeasurePlanTool.nodes => PlanMode.nodes,
+    MeasurePlanTool.exterior => PlanMode.exterior,
+    MeasurePlanTool.partition => PlanMode.partition,
+    MeasurePlanTool.arc => PlanMode.arc,
+    MeasurePlanTool.openings => PlanMode.opening,
+    MeasurePlanTool.demolition => PlanMode.demolition,
+    MeasurePlanTool.dimensions => PlanMode.dimension,
+    MeasurePlanTool.overview || MeasurePlanTool.precision => PlanMode.select,
+  };
+
+  Widget _planToolbar() => Container(
+    decoration: const BoxDecoration(
+      color: ZamerColors.surfaceLow,
+      border: Border(bottom: BorderSide(color: ZamerColors.outlineSoft)),
+    ),
+    padding: const EdgeInsets.fromLTRB(8, 5, 8, 5),
+    child: SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          for (final (tool, label, icon) in _planTools)
+            Padding(
+              padding: const EdgeInsets.only(right: 6),
+              child: ChoiceChip(
+                selected: _planTool == tool,
+                showCheckmark: false,
+                avatar: Icon(icon, size: 16,
+                    color: _planTool == tool
+                        ? ZamerColors.accentInk : ZamerColors.textSecondary),
+                label: Text(label),
+                labelStyle: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: _planTool == tool
+                      ? ZamerColors.accentInk : ZamerColors.textPrimary,
+                ),
+                backgroundColor: ZamerColors.surface,
+                selectedColor: ZamerColors.accent,
+                side: const BorderSide(color: ZamerColors.outlineSoft),
+                onSelected: (_) => _selectPlanTool(tool),
+              ),
+            ),
+        ],
+      ),
+    ),
+  );
+
+  Widget _planActions() => Padding(
+    padding: const EdgeInsets.fromLTRB(8, 0, 8, 4),
+    child: SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          _quickAction(Icons.document_scanner_outlined, 'Импорт', widget.onScanPlan),
+          _quickAction(Icons.grid_view_outlined, 'Помещения', widget.onOpenRooms),
+          _quickAction(Icons.layers_outlined, 'Этажи', widget.onOpenFloors),
+          _quickAction(Icons.category_outlined, 'Каталог', _openCatalogSheet),
+          _quickAction(Icons.fact_check_outlined, 'Проверка', widget.onOpenReview),
+          _quickAction(Icons.picture_as_pdf_outlined, 'PDF', widget.onExportPdf),
+        ],
+      ),
+    ),
+  );
+
+  Widget _quickAction(IconData icon, String label, VoidCallback action) =>
+      Padding(
+        padding: const EdgeInsets.only(right: 7),
+        child: ActionChip(
+          avatar: Icon(icon, size: 15, color: ZamerColors.textSecondary),
+          label: Text(label, style: const TextStyle(fontSize: 10)),
+          backgroundColor: ZamerColors.surface,
+          side: const BorderSide(color: ZamerColors.outlineSoft),
+          onPressed: action,
+        ),
+      );
 
   static const _layers = <(String, IconData)>[
     ('План', Icons.architecture_outlined),
@@ -191,21 +343,34 @@ class _MeasureUnifiedWorkspaceScreenState
     }
 
     final pages = <Widget>[
-      PlanEditorProductionScreen(
-        floor: widget.floor,
-        onChanged: widget.onChanged,
-        onOpenObjects: () => _selectLayer(2),
-        onOpenReview: widget.onOpenReview,
-        onOpenAdvanced: widget.onOpenGeometry,
-        onOpen3D: widget.onOpen3D,
-        onOpenFloors: widget.onOpenFloors,
-        onOpenSettings: widget.onMore,
-        onOpenMaterials: () => _selectLayer(5),
-        onUndo: widget.onUndo,
-        onRedo: widget.onRedo,
-        canUndo: widget.canUndo,
-        canRedo: widget.canRedo,
-      ),
+      _planTool == MeasurePlanTool.overview
+          ? PlanEditorProductionScreen(
+              floor: widget.floor,
+              onChanged: widget.onChanged,
+              onOpenObjects: () => _selectLayer(2),
+              onOpenReview: widget.onOpenReview,
+              onOpenPlanGeometry: () => _selectPlanTool(MeasurePlanTool.precision),
+              onOpen3D: widget.onOpen3D,
+              onOpenFloors: widget.onOpenFloors,
+              onOpenSettings: widget.onMore,
+              onOpenMaterials: () => _selectLayer(5),
+              onUndo: widget.onUndo,
+              onRedo: widget.onRedo,
+              canUndo: widget.canUndo,
+              canRedo: widget.canRedo,
+            )
+          : _planTool == MeasurePlanTool.precision
+              ? PlanGeometryToolsScreen(
+                  floor: widget.floor,
+                  onChanged: widget.onChanged,
+                  embedded: true,
+                )
+              : PlanEditorScreen(
+                  floor: widget.floor,
+                  onChanged: widget.onChanged,
+                  mode: _legacyPlanMode,
+                  embedded: true,
+                ),
       MeasureFloorPlanLayerScreen(
         floor: widget.floor,
         onChanged: widget.onChanged,
@@ -298,6 +463,10 @@ class _MeasureUnifiedWorkspaceScreenState
             selectedIndex: _layer,
             onSelected: _selectLayer,
           ),
+          if (_layer == 0) ...[
+            _planToolbar(),
+            _planActions(),
+          ],
           Expanded(
             child: IndexedStack(index: _layer, children: pages),
           ),
