@@ -69,7 +69,7 @@ int main(){
     assert(mat.setSmoothShading(true));
     assert(!mat.setCustomMaterial({-0.1f,0.f,0.f},0.5f,0.5f));
     const auto savedV2=mat.serialize();
-    assert(savedV2.find("ZAMER_NATIVE_MESH_2")==0);
+    assert(savedV2.find("ZAMER_NATIVE_MESH_3")==0);
     Scene matRestored;
     assert(matRestored.restore(savedV2));
     assert(matRestored.serialize()==savedV2);
