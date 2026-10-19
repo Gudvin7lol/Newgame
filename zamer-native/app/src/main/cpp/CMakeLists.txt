@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22.1)
 project(zamerengine LANGUAGES CXX)
-add_library(zamerengine SHARED mesh_core.cpp mesh_edit.cpp glb_export.cpp scene_picker.cpp gizmo_math.cpp native_renderer.cpp jni_bridge.cpp)
+add_library(zamerengine SHARED mesh_core.cpp mesh_edit.cpp glb_export.cpp texture_bake.cpp scene_picker.cpp gizmo_math.cpp native_renderer.cpp jni_bridge.cpp)
 target_compile_features(zamerengine PRIVATE cxx_std_17)
 target_compile_options(zamerengine PRIVATE -Wall -Wextra)
 target_link_libraries(zamerengine PRIVATE log GLESv3)

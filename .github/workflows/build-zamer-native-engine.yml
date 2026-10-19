@@ -50,9 +50,13 @@ jobs:
         run: |
           g++ -std=c++17 -Wall -Wextra -Werror zamer-native/tests/mesh_edit_test.cpp zamer-native/app/src/main/cpp/mesh_core.cpp zamer-native/app/src/main/cpp/mesh_edit.cpp -I zamer-native/app/src/main/cpp -o /tmp/zamer-edit-tests
           /tmp/zamer-edit-tests
+      - name: Test baked texture PNG
+        run: |
+          g++ -std=c++17 -Wall -Wextra -Werror zamer-native/tests/texture_bake_test.cpp zamer-native/app/src/main/cpp/texture_bake.cpp -I zamer-native/app/src/main/cpp -o /tmp/zamer-texture-test
+          /tmp/zamer-texture-test
       - name: Test GLB export and glTF schema
         run: |
-          g++ -std=c++17 -Wall -Wextra -Werror zamer-native/tests/glb_export_test.cpp zamer-native/app/src/main/cpp/glb_export.cpp zamer-native/app/src/main/cpp/mesh_core.cpp zamer-native/app/src/main/cpp/mesh_edit.cpp -I zamer-native/app/src/main/cpp -o /tmp/zamer-glb-test
+          g++ -std=c++17 -Wall -Wextra -Werror zamer-native/tests/glb_export_test.cpp zamer-native/app/src/main/cpp/glb_export.cpp zamer-native/app/src/main/cpp/texture_bake.cpp zamer-native/app/src/main/cpp/mesh_core.cpp zamer-native/app/src/main/cpp/mesh_edit.cpp -I zamer-native/app/src/main/cpp -o /tmp/zamer-glb-test
           /tmp/zamer-glb-test
           python3 zamer-native/tests/check_glb.py /tmp/zamer-1.1-test.glb
       - name: Build Kotlin + C++ APK
