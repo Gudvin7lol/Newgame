@@ -95,7 +95,7 @@ class _MeasureUnifiedWorkspaceScreenState
   MeasurePlanTool _planTool = MeasurePlanTool.overview;
 
   static const _planTools = <(MeasurePlanTool, String, IconData)>[
-    (MeasurePlanTool.overview, 'План', Icons.dashboard_customize_outlined),
+    (MeasurePlanTool.overview, 'Обзор', Icons.dashboard_customize_outlined),
     (MeasurePlanTool.select, 'Выбрать', Icons.ads_click_outlined),
     (MeasurePlanTool.nodes, 'Узлы', Icons.adjust_rounded),
     (MeasurePlanTool.exterior, 'Стены', Icons.home_work_outlined),
@@ -349,7 +349,7 @@ class _MeasureUnifiedWorkspaceScreenState
               onChanged: widget.onChanged,
               onOpenObjects: () => _selectLayer(2),
               onOpenReview: widget.onOpenReview,
-              onOpenAdvanced: () => _selectPlanTool(MeasurePlanTool.precision),
+              onOpenPlanGeometry: () => _selectPlanTool(MeasurePlanTool.precision),
               onOpen3D: widget.onOpen3D,
               onOpenFloors: widget.onOpenFloors,
               onOpenSettings: widget.onMore,
