@@ -189,6 +189,7 @@ class _MeasureUnifiedWorkspaceScreenState
             'catalog' => _openCatalogSheet(),
             'review' => widget.onOpenReview(),
             'pdf' => widget.onExportPdf(),
+            'photo' => widget.onOpenPhoto(),
             _ => widget.onMore(),
           },
           itemBuilder: (_) => const [
@@ -198,6 +199,7 @@ class _MeasureUnifiedWorkspaceScreenState
             PopupMenuItem(value: 'catalog', child: Text('Каталог')),
             PopupMenuItem(value: 'review', child: Text('Проверка обмера')),
             PopupMenuItem(value: 'pdf', child: Text('PDF')),
+            PopupMenuItem(value: 'photo', child: Text('Фото')),
           ],
         ),
       ],
