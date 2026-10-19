@@ -12,6 +12,8 @@ import android.view.MotionEvent
 import android.view.View
 import android.widget.Button
 import android.widget.LinearLayout
+import android.widget.CheckBox
+import android.widget.SeekBar
 import android.widget.TextView
 import java.io.File
 import kotlin.math.hypot
@@ -29,6 +31,8 @@ class StudioActivity : Activity() {
     private var previousX = 0f
     private var previousY = 0f
     private var previousPinch = 0f
+    private var previousMidX = 0f
+    private var previousMidY = 0f
     private var firstRenderReport = true
     private var frames: Int = 0
     private var moved: Boolean = false
@@ -49,7 +53,7 @@ class StudioActivity : Activity() {
             setBackgroundColor(bg)
         }
         val brand = TextView(this).apply {
-            text = "Z / ENGINE    •    CORE 0.9"
+            text = "Z / ENGINE    •    CORE 1.0"
             setTextColor(Color.WHITE)
             textSize = 17f
             setPadding(18.dp(), 9.dp(), 12.dp(), 9.dp())
@@ -105,14 +109,20 @@ class StudioActivity : Activity() {
             setOnTouchListener { _: View, event: MotionEvent ->
                 if (event.pointerCount >= 2) {
                     val d = hypot(event.getX(0)-event.getX(1), event.getY(0)-event.getY(1))
+                    val midX = (event.getX(0)+event.getX(1))*0.5f
+                    val midY = (event.getY(0)+event.getY(1))*0.5f
                     if (previousPinch > 0f && event.actionMasked == MotionEvent.ACTION_MOVE) {
                         val scale = (d / previousPinch).coerceIn(0.75f, 1.25f)
-                        queueEvent { Native.zoom(engine, scale) }
+                        val dx = (midX-previousMidX).coerceIn(-80f,80f)
+                        val dy = (midY-previousMidY).coerceIn(-80f,80f)
+                        queueEvent { Native.zoom(engine,scale); Native.pan(engine,dx,dy) }
                     }
-                    previousPinch = d
+                    previousPinch=d
+                    previousMidX=midX
+                    previousMidY=midY
                     return@setOnTouchListener true
                 }
-                previousPinch = 0f
+                previousPinch=0f
                 when (event.actionMasked) {
                     MotionEvent.ACTION_DOWN -> {
                         previousX = event.x
@@ -311,6 +321,13 @@ class StudioActivity : Activity() {
                             }
                         } }
                     )
+                    controls(actions,
+                        "В центре" to { surface.queueEvent {
+                            val ok=Native.focusSelected(engine)
+                            runOnUiThread { inspector.text=if(ok) "Камера наведена на объект. Два пальца: панорамирование и масштаб."
+                                else "Выбери объект." }
+                        } }
+                    )
                 }
                 3 -> {
                     controls(actions,
@@ -458,6 +475,148 @@ class StudioActivity : Activity() {
                     }, LinearLayout.LayoutParams(55.dp(), 42.dp()))
                     actions.addView(row)
                 }
+                4 -> {
+                    val swatch=TextView(this).apply {
+                        text="Цвет выбранного объекта"
+                        textSize=12f
+                        setTextColor(Color.WHITE)
+                        setPadding(12.dp(),9.dp(),12.dp(),9.dp())
+                        setBackgroundColor(Color.rgb(122,132,144))
+                    }
+                    actions.addView(swatch,LinearLayout.LayoutParams(-1,40.dp()))
+                    val colorRow=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL }
+                    colorRow.addView(TextView(this).apply {
+                        text="HEX #"
+                        textSize=12f
+                        setTextColor(accent)
+                        gravity=android.view.Gravity.CENTER_VERTICAL
+                    },LinearLayout.LayoutParams(65.dp(),40.dp()))
+                    val hex=EditText(this).apply {
+                        setText("9E8C75")
+                        setSingleLine(true)
+                        setTextColor(Color.WHITE)
+                        textSize=13f
+                        setSelectAllOnFocus(true)
+                        inputType=InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
+                    }
+                    colorRow.addView(hex,LinearLayout.LayoutParams(0,40.dp(),1f))
+                    fun sliderRow(name:String,value:Int):Pair<SeekBar,TextView>{
+                        val row=LinearLayout(this).apply {
+                            orientation=LinearLayout.HORIZONTAL
+                            setBackgroundColor(panel)
+                        }
+                        val label=TextView(this).apply {
+                            text=name + ": " + value + "%"
+                            textSize=11f
+                            setTextColor(accent)
+                            gravity=android.view.Gravity.CENTER_VERTICAL
+                        }
+                        row.addView(label,LinearLayout.LayoutParams(122.dp(),42.dp()))
+                        val seek=SeekBar(this).apply {
+                            max=100
+                            progress=value
+                        }
+                        row.addView(seek,LinearLayout.LayoutParams(0,42.dp(),1f))
+                        actions.addView(row)
+                        return seek to label
+                    }
+                    val metallicRow=sliderRow("Metallic",0)
+                    val roughnessRow=sliderRow("Roughness",70)
+                    val metallic=metallicRow.first
+                    val roughness=roughnessRow.first
+                    fun showValues(){
+                        metallicRow.second.text="Metallic: " + metallic.progress + "%"
+                        roughnessRow.second.text="Roughness: " + roughness.progress + "%"
+                    }
+                    fun setSwatch(rgb:Int){
+                        swatch.setBackgroundColor(Color.rgb((rgb shr 16) and 255,(rgb shr 8) and 255,rgb and 255))
+                    }
+                    fun applyPbr(){
+                        val value=hex.text.toString().trim().removePrefix("#")
+                        if(!value.matches(Regex("[0-9a-fA-F]{6}"))){
+                            inspector.text="HEX: требуется 6 цифр, например B89B80."
+                            return
+                        }
+                        val rgb=value.toInt(16)
+                        val metal=metallic.progress/100f
+                        val rough=(roughness.progress.coerceAtLeast(4))/100f
+                        surface.queueEvent {
+                            Native.checkpoint(engine)
+                            val ok=Native.setPbr(engine,rgb,metal,rough)
+                            val info=Native.sceneInfo(engine)
+                            runOnUiThread {
+                                if(ok)setSwatch(rgb)
+                                inspector.text=if(ok)"PBR обновлён.\n"+info else "Выбери объект."
+                            }
+                        }
+                    }
+                    colorRow.addView(Button(this).apply {
+                        text="Применить"
+                        isAllCaps=false
+                        textSize=10f
+                        setOnClickListener { applyPbr() }
+                    },LinearLayout.LayoutParams(110.dp(),40.dp()))
+                    // Keep editable controls compact, with actual viewport available above.
+                    actions.addView(colorRow,0)
+                    val sliderListener=object:SeekBar.OnSeekBarChangeListener{
+                        override fun onProgressChanged(bar:SeekBar?,progress:Int,fromUser:Boolean){
+                            if(fromUser&&bar===roughness&&progress<4)roughness.progress=4
+                            showValues()
+                        }
+                        override fun onStartTrackingTouch(bar:SeekBar?){}
+                        override fun onStopTrackingTouch(bar:SeekBar?){applyPbr()}
+                    }
+                    metallic.setOnSeekBarChangeListener(sliderListener)
+                    roughness.setOnSeekBarChangeListener(sliderListener)
+                    val smoothing=CheckBox(this).apply {
+                        text="Smooth shading"
+                        textSize=12f
+                        setTextColor(Color.WHITE)
+                        setBackgroundColor(panel)
+                    }
+                    actions.addView(smoothing,LinearLayout.LayoutParams(-1,40.dp()))
+                    val presets=listOf("Ткань","Кожа","Дерево","Металл","Олива")
+                    controls(actions,*presets.mapIndexed { id,name ->
+                        name to {
+                            surface.queueEvent {
+                                Native.material(engine,id)
+                                val state=Native.materialState(engine)
+                                val info=Native.sceneInfo(engine)
+                                runOnUiThread {
+                                    val fields=state.split("|")
+                                    if(fields.size>=5){
+                                        hex.setText(fields[0])
+                                        metallic.progress=((fields[1].toFloatOrNull()?:0f)*100).toInt()
+                                        roughness.progress=((fields[2].toFloatOrNull()?:0.7f)*100).toInt()
+                                        setSwatch(fields[0].toIntOrNull(16)?:0)
+                                    }
+                                    inspector.text=info
+                                }
+                            }
+                        }
+                    }.toTypedArray())
+                    surface.queueEvent {
+                        val state=Native.materialState(engine)
+                        runOnUiThread {
+                            val fields=state.split("|")
+                            if(fields.size>=5){
+                                hex.setText(fields[0])
+                                metallic.progress=((fields[1].toFloatOrNull()?:0f)*100).toInt().coerceIn(0,100)
+                                roughness.progress=((fields[2].toFloatOrNull()?:0.7f)*100).toInt().coerceIn(4,100)
+                                smoothing.isChecked=fields[3]=="1"
+                                setSwatch(fields[0].toIntOrNull(16)?:0)
+                            }
+                        }
+                    }
+                    smoothing.setOnCheckedChangeListener { _,enabled ->
+                        surface.queueEvent {
+                            Native.checkpoint(engine)
+                            Native.setSmooth(engine,enabled)
+                            val info=Native.sceneInfo(engine)
+                            runOnUiThread { inspector.text=info }
+                        }
+                    }
+                }
                 else -> {
                     controls(actions,
                         "Материал" to { act { Native.material(engine, -1) } },
@@ -494,6 +653,7 @@ class StudioActivity : Activity() {
             "Модель" to { page(0) },
             "Топология" to { page(3) },
             "Трансф." to { page(1) },
+            "Материал" to { page(4) },
             "Файлы" to { page(2) }
         )
         page(0)
