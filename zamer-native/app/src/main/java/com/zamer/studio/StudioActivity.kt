@@ -59,9 +59,10 @@ class StudioActivity : Activity() {
             setBackgroundColor(bg)
         }
         val brand = TextView(this).apply {
-            text = "Z / STUDIO  •  1.3"
-            setTextColor(Color.WHITE)
+            text = "Z / STUDIO   1.3"
+            setTextColor(Color.rgb(235, 242, 245))
             textSize = 16f
+            setTypeface(null, android.graphics.Typeface.BOLD)
             setPadding(14.dp(), 6.dp(), 12.dp(), 6.dp())
         }
         val toolbar = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
@@ -220,10 +221,18 @@ class StudioActivity : Activity() {
             for ((title, action) in items) {
                 val button = Button(this).apply {
                     text = title
-                    textSize = 10f
-                    setPadding(0,0,0,0)
-                    setTextColor(Color.WHITE)
-                    setBackgroundColor(Color.rgb(34, 55, 72))
+                    textSize = 11f
+                    isAllCaps = false
+                    minHeight = 0
+                    minimumHeight = 0
+                    minimumWidth = 0
+                    setPadding(3.dp(),0,3.dp(),0)
+                    setTextColor(Color.rgb(232, 241, 244))
+                    background = GradientDrawable().apply {
+                        setColor(Color.rgb(32, 49, 65))
+                        cornerRadius = 9.dp().toFloat()
+                        setStroke(1.dp(), Color.rgb(44, 66, 82))
+                    }
                     setOnClickListener { action() }
                 }
                 row.addView(button, LinearLayout.LayoutParams(0, 35.dp(), 1f).apply {
@@ -291,7 +300,7 @@ class StudioActivity : Activity() {
         val scroll = ScrollView(this).apply { isVerticalScrollBarEnabled = false }
         scroll.addView(actions)
         sheetContainer.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
-        val sheetHeight = minOf(305.dp(), (resources.displayMetrics.heightPixels * 0.40f).toInt())
+        val sheetHeight = minOf(270.dp(), (resources.displayMetrics.heightPixels * 0.34f).toInt())
         workingArea.addView(sheetContainer,
             FrameLayout.LayoutParams(-1, sheetHeight, android.view.Gravity.BOTTOM))
         root.addView(tabs)
