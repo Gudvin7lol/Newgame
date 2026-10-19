@@ -2,10 +2,17 @@ import 'dart:math' as math;
 
 import '../models/models.dart';
 
+enum SpaceIssueType { objectWall, objectObject, doorClearance }
+
 class SpaceIssue {
-  const SpaceIssue(this.description, {this.objectIds = const []});
+  const SpaceIssue(
+    this.description, {
+    this.objectIds = const [],
+    this.type = SpaceIssueType.objectObject,
+  });
   final String description;
   final List<String> objectIds;
+  final SpaceIssueType type;
 }
 
 class SpaceCheckService {
@@ -115,6 +122,7 @@ class SpaceCheckService {
           SpaceIssue(
             '${_name(object)} пересекает стену',
             objectIds: [object.id],
+            type: SpaceIssueType.objectWall,
           ),
         );
     }
@@ -133,6 +141,7 @@ class SpaceCheckService {
             SpaceIssue(
               'Пересечение: ${_name(a)} и ${_name(b)}',
               objectIds: [a.id, b.id],
+              type: SpaceIssueType.objectObject,
             ),
           );
         }
@@ -175,6 +184,7 @@ class SpaceCheckService {
               SpaceIssue(
                 'Проход у двери перекрывает ${_name(object)}',
                 objectIds: [object.id],
+                type: SpaceIssueType.doorClearance,
               ),
             );
           }
