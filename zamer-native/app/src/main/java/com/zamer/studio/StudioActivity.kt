@@ -598,21 +598,6 @@ class StudioActivity : Activity() {
                             }
                         }
                     }.toTypedArray())
-                    surface.queueEvent {
-                        val state=Native.materialState(engine)
-                        runOnUiThread {
-                            val fields=state.split("|")
-                            if(fields.size>=5){
-                                hex.setText(fields[0])
-                                metallic.progress=((fields[1].toFloatOrNull()?:0f)*100).toInt().coerceIn(0,100)
-                                roughness.progress=((fields[2].toFloatOrNull()?:0.7f)*100).toInt().coerceIn(4,100)
-                                smoothing.isChecked=fields[3]=="1"
-                                pattern=fields.getOrNull(5)?.toIntOrNull()?:0
-                                uvInput.setText(fields.getOrNull(6)?:"1.0")
-                                setSwatch(fields[0].toIntOrNull(16)?:0)
-                            }
-                        }
-                    }
                     val uvRow=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL }
                     uvRow.addView(TextView(this).apply {
                         text="UV масштаб"
@@ -657,6 +642,21 @@ class StudioActivity : Activity() {
                         "Кожа" to { applyPattern(3) },
                         "Металл" to { applyPattern(4) }
                     )
+                    surface.queueEvent {
+                        val state=Native.materialState(engine)
+                        runOnUiThread {
+                            val fields=state.split("|")
+                            if(fields.size>=5){
+                                hex.setText(fields[0])
+                                metallic.progress=((fields[1].toFloatOrNull()?:0f)*100).toInt().coerceIn(0,100)
+                                roughness.progress=((fields[2].toFloatOrNull()?:0.7f)*100).toInt().coerceIn(4,100)
+                                smoothing.isChecked=fields[3]=="1"
+                                pattern=fields.getOrNull(5)?.toIntOrNull()?:0
+                                uvInput.setText(fields.getOrNull(6)?:"1.0")
+                                setSwatch(fields[0].toIntOrNull(16)?:0)
+                            }
+                        }
+                    }
                     smoothing.setOnCheckedChangeListener { _,enabled ->
                         surface.queueEvent {
                             Native.checkpoint(engine)
