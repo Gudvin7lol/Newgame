@@ -56,7 +56,7 @@ class StudioActivity : Activity() {
             setBackgroundColor(bg)
         }
         val brand = TextView(this).apply {
-            text = "Z / ENGINE    •    CORE 1.1"
+            text = "Z / ENGINE    •    CORE 1.2"
             setTextColor(Color.WHITE)
             textSize = 17f
             setPadding(18.dp(), 9.dp(), 12.dp(), 9.dp())
@@ -642,6 +642,55 @@ class StudioActivity : Activity() {
                         "Кожа" to { applyPattern(3) },
                         "Металл" to { applyPattern(4) }
                     )
+                    // Numeric UV edit: displacement and rotation in the material plane.
+                    val uvTransformRow=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL }
+                    fun uvField(caption:String,initial:String):EditText {
+                        val group=LinearLayout(this).apply {orientation=LinearLayout.HORIZONTAL}
+                        group.addView(TextView(this).apply {
+                            text=caption
+                            textSize=11f
+                            setTextColor(accent)
+                            gravity=android.view.Gravity.CENTER_VERTICAL
+                        },LinearLayout.LayoutParams(26.dp(),40.dp()))
+                        val edit=EditText(this).apply {
+                            setText(initial)
+                            textSize=12f
+                            setSingleLine(true)
+                            setTextColor(Color.WHITE)
+                            inputType=InputType.TYPE_CLASS_NUMBER or
+                                      InputType.TYPE_NUMBER_FLAG_SIGNED or
+                                      InputType.TYPE_NUMBER_FLAG_DECIMAL
+                        }
+                        group.addView(edit,LinearLayout.LayoutParams(0,40.dp(),1f))
+                        uvTransformRow.addView(group,LinearLayout.LayoutParams(0,42.dp(),1f))
+                        return edit
+                    }
+                    val uvOffsetX=uvField("U","0.0")
+                    val uvOffsetY=uvField("V","0.0")
+                    val uvDegrees=uvField("°","0.0")
+                    actions.addView(uvTransformRow)
+                    controls(actions,
+                        "UV: применить смещение и угол" to {
+                            val x=uvOffsetX.text.toString().toFloatOrNull()
+                            val y=uvOffsetY.text.toString().toFloatOrNull()
+                            val angle=uvDegrees.text.toString().toFloatOrNull()
+                            if(x==null||y==null||angle==null||!x.isFinite()||
+                               !y.isFinite()||!angle.isFinite()||
+                               x !in -20f..20f||y !in -20f..20f||angle !in -180f..180f){
+                                inspector.text="UV: U/V от −20 до +20, угол от −180° до +180°."
+                            } else {
+                                surface.queueEvent {
+                                    Native.checkpoint(engine)
+                                    val ok=Native.setUvTransform(engine,x,y,Math.toRadians(angle.toDouble()).toFloat())
+                                    val info=Native.sceneInfo(engine)
+                                    runOnUiThread {
+                                        inspector.text=if(ok)"Смещение и направление UV применены.\n"+info
+                                            else "Сначала выбери объект."
+                                    }
+                                }
+                            }
+                        }
+                    )
                     surface.queueEvent {
                         val state=Native.materialState(engine)
                         runOnUiThread {
@@ -653,6 +702,10 @@ class StudioActivity : Activity() {
                                 smoothing.isChecked=fields[3]=="1"
                                 pattern=fields.getOrNull(5)?.toIntOrNull()?:0
                                 uvInput.setText(fields.getOrNull(6)?:"1.0")
+                                uvOffsetX.setText(fields.getOrNull(7)?:"0")
+                                uvOffsetY.setText(fields.getOrNull(8)?:"0")
+                                val radians=fields.getOrNull(9)?.toDoubleOrNull()?:0.0
+                                uvDegrees.setText(String.format(java.util.Locale.US,"%.1f",Math.toDegrees(radians)))
                                 setSwatch(fields[0].toIntOrNull(16)?:0)
                             }
                         }
@@ -766,7 +819,7 @@ class StudioActivity : Activity() {
             val stream=contentResolver.openOutputStream(data.data!!,"w")
                 ?:throw IllegalStateException("Нет доступа к файлу")
             stream.use { it.write(bytes) }
-            inspector.text="GLB сохранён. " + (bytes.size/1024) + " КБ. Геометрия, UV, PBR."
+            inspector.text="GLB с PBR-картами сохранён. " + (bytes.size/1024) + " КБ. Геометрия, UV, PBR."
         }catch(error:Exception){
             inspector.text="Ошибка записи GLB: " + error.message
         }
