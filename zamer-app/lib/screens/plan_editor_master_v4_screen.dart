@@ -1446,11 +1446,13 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                             showGrid: _grid,
                             visibleLayers: _visibleLayers,
                             viewSettings: _viewLayers,
-                            collisionIssues: PlanCollisionService.visible(
-                              PlanCollisionService.inspect(floor),
-                              _viewLayers,
-                              floor,
-                            ),
+                            collisionIssues: _viewLayers.showClashes
+                                ? PlanCollisionService.visible(
+                                    PlanCollisionService.inspect(floor),
+                                    _viewLayers,
+                                    floor,
+                                  )
+                                : const [],
                           ),
                         ),
                       ),
@@ -1482,11 +1484,24 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                       onPressed: () => setState(() => _snapping = !_snapping),
                     ),
                     const SizedBox(width: 5),
-                    ZMeasureCanvasAction(
-                      icon: Icons.layers_outlined,
-                      tooltip: 'Слои и коллизии',
-                      active: _viewLayers.showClashes,
-                      onPressed: _layersSheet,
+                    Tooltip(
+                      message: 'Слои, видимость и коллизии',
+                      child: FilledButton.tonalIcon(
+                        key: const ValueKey('open-layers-and-collisions'),
+                        onPressed: _layersSheet,
+                        icon: const Icon(Icons.layers_outlined, size: 18),
+                        label: const Text('Слои', style: TextStyle(fontSize: 12)),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: _viewLayers.showClashes
+                              ? ZamerColors.accent
+                              : ZamerColors.surfaceLow,
+                          foregroundColor: _viewLayers.showClashes
+                              ? ZamerColors.accentInk
+                              : ZamerColors.textPrimary,
+                          minimumSize: const Size(75, 45),
+                          padding: const EdgeInsets.symmetric(horizontal: 9),
+                        ),
+                      ),
                     ),
                   ],
                 ),
