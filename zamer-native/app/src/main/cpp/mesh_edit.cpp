@@ -219,6 +219,7 @@ int bevelConvexEdge(Mesh&mesh,int a,int b,float width,int segments){
         const int v2=cutVertices[size_t((first+2)%4)];
         const int v3=cutVertices[size_t((first+3)%4)];
         int prevLeft=v0,prevRight=v1;
+        std::vector<int> leftIds{v0},rightIds{v1};
         constexpr float kPi=3.14159265358979323846f;
         for(int step=1;step<=segments;step++){
             int nextLeft=v3,nextRight=v2;
@@ -234,7 +235,35 @@ int bevelConvexEdge(Mesh&mesh,int a,int b,float width,int segments){
             }
             clipped.push_back({prevLeft,prevRight,nextRight,nextLeft});
             prevLeft=nextLeft;prevRight=nextRight;
+            leftIds.push_back(nextLeft);
+            rightIds.push_back(nextRight);
         }
+        // The new fillet strips subdivide both short boundary edges of the
+        // original chamfer. Propagate those exact vertices to the neighboring
+        // end faces, otherwise T-junctions would make the mesh nonmanifold.
+        int patchedLeft=0,patchedRight=0;
+        for(int fi=0;fi<capIndex;fi++){
+            const auto old=clipped[size_t(fi)];
+            std::vector<int>expanded;
+            for(size_t i=0;i<old.size();i++){
+                const int from=old[i],to=old[(i+1)%old.size()];
+                expanded.push_back(from);
+                auto splice=[&](const std::vector<int>&ids,int start,int end,int&count){
+                    if(from==start&&to==end){
+                        for(int j=1;j<segments;j++)expanded.push_back(ids[size_t(j)]);
+                        count++;
+                    }else if(from==end&&to==start){
+                        for(int j=segments-1;j>0;j--)expanded.push_back(ids[size_t(j)]);
+                        count++;
+                    }
+                };
+                splice(leftIds,v0,v3,patchedLeft);
+                splice(rightIds,v1,v2,patchedRight);
+            }
+            if(expanded.size()>128)return -1;
+            clipped[size_t(fi)]=std::move(expanded);
+        }
+        if(patchedLeft!=1||patchedRight!=1)return -1;
     }
     out.faces=std::move(clipped);
     if(!out.valid()||!out.isClosed())return -1;
