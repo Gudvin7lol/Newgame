@@ -104,6 +104,31 @@ int main(){
     assert(!normals.empty());
     for(size_t k=0;k<normals.size();k+=6)
         assert(std::isfinite(normals[k+3])&&std::isfinite(normals[k+4])&&std::isfinite(normals[k+5]));
+    const auto withUV=mat.objects[0].mesh.interleavedTrianglesUV(true);
+    assert(withUV.size()%8==0);
+    assert(withUV.size()/8==mat.objects[0].mesh.interleavedTriangles(true).size()/6);
+    for(size_t i=0;i<withUV.size();i+=8){
+        assert(std::isfinite(withUV[i+6]) && std::isfinite(withUV[i+7]));
+    }
+    mat.checkpoint();
+    assert(mat.setPattern(2,2.5f));
+    const std::string v3=mat.serialize();
+    Scene fromV3;assert(fromV3.restore(v3));
+    assert(fromV3.objects[0].pattern==2 && std::fabs(fromV3.objects[0].uvScale-2.5f)<1e-4f);
+    assert(fromV3.serialize()==v3);
+    assert(!fromV3.setPattern(6,1.f));
+    assert(!fromV3.setPattern(1,0.01f));
+    // Previous project v2 supports user-authored material and smoothing.
+    std::string oldV2=matRestored.serialize();
+    oldV2.replace(0,std::string("ZAMER_NATIVE_MESH_3").size(),"ZAMER_NATIVE_MESH_2");
+    const size_t uvLine=oldV2.find("\n",oldV2.find("\n",oldV2.find("\n",oldV2.find("\n")+1)+1)+1);
+    // Construct a v2 file by removing the extra pattern/scale metadata line.
+    const size_t materialEnd=oldV2.find('\n',oldV2.find('\n',oldV2.find('\n',oldV2.find('\n')+1)+1)+1);
+    const size_t pStart=materialEnd+1,pEnd=oldV2.find('\n',pStart);
+    assert(pEnd!=std::string::npos);
+    oldV2.erase(pStart,pEnd-pStart+1);
+    Scene backward;assert(backward.restore(oldV2));
+    assert(backward.objects[0].customMaterial);
     std::cout<<"NATIVE CORE TESTS OK: watertight topology, face extrude, subdivision, serialize/restore\n";
     return 0;
 }

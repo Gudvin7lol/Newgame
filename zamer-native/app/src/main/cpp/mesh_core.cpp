@@ -212,6 +212,33 @@ std::vector<float> Mesh::interleavedTriangles(bool smooth) const{
     }
     return out;
 }
+std::vector<float> Mesh::interleavedTrianglesUV(bool smooth) const {
+    const auto six=interleavedTriangles(smooth);
+    std::vector<float> out;
+    out.reserve(six.size()/6*8);
+    size_t cursor=0;
+    for(size_t fi=0;fi<faces.size();fi++){
+        const auto&face=faces[fi];
+        const Vec3 n=faceNormal(int(fi));
+        const float ax=std::fabs(n.x),ay=std::fabs(n.y),az=std::fabs(n.z);
+        for(size_t k=1;k+1<face.size();k++){
+            for(int v=0;v<3;v++){
+                const Vec3 p={six[cursor],six[cursor+1],six[cursor+2]};
+                float u=0.f,t=0.f;
+                // Face-aligned planar unwrap (0.5m per UV repeat).
+                // Per-corner UV permits hard seams without duplicating topology.
+                if(ay>=ax&&ay>=az){u=p.x*2.f;t=p.z*2.f;}
+                else if(ax>=az){u=p.z*2.f;t=p.y*2.f;}
+                else {u=p.x*2.f;t=p.y*2.f;}
+                out.insert(out.end(),six.begin()+static_cast<std::ptrdiff_t>(cursor),
+                    six.begin()+static_cast<std::ptrdiff_t>(cursor+6));
+                out.push_back(u);out.push_back(t);
+                cursor+=6;
+            }
+        }
+    }
+    return out;
+}
 MaterialProperties presetMaterial(int index){
     switch(index){
         case 0:return {{0.62f,0.55f,0.46f},0.0f,0.85f};
@@ -260,6 +287,7 @@ void Scene::add(int type){
     o.material=(type+int(objects.size()))%5;
     o.pbr=presetMaterial(o.material);
     o.smoothShading=o.type==1;
+    o.pattern=o.type==0?1:0;
     objects.push_back(std::move(o));
     selected=int(objects.size())-1;
 }
@@ -419,6 +447,7 @@ void Scene::setMaterial(int id){
     if(id>=0&&id<5)o.material=id;
     o.pbr=presetMaterial(o.material);
     o.customMaterial=false;
+    o.pattern=id==0?1:(id==1?3:(id==2?2:(id==3?4:0)));
 }
 bool Scene::setCustomMaterial(Vec3 color,float metallic,float roughness){
     if(selected<0||size_t(selected)>=objects.size())return false;
@@ -428,6 +457,14 @@ bool Scene::setCustomMaterial(Vec3 color,float metallic,float roughness){
     auto&o=objects[size_t(selected)];
     o.pbr={color,metallic,std::clamp(roughness,0.04f,1.f)};
     o.customMaterial=true;
+    return true;
+}
+bool Scene::setPattern(int pattern,float uvScale){
+    if(selected<0||size_t(selected)>=objects.size()||pattern<0||pattern>4||
+       !std::isfinite(uvScale)||uvScale<0.1f||uvScale>10.f)return false;
+    auto&o=objects[size_t(selected)];
+    o.pattern=pattern;
+    o.uvScale=uvScale;
     return true;
 }
 bool Scene::setSmoothShading(bool enabled){
@@ -448,12 +485,13 @@ std::string Scene::describe() const{
         stream<<" • Metal "<<int(o.pbr.metallic*100.f)<<"%";
         stream<<" • Rough "<<int(o.pbr.roughness*100.f)<<"%";
         stream<<" • "<<(o.smoothShading?"Smooth":"Flat");
+        stream<<" • UV "<<o.uvScale<<"x";
     }
     return stream.str();
 }
 std::string Scene::serialize() const{
     std::ostringstream f;
-    f<<std::setprecision(9)<<"ZAMER_NATIVE_MESH_2\n"<<objects.size()<<" "<<selected<<"\n";
+    f<<std::setprecision(9)<<"ZAMER_NATIVE_MESH_3\n"<<objects.size()<<" "<<selected<<"\n";
     for(const auto&o:objects){
         f<<o.type<<" "<<o.material<<" "<<o.selectedFace<<" "
          <<o.position.x<<" "<<o.position.y<<" "<<o.position.z<<" "
@@ -461,6 +499,7 @@ std::string Scene::serialize() const{
         f<<int(o.customMaterial)<<" "<<int(o.smoothShading)<<" "
          <<o.pbr.color.x<<" "<<o.pbr.color.y<<" "<<o.pbr.color.z<<" "
          <<o.pbr.metallic<<" "<<o.pbr.roughness<<"\n";
+        f<<o.pattern<<" "<<o.uvScale<<"\n";
         f<<o.mesh.vertices.size()<<" "<<o.mesh.faces.size()<<"\n";
         for(auto v:o.mesh.vertices)f<<v.x<<" "<<v.y<<" "<<v.z<<"\n";
         for(const auto&face:o.mesh.faces){
@@ -472,8 +511,9 @@ std::string Scene::serialize() const{
 bool Scene::restore(const std::string&source){
     std::istringstream f(source);
     std::string header;
-    if(!(f>>header)||(header!="ZAMER_NATIVE_MESH_1"&&header!="ZAMER_NATIVE_MESH_2"))return false;
-    const bool v2=header=="ZAMER_NATIVE_MESH_2";
+    if(!(f>>header)||(header!="ZAMER_NATIVE_MESH_1"&&header!="ZAMER_NATIVE_MESH_2"&&header!="ZAMER_NATIVE_MESH_3"))return false;
+    const bool v2=header!="ZAMER_NATIVE_MESH_1";
+    const bool v3=header=="ZAMER_NATIVE_MESH_3";
     int count=0,selection=-1;
     if(!(f>>count>>selection)||count<0||count>64||selection>=count||selection< -1)return false;
     std::vector<Object>loaded;
@@ -494,6 +534,12 @@ bool Scene::restore(const std::string&source){
                !valid(o.pbr.metallic)||!valid(o.pbr.roughness)||
                o.pbr.roughness<0.04f)return false;
             o.customMaterial=custom!=0;o.smoothShading=smooth!=0;
+        }
+        if(v3){
+            if(!(f>>o.pattern>>o.uvScale) || o.pattern<0||o.pattern>4||
+               !std::isfinite(o.uvScale)||o.uvScale<0.1f||o.uvScale>10.f)return false;
+        }else{
+            o.pattern=o.material==0?1:(o.material==1?3:(o.material==2?2:(o.material==3?4:0)));
         }
         size_t vc=0,fc=0;
         if(!(f>>vc>>fc)||vc>200000||fc>200000||vc<3||fc<1)return false;

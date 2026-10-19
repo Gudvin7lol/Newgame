@@ -34,6 +34,7 @@ struct Mesh {
     bool isClosed() const;
     bool valid() const;
     std::vector<float> interleavedTriangles(bool smooth=false) const; // pos.xyz, normal.xyz
+    std::vector<float> interleavedTrianglesUV(bool smooth=false) const; // pos.xyz, normal.xyz, uv.xy
 };
 
 struct MaterialProperties {
@@ -52,6 +53,8 @@ struct Object {
     MaterialProperties pbr{};
     bool customMaterial=false;
     bool smoothShading=false;
+    int pattern=0; // 0 solid, 1 textile, 2 wood, 3 leather, 4 brushed metal
+    float uvScale=1.f;
     int selectedFace=2;
     int selectedVertex=-1;
     int selectedEdgeA=-1,selectedEdgeB=-1;
@@ -89,6 +92,7 @@ public:
     void setMaterial(int id);
     bool setCustomMaterial(Vec3 color,float metallic,float roughness);
     bool setSmoothShading(bool enabled);
+    bool setPattern(int pattern,float uvScale);
     std::string describe() const;
     std::string serialize() const;
     bool restore(const std::string&);
