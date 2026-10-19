@@ -159,7 +159,7 @@ class _RecoveredMeasureWorkspaceScreenState
         onChanged: widget.onChanged,
         onOpenObjects: () => _selectLayer(2),
         onOpenReview: widget.onOpenReview,
-        onOpenAdvanced: widget.onOpenGeometry,
+        onOpenPlanGeometry: widget.onOpenGeometry,
         onOpen3D: widget.onOpen3D,
         onOpenFloors: widget.onOpenFloors,
         onOpenSettings: widget.onMore,
