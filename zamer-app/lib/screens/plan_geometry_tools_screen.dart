@@ -18,11 +18,13 @@ class PlanGeometryToolsScreen extends StatefulWidget {
     required this.floor,
     required this.onChanged,
     this.initialTool = PlanGeometryTool.radius,
+    this.embedded = false,
   });
 
   final FloorPlan floor;
   final Future<void> Function() onChanged;
   final PlanGeometryTool initialTool;
+  final bool embedded;
 
   @override
   State<PlanGeometryToolsScreen> createState() =>
@@ -424,7 +426,7 @@ class _PlanGeometryToolsScreenState extends State<PlanGeometryToolsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
+      appBar: widget.embedded ? null : AppBar(
         title: const Text('Геометрия плана'),
         actions: [
           IconButton(
