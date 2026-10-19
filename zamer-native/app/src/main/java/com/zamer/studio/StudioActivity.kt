@@ -6,6 +6,7 @@ import android.text.InputType
 import android.widget.EditText
 import android.opengl.GLSurfaceView
 import android.os.Bundle
+import android.content.Intent
 import android.os.Build
 import android.view.WindowInsets
 import android.view.MotionEvent
@@ -28,6 +29,8 @@ class StudioActivity : Activity() {
     private lateinit var inspector: TextView
     private lateinit var graphicsStatus: TextView
     private var engine: Long = 0L
+    private var glbForSave: ByteArray? = null
+    private val glbExportRequest = 4129
     private var previousX = 0f
     private var previousY = 0f
     private var previousPinch = 0f
@@ -53,7 +56,7 @@ class StudioActivity : Activity() {
             setBackgroundColor(bg)
         }
         val brand = TextView(this).apply {
-            text = "Z / ENGINE    •    CORE 1.0"
+            text = "Z / ENGINE    •    CORE 1.1"
             setTextColor(Color.WHITE)
             textSize = 17f
             setPadding(18.dp(), 9.dp(), 12.dp(), 9.dp())
@@ -604,10 +607,56 @@ class StudioActivity : Activity() {
                                 metallic.progress=((fields[1].toFloatOrNull()?:0f)*100).toInt().coerceIn(0,100)
                                 roughness.progress=((fields[2].toFloatOrNull()?:0.7f)*100).toInt().coerceIn(4,100)
                                 smoothing.isChecked=fields[3]=="1"
+                                pattern=fields.getOrNull(5)?.toIntOrNull()?:0
+                                uvInput.setText(fields.getOrNull(6)?:"1.0")
                                 setSwatch(fields[0].toIntOrNull(16)?:0)
                             }
                         }
                     }
+                    val uvRow=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL }
+                    uvRow.addView(TextView(this).apply {
+                        text="UV масштаб"
+                        textSize=12f
+                        setTextColor(accent)
+                        gravity=android.view.Gravity.CENTER_VERTICAL
+                    },LinearLayout.LayoutParams(105.dp(),42.dp()))
+                    val uvInput=EditText(this).apply {
+                        setText("1.0")
+                        setSingleLine(true)
+                        setTextColor(Color.WHITE)
+                        inputType=InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
+                        textSize=13f
+                    }
+                    uvRow.addView(uvInput,LinearLayout.LayoutParams(0,42.dp(),1f))
+                    var pattern=0
+                    fun applyPattern(selected:Int){
+                        val scale=uvInput.text.toString().toFloatOrNull()
+                        if(scale==null||!scale.isFinite()||scale !in 0.1f..10f){
+                            inspector.text="UV масштаб должен быть от 0.1 до 10."
+                            return
+                        }
+                        pattern=selected
+                        surface.queueEvent {
+                            Native.checkpoint(engine)
+                            val ok=Native.setPattern(engine,selected,scale)
+                            val info=Native.sceneInfo(engine)
+                            runOnUiThread { inspector.text=if(ok)"UV-рисунок применён.\n$info" else "Выбери объект." }
+                        }
+                    }
+                    uvRow.addView(Button(this).apply {
+                        text="Применить"
+                        textSize=10f
+                        isAllCaps=false
+                        setOnClickListener { applyPattern(pattern) }
+                    },LinearLayout.LayoutParams(110.dp(),42.dp()))
+                    actions.addView(uvRow)
+                    controls(actions,
+                        "Без" to { applyPattern(0) },
+                        "Ткань" to { applyPattern(1) },
+                        "Дерево" to { applyPattern(2) },
+                        "Кожа" to { applyPattern(3) },
+                        "Металл" to { applyPattern(4) }
+                    )
                     smoothing.setOnCheckedChangeListener { _,enabled ->
                         surface.queueEvent {
                             Native.checkpoint(engine)
@@ -619,6 +668,7 @@ class StudioActivity : Activity() {
                 }
                 else -> {
                     controls(actions,
+                        "Экспорт GLB" to { exportGlb() },
                         "Материал" to { act { Native.material(engine, -1) } },
                         "Сохранить" to {
                             surface.queueEvent {
@@ -678,6 +728,47 @@ class StudioActivity : Activity() {
         surface.queueEvent {
             val text = Native.sceneInfo(engine)
             runOnUiThread { inspector.text = text }
+        }
+    }
+    private fun exportGlb() {
+        surface.queueEvent {
+            val bytes=Native.exportGlb(engine)
+            runOnUiThread {
+                if(bytes.isEmpty()){
+                    inspector.text="GLB: нечего экспортировать или файл превышает 32 МБ."
+                    return@runOnUiThread
+                }
+                glbForSave=bytes
+                val intent=Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                    addCategory(Intent.CATEGORY_OPENABLE)
+                    type="model/gltf-binary"
+                    putExtra(Intent.EXTRA_TITLE,"ZAMER-model.glb")
+                }
+                try {
+                    @Suppress("DEPRECATION")
+                    startActivityForResult(intent,glbExportRequest)
+                }catch(error:Exception){
+                    glbForSave=null
+                    inspector.text="Не удалось открыть выбор места для GLB."
+                }
+            }
+        }
+    }
+
+    @Deprecated("Android activity result compatibility")
+    override fun onActivityResult(requestCode:Int,resultCode:Int,data:Intent?){
+        super.onActivityResult(requestCode,resultCode,data)
+        if(requestCode!=glbExportRequest)return
+        val bytes=glbForSave
+        glbForSave=null
+        if(resultCode!=RESULT_OK||data?.data==null||bytes==null)return
+        try {
+            val stream=contentResolver.openOutputStream(data.data!!,"w")
+                ?:throw IllegalStateException("Нет доступа к файлу")
+            stream.use { it.write(bytes) }
+            inspector.text="GLB сохранён. " + (bytes.size/1024) + " КБ. Геометрия, UV, PBR."
+        }catch(error:Exception){
+            inspector.text="Ошибка записи GLB: " + error.message
         }
     }
     private fun Int.dp(): Int = (this * resources.displayMetrics.density).toInt()
