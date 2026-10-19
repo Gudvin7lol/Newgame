@@ -200,7 +200,7 @@ class _MeasureUnifiedWorkspaceScreenState
           _quickAction(Icons.document_scanner_outlined, 'Импорт', widget.onScanPlan),
           _quickAction(Icons.grid_view_outlined, 'Помещения', widget.onOpenRooms),
           _quickAction(Icons.layers_outlined, 'Этажи', widget.onOpenFloors),
-          _quickAction(Icons.category_outlined, 'Каталог', widget.onCatalog),
+          _quickAction(Icons.category_outlined, 'Каталог', _openCatalogSheet),
           _quickAction(Icons.fact_check_outlined, 'Проверка', widget.onOpenReview),
           _quickAction(Icons.picture_as_pdf_outlined, 'PDF', widget.onExportPdf),
         ],
