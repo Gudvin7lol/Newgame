@@ -425,6 +425,45 @@ bool Renderer::loopCutSelectedEdge(){
     if(ok)elementMode=1;
     return ok;
 }
+
+bool Renderer::bevelSelectedEdge(float metres){
+    if(scene.selected<0||size_t(scene.selected)>=scene.objects.size())return false;
+    const auto&obj=scene.objects[size_t(scene.selected)];
+    if(obj.selectedEdgeA<0||obj.selectedEdgeB<0)return false;
+    // Dry run before adding an undo checkpoint or deleting GPU buffers.
+    Scene preview;
+    preview.objects=scene.objects;
+    preview.selected=scene.selected;
+    if(!preview.bevelSelectedEdge(metres))return false;
+    scene.checkpoint();
+    discardBuffers();
+    const bool result=scene.bevelSelectedEdge(metres);
+    if(result){elementMode=0;bridgeFaceA=-1;bridgeObject=-1;}
+    return result;
+}
+bool Renderer::markBridgeFace(){
+    if(scene.selected<0||size_t(scene.selected)>=scene.objects.size())return false;
+    const auto&obj=scene.objects[size_t(scene.selected)];
+    if(obj.selectedFace<0||size_t(obj.selectedFace)>=obj.mesh.faces.size()||
+        obj.mesh.faces[size_t(obj.selectedFace)].size()!=4)return false;
+    bridgeObject=scene.selected;
+    bridgeFaceA=obj.selectedFace;
+    return true;
+}
+bool Renderer::bridgeMarkedFaces(){
+    if(scene.selected<0||scene.selected!=bridgeObject||bridgeFaceA<0)return false;
+    const int faceB=scene.objects[size_t(scene.selected)].selectedFace;
+    Scene preview;preview.objects=scene.objects;preview.selected=scene.selected;
+    if(!preview.bridgeSelectedFaces(bridgeFaceA,faceB))return false;
+    scene.checkpoint();
+    discardBuffers();
+    const bool result=scene.bridgeSelectedFaces(bridgeFaceA,faceB);
+    if(result){
+        bridgeFaceA=-1;bridgeObject=-1;elementMode=0;
+    }
+    return result;
+}
+
 bool Renderer::nudgeElement(int axis,float metres){
     if(scene.selected<0||size_t(scene.selected)>=scene.objects.size()||elementMode==0)return false;
     scene.checkpoint();

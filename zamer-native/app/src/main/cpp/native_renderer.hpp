@@ -15,6 +15,9 @@ public:
  bool nudgeElement(int axis,float metres);
  bool splitSelectedEdge();
  bool loopCutSelectedEdge();
+ bool bevelSelectedEdge(float metres);
+ bool markBridgeFace();
+ bool bridgeMarkedFaces();
  int pick(float x,float y);
  void setGizmoMode(int mode);
  int beginGizmo(float x,float y);
@@ -31,6 +34,7 @@ private:
  GLuint program=0,gridBuffer=0,faceBuffer=0,gizmoBuffer=0;
  int gizmoMode=0,activeAxis=-1;
  int elementMode=0;
+ int bridgeFaceA=-1,bridgeObject=-1;
  bool dragCheckpointed=false;
  GLint mvpLoc=-1,modelLoc=-1,cameraLoc=-1,colorLoc=-1,metalLoc=-1,roughLoc=-1,selectLoc=-1,flatLoc=-1,markerLoc=-1;
  GLuint compile(GLenum kind,const char*src);
