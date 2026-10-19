@@ -16,13 +16,16 @@ void main() {
     expect(workspace.contains('MeasureUnifiedWorkspaceScreen('), isTrue);
     expect(measure.contains('PlanEditorProductionScreen('), isTrue);
     expect(workspace.contains("title: 'Расширенный редактор'"), isFalse);
-    expect(measure.contains('PlanEditorScreen('), isTrue,
-        reason: 'legacy CAD operations must be embedded in main Measure');
-    expect(measure.contains('PlanGeometryToolsScreen('), isTrue,
-        reason: 'precision radius and node tools must be embedded');
+    expect(measure.contains('PlanEditorScreen('), isFalse,
+        reason: 'do not swap the production canvas for the legacy editor');
+    expect(measure.contains('PlanGeometryToolsScreen('), isFalse,
+        reason: 'radii and nodes must work on the production canvas');
+    expect(measure.contains('planTool: _planTool'), isTrue);
+    expect(editor.contains('GeometryService.addArcWallFromNode('), isTrue);
+    expect(editor.contains('GeometryService.finalizeNodeMove('), isTrue);
     expect(route.contains('PlanEditorMasterV4Screen('), isTrue);
     expect(route.contains('PlanEditorMasterV3Screen('), isFalse);
-    expect(editor.contains('_ToolRail('), isTrue);
+    expect(editor.contains("ValueKey('measure-shared-canvas')"), isTrue);
     expect(editor.contains('_ViewRail('), isTrue);
     expect(editor.contains('GeometryService.addWallFromNode('), isTrue);
     expect(editor.contains('ControlMeasure('), isTrue);
