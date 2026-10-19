@@ -79,20 +79,24 @@ void main(){
     // Yarn warp/weft: subtle procedural textile, no imported image needed.
     float warp=pow(0.5+0.5*cos(uv.x*100.0),4.0);
     float weft=pow(0.5+0.5*cos(uv.y*100.0),4.0);
-    surfaceColor*=0.78+0.17*(warp+weft);
-    roughLocal=clamp(roughLocal+0.06*(warp+weft),0.04,1.0);
+    surfaceColor*=0.955+0.032*(warp+weft);
+    roughLocal=clamp(roughLocal+0.018*(warp+weft),0.04,1.0);
  }else if(patternMode==2){
-    // Soft oak-like planar grain, generated from the per-corner UVs.
-    float grain=sin((uv.x+0.04*sin(uv.y*9.0))*52.0+sin(uv.y*2.7)*3.0);
-    float streak=0.5+0.5*grain;
-    surfaceColor*=vec3(0.73+0.25*streak,0.75+0.21*streak,0.79+0.15*streak);
+    // Directional low-contrast wood fibre. No high-contrast sinusoidal waves.
+    float line=uv.y*10.2+0.22*sin(uv.x*3.4+uv.y*0.3)
+               +0.09*sin(uv.x*9.7);
+    float ring=0.5+0.5*sin(line+0.26*sin(uv.y*2.1));
+    float fibre=sin(uv.y*110.0+0.23*sin(uv.x*7.0));
+    float tone=0.94+0.055*ring+0.014*fibre;
+    surfaceColor*=vec3(tone*1.01,tone,tone*0.98);
+    roughLocal=clamp(roughLocal+0.025*ring,0.04,1.0);
  }else if(patternMode==3){
     float pores=sin(uv.x*87.0)*sin(uv.y*96.0);
-    surfaceColor*=0.91+0.065*pores;
-    roughLocal=clamp(roughLocal+0.045*pores,0.04,1.0);
+    surfaceColor*=0.965+0.018*pores;
+    roughLocal=clamp(roughLocal+0.020*pores,0.04,1.0);
  }else if(patternMode==4){
     float brushed=0.5+0.5*sin(uv.y*270.0);
-    surfaceColor*=0.96+0.04*brushed;
+    surfaceColor*=0.982+0.018*brushed;
  }
  vec3 l=normalize(vec3(-0.4,0.85,0.44)),h=normalize(v+l);
  float nl=max(dot(n,l),0.0),nv=max(dot(n,v),0.0);

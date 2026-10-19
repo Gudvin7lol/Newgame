@@ -182,31 +182,32 @@ bool Mesh::isClosed() const{
 std::vector<float> Mesh::interleavedTriangles(bool smooth) const{
     std::vector<float>out;
     out.reserve(faces.size()*6*6);
-    // Area-weighted normals from actual incident faces, rather than position
-    // relative to origin. Preserves shading after mesh deformation and bevel.
-    std::vector<Vec3> averaged;
-    if(smooth){
-        averaged.resize(vertices.size());
-        for(const auto&face:faces){
-            if(face.size()<3)continue;
-            const Vec3&base=vertices[size_t(face[0])];
-            Vec3 areaNormal{};
-            for(size_t k=1;k+1<face.size();k++){
-                areaNormal+=cross(vertices[size_t(face[k])]-base,
-                                  vertices[size_t(face[k+1])]-base);
-            }
-            for(int idx:face)averaged[size_t(idx)]+=areaNormal;
-        }
-        for(auto&n:averaged)n=n.normalized();
+    // Respect sharp edges even when Smooth is enabled. At each face corner,
+    // only neighboring faces within 40 degrees contribute to shading.
+    // The old unconditional averaging rounded the corners of a cube visually.
+    std::vector<Vec3> fn(faces.size());
+    std::vector<std::vector<int>> neighbor(vertices.size());
+    for(size_t fi=0;fi<faces.size();fi++){
+        fn[fi]=faceNormal(int(fi));
+        if(smooth)for(int id:faces[fi])neighbor[size_t(id)].push_back(int(fi));
     }
     for(size_t i=0;i<faces.size();i++){
-        const auto &face=faces[i];
-        Vec3 n=faceNormal(int(i));
+        const auto&face=faces[i];
+        const Vec3 n=fn[i];
         for(size_t k=1;k+1<face.size();k++){
             for(int idx:{face[0],face[k],face[k+1]}){
-                Vec3 p=vertices[size_t(idx)];
-                Vec3 shadingNormal=smooth?averaged[size_t(idx)]:n;
-                out.insert(out.end(),{p.x,p.y,p.z,shadingNormal.x,shadingNormal.y,shadingNormal.z});
+                const Vec3 p=vertices[size_t(idx)];
+                Vec3 shadingNormal=n;
+                if(smooth){
+                    Vec3 total{};
+                    for(int adjacent:neighbor[size_t(idx)]){
+                        if(dot(n,fn[size_t(adjacent)])>=0.7660f)
+                            total+=fn[size_t(adjacent)];
+                    }
+                    if(total.length()>1e-7f)shadingNormal=total.normalized();
+                }
+                out.insert(out.end(),{p.x,p.y,p.z,
+                                     shadingNormal.x,shadingNormal.y,shadingNormal.z});
             }
         }
     }

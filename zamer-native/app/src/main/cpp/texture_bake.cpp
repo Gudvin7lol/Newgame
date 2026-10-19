@@ -17,24 +17,26 @@ Sample shade(int pattern,float u,float v){
     if(pattern==1){
         float warp=std::pow(0.5f+0.5f*std::cos(u*100.f),4.f);
         float weft=std::pow(0.5f+0.5f*std::cos(v*100.f),4.f);
-        s.r=s.g=s.b=std::min(1.f,0.78f+0.17f*(warp+weft));
-        s.rough=1.f+0.06f*(warp+weft);
-        s.height=0.04f*(warp+weft);
+        s.r=s.g=s.b=std::min(1.f,0.955f+0.032f*(warp+weft));
+        s.rough=1.f+0.018f*(warp+weft);
+        s.height=0.018f*(warp+weft);
     }else if(pattern==2){
-        float grain=std::sin((u+0.04f*std::sin(v*9.f))*52.f+std::sin(v*2.7f)*3.f);
-        float streak=0.5f+0.5f*grain;
-        s.r=0.73f+0.25f*streak;
-        s.g=0.75f+0.21f*streak;
-        s.b=0.79f+0.15f*streak;
-        s.height=0.018f*grain;
+        const float line=v*10.2f+0.22f*std::sin(u*3.4f+v*0.3f)
+                            +0.09f*std::sin(u*9.7f);
+        const float ring=0.5f+0.5f*std::sin(line+0.26f*std::sin(v*2.1f));
+        const float fibre=std::sin(v*110.f+0.23f*std::sin(u*7.f));
+        const float tone=0.94f+0.055f*ring+0.014f*fibre;
+        s.r=tone*1.01f;s.g=tone;s.b=tone*0.98f;
+        s.rough=1.f+0.025f*ring;
+        s.height=0.004f*ring+0.002f*fibre;
     }else if(pattern==3){
         float pores=std::sin(u*87.f)*std::sin(v*96.f);
-        s.r=s.g=s.b=0.91f+0.065f*pores;
-        s.rough=1.f+0.045f*pores;
-        s.height=0.015f*pores;
+        s.r=s.g=s.b=0.965f+0.018f*pores;
+        s.rough=1.f+0.020f*pores;
+        s.height=0.012f*pores;
     }else if(pattern==4){
         float brushed=0.5f+0.5f*std::sin(v*270.f);
-        s.r=s.g=s.b=0.96f+0.04f*brushed;
+        s.r=s.g=s.b=0.982f+0.018f*brushed;
         s.height=0.005f*std::sin(v*270.f);
     }
     return s;
