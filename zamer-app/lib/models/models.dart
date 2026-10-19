@@ -130,6 +130,7 @@ class FloorPlan {
     this.defaultSocketHeightMm = 300,
     this.defaultSwitchHeightMm = 900,
     this.defaultWallLightHeightMm = 1800,
+    Map<String, bool>? layerVisibility,
   }) : nodes = nodes ?? [],
        walls = walls ?? [],
        measures = measures ?? [],
@@ -139,7 +140,8 @@ class FloorPlan {
        serviceRuns = serviceRuns ?? [],
        planObjects = planObjects ?? [],
        dimensionRecords = dimensionRecords ?? {},
-       carpetRoomIds = carpetRoomIds ?? [];
+       carpetRoomIds = carpetRoomIds ?? [],
+       layerVisibility = layerVisibility ?? {};
 
   final String id;
   String name;
@@ -155,6 +157,8 @@ class FloorPlan {
   final List<PlanObject> planObjects;
   final Map<String, DimensionRecord> dimensionRecords;
   final List<String> carpetRoomIds;
+  /// Per-floor visual controls. Empty for legacy projects = default visibility.
+  final Map<String, bool> layerVisibility;
   double carpetAnchorX, carpetAnchorY;
   double defaultSocketHeightMm;
   double defaultSwitchHeightMm;
@@ -239,6 +243,9 @@ class FloorPlan {
     carpetRoomIds
       ..clear()
       ..addAll(other.carpetRoomIds);
+    layerVisibility
+      ..clear()
+      ..addAll(other.layerVisibility);
     carpetAnchorX = other.carpetAnchorX;
     carpetAnchorY = other.carpetAnchorY;
     defaultSocketHeightMm = other.defaultSocketHeightMm;
@@ -261,6 +268,7 @@ class FloorPlan {
     'planObjects': planObjects.map((e) => e.toJson()).toList(),
     'dimensionRecords': dimensionRecords.map((k, v) => MapEntry(k, v.toJson())),
     'carpetRoomIds': carpetRoomIds.toList(),
+    'layerVisibility': layerVisibility,
     'carpetAnchorX': carpetAnchorX,
     'carpetAnchorY': carpetAnchorY,
     'defaultSocketHeightMm': defaultSocketHeightMm,
@@ -310,6 +318,8 @@ class FloorPlan {
     carpetRoomIds: ((json['carpetRoomIds'] as List?) ?? const [])
         .map((e) => e.toString())
         .toList(),
+    layerVisibility: ((json['layerVisibility'] as Map?) ?? const {})
+        .map((key, value) => MapEntry(key.toString(), value == true)),
     carpetAnchorX: (json['carpetAnchorX'] as num?)?.toDouble() ?? 0,
     carpetAnchorY: (json['carpetAnchorY'] as num?)?.toDouble() ?? 0,
     defaultSocketHeightMm:
