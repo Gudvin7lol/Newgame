@@ -1559,35 +1559,14 @@ class _CanvasControls extends StatelessWidget {
   final VoidCallback onZoomOut;
 
   @override
-  Widget build(BuildContext context) => Column(
+  Widget build(BuildContext context) => Row(
         mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _small(Icons.remove_rounded, onZoomOut),
-              const SizedBox(width: 5),
-              _small(Icons.add_rounded, onZoomIn),
-            ],
-          ),
-          const SizedBox(height: 5),
-          _small(Icons.fullscreen_rounded, onFit),
-          const SizedBox(height: 5),
-          InkWell(
-            onTap: onFit,
-            child: Container(
-              width: 54,
-              height: 54,
-              padding: const EdgeInsets.all(4),
-              decoration: BoxDecoration(
-                color: const Color(0xFF07171D).withValues(alpha: .96),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: ZamerColors.outlineSoft),
-              ),
-              child: CustomPaint(painter: _MiniMapPainter(floor)),
-            ),
-          ),
+          _small(Icons.remove_rounded, onZoomOut),
+          const SizedBox(width: 5),
+          _small(Icons.add_rounded, onZoomIn),
+          const SizedBox(width: 5),
+          _small(Icons.center_focus_strong_rounded, onFit),
         ],
       );
 
