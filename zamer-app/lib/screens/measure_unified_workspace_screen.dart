@@ -190,6 +190,7 @@ class _MeasureUnifiedWorkspaceScreenState
             'review' => widget.onOpenReview(),
             'pdf' => widget.onExportPdf(),
             'photo' => widget.onOpenPhoto(),
+            'help' => _showQuickGuide(),
             _ => widget.onMore(),
           },
           itemBuilder: (_) => const [
@@ -200,11 +201,73 @@ class _MeasureUnifiedWorkspaceScreenState
             PopupMenuItem(value: 'review', child: Text('Проверка обмера')),
             PopupMenuItem(value: 'pdf', child: Text('PDF')),
             PopupMenuItem(value: 'photo', child: Text('Фото')),
+            PopupMenuItem(
+              value: 'help',
+              child: Text('Как пользоваться'),
+            ),
           ],
         ),
       ],
     ),
   );
+
+  void _showQuickGuide() {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      backgroundColor: ZamerColors.surface,
+      builder: (sheetContext) => SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 4, 18, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const ListTile(
+                leading: Icon(Icons.help_outline_rounded),
+                title: Text('Быстрый старт'),
+                subtitle: Text('Все операции выполняются на одном плане'),
+              ),
+              const ListTile(
+                leading: CircleAvatar(radius: 16, child: Text('1')),
+                title: Text('Стены'),
+                subtitle: Text('Выберите «Стены» и укажите начало и конец. '
+                    'Нажмите «Стоп» для завершения цепочки.'),
+              ),
+              const ListTile(
+                leading: CircleAvatar(radius: 16, child: Text('2')),
+                title: Text('Выбор и размеры'),
+                subtitle: Text('В «Выбрать» нажмите стену для её свойств. '
+                    '«Узлы» позволяют двигать точки с привязками.'),
+              ),
+              const ListTile(
+                leading: CircleAvatar(radius: 16, child: Text('3')),
+                title: Text('Привязки и слои'),
+                subtitle: Text('Сетка, привязки и «Слои» находятся прямо '
+                    'над холстом. В «Слои» можно скрывать категории, '
+                    'включать красные маркеры проверенных коллизий.'),
+              ),
+              const ListTile(
+                leading: CircleAvatar(radius: 16, child: Text('4')),
+                title: Text('Проверка и документы'),
+                subtitle: Text('Откройте меню ⋮ справа от инструментов: '
+                    'там есть проверка обмера, PDF и импорт.'),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () => Navigator.pop(sheetContext),
+                  child: const Text('Понятно'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   static const _layers = <(String, IconData)>[
     ('План', Icons.architecture_outlined),

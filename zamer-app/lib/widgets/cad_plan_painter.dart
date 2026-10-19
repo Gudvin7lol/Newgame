@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../models/models.dart';
+import '../services/plan_view_layers.dart';
+import '../services/plan_collision_service.dart';
 import 'cad_plan_painter_v3.dart';
 
 /// Compatibility entry point for the Measure workspace.
@@ -16,5 +18,11 @@ class CadPlanPainter extends CadPlanPainterV3 {
     super.showGrid = true,
     super.showDimensions = true,
     Set<ProjectLayer>? visibleLayers,
-  }) : super(visibleLayers: visibleLayers);
+    PlanViewLayers? viewSettings,
+    List<PlanClashIssue> collisionIssues = const [],
+  }) : super(
+          visibleLayers: visibleLayers,
+          viewSettings: viewSettings,
+          collisionIssues: collisionIssues,
+        );
 }

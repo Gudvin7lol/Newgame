@@ -7,6 +7,8 @@ import '../models/models.dart';
 import '../services/geometry_service.dart';
 import '../services/herringbone_layout.dart';
 import '../services/material_catalog.dart';
+import '../services/plan_view_layers.dart';
+import '../services/plan_collision_service.dart';
 import 'top_view_object_renderer.dart';
 
 /// UI KIT 02 CAD renderer for +78.
@@ -34,7 +36,11 @@ class CadPlanPainterV2 extends CustomPainter {
     this.showDimensions = true,
     this.drawTopView,
     Set<ProjectLayer>? visibleLayers,
-  }) : visibleLayers = visibleLayers ?? ProjectLayer.values.toSet();
+    PlanViewLayers? viewSettings,
+    List<PlanClashIssue> collisionIssues = const [],
+  }) : visibleLayers = visibleLayers ?? ProjectLayer.values.toSet(),
+       viewSettings = viewSettings ?? PlanViewLayers(),
+       collisionIssues = collisionIssues;
 
   final FloorPlan floor;
   final double mmToPx;
@@ -44,6 +50,8 @@ class CadPlanPainterV2 extends CustomPainter {
   final bool showDimensions;
   final ObjectTopViewPainter? drawTopView;
   final Set<ProjectLayer> visibleLayers;
+  final PlanViewLayers viewSettings;
+  final List<PlanClashIssue> collisionIssues;
 
   Offset _p(PlanNode n) => origin + Offset(n.xMm * mmToPx, n.yMm * mmToPx);
   Offset _q(math.Point<double> p) => origin + Offset(p.x * mmToPx, p.y * mmToPx);
@@ -52,11 +60,24 @@ class CadPlanPainterV2 extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     _background(canvas, size);
     final faces = GeometryService.roomFaces(floor);
-    _rooms(canvas, faces);
-    _walls(canvas);
+    if (viewSettings.content.contains(PlanContentLayer.finishes)) {
+      _rooms(canvas, faces);
+    }
+    if (viewSettings.content.contains(PlanContentLayer.walls)) {
+      _walls(canvas);
+    }
     _objects(canvas);
-    _roomLabels(canvas, faces);
-    if (showDimensions) _outerDimensions(canvas);
+    _technicalOverlays(canvas);
+    if (viewSettings.content.contains(PlanContentLayer.roomLabels)) {
+      _roomLabels(canvas, faces);
+    }
+    if (showDimensions &&
+        viewSettings.content.contains(PlanContentLayer.dimensions)) {
+      _outerDimensions(canvas);
+    }
+    if (viewSettings.showClashes && collisionIssues.isNotEmpty) {
+      _collisionMarkers(canvas);
+    }
   }
 
   void _background(Canvas canvas, Size size) {
@@ -392,7 +413,9 @@ class CadPlanPainterV2 extends CustomPainter {
   void _walls(Canvas canvas) {
     for (final wall in floor.walls) {
       final layer = wall.demolition ? ProjectLayer.demolition : wall.projectLayer;
-      if (!visibleLayers.contains(layer) || wall.isCurved) continue;
+      if (!visibleLayers.contains(layer) ||
+          !viewSettings.stages.contains(layer) ||
+          wall.isCurved) continue;
       final a = floor.nodeById(wall.startNodeId);
       final b = floor.nodeById(wall.endNodeId);
       if (a == null || b == null) continue;
@@ -506,7 +529,9 @@ class CadPlanPainterV2 extends CustomPainter {
 
   void _objects(Canvas canvas) {
     for (final object in floor.planObjects) {
-      if (!visibleLayers.contains(object.layer) || object.elevationMm > 2300) {
+      if (!visibleLayers.contains(object.layer) ||
+          !viewSettings.visibleObject(object) ||
+          object.elevationMm > 2300) {
         continue;
       }
       final center = origin + Offset(object.xMm * mmToPx, object.yMm * mmToPx);
@@ -521,6 +546,88 @@ class CadPlanPainterV2 extends CustomPainter {
         center: center,
         mmToPx: mmToPx,
       );
+    }
+  }
+
+  /// Minimal 2D markers for actual data, not simulated furniture symbols.
+  /// Electrical points and service polylines previously existed in the model
+  /// but were absent from the production CAD view.
+  void _technicalOverlays(Canvas canvas) {
+    if (viewSettings.content.contains(PlanContentLayer.engineering)) {
+      for (final run in floor.serviceRuns) {
+        if (run.points.length < 2) continue;
+        final color = switch (run.type) {
+          ServiceRunType.coldWater => const Color(0xFF4BA7F4),
+          ServiceRunType.hotWater => const Color(0xFFF36C65),
+          ServiceRunType.drain => const Color(0xFFADB3BC),
+          ServiceRunType.heating => const Color(0xFFF5A54B),
+        };
+        final paint = Paint()
+          ..color = color.withValues(alpha: .90)
+          ..strokeWidth = 2.2
+          ..strokeCap = StrokeCap.round
+          ..style = PaintingStyle.stroke;
+        final path = Path();
+        path.moveTo(origin.dx + run.points.first.xMm * mmToPx,
+            origin.dy + run.points.first.yMm * mmToPx);
+        for (final vertex in run.points.skip(1)) {
+          path.lineTo(origin.dx + vertex.xMm * mmToPx,
+              origin.dy + vertex.yMm * mmToPx);
+        }
+        canvas.drawPath(path, paint);
+      }
+    }
+
+    if (viewSettings.content.contains(PlanContentLayer.electrical)) {
+      final byId = {for (final point in floor.electricalPoints) point.id: point};
+      final cable = Paint()
+        ..color = const Color(0xFFE7B65F).withValues(alpha: .68)
+        ..strokeWidth = 1.2;
+      for (final run in floor.electricalRuns) {
+        final a = byId[run.startPointId];
+        final b = byId[run.endPointId];
+        if (a == null || b == null) continue;
+        canvas.drawLine(
+          origin + Offset(a.xMm * mmToPx, a.yMm * mmToPx),
+          origin + Offset(b.xMm * mmToPx, b.yMm * mmToPx),
+          cable,
+        );
+      }
+      for (final device in floor.electricalPoints) {
+        final at = origin + Offset(device.xMm * mmToPx, device.yMm * mmToPx);
+        final fill = Paint()..color = const Color(0xFFFFD0A0);
+        final border = Paint()
+          ..color = const Color(0xFF16252A)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.3;
+        canvas.drawCircle(at, 4.0, fill);
+        canvas.drawCircle(at, 4.0, border);
+      }
+    }
+  }
+
+  void _collisionMarkers(Canvas canvas) {
+    final paint = Paint()..color = const Color(0xFFFF6666);
+    final outline = Paint()
+      ..color = const Color(0xFF200F11)
+      ..strokeWidth = 1.4
+      ..style = PaintingStyle.stroke;
+    for (final issue in collisionIssues) {
+      final at = _q(issue.position);
+      canvas.drawCircle(at, 9.5, paint);
+      canvas.drawCircle(at, 9.5, outline);
+      final label = TextPainter(
+        text: const TextSpan(
+          text: '!',
+          style: TextStyle(
+            fontSize: 12,
+            color: Color(0xFFFFFFFF),
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      label.paint(canvas, at - Offset(label.width / 2, label.height / 2));
     }
   }
 

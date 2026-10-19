@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../models/models.dart';
+import '../services/plan_view_layers.dart';
+import '../services/plan_collision_service.dart';
 import '../services/imported_top_view_assets.dart';
 import 'cad_plan_painter_v2.dart';
 
@@ -17,7 +19,11 @@ class CadPlanPainterV3 extends CustomPainter {
     this.showGrid = true,
     this.showDimensions = true,
     Set<ProjectLayer>? visibleLayers,
+    PlanViewLayers? viewSettings,
+    List<PlanClashIssue> collisionIssues = const [],
   }) : visibleLayers = visibleLayers ?? ProjectLayer.values.toSet(),
+       viewSettings = viewSettings ?? PlanViewLayers(),
+       collisionIssues = collisionIssues,
        super(repaint: ImportedTopViewAssets.instance) {
     unawaited(ImportedTopViewAssets.instance.ensureLoaded());
   }
@@ -29,6 +35,8 @@ class CadPlanPainterV3 extends CustomPainter {
   final bool showGrid;
   final bool showDimensions;
   final Set<ProjectLayer> visibleLayers;
+  final PlanViewLayers viewSettings;
+  final List<PlanClashIssue> collisionIssues;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -40,6 +48,8 @@ class CadPlanPainterV3 extends CustomPainter {
       showGrid: showGrid,
       showDimensions: showDimensions,
       visibleLayers: visibleLayers,
+      viewSettings: viewSettings,
+      collisionIssues: collisionIssues,
       drawTopView: _drawImportedObject,
     ).paint(canvas, size);
   }

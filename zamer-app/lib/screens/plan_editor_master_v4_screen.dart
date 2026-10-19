@@ -12,6 +12,8 @@ import '../services/plan_direct_interaction.dart';
 import '../services/orthogonal_wall_edit_service.dart';
 import 'measure_plan_tool.dart';
 import '../services/space_check_service.dart';
+import '../services/plan_collision_service.dart';
+import '../services/plan_view_layers.dart';
 import '../widgets/cad_plan_painter.dart';
 
 /// UI KIT 02 production editor rebuilt around the approved portrait concept.
@@ -61,6 +63,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
 
   final TransformationController _transform = TransformationController();
   final Set<ProjectLayer> _visibleLayers = ProjectLayer.values.toSet();
+  late PlanViewLayers _viewLayers;
 
   ZMeasureTool _tool = ZMeasureTool.walls;
   String? _selectedWallId;
@@ -120,6 +123,10 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   @override
   void initState() {
     super.initState();
+    _viewLayers = PlanViewLayers.fromMap(floor.layerVisibility);
+    _visibleLayers
+      ..clear()
+      ..addAll(_viewLayers.stages);
     GeometryService.syncRoomMetadata(floor);
     _materialPickMode = widget.planTool == MeasurePlanTool.overview;
   }
@@ -127,6 +134,12 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   @override
   void didUpdateWidget(covariant PlanEditorMasterV4Screen oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.floor != widget.floor) {
+      _viewLayers = PlanViewLayers.fromMap(floor.layerVisibility);
+      _visibleLayers
+        ..clear()
+        ..addAll(_viewLayers.stages);
+    }
     if (oldWidget.planTool != widget.planTool) {
       // Switching tools must not continue an unfinished wall/arc, dimension,
       // or vertex drag on the same shared canvas.
@@ -272,8 +285,10 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   PlanWall? _wallNear(Offset point) {
     PlanWall? result;
     var best = 34 / _scale;
+    if (!_viewLayers.content.contains(PlanContentLayer.walls)) return null;
     for (final wall in floor.walls) {
-      if (wall.isCurved) continue;
+      final layer = wall.demolition ? ProjectLayer.demolition : wall.projectLayer;
+      if (!_visibleLayers.contains(layer) || wall.isCurved) continue;
       final a = floor.nodeById(wall.startNodeId);
       final b = floor.nodeById(wall.endNodeId);
       if (a == null || b == null) continue;
@@ -330,7 +345,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
 
   Iterable<Widget> _objectDragRegions() sync* {
     for (final object in floor.planObjects) {
-      if (!_visibleLayers.contains(object.layer)) continue;
+      if (!_viewLayers.visibleObject(object)) continue;
       final catalog = ObjectCatalog.byId(object.catalogId);
       final mount = catalog.id == object.catalogId
           ? catalog.mount
@@ -967,41 +982,200 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   }
 
   Future<void> _layersSheet() async {
-    final draft = Set<ProjectLayer>.of(_visibleLayers);
+    final draft = _viewLayers.copy();
+    final found = PlanCollisionService.inspect(floor);
+    if (!mounted) return;
     await showModalBottomSheet<void>(
       context: context,
-      backgroundColor: ZamerColors.surface,
+      isScrollControlled: true,
       showDragHandle: true,
+      backgroundColor: ZamerColors.surface,
       builder: (sheetContext) => StatefulBuilder(
-        builder: (context, setSheet) => SafeArea(
+        builder: (sheetContext, setSheet) => SafeArea(
           top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: SizedBox(
+            height: MediaQuery.sizeOf(sheetContext).height * .76,
             child: Column(
-              mainAxisSize: MainAxisSize.min,
               children: [
-                for (final layer in ProjectLayer.values)
-                  CheckboxListTile(
-                    value: draft.contains(layer),
-                    title: Text(layer.label),
-                    onChanged: (value) => setSheet(() {
-                      if (value == true) {
-                        draft.add(layer);
-                      } else if (draft.length > 1) {
-                        draft.remove(layer);
-                      }
-                    }),
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(18, 0, 18, 5),
+                  child: Row(
+                    children: [
+                      Icon(Icons.layers_outlined, size: 22,
+                          color: ZamerColors.accent),
+                      SizedBox(width: 10),
+                      Text('Слои и коллизии',
+                          style: TextStyle(fontSize: 18,
+                            fontWeight: FontWeight.w700)),
+                    ],
                   ),
-                FilledButton(
-                  onPressed: () {
-                    setState(() {
-                      _visibleLayers
-                        ..clear()
-                        ..addAll(draft);
-                    });
-                    Navigator.pop(sheetContext);
-                  },
-                  child: const Text('Готово'),
+                ),
+                Expanded(
+                  child: ListView(
+                    key: const ValueKey('plan-layers-panel'),
+                    children: [
+                      const ListTile(
+                        dense: true,
+                        title: Text('Содержание плана',
+                            style: TextStyle(fontWeight: FontWeight.w700)),
+                        subtitle: Text('Скрытие не удаляет объекты из проекта'),
+                      ),
+                      for (final type in PlanContentLayer.values)
+                        CheckboxListTile(
+                          key: ValueKey('layer-${type.name}'),
+                          dense: true,
+                          visualDensity: VisualDensity.compact,
+                          title: Text(type.label),
+                          value: draft.content.contains(type),
+                          onChanged: (value) => setSheet(() {
+                            if (value == true) {
+                              draft.content.add(type);
+                            } else {
+                              draft.content.remove(type);
+                            }
+                          }),
+                        ),
+                      const Divider(height: 12),
+                      const ListTile(
+                        dense: true,
+                        title: Text('Этап строительства',
+                            style: TextStyle(fontWeight: FontWeight.w700)),
+                      ),
+                      for (final stage in ProjectLayer.values)
+                        CheckboxListTile(
+                          key: ValueKey('stage-${stage.name}'),
+                          dense: true,
+                          title: Text(stage.label),
+                          value: draft.stages.contains(stage),
+                          onChanged: (value) => setSheet(() {
+                            if (value == true) {
+                              draft.stages.add(stage);
+                            } else {
+                              draft.stages.remove(stage);
+                            }
+                          }),
+                        ),
+                      const Divider(height: 12),
+                      SwitchListTile(
+                        key: const ValueKey('collisions-toggle'),
+                        secondary: const Icon(Icons.report_problem_outlined,
+                            color: Color(0xFFF38A75)),
+                        title: Text('Коллизии на плане (${found.length})',
+                            style: const TextStyle(fontWeight: FontWeight.w700)),
+                        subtitle: const Text('Красные маркеры конфликтов '
+                            'в тех категориях, которые включены ниже'),
+                        value: draft.showClashes,
+                        onChanged: (value) => setSheet(() {
+                          draft.showClashes = value;
+                        }),
+                      ),
+                      for (final type in PlanClashCategory.values)
+                        CheckboxListTile(
+                          key: ValueKey('clash-${type.name}'),
+                          dense: true,
+                          visualDensity: VisualDensity.compact,
+                          secondary: CircleAvatar(
+                            radius: 13,
+                            backgroundColor: ZamerColors.surfaceLow,
+                            child: Text(
+                              '${found.where((i) => i.category == type).length}',
+                              style: const TextStyle(fontSize: 11),
+                            ),
+                          ),
+                          title: Text(type.label),
+                          value: draft.clashTypes.contains(type),
+                          onChanged: draft.showClashes
+                              ? (value) => setSheet(() {
+                                  if (value == true) {
+                                    draft.clashTypes.add(type);
+                                  } else {
+                                    draft.clashTypes.remove(type);
+                                  }
+                                })
+                              : null,
+                        ),
+                      if (found.isNotEmpty)
+                        ExpansionTile(
+                          title: const Text('Список найденных коллизий'),
+                          subtitle: Text('Найдено: ${found.length}. '
+                              'Нажмите на категории, чтобы управлять маркерами'),
+                          children: [
+                            for (final issue in found.take(30))
+                              ListTile(
+                                dense: true,
+                                leading: const Icon(
+                                  Icons.warning_amber_outlined,
+                                  color: Color(0xFFF38A75), size: 18,
+                                ),
+                                title: Text(issue.description,
+                                    style: const TextStyle(fontSize: 12)),
+                                subtitle: Text(issue.category.label),
+                              ),
+                            if (found.length > 30)
+                              const ListTile(
+                                dense: true,
+                                title: Text('Остальные коллизии доступны '
+                                    'после уточнения типов'),
+                              ),
+                          ],
+                        ),
+                      const Padding(
+                        padding: EdgeInsets.fromLTRB(16, 8, 16, 12),
+                        child: Text(
+                          'Сейчас проверяются пересечения стен и объектов, '
+                          'а также проходы у дверей. '
+                          'Проверки пересечений кабелей, труб и 3D-зазоров '
+                          'ещё разрабатываются.',
+                          style: TextStyle(fontSize: 11,
+                              color: ZamerColors.textSecondary),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                  child: Row(
+                    children: [
+                      TextButton(
+                        onPressed: () => setSheet(() {
+                          draft.content
+                            ..clear()
+                            ..addAll(PlanContentLayer.values);
+                          draft.stages
+                            ..clear()
+                            ..addAll(ProjectLayer.values);
+                          draft.clashTypes
+                            ..clear()
+                            ..addAll(PlanClashCategory.values);
+                          draft.showClashes = false;
+                        }),
+                        child: const Text('Сбросить'),
+                      ),
+                      const Spacer(),
+                      FilledButton.icon(
+                        onPressed: () async {
+                          setState(() {
+                            _viewLayers = draft.copy();
+                            _visibleLayers
+                              ..clear()
+                              ..addAll(_viewLayers.stages);
+                            floor.layerVisibility
+                              ..clear()
+                              ..addAll(_viewLayers.toMap());
+                            if (!_viewLayers.content
+                                .contains(PlanContentLayer.walls)) {
+                              _selectedWallId = null;
+                            }
+                          });
+                          Navigator.pop(sheetContext);
+                          await _changed();
+                        },
+                        icon: const Icon(Icons.check_rounded),
+                        label: const Text('Применить'),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -1271,6 +1445,14 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                             selectedWallId: _selectedWallId,
                             showGrid: _grid,
                             visibleLayers: _visibleLayers,
+                            viewSettings: _viewLayers,
+                            collisionIssues: _viewLayers.showClashes
+                                ? PlanCollisionService.visible(
+                                    PlanCollisionService.inspect(floor),
+                                    _viewLayers,
+                                    floor,
+                                  )
+                                : const [],
                           ),
                         ),
                       ),
@@ -1300,6 +1482,26 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                       tooltip: 'Привязки',
                       active: _snapping,
                       onPressed: () => setState(() => _snapping = !_snapping),
+                    ),
+                    const SizedBox(width: 5),
+                    Tooltip(
+                      message: 'Слои, видимость и коллизии',
+                      child: FilledButton.tonalIcon(
+                        key: const ValueKey('open-layers-and-collisions'),
+                        onPressed: _layersSheet,
+                        icon: const Icon(Icons.layers_outlined, size: 18),
+                        label: const Text('Слои', style: TextStyle(fontSize: 12)),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: _viewLayers.showClashes
+                              ? ZamerColors.accent
+                              : ZamerColors.surfaceLow,
+                          foregroundColor: _viewLayers.showClashes
+                              ? ZamerColors.accentInk
+                              : ZamerColors.textPrimary,
+                          minimumSize: const Size(75, 45),
+                          padding: const EdgeInsets.symmetric(horizontal: 9),
+                        ),
+                      ),
                     ),
                   ],
                 ),
