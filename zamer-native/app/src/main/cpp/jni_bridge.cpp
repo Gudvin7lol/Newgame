@@ -67,6 +67,8 @@ JNIEXPORT void JNICALL Java_com_zamer_studio_Native_endGizmo(JNIEnv*,jobject,jlo
 JNIEXPORT jboolean JNICALL Java_com_zamer_studio_Native_undo(JNIEnv*,jobject,jlong p){return p&&engine(p)->undoScene()?JNI_TRUE:JNI_FALSE;}
 JNIEXPORT jboolean JNICALL Java_com_zamer_studio_Native_redo(JNIEnv*,jobject,jlong p){return p&&engine(p)->redoScene()?JNI_TRUE:JNI_FALSE;}
 JNIEXPORT void JNICALL Java_com_zamer_studio_Native_checkpoint(JNIEnv*,jobject,jlong p){if(p)engine(p)->scene.checkpoint();}
+JNIEXPORT void JNICALL Java_com_zamer_studio_Native_pan(JNIEnv*,jobject,jlong p,jfloat x,jfloat y){if(p)engine(p)->pan(float(x),float(y));}
+JNIEXPORT jboolean JNICALL Java_com_zamer_studio_Native_focusSelected(JNIEnv*,jobject,jlong p){return p&&engine(p)->focusSelected()?JNI_TRUE:JNI_FALSE;}
 JNIEXPORT void JNICALL Java_com_zamer_studio_Native_zoom(JNIEnv*,jobject,jlong p,jfloat s){if(p)engine(p)->zoom(s);}
 JNIEXPORT void JNICALL Java_com_zamer_studio_Native_add(JNIEnv*,jobject,jlong p,jint type){if(p){engine(p)->scene.checkpoint();engine(p)->scene.add(int(type));}}
 JNIEXPORT void JNICALL Java_com_zamer_studio_Native_selectNext(JNIEnv*,jobject,jlong p){if(p)engine(p)->scene.selectNext();}

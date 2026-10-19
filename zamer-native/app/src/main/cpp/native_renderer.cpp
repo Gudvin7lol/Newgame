@@ -124,6 +124,21 @@ void Renderer::initGl(){
 void Renderer::resize(int w,int h){width=std::max(1,w);height=std::max(1,h);glViewport(0,0,width,height);}
 void Renderer::orbit(float dx,float dy){yaw-=dx;pitch=std::clamp(pitch-dy,-1.25f,1.25f);}
 void Renderer::zoom(float factor){distance=std::clamp(distance/std::clamp(factor,0.5f,2.f),1.6f,15.f);}
+void Renderer::pan(float xPixels,float yPixels){
+    if(!std::isfinite(xPixels)||!std::isfinite(yPixels))return;
+    const Vec3 forward=Vec3{-std::sin(yaw)*std::cos(pitch),
+                            -std::sin(pitch),
+                            -std::cos(yaw)*std::cos(pitch)};
+    const Vec3 right=cross(forward,{0,1,0}).normalized();
+    const Vec3 up=cross(right,forward).normalized();
+    const float worldPerPixel=2.f*distance*std::tan(46.f*PI/360.f)/float(std::max(1,height));
+    cameraTarget+=right*(-xPixels*worldPerPixel)+up*(yPixels*worldPerPixel);
+}
+bool Renderer::focusSelected(){
+    if(scene.selected<0||size_t(scene.selected)>=scene.objects.size())return false;
+    cameraTarget=scene.objects[size_t(scene.selected)].position;
+    return true;
+}
 void Renderer::drawGrid(const M&p,const M&v,Vec3 eye){
  std::vector<float>points;points.reserve(504);
  for(int i=-10;i<=10;i++){
@@ -166,7 +181,7 @@ void Renderer::drawItem(Object&o,int index,const M&p,const M&v,Vec3 eye){
 int Renderer::pickAt(float x,float y,bool face){
     const float aspect=float(width)/float(std::max(1,height));
     const float yfov=std::tan(46.f*PI/360.f);
-    Vec3 target{0.f,0.8f,0.f};
+    Vec3 target=cameraTarget;
     Vec3 eye=target+Vec3{distance*std::sin(yaw)*std::cos(pitch),
                          distance*std::sin(pitch),
                          distance*std::cos(yaw)*std::cos(pitch)};
@@ -195,7 +210,7 @@ int Renderer::beginGizmo(float x,float y){
     if((gizmoMode!=1&&gizmoMode!=3)||scene.selected<0||size_t(scene.selected)>=scene.objects.size())return -1;
     const float aspect=float(width)/float(std::max(1,height));
     const float yfov=std::tan(46.f*PI/360.f);
-    Vec3 target{0.f,0.8f,0.f};
+    Vec3 target=cameraTarget;
     Vec3 eye=target+Vec3{distance*std::sin(yaw)*std::cos(pitch),distance*std::sin(pitch),distance*std::cos(yaw)*std::cos(pitch)};
     Vec3 forward=(target-eye).normalized(),right=cross(forward,{0,1,0}).normalized(),up=cross(right,forward).normalized();
     float dx=(2.f*x/float(std::max(1,width))-1.f)*aspect*yfov;
@@ -207,7 +222,7 @@ int Renderer::beginGizmo(float x,float y){
 }
 bool Renderer::dragGizmo(float dx,float dy){
     if(activeAxis<0||scene.selected<0||size_t(scene.selected)>=scene.objects.size())return false;
-    Vec3 target{0.f,0.8f,0.f};
+    Vec3 target=cameraTarget;
     Vec3 eye=target+Vec3{distance*std::sin(yaw)*std::cos(pitch),distance*std::sin(pitch),distance*std::cos(yaw)*std::cos(pitch)};
     Vec3 forward=(target-eye).normalized(),right=cross(forward,{0,1,0}).normalized(),up=cross(right,forward).normalized();
     Vec3 axis=activeAxis==0?Vec3{1,0,0}:(activeAxis==1?Vec3{0,1,0}:Vec3{0,0,1});
@@ -361,7 +376,7 @@ int Renderer::pickElement(float x,float y,int mode){
     if((mode!=1&&mode!=2)||scene.selected<0 || size_t(scene.selected)>=scene.objects.size())return -1;
     auto&o=scene.objects[size_t(scene.selected)];
     const float aspect=float(width)/float(std::max(1,height));
-    const Vec3 target{0,0.8f,0};
+    const Vec3 target=cameraTarget;
     const Vec3 eye=target+Vec3{distance*std::sin(yaw)*std::cos(pitch),
                                distance*std::sin(pitch),
                                distance*std::cos(yaw)*std::cos(pitch)};
@@ -537,7 +552,7 @@ void Renderer::draw(){
  glUseProgram(program);
  glUniform1f(markerLoc,5.f);
  M projection=perspective(46.f,float(width)/float(height));
- Vec3 target{0,0.8f,0},eye=target+Vec3{
+ Vec3 target=cameraTarget,eye=target+Vec3{
   distance*std::sin(yaw)*std::cos(pitch),
   distance*std::sin(pitch),
   distance*std::cos(yaw)*std::cos(pitch)};

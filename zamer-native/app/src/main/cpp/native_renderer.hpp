@@ -9,6 +9,8 @@ public:
  Scene scene;
  void initGl();void resize(int w,int h);void draw();
  void orbit(float x,float y);void zoom(float factor);
+ void pan(float xPixels,float yPixels);
+ bool focusSelected();
  int pickFace(float x,float y);
  void setElementMode(int mode);
  int pickElement(float x,float y,int mode);
@@ -30,6 +32,7 @@ public:
  void discardBuffers();
  std::string graphicsStatus() const;
  float yaw=0.45f,pitch=0.23f,distance=5.5f;
+ Vec3 cameraTarget={0.f,0.8f,0.f};
 private:
  int width=1,height=1;
  std::string state="GPU: не инициализирован";

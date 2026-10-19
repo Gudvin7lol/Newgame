@@ -11,6 +11,8 @@ object Native {
     external fun draw(engine: Long)
     external fun orbit(engine: Long, dx: Float, dy: Float)
     external fun zoom(engine: Long, factor: Float)
+    external fun pan(engine: Long, deltaX: Float, deltaY: Float)
+    external fun focusSelected(engine: Long): Boolean
     external fun pick(engine: Long, x: Float, y: Float): Int
     external fun pickFace(engine: Long, x: Float, y: Float): Int
     external fun setElementMode(engine: Long, mode: Int)
