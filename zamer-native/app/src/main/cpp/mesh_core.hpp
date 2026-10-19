@@ -36,12 +36,22 @@ struct Mesh {
     std::vector<float> interleavedTriangles(bool smooth=false) const; // pos.xyz, normal.xyz
 };
 
+struct MaterialProperties {
+    Vec3 color={0.62f,0.55f,0.46f}; // sRGB base color in 0..1
+    float metallic=0.f;
+    float roughness=0.85f;
+};
+MaterialProperties presetMaterial(int index);
+
 struct Object {
     Mesh mesh;
     Vec3 position={0.f,0.8f,0.f};
     Vec3 scale={1.35f,0.9f,0.8f};
     float yaw=0.f;
     int material=0;
+    MaterialProperties pbr{};
+    bool customMaterial=false;
+    bool smoothShading=false;
     int selectedFace=2;
     int selectedVertex=-1;
     int selectedEdgeA=-1,selectedEdgeB=-1;
@@ -77,6 +87,8 @@ public:
     bool extrude(float metres);
     void subdivide();
     void setMaterial(int id);
+    bool setCustomMaterial(Vec3 color,float metallic,float roughness);
+    bool setSmoothShading(bool enabled);
     std::string describe() const;
     std::string serialize() const;
     bool restore(const std::string&);

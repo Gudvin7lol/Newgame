@@ -182,18 +182,45 @@ bool Mesh::isClosed() const{
 std::vector<float> Mesh::interleavedTriangles(bool smooth) const{
     std::vector<float>out;
     out.reserve(faces.size()*6*6);
+    // Area-weighted normals from actual incident faces, rather than position
+    // relative to origin. Preserves shading after mesh deformation and bevel.
+    std::vector<Vec3> averaged;
+    if(smooth){
+        averaged.resize(vertices.size());
+        for(const auto&face:faces){
+            if(face.size()<3)continue;
+            const Vec3&base=vertices[size_t(face[0])];
+            Vec3 areaNormal{};
+            for(size_t k=1;k+1<face.size();k++){
+                areaNormal+=cross(vertices[size_t(face[k])]-base,
+                                  vertices[size_t(face[k+1])]-base);
+            }
+            for(int idx:face)averaged[size_t(idx)]+=areaNormal;
+        }
+        for(auto&n:averaged)n=n.normalized();
+    }
     for(size_t i=0;i<faces.size();i++){
         const auto &face=faces[i];
         Vec3 n=faceNormal(int(i));
         for(size_t k=1;k+1<face.size();k++){
             for(int idx:{face[0],face[k],face[k+1]}){
                 Vec3 p=vertices[size_t(idx)];
-                Vec3 shadingNormal=smooth?p.normalized():n;
+                Vec3 shadingNormal=smooth?averaged[size_t(idx)]:n;
                 out.insert(out.end(),{p.x,p.y,p.z,shadingNormal.x,shadingNormal.y,shadingNormal.z});
             }
         }
     }
     return out;
+}
+MaterialProperties presetMaterial(int index){
+    switch(index){
+        case 0:return {{0.62f,0.55f,0.46f},0.0f,0.85f};
+        case 1:return {{0.25f,0.34f,0.42f},0.0f,0.67f};
+        case 2:return {{0.64f,0.36f,0.21f},0.0f,0.65f};
+        case 3:return {{0.68f,0.73f,0.75f},0.82f,0.27f};
+        case 4:return {{0.39f,0.50f,0.36f},0.0f,0.77f};
+        default:return presetMaterial(0);
+    }
 }
 Scene::Scene()=default;
 void Scene::checkpoint(){
@@ -231,6 +258,8 @@ void Scene::add(int type){
     if(index==0)o.position.x=0.f;
     o.scale=(o.type==0?Vec3{1.25f,0.75f,0.85f}:Vec3{0.9f,0.9f,0.9f});
     o.material=(type+int(objects.size()))%5;
+    o.pbr=presetMaterial(o.material);
+    o.smoothShading=o.type==1;
     objects.push_back(std::move(o));
     selected=int(objects.size())-1;
 }
@@ -388,6 +417,25 @@ void Scene::setMaterial(int id){
     auto&o=objects[size_t(selected)];
     o.material=(o.material+1)%5;
     if(id>=0&&id<5)o.material=id;
+    o.pbr=presetMaterial(o.material);
+    o.customMaterial=false;
+}
+bool Scene::setCustomMaterial(Vec3 color,float metallic,float roughness){
+    if(selected<0||size_t(selected)>=objects.size())return false;
+    auto valid=[](float f){return std::isfinite(f)&&f>=0.f&&f<=1.f;};
+    if(!valid(color.x)||!valid(color.y)||!valid(color.z)||!valid(metallic)||
+       !valid(roughness))return false;
+    auto&o=objects[size_t(selected)];
+    o.pbr={color,metallic,std::clamp(roughness,0.04f,1.f)};
+    o.customMaterial=true;
+    return true;
+}
+bool Scene::setSmoothShading(bool enabled){
+    if(selected<0||size_t(selected)>=objects.size())return false;
+    auto&o=objects[size_t(selected)];
+    o.smoothShading=enabled;
+    o.dirty=true;
+    return true;
 }
 std::string Scene::describe() const{
     std::ostringstream stream;
@@ -397,16 +445,22 @@ std::string Scene::describe() const{
         stream<<"  |  №"<<selected+1<<" • грань "<<o.selectedFace+1<<"/"<<o.mesh.faces.size()<<" • "<<o.mesh.vertices.size()<<" вершин";
         if(o.selectedVertex>=0)stream<<" • вершина "<<o.selectedVertex;
         if(o.selectedEdgeA>=0)stream<<" • ребро "<<o.selectedEdgeA<<"-"<<o.selectedEdgeB;
+        stream<<" • Metal "<<int(o.pbr.metallic*100.f)<<"%";
+        stream<<" • Rough "<<int(o.pbr.roughness*100.f)<<"%";
+        stream<<" • "<<(o.smoothShading?"Smooth":"Flat");
     }
     return stream.str();
 }
 std::string Scene::serialize() const{
     std::ostringstream f;
-    f<<std::setprecision(9)<<"ZAMER_NATIVE_MESH_1\n"<<objects.size()<<" "<<selected<<"\n";
+    f<<std::setprecision(9)<<"ZAMER_NATIVE_MESH_2\n"<<objects.size()<<" "<<selected<<"\n";
     for(const auto&o:objects){
         f<<o.type<<" "<<o.material<<" "<<o.selectedFace<<" "
          <<o.position.x<<" "<<o.position.y<<" "<<o.position.z<<" "
          <<o.scale.x<<" "<<o.scale.y<<" "<<o.scale.z<<" "<<o.yaw<<"\n";
+        f<<int(o.customMaterial)<<" "<<int(o.smoothShading)<<" "
+         <<o.pbr.color.x<<" "<<o.pbr.color.y<<" "<<o.pbr.color.z<<" "
+         <<o.pbr.metallic<<" "<<o.pbr.roughness<<"\n";
         f<<o.mesh.vertices.size()<<" "<<o.mesh.faces.size()<<"\n";
         for(auto v:o.mesh.vertices)f<<v.x<<" "<<v.y<<" "<<v.z<<"\n";
         for(const auto&face:o.mesh.faces){
@@ -418,7 +472,8 @@ std::string Scene::serialize() const{
 bool Scene::restore(const std::string&source){
     std::istringstream f(source);
     std::string header;
-    if(!(f>>header)||header!="ZAMER_NATIVE_MESH_1")return false;
+    if(!(f>>header)||(header!="ZAMER_NATIVE_MESH_1"&&header!="ZAMER_NATIVE_MESH_2"))return false;
+    const bool v2=header=="ZAMER_NATIVE_MESH_2";
     int count=0,selection=-1;
     if(!(f>>count>>selection)||count<0||count>64||selection>=count||selection< -1)return false;
     std::vector<Object>loaded;
@@ -427,6 +482,19 @@ bool Scene::restore(const std::string&source){
         if(!(f>>o.type>>o.material>>o.selectedFace
           >>o.position.x>>o.position.y>>o.position.z
           >>o.scale.x>>o.scale.y>>o.scale.z>>o.yaw))return false;
+        o.pbr=presetMaterial(o.material);
+        o.smoothShading=o.type==1;
+        if(v2){
+            int custom=0,smooth=0;
+            if(!(f>>custom>>smooth>>o.pbr.color.x>>o.pbr.color.y>>o.pbr.color.z
+                  >>o.pbr.metallic>>o.pbr.roughness))return false;
+            if((custom!=0&&custom!=1)||(smooth!=0&&smooth!=1))return false;
+            auto valid=[](float v){return std::isfinite(v)&&v>=0.f&&v<=1.f;};
+            if(!valid(o.pbr.color.x)||!valid(o.pbr.color.y)||!valid(o.pbr.color.z)||
+               !valid(o.pbr.metallic)||!valid(o.pbr.roughness)||
+               o.pbr.roughness<0.04f)return false;
+            o.customMaterial=custom!=0;o.smoothShading=smooth!=0;
+        }
         size_t vc=0,fc=0;
         if(!(f>>vc>>fc)||vc>200000||fc>200000||vc<3||fc<1)return false;
         o.mesh.vertices.resize(vc);

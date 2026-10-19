@@ -63,6 +63,47 @@ int main(){
     assert(restore.objects[0].mesh.isClosed());
     assert(restore.serialize()==saved);
     assert(!restore.restore("garbage"));
+    Scene mat;
+    mat.add(0);
+    assert(mat.setCustomMaterial({0.10f,0.32f,0.72f},0.68f,0.22f));
+    assert(mat.setSmoothShading(true));
+    assert(!mat.setCustomMaterial({-0.1f,0.f,0.f},0.5f,0.5f));
+    const auto savedV2=mat.serialize();
+    assert(savedV2.find("ZAMER_NATIVE_MESH_2")==0);
+    Scene matRestored;
+    assert(matRestored.restore(savedV2));
+    assert(matRestored.serialize()==savedV2);
+    assert(matRestored.objects[0].customMaterial);
+    assert(matRestored.objects[0].smoothShading);
+    mat.checkpoint();
+    mat.setMaterial(3);
+    assert(!mat.objects[0].customMaterial);
+    assert(mat.undo());
+    assert(mat.objects[0].customMaterial);
+    const float oldRough=mat.objects[0].pbr.roughness;
+    assert(std::fabs(oldRough-0.22f)<0.00001f);
+    // Legacy project format must load with corresponding material preset.
+    std::string v1="ZAMER_NATIVE_MESH_1\n1 0\n";
+    {
+        auto original=Mesh::cube();
+        v1+="0 3 2 0 0.8 0 1 1 1 0\n8 6\n";
+        for(auto v:original.vertices) v1+=std::to_string(v.x)+" "+std::to_string(v.y)+" "+std::to_string(v.z)+"\n";
+        for(auto face:original.faces){
+            v1+=std::to_string(face.size());
+            for(int id:face)v1+=" "+std::to_string(id);
+            v1+="\n";
+        }
+    }
+    Scene legacy;
+    assert(legacy.restore(v1));
+    assert(std::fabs(legacy.objects[0].pbr.metallic-0.82f)<0.0001f);
+    assert(!legacy.objects[0].customMaterial);
+    // Smooth shading normal must not be based on position-from-origin.
+    Mesh translated=Mesh::sphere(12,8);
+    auto normals=translated.interleavedTriangles(true);
+    assert(!normals.empty());
+    for(size_t k=0;k<normals.size();k+=6)
+        assert(std::isfinite(normals[k+3])&&std::isfinite(normals[k+4])&&std::isfinite(normals[k+5]));
     std::cout<<"NATIVE CORE TESTS OK: watertight topology, face extrude, subdivision, serialize/restore\n";
     return 0;
 }
