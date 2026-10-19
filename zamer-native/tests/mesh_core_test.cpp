@@ -69,7 +69,7 @@ int main(){
     assert(mat.setSmoothShading(true));
     assert(!mat.setCustomMaterial({-0.1f,0.f,0.f},0.5f,0.5f));
     const auto savedV2=mat.serialize();
-    assert(savedV2.find("ZAMER_NATIVE_MESH_3")==0);
+    assert(savedV2.find("ZAMER_NATIVE_MESH_4")==0);
     Scene matRestored;
     assert(matRestored.restore(savedV2));
     assert(matRestored.serialize()==savedV2);
@@ -112,15 +112,18 @@ int main(){
     }
     mat.checkpoint();
     assert(mat.setPattern(2,2.5f));
+    assert(mat.setUvTransform(0.15f,-0.2f,0.785398f));
+    assert(!mat.setUvTransform(21.f,0.f,0.f));
     const std::string v3=mat.serialize();
     Scene fromV3;assert(fromV3.restore(v3));
     assert(fromV3.objects[0].pattern==2 && std::fabs(fromV3.objects[0].uvScale-2.5f)<1e-4f);
     assert(fromV3.serialize()==v3);
+    assert(std::fabs(fromV3.objects[0].uvRotation-0.785398f)<1e-4f);
     assert(!fromV3.setPattern(6,1.f));
     assert(!fromV3.setPattern(1,0.01f));
     // Previous project v2 supports user-authored material and smoothing.
     std::string oldV2=matRestored.serialize();
-    oldV2.replace(0,std::string("ZAMER_NATIVE_MESH_3").size(),"ZAMER_NATIVE_MESH_2");
+    oldV2.replace(0,std::string("ZAMER_NATIVE_MESH_4").size(),"ZAMER_NATIVE_MESH_2");
     // Construct a v2 file by removing the extra pattern/scale metadata line.
     const size_t materialEnd=oldV2.find('\n',oldV2.find('\n',oldV2.find('\n',oldV2.find('\n')+1)+1)+1);
     const size_t pStart=materialEnd+1,pEnd=oldV2.find('\n',pStart);
@@ -128,6 +131,22 @@ int main(){
     oldV2.erase(pStart,pEnd-pStart+1);
     Scene backward;assert(backward.restore(oldV2));
     assert(backward.objects[0].customMaterial);
+    std::string oldV3=mat.serialize();
+    oldV3.replace(0,std::string("ZAMER_NATIVE_MESH_4").size(),"ZAMER_NATIVE_MESH_3");
+    const auto patLineStart=oldV3.find('
+',oldV3.find('
+',oldV3.find('
+',oldV3.find('
+')+1)+1)+1)+1;
+    const auto patLineEnd=oldV3.find('
+',patLineStart);
+    assert(patLineEnd!=std::string::npos);
+    std::string patternLine=oldV3.substr(patLineStart,patLineEnd-patLineStart);
+    auto secondSpace=patternLine.find(' ',patternLine.find(' ')+1);
+    assert(secondSpace!=std::string::npos);
+    oldV3.erase(patLineStart+secondSpace,patLineEnd-patLineStart-secondSpace);
+    Scene prior3;assert(prior3.restore(oldV3));
+    assert(prior3.objects[0].uvOffsetX==0.f && prior3.objects[0].uvRotation==0.f);
     std::cout<<"NATIVE CORE TESTS OK: watertight topology, face extrude, subdivision, serialize/restore\n";
     return 0;
 }

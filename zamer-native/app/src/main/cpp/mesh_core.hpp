@@ -55,6 +55,7 @@ struct Object {
     bool smoothShading=false;
     int pattern=0; // 0 solid, 1 textile, 2 wood, 3 leather, 4 brushed metal
     float uvScale=1.f;
+    float uvOffsetX=0.f,uvOffsetY=0.f,uvRotation=0.f;
     int selectedFace=2;
     int selectedVertex=-1;
     int selectedEdgeA=-1,selectedEdgeB=-1;
@@ -93,6 +94,7 @@ public:
     bool setCustomMaterial(Vec3 color,float metallic,float roughness);
     bool setSmoothShading(bool enabled);
     bool setPattern(int pattern,float uvScale);
+    bool setUvTransform(float offsetX,float offsetY,float radians);
     std::string describe() const;
     std::string serialize() const;
     bool restore(const std::string&);

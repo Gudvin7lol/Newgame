@@ -46,7 +46,9 @@ std::vector<uint8_t> exportGLB(const Scene&scene){
     for(size_t i=0;i<scene.objects.size();i++){
         const Object&o=scene.objects[i];
         if(!o.mesh.valid()||!std::isfinite(o.uvScale)||o.uvScale<0.1f||o.uvScale>10.f||
-           !std::isfinite(o.yaw)||!std::isfinite(o.scale.x)||!std::isfinite(o.scale.y)||
+           !std::isfinite(o.yaw)||!std::isfinite(o.uvRotation)||
+           !std::isfinite(o.uvOffsetX)||!std::isfinite(o.uvOffsetY)||
+           !std::isfinite(o.scale.x)||!std::isfinite(o.scale.y)||
            !std::isfinite(o.scale.z)||o.scale.x<=0||o.scale.y<=0||o.scale.z<=0)return {};
         const auto&m=o.pbr;
         if(!std::isfinite(m.color.x)||!std::isfinite(m.color.y)||!std::isfinite(m.color.z)||
@@ -55,9 +57,12 @@ std::vector<uint8_t> exportGLB(const Scene&scene){
         auto v=o.mesh.interleavedTrianglesUV(o.smoothShading);
         const size_t n=v.size()/8;
         if(n==0||n>500000||v.size()%24!=0||binary.size()>26*1024*1024)return {};
+        const float cosUV=std::cos(o.uvRotation),sinUV=std::sin(o.uvRotation);
         for(size_t k=0;k<n;k++){
-            v[k*8+6]*=o.uvScale;
-            v[k*8+7]*=o.uvScale;
+            const float u=v[k*8+6]*o.uvScale;
+            const float t=v[k*8+7]*o.uvScale;
+            v[k*8+6]=u*cosUV-t*sinUV+o.uvOffsetX;
+            v[k*8+7]=u*sinUV+t*cosUV+o.uvOffsetY;
         }
         Vec3 low{std::numeric_limits<float>::max(),std::numeric_limits<float>::max(),std::numeric_limits<float>::max()};
         Vec3 high{-low.x,-low.y,-low.z};

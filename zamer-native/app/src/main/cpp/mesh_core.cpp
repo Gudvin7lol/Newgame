@@ -467,6 +467,17 @@ bool Scene::setPattern(int pattern,float uvScale){
     o.uvScale=uvScale;
     return true;
 }
+bool Scene::setUvTransform(float offsetX,float offsetY,float radians){
+    if(selected<0||size_t(selected)>=objects.size()||
+       !std::isfinite(offsetX)||!std::isfinite(offsetY)||!std::isfinite(radians)||
+       std::fabs(offsetX)>20.f||std::fabs(offsetY)>20.f||
+       std::fabs(radians)>3.142f)return false;
+    auto&o=objects[size_t(selected)];
+    o.uvOffsetX=offsetX;
+    o.uvOffsetY=offsetY;
+    o.uvRotation=radians;
+    return true;
+}
 bool Scene::setSmoothShading(bool enabled){
     if(selected<0||size_t(selected)>=objects.size())return false;
     auto&o=objects[size_t(selected)];
@@ -491,7 +502,7 @@ std::string Scene::describe() const{
 }
 std::string Scene::serialize() const{
     std::ostringstream f;
-    f<<std::setprecision(9)<<"ZAMER_NATIVE_MESH_3\n"<<objects.size()<<" "<<selected<<"\n";
+    f<<std::setprecision(9)<<"ZAMER_NATIVE_MESH_4\n"<<objects.size()<<" "<<selected<<"\n";
     for(const auto&o:objects){
         f<<o.type<<" "<<o.material<<" "<<o.selectedFace<<" "
          <<o.position.x<<" "<<o.position.y<<" "<<o.position.z<<" "
@@ -499,7 +510,7 @@ std::string Scene::serialize() const{
         f<<int(o.customMaterial)<<" "<<int(o.smoothShading)<<" "
          <<o.pbr.color.x<<" "<<o.pbr.color.y<<" "<<o.pbr.color.z<<" "
          <<o.pbr.metallic<<" "<<o.pbr.roughness<<"\n";
-        f<<o.pattern<<" "<<o.uvScale<<"\n";
+        f<<o.pattern<<" "<<o.uvScale<<" "<<o.uvOffsetX<<" "<<o.uvOffsetY<<" "<<o.uvRotation<<"\n";
         f<<o.mesh.vertices.size()<<" "<<o.mesh.faces.size()<<"\n";
         for(auto v:o.mesh.vertices)f<<v.x<<" "<<v.y<<" "<<v.z<<"\n";
         for(const auto&face:o.mesh.faces){
@@ -511,9 +522,10 @@ std::string Scene::serialize() const{
 bool Scene::restore(const std::string&source){
     std::istringstream f(source);
     std::string header;
-    if(!(f>>header)||(header!="ZAMER_NATIVE_MESH_1"&&header!="ZAMER_NATIVE_MESH_2"&&header!="ZAMER_NATIVE_MESH_3"))return false;
+    if(!(f>>header)||(header!="ZAMER_NATIVE_MESH_1"&&header!="ZAMER_NATIVE_MESH_2"&&header!="ZAMER_NATIVE_MESH_3"&&header!="ZAMER_NATIVE_MESH_4"))return false;
     const bool v2=header!="ZAMER_NATIVE_MESH_1";
-    const bool v3=header=="ZAMER_NATIVE_MESH_3";
+    const bool v3=(header=="ZAMER_NATIVE_MESH_3"||header=="ZAMER_NATIVE_MESH_4");
+    const bool v4=header=="ZAMER_NATIVE_MESH_4";
     int count=0,selection=-1;
     if(!(f>>count>>selection)||count<0||count>64||selection>=count||selection< -1)return false;
     std::vector<Object>loaded;
@@ -538,6 +550,12 @@ bool Scene::restore(const std::string&source){
         if(v3){
             if(!(f>>o.pattern>>o.uvScale) || o.pattern<0||o.pattern>4||
                !std::isfinite(o.uvScale)||o.uvScale<0.1f||o.uvScale>10.f)return false;
+            if(v4){
+                if(!(f>>o.uvOffsetX>>o.uvOffsetY>>o.uvRotation)||
+                   !std::isfinite(o.uvOffsetX)||!std::isfinite(o.uvOffsetY)||
+                   !std::isfinite(o.uvRotation)||std::fabs(o.uvOffsetX)>20.f||
+                   std::fabs(o.uvOffsetY)>20.f||std::fabs(o.uvRotation)>3.142f)return false;
+            }
         }else{
             o.pattern=o.material==0?1:(o.material==1?3:(o.material==2?2:(o.material==3?4:0)));
         }

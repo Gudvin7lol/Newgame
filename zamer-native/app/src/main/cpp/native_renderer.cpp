@@ -63,7 +63,8 @@ in vec2 texUV;
 uniform vec3 eyePos,baseColor;
 uniform float metallic,roughness;
 uniform int isSelected,uFlatMode,patternMode;
-uniform float uvScale;
+uniform float uvScale,uvRotation;
+uniform vec2 uvOffset;
 out vec4 outColor;
 const float PI=3.14159265;
 void main(){
@@ -71,7 +72,9 @@ void main(){
  vec3 n=normalize(nWorld),v=normalize(eyePos-pWorld);
  vec3 surfaceColor=baseColor;
  float roughLocal=roughness;
- vec2 uv=texUV*uvScale;
+ vec2 p=texUV*uvScale;
+ float c=cos(uvRotation),s=sin(uvRotation);
+ vec2 uv=vec2(p.x*c-p.y*s,p.x*s+p.y*c)+uvOffset;
  if(patternMode==1){
     // Yarn warp/weft: subtle procedural textile, no imported image needed.
     float warp=pow(0.5+0.5*cos(uv.x*100.0),4.0);
@@ -142,6 +145,8 @@ void Renderer::initGl(){
  markerLoc=glGetUniformLocation(program,"markerSize");
  patternLoc=glGetUniformLocation(program,"patternMode");
  uvScaleLoc=glGetUniformLocation(program,"uvScale");
+ uvOffsetLoc=glGetUniformLocation(program,"uvOffset");
+ uvRotationLoc=glGetUniformLocation(program,"uvRotation");
  glGenBuffers(1,&gridBuffer);
  glGenBuffers(1,&faceBuffer);
  glGenBuffers(1,&gizmoBuffer);
@@ -208,6 +213,8 @@ void Renderer::drawItem(Object&o,int index,const M&p,const M&v,Vec3 eye){
  glUniform1i(selectLoc,index==scene.selected?1:0);
  glUniform1i(patternLoc,o.pattern);
  glUniform1f(uvScaleLoc,o.uvScale);
+ glUniform2f(uvOffsetLoc,o.uvOffsetX,o.uvOffsetY);
+ glUniform1f(uvRotationLoc,o.uvRotation);
  glDrawArrays(GL_TRIANGLES,0,o.gpuVertices);
  glDisableVertexAttribArray(2);
 }

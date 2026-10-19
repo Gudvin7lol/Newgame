@@ -47,6 +47,7 @@ object Native {
     external fun setSmooth(engine: Long, enabled: Boolean): Boolean
     external fun materialState(engine: Long): String
     external fun setPattern(engine: Long, pattern: Int, uvScale: Float): Boolean
+    external fun setUvTransform(engine: Long, x: Float, y: Float, radians: Float): Boolean
     external fun exportGlb(engine: Long): ByteArray
     external fun sceneInfo(engine: Long): String
     external fun serialize(engine: Long): String
