@@ -18,7 +18,9 @@ object Native {
     external fun nudgeElement(engine: Long, axis: Int, metres: Float): Boolean
     external fun splitEdge(engine: Long): Boolean
     external fun loopCut(engine: Long): Boolean
-    external fun bevelEdge(engine: Long, metres: Float): Boolean
+    external fun bevelEdge(engine: Long, metres: Float, segments: Int): Boolean
+    external fun duplicate(engine: Long): Boolean
+    external fun deleteSelected(engine: Long): Boolean
     external fun markBridgeFace(engine: Long): Boolean
     external fun bridgeFaces(engine: Long): Boolean
     /** Call from GL thread. Mode 1=Move XYZ, 3=Scale XYZ, 0=none. */

@@ -49,7 +49,7 @@ class StudioActivity : Activity() {
             setBackgroundColor(bg)
         }
         val brand = TextView(this).apply {
-            text = "Z / ENGINE    •    CORE 0.8"
+            text = "Z / ENGINE    •    CORE 0.9"
             setTextColor(Color.WHITE)
             textSize = 17f
             setPadding(18.dp(), 9.dp(), 12.dp(), 9.dp())
@@ -293,7 +293,24 @@ class StudioActivity : Activity() {
                         "Ребро" to { activate(Tool.EDGE) },
                         "Камера" to { activate(Tool.CAMERA) }
                     )
-
+                    controls(actions,
+                        "Дублировать" to { surface.queueEvent {
+                            val ok = Native.duplicate(engine)
+                            val info = Native.sceneInfo(engine)
+                            runOnUiThread {
+                                inspector.text = if (ok) "Объект скопирован.\n$info"
+                                    else "Не удалось дублировать объект (лимит: 64)."
+                            }
+                        } },
+                        "Удалить" to { surface.queueEvent {
+                            val ok = Native.deleteSelected(engine)
+                            val info = Native.sceneInfo(engine)
+                            runOnUiThread {
+                                inspector.text = if (ok) "Объект удалён. ↶ для отмены.\n$info"
+                                    else "Сначала выбери объект для удаления."
+                            }
+                        } }
+                    )
                 }
                 3 -> {
                     controls(actions,
@@ -351,7 +368,7 @@ class StudioActivity : Activity() {
                         setPadding(5.dp(), 0, 5.dp(), 0)
                     }
                     bevelRow.addView(TextView(this).apply {
-                        text = "Фаска, мм"
+                        text = "Радиус, мм"
                         textSize = 12f
                         setTextColor(accent)
                     }, LinearLayout.LayoutParams(85.dp(), 42.dp()))
@@ -363,22 +380,39 @@ class StudioActivity : Activity() {
                         inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
                     }
                     bevelRow.addView(bevelInput, LinearLayout.LayoutParams(0, 42.dp(), 1f))
+                    bevelRow.addView(TextView(this).apply {
+                        text = "Сегм."
+                        textSize = 11f
+                        setTextColor(accent)
+                        gravity = android.view.Gravity.CENTER_VERTICAL
+                    }, LinearLayout.LayoutParams(45.dp(), 42.dp()))
+                    val bevelSegments = EditText(this).apply {
+                        setText("4")
+                        textSize = 13f
+                        setTextColor(Color.WHITE)
+                        setSingleLine(true)
+                        setSelectAllOnFocus(true)
+                        inputType = InputType.TYPE_CLASS_NUMBER
+                    }
+                    bevelRow.addView(bevelSegments, LinearLayout.LayoutParams(39.dp(), 42.dp()))
                     bevelRow.addView(Button(this).apply {
                         text = "Bevel"
                         isAllCaps = false
                         textSize = 12f
                         setOnClickListener {
                             val mm = bevelInput.text.toString().toFloatOrNull()
-                            if (mm == null || !mm.isFinite() || mm <= 0f || mm > 100f) {
-                                inspector.text = "Ширина фаски должна быть больше 0 и не больше 100 мм."
+                            val segments = bevelSegments.text.toString().toIntOrNull()
+                            if (mm == null || !mm.isFinite() || mm <= 0f || mm > 100f ||
+                                segments == null || segments !in 1..8) {
+                                inspector.text = "Bevel: ширина 0–100 мм, количество сегментов от 1 до 8."
                             } else {
                                 surface.queueEvent {
-                                    val ok = Native.bevelEdge(engine, mm / 1000f)
+                                    val ok = Native.bevelEdge(engine, mm / 1000f, segments)
                                     val info = Native.sceneInfo(engine)
                                     runOnUiThread {
                                         if (ok) tool = Tool.FACE
-                                        inspector.text = if (ok) "Bevel " + mm + " мм выполнен.\n" + info
-                                        else "Bevel: выбери выпуклое ребро и уменьши ширину, если срез не помещается."
+                                        inspector.text = if (ok) "Bevel $mm мм, сегментов $segments.\n$info"
+                                            else "Bevel: поддерживается выпуклое внешнее ребро. Проверь ширину."
                                     }
                                 }
                             }

@@ -27,7 +27,9 @@ JNIEXPORT jint JNICALL Java_com_zamer_studio_Native_pickElement(JNIEnv*,jobject,
 JNIEXPORT jboolean JNICALL Java_com_zamer_studio_Native_nudgeElement(JNIEnv*,jobject,jlong p,jint axis,jfloat value){return p&&engine(p)->nudgeElement(int(axis),float(value))?JNI_TRUE:JNI_FALSE;}
 JNIEXPORT jboolean JNICALL Java_com_zamer_studio_Native_splitEdge(JNIEnv*,jobject,jlong p){return p&&engine(p)->splitSelectedEdge()?JNI_TRUE:JNI_FALSE;}
 JNIEXPORT jboolean JNICALL Java_com_zamer_studio_Native_loopCut(JNIEnv*,jobject,jlong p){return p&&engine(p)->loopCutSelectedEdge()?JNI_TRUE:JNI_FALSE;}
-JNIEXPORT jboolean JNICALL Java_com_zamer_studio_Native_bevelEdge(JNIEnv*,jobject,jlong p,jfloat metres){return p&&engine(p)->bevelSelectedEdge(float(metres))?JNI_TRUE:JNI_FALSE;}
+JNIEXPORT jboolean JNICALL Java_com_zamer_studio_Native_bevelEdge(JNIEnv*,jobject,jlong p,jfloat metres,jint segments){return p&&engine(p)->bevelSelectedEdge(float(metres),int(segments))?JNI_TRUE:JNI_FALSE;}
+JNIEXPORT jboolean JNICALL Java_com_zamer_studio_Native_duplicate(JNIEnv*,jobject,jlong p){return p&&engine(p)->duplicateSelected()?JNI_TRUE:JNI_FALSE;}
+JNIEXPORT jboolean JNICALL Java_com_zamer_studio_Native_deleteSelected(JNIEnv*,jobject,jlong p){return p&&engine(p)->deleteSelected()?JNI_TRUE:JNI_FALSE;}
 JNIEXPORT jboolean JNICALL Java_com_zamer_studio_Native_markBridgeFace(JNIEnv*,jobject,jlong p){return p&&engine(p)->markBridgeFace()?JNI_TRUE:JNI_FALSE;}
 JNIEXPORT jboolean JNICALL Java_com_zamer_studio_Native_bridgeFaces(JNIEnv*,jobject,jlong p){return p&&engine(p)->bridgeMarkedFaces()?JNI_TRUE:JNI_FALSE;}
 JNIEXPORT void JNICALL Java_com_zamer_studio_Native_setGizmoMode(JNIEnv*,jobject,jlong p,jint mode){if(p)engine(p)->setGizmoMode(mode);}

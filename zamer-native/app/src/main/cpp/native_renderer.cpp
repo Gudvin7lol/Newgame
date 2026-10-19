@@ -426,7 +426,7 @@ bool Renderer::loopCutSelectedEdge(){
     return ok;
 }
 
-bool Renderer::bevelSelectedEdge(float metres){
+bool Renderer::bevelSelectedEdge(float metres,int segments){
     if(scene.selected<0||size_t(scene.selected)>=scene.objects.size())return false;
     const auto&obj=scene.objects[size_t(scene.selected)];
     if(obj.selectedEdgeA<0||obj.selectedEdgeB<0)return false;
@@ -434,12 +434,28 @@ bool Renderer::bevelSelectedEdge(float metres){
     Scene preview;
     preview.objects=scene.objects;
     preview.selected=scene.selected;
-    if(!preview.bevelSelectedEdge(metres))return false;
+    if(!preview.bevelSelectedEdge(metres,segments))return false;
     scene.checkpoint();
     discardBuffers();
-    const bool result=scene.bevelSelectedEdge(metres);
+    const bool result=scene.bevelSelectedEdge(metres,segments);
     if(result){elementMode=0;bridgeFaceA=-1;bridgeObject=-1;}
     return result;
+}
+bool Renderer::duplicateSelected(){
+    if(scene.selected<0||size_t(scene.selected)>=scene.objects.size()||scene.objects.size()>=64)return false;
+    scene.checkpoint();
+    if(!scene.duplicateSelected())return false;
+    bridgeFaceA=-1;bridgeObject=-1;
+    return true;
+}
+bool Renderer::deleteSelected(){
+    if(scene.selected<0||size_t(scene.selected)>=scene.objects.size())return false;
+    scene.checkpoint();
+    // Explicitly release every live buffer before erasing the selected object.
+    discardBuffers();
+    if(!scene.deleteSelected())return false;
+    bridgeFaceA=-1;bridgeObject=-1;
+    return true;
 }
 bool Renderer::markBridgeFace(){
     if(scene.selected<0||size_t(scene.selected)>=scene.objects.size())return false;

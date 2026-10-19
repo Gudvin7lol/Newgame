@@ -15,7 +15,9 @@ public:
  bool nudgeElement(int axis,float metres);
  bool splitSelectedEdge();
  bool loopCutSelectedEdge();
- bool bevelSelectedEdge(float metres);
+ bool bevelSelectedEdge(float metres,int segments);
+ bool duplicateSelected();
+ bool deleteSelected();
  bool markBridgeFace();
  bool bridgeMarkedFaces();
  int pick(float x,float y);
