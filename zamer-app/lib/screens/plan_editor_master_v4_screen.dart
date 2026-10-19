@@ -9,6 +9,8 @@ import '../services/geometry_service.dart';
 import '../services/material_catalog.dart';
 import '../services/object_catalog.dart';
 import '../services/plan_direct_interaction.dart';
+import '../services/orthogonal_wall_edit_service.dart';
+import 'measure_plan_tool.dart';
 import '../services/space_check_service.dart';
 import '../widgets/cad_plan_painter.dart';
 
@@ -19,6 +21,7 @@ class PlanEditorMasterV4Screen extends StatefulWidget {
     super.key,
     required this.floor,
     required this.onChanged,
+    this.planTool = MeasurePlanTool.overview,
     required this.onOpenObjects,
     required this.onOpenReview,
     required this.onOpenGeometry,
@@ -34,6 +37,7 @@ class PlanEditorMasterV4Screen extends StatefulWidget {
 
   final FloorPlan floor;
   final Future<void> Function() onChanged;
+  final MeasurePlanTool planTool;
   final VoidCallback onOpenObjects;
   final VoidCallback onOpenReview;
   final VoidCallback onOpenGeometry;
@@ -60,13 +64,20 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
 
   ZMeasureTool _tool = ZMeasureTool.walls;
   String? _selectedWallId;
+  String? _selectedNodeId;
+  String? _dragNodeId;
+  NodeSnapResult? _dragSnap;
+  math.Point<double> _fingerNodeOffsetMm = const math.Point(0, 0);
+  bool _nodeDragChanged = false;
+  int _angleSnapDegrees = 90;
+  ProjectLayer _drawingLayer = ProjectLayer.existing;
   String? _selectedRoomFaceKey;
   String? _wallStartNodeId;
   String? _dimensionStartNodeId;
   String? _dragObjectId;
   bool _dragObjectDirty = false;
   bool _layoutDragDirty = false;
-  bool _materialsExpanded = true;
+  bool _materialsExpanded = false;
   String _materialCategory = 'Пол';
   bool _materialPickMode = true;
   bool _grid = true;
@@ -110,7 +121,25 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   void initState() {
     super.initState();
     GeometryService.syncRoomMetadata(floor);
-    if (floor.walls.isNotEmpty) _selectedWallId = floor.walls.first.id;
+    _materialPickMode = widget.planTool == MeasurePlanTool.overview;
+  }
+
+  @override
+  void didUpdateWidget(covariant PlanEditorMasterV4Screen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.planTool != widget.planTool) {
+      // Switching tools must not continue an unfinished wall/arc, dimension,
+      // or vertex drag on the same shared canvas.
+      _wallStartNodeId = null;
+      _dimensionStartNodeId = null;
+      _dragNodeId = null;
+      _dragSnap = null;
+      _nodeDragChanged = false;
+      _selectedNodeId = null;
+      _selectedWallId = null;
+      _materialPickMode = widget.planTool == MeasurePlanTool.overview;
+      _materialsExpanded = false;
+    }
   }
 
   @override
@@ -455,6 +484,38 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
 
   Future<void> _tapCanvas(TapUpDetails details) async {
     final p = details.localPosition;
+    // Direct interaction on the same production CAD viewport. A tool change
+    // never navigates to an alternate floor-plan canvas.
+    if (widget.planTool != MeasurePlanTool.overview) {
+      switch (widget.planTool) {
+        case MeasurePlanTool.select:
+          setState(() {
+            _selectedWallId = _wallNear(p)?.id;
+            _selectedNodeId = _nodeNear(p)?.id;
+          });
+        case MeasurePlanTool.nodes:
+          setState(() {
+            _selectedNodeId = _nodeNear(p)?.id;
+            _selectedWallId = null;
+          });
+        case MeasurePlanTool.exterior:
+          await _createWall(p, type: WallType.exterior);
+        case MeasurePlanTool.partition:
+          await _createWall(p, type: WallType.partition);
+        case MeasurePlanTool.arc:
+        case MeasurePlanTool.precision:
+          await _createArc(p);
+        case MeasurePlanTool.openings:
+          await _addOpening(p, chooseType: true);
+        case MeasurePlanTool.demolition:
+          await _toggleDemolition(p);
+        case MeasurePlanTool.dimensions:
+          await _addDimension(p);
+        case MeasurePlanTool.overview:
+          break;
+      }
+      return;
+    }
     if (_materialPickMode) {
       final face = _roomAt(p);
       setState(() {
@@ -493,9 +554,39 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     }
   }
 
-  Future<void> _createWall(Offset p) async {
+  math.Point<double> _snapDrawTarget(
+    PlanNode start,
+    math.Point<double> raw,
+  ) {
+    if (!_snapping) return raw;
+    final captured = GeometryService.nearestNode(
+      floor, raw, thresholdMm: 14 / (_mmToPx * _scale),
+    );
+    if (captured != null && captured.id != start.id) {
+      return math.Point<double>(captured.xMm, captured.yMm);
+    }
+    final dx = raw.x - start.xMm;
+    final dy = raw.y - start.yMm;
+    final length = math.sqrt(dx * dx + dy * dy);
+    if (length <= 0) return raw;
+    var candidate = raw;
+    if (_angleSnapDegrees != 0) {
+      final radians = math.pi * _angleSnapDegrees / 180;
+      final snappedAngle = (math.atan2(dy, dx) / radians).round() * radians;
+      candidate = math.Point<double>(
+        start.xMm + math.cos(snappedAngle) * length,
+        start.yMm + math.sin(snappedAngle) * length,
+      );
+    }
+    final nearWall = GeometryService.nearestWallProjection(
+      floor, candidate, thresholdMm: 11 / (_mmToPx * _scale),
+    );
+    return nearWall?.point ?? candidate;
+  }
+
+  Future<void> _createWall(Offset p, {WallType type = WallType.partition}) async {
     if (_wallStartNodeId == null) {
-      final node = _nodeNear(p) ?? GeometryService.ensureAnchor(floor, _toMm(p));
+      final node = GeometryService.ensureAnchor(floor, _toMm(p));
       setState(() {
         _wallStartNodeId = node.id;
         _selectedWallId = null;
@@ -504,54 +595,322 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       return;
     }
     final start = floor.nodeById(_wallStartNodeId!);
-    if (start == null) return;
-    var point = _toMm(p);
-    if (_snapping) {
-      final dx = point.x - start.xMm;
-      final dy = point.y - start.yMm;
-      if (dx.abs() > dy.abs()) {
-        point = math.Point(point.x, start.yMm);
-      } else {
-        point = math.Point(start.xMm, point.y);
-      }
+    if (start == null) {
+      setState(() => _wallStartNodeId = null);
+      return;
     }
+    final point = _snapDrawTarget(start, _toMm(p));
     if (math.Point(point.x - start.xMm, point.y - start.yMm).magnitude < 120) {
       return;
     }
-    final before = floor.walls.map((e) => e.id).toSet();
+    final oldIds = floor.walls.map((w) => w.id).toSet();
     final end = GeometryService.addWallFromNode(
       floor,
       startNodeId: start.id,
       endPoint: point,
-      type: WallType.partition,
-      thicknessMm: 120,
-      material: WallMaterial.drywall,
+      type: type,
+      thicknessMm: type == WallType.exterior ? 300 : 100,
+      material: type == WallType.exterior
+          ? WallMaterial.gasBlock : WallMaterial.drywall,
     );
-    final created = floor.walls.where((w) => !before.contains(w.id)).toList();
+    final created = floor.walls.where((w) => !oldIds.contains(w.id)).toList();
+    for (final wall in created) {
+      wall.projectLayer = _drawingLayer;
+      wall.demolition = _drawingLayer == ProjectLayer.demolition;
+    }
     setState(() {
-      _wallStartNodeId = end.id;
-      if (created.isNotEmpty) _selectedWallId = created.first.id;
+      _wallStartNodeId = end.id; // next touch extends the same wall chain
+      if (created.isNotEmpty) _selectedWallId = created.last.id;
     });
-    await _changed();
+    if (created.isNotEmpty) await _changed();
   }
 
-  Future<void> _addOpening(Offset p) async {
+  Future<void> _addOpening(Offset p, {bool chooseType = false}) async {
     final wall = _wallNear(p);
     if (wall == null) return;
+    var kind = OpeningType.door;
+    if (chooseType) {
+      final selected = await showModalBottomSheet<OpeningType>(
+        context: context,
+        showDragHandle: true,
+        builder: (sheetContext) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.door_front_door_outlined),
+                title: const Text('Дверной проём'),
+                onTap: () => Navigator.pop(sheetContext, OpeningType.door),
+              ),
+              ListTile(
+                leading: const Icon(Icons.window_outlined),
+                title: const Text('Оконный проём'),
+                onTap: () => Navigator.pop(sheetContext, OpeningType.window),
+              ),
+            ],
+          ),
+        ),
+      );
+      if (selected == null || !mounted) return;
+      kind = selected;
+    }
     final length = floor.wallLengthMm(wall);
-    final width = math.min(900.0, math.max(600.0, length * .32));
+    final width = math.min(kind == OpeningType.door ? 900.0 : 1200.0,
+        math.max(600.0, length * .32));
     if (length <= width + 160) return;
     wall.openings.add(
       WallOpening(
         id: 'o-${DateTime.now().microsecondsSinceEpoch}',
-        type: OpeningType.door,
+        type: kind,
         widthMm: width,
-        heightMm: 2100,
+        heightMm: kind == OpeningType.door ? 2100 : 1300,
+        sillHeightMm: kind == OpeningType.door ? 0 : 900,
         offsetFromStartMm: (length - width) / 2,
         doorSwing: DoorSwing.leftIn,
       ),
     );
     setState(() => _selectedWallId = wall.id);
+    await _changed();
+  }
+
+  Future<void> _toggleDemolition(Offset p) async {
+    final wall = _wallNear(p);
+    if (wall == null) return;
+    if (wall.demolition || wall.projectLayer == ProjectLayer.demolition) {
+      wall.demolition = false;
+      wall.projectLayer = ProjectLayer.existing;
+    } else {
+      wall.demolition = true;
+      wall.projectLayer = ProjectLayer.demolition;
+    }
+    setState(() => _selectedWallId = wall.id);
+    await _changed();
+  }
+
+  Future<void> _createArc(Offset p) async {
+    if (_wallStartNodeId == null) {
+      final start = GeometryService.ensureAnchor(floor, _toMm(p));
+      setState(() => _wallStartNodeId = start.id);
+      await _changed();
+      return;
+    }
+    final start = floor.nodeById(_wallStartNodeId!);
+    if (start == null) return;
+    final point = _snapDrawTarget(start, _toMm(p));
+    final chord = math.sqrt(math.pow(point.x - start.xMm, 2) +
+        math.pow(point.y - start.yMm, 2));
+    if (chord < 100) return;
+
+    final sagitta = TextEditingController(text: '400');
+    final height = await showDialog<double>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Радиусная стена'),
+        content: TextField(
+          controller: sagitta,
+          keyboardType: const TextInputType.numberWithOptions(
+            signed: true, decimal: true),
+          decoration: const InputDecoration(
+            labelText: 'Стрела дуги ±h', suffixText: 'мм',
+            helperText: 'Знак задаёт сторону изгиба',
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Отмена')),
+          FilledButton(
+            onPressed: () {
+              final h = double.tryParse(sagitta.text.replaceAll(',', '.'));
+              if (h == null || !h.isFinite || h.abs() < 1 ||
+                  h.abs() > chord * 2) return;
+              Navigator.pop(dialogContext, h);
+            },
+            child: const Text('Построить'),
+          ),
+        ],
+      ),
+    );
+    sagitta.dispose();
+    if (height == null || !mounted) return;
+    final existing = floor.walls.map((w) => w.id).toSet();
+    final end = GeometryService.addArcWallFromNode(
+      floor,
+      startNodeId: start.id,
+      endPoint: point,
+      sagittaMm: height,
+      type: WallType.partition,
+      thicknessMm: 100,
+      material: WallMaterial.drywall,
+    );
+    for (final wall in floor.walls.where((w) => !existing.contains(w.id))) {
+      wall.projectLayer = _drawingLayer;
+      wall.demolition = _drawingLayer == ProjectLayer.demolition;
+    }
+    setState(() => _wallStartNodeId = end.id);
+    await _changed();
+  }
+
+  void _nodeDragStart(DragStartDetails details) {
+    if (widget.planTool != MeasurePlanTool.nodes) return;
+    final node = _nodeNear(details.localPosition);
+    if (node == null) return;
+    final finger = _toMm(details.localPosition);
+    setState(() {
+      _selectedNodeId = node.id;
+      _dragNodeId = node.id;
+      _nodeDragChanged = false;
+      _dragSnap = null;
+      _fingerNodeOffsetMm = math.Point<double>(
+        node.xMm - finger.x, node.yMm - finger.y,
+      );
+    });
+  }
+
+  void _nodeDragUpdate(DragUpdateDetails details) {
+    final id = _dragNodeId;
+    if (widget.planTool != MeasurePlanTool.nodes || id == null) return;
+    final node = floor.nodeById(id);
+    if (node == null) return;
+    final finger = _toMm(details.localPosition);
+    final raw = finger + _fingerNodeOffsetMm;
+    final radiusMm = 16 / (_mmToPx * _scale);
+    final snap = GeometryService.snapMoveTarget(
+      floor,
+      movingNodeId: id,
+      raw: raw,
+      enabled: _snapping,
+      nodeThresholdMm: radiusMm,
+      wallThresholdMm: radiusMm * 0.75,
+      guideThresholdMm: radiusMm * 0.6,
+      previousSnap: _dragSnap,
+      releaseThresholdMm: radiusMm * 1.5,
+    );
+    if ((node.xMm - snap.point.x).abs() > 0.01 ||
+        (node.yMm - snap.point.y).abs() > 0.01) {
+      _nodeDragChanged = true;
+    }
+    node.xMm = snap.point.x;
+    node.yMm = snap.point.y;
+    setState(() => _dragSnap = snap);
+  }
+
+  Future<void> _nodeDragEnd(DragEndDetails details) async {
+    final id = _dragNodeId;
+    if (id == null) return;
+    final node = floor.nodeById(id);
+    final changed = _nodeDragChanged;
+    final snap = _dragSnap;
+    setState(() {
+      _dragNodeId = null;
+      _dragSnap = null;
+      _nodeDragChanged = false;
+    });
+    if (node == null || !changed) return;
+    final result = GeometryService.finalizeNodeMove(
+      floor,
+      movingNodeId: id,
+      snap: snap ?? NodeSnapResult(
+        point: math.Point<double>(node.xMm, node.yMm),
+        kind: NodeSnapKind.none,
+      ),
+    );
+    _selectedNodeId = result?.id;
+    await _changed();
+  }
+
+  Future<void> _editSelectedNode() async {
+    final id = _selectedNodeId;
+    if (id == null) return;
+    final node = floor.nodeById(id);
+    if (node == null) return;
+    final x = TextEditingController(text: node.xMm.round().toString());
+    final y = TextEditingController(text: node.yMm.round().toString());
+    final result = await showModalBottomSheet<math.Point<double>>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheet) => Padding(
+        padding: EdgeInsets.fromLTRB(16, 4, 16,
+          20 + MediaQuery.viewInsetsOf(sheet).bottom),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Точные координаты узла'),
+            TextField(controller: x,
+              keyboardType: const TextInputType.numberWithOptions(signed: true, decimal: true),
+              decoration: const InputDecoration(labelText: 'X', suffixText: 'мм')),
+            TextField(controller: y,
+              keyboardType: const TextInputType.numberWithOptions(signed: true, decimal: true),
+              decoration: const InputDecoration(labelText: 'Y', suffixText: 'мм')),
+            const SizedBox(height: 12),
+            FilledButton(
+              onPressed: () {
+                final px = double.tryParse(x.text.replaceAll(',', '.'));
+                final py = double.tryParse(y.text.replaceAll(',', '.'));
+                if (px == null || py == null || !px.isFinite || !py.isFinite ||
+                    px.abs() > 100000 || py.abs() > 100000) return;
+                Navigator.pop(sheet, math.Point<double>(px, py));
+              },
+              child: const Text('Применить'),
+            ),
+          ],
+        ),
+      ),
+    );
+    x.dispose();
+    y.dispose();
+    if (result == null || !mounted) return;
+    final moved = GeometryService.finalizeNodeMove(floor,
+      movingNodeId: id,
+      snap: NodeSnapResult(point: result, kind: NodeSnapKind.none),
+    );
+    setState(() => _selectedNodeId = moved?.id);
+    await _changed();
+  }
+
+  Future<void> _shiftSelectedWall() async {
+    final wall = _selectedWall;
+    if (wall == null) return;
+    final controller = TextEditingController(text: '0');
+    final offset = await showModalBottomSheet<double>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheet) => Padding(
+        padding: EdgeInsets.fromLTRB(16, 8, 16,
+          20 + MediaQuery.viewInsetsOf(sheet).bottom),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Сдвинуть стену параллельно'),
+            TextField(
+              controller: controller,
+              keyboardType: const TextInputType.numberWithOptions(signed: true, decimal: true),
+              decoration: const InputDecoration(
+                labelText: 'Смещение по X / Y', suffixText: 'мм',
+                helperText: 'Вертикальная стена: X; горизонтальная: Y'),
+            ),
+            const SizedBox(height: 12),
+            FilledButton(onPressed: () {
+              final mm = double.tryParse(controller.text.replaceAll(',', '.'));
+              if (mm == null || !mm.isFinite) return;
+              Navigator.pop(sheet, mm);
+            }, child: const Text('Переместить')),
+          ],
+        ),
+      ),
+    );
+    controller.dispose();
+    if (offset == null || offset == 0 || !mounted) return;
+    final result = OrthogonalWallEditService.move(
+      floor, wallId: wall.id, offsetMm: offset,
+    );
+    if (!result.isValid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result.message)),
+      );
+      return;
+    }
     await _changed();
   }
 
@@ -738,6 +1097,104 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     });
   }
 
+  bool get _drawingWall => <MeasurePlanTool>{
+    MeasurePlanTool.exterior,
+    MeasurePlanTool.partition,
+    MeasurePlanTool.arc,
+    MeasurePlanTool.precision,
+  }.contains(widget.planTool);
+
+  bool get _editingGeometry =>
+      widget.planTool != MeasurePlanTool.overview &&
+      widget.planTool != MeasurePlanTool.select;
+
+  Widget _compactEditingBar() {
+    final hasStart = _wallStartNodeId != null;
+    final nodesSelected = widget.planTool == MeasurePlanTool.nodes &&
+        _selectedNodeId != null;
+    return Container(
+      height: 43,
+      padding: const EdgeInsets.symmetric(horizontal: 7),
+      decoration: BoxDecoration(
+        color: const Color(0xEE0C1B20),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: ZamerColors.outlineSoft),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  if (_drawingWall) ...[
+                    Text(hasStart ? 'Следующая точка стены'
+                                  : 'Нажмите начало стены',
+                        style: const TextStyle(fontSize: 11,
+                          color: ZamerColors.textPrimary)),
+                    const SizedBox(width: 8),
+                    PopupMenuButton<int>(
+                      tooltip: 'Угловая привязка',
+                      onSelected: (value) => setState(() => _angleSnapDegrees = value),
+                      itemBuilder: (_) => const [
+                        PopupMenuItem(value: 90, child: Text('90°')),
+                        PopupMenuItem(value: 45, child: Text('45°')),
+                        PopupMenuItem(value: 0, child: Text('Свободно')),
+                      ],
+                      child: Padding(
+                        padding: const EdgeInsets.all(5),
+                        child: Text(_angleSnapDegrees == 0
+                            ? 'Свободно' : '${_angleSnapDegrees}°',
+                            style: const TextStyle(color: ZamerColors.accent,
+                              fontWeight: FontWeight.w700)),
+                      ),
+                    ),
+                    PopupMenuButton<ProjectLayer>(
+                      tooltip: 'Слой построения',
+                      onSelected: (layer) => setState(() => _drawingLayer = layer),
+                      itemBuilder: (_) => ProjectLayer.values.map(
+                        (layer) => PopupMenuItem(
+                          value: layer,
+                          child: Text(layer.label),
+                        ),
+                      ).toList(),
+                      child: const Padding(
+                        padding: EdgeInsets.all(5),
+                        child: Icon(Icons.layers_outlined, size: 18,
+                          color: ZamerColors.textSecondary),
+                      ),
+                    ),
+                  ] else if (nodesSelected)
+                    TextButton.icon(
+                      onPressed: _editSelectedNode,
+                      icon: const Icon(Icons.edit_location_alt_outlined, size: 17),
+                      label: const Text('Координаты узла'),
+                    )
+                  else
+                    Text(widget.planTool == MeasurePlanTool.nodes
+                        ? 'Перетащите узел пальцем'
+                        : widget.planTool == MeasurePlanTool.openings
+                            ? 'Выберите стену для двери или окна'
+                            : widget.planTool == MeasurePlanTool.demolition
+                                ? 'Нажмите стену для демонтажа'
+                                : 'Выберите точки на плане',
+                      style: const TextStyle(fontSize: 11,
+                        color: ZamerColors.textSecondary)),
+                ],
+              ),
+            ),
+          ),
+          if (hasStart)
+            TextButton.icon(
+              onPressed: () => setState(() => _wallStartNodeId = null),
+              icon: const Icon(Icons.check_rounded, size: 17),
+              label: const Text('Стоп'),
+            ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final room = _selectedRoomMeta;
@@ -746,26 +1203,30 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       child: Column(
         children: [
           Expanded(child: _canvas()),
-          if (_selectedWall != null)
+          if (_selectedWall != null && !_drawingWall &&
+              (widget.planTool == MeasurePlanTool.select ||
+               widget.planTool == MeasurePlanTool.overview))
             _WallInspector(
               wall: _selectedWall!,
               floor: floor,
               onEdit: _editWall,
+              onShift: _shiftSelectedWall,
               onDelete: _deleteWall,
             ),
-          _MaterialPanel(
-            category: _materialCategory,
-            selectedRoomName: room?.name,
-            selectedMaterialId: _selectedMaterialId,
-            selectionMode: _materialPickMode,
-            expanded: _materialsExpanded,
-            onToggle: () => setState(
-              () => _materialsExpanded = !_materialsExpanded,
+          if (widget.planTool == MeasurePlanTool.overview)
+            _MaterialPanel(
+              category: _materialCategory,
+              selectedRoomName: room?.name,
+              selectedMaterialId: _selectedMaterialId,
+              selectionMode: _materialPickMode,
+              expanded: _materialsExpanded,
+              onToggle: () => setState(
+                () => _materialsExpanded = !_materialsExpanded,
+              ),
+              onCategory: _selectMaterialCategory,
+              onApply: _applyMaterial,
+              onOpenMaterials: widget.onOpenMaterials,
             ),
-            onCategory: _selectMaterialCategory,
-            onApply: _applyMaterial,
-            onOpenMaterials: widget.onOpenMaterials,
-          ),
         ],
       ),
     );
@@ -785,6 +1246,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                   transformationController: _transform,
                   minScale: .28,
                   maxScale: 6,
+                  panEnabled: widget.planTool != MeasurePlanTool.nodes,
+                  scaleEnabled: widget.planTool != MeasurePlanTool.nodes,
                   boundaryMargin: const EdgeInsets.all(2200),
                   constrained: false,
                   child: Stack(
@@ -792,7 +1255,14 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                       GestureDetector(
                         behavior: HitTestBehavior.opaque,
                         onTapUp: _tapCanvas,
+                        onPanStart: widget.planTool == MeasurePlanTool.nodes
+                            ? _nodeDragStart : null,
+                        onPanUpdate: widget.planTool == MeasurePlanTool.nodes
+                            ? _nodeDragUpdate : null,
+                        onPanEnd: widget.planTool == MeasurePlanTool.nodes
+                            ? _nodeDragEnd : null,
                         child: CustomPaint(
+                          key: const ValueKey('measure-shared-canvas'),
                           size: _canvasSize,
                           painter: CadPlanPainter(
                             floor: floor,
@@ -804,43 +1274,46 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                           ),
                         ),
                       ),
-                      if (_layoutDragRegion() case final region?) region,
-                      ..._objectDragRegions(),
+                      if (widget.planTool == MeasurePlanTool.overview)
+                        if (_layoutDragRegion() case final region?) region,
+                      if (widget.planTool == MeasurePlanTool.overview)
+                        ..._objectDragRegions(),
                     ],
                   ),
                 ),
               ),
               Positioned(
-                left: 8,
-                top: 8,
-                child: _ToolRail(
-                  tool: _tool,
-                  materialMode: _materialPickMode,
-                  onRoomMode: _selectRoomMode,
-                  onTool: _selectTool,
-                ),
-              ),
-              Positioned(
                 right: 8,
                 top: 8,
-                child: _ViewRail(
-                  grid: _grid,
-                  snapping: _snapping,
-                  onGrid: () => setState(() => _grid = !_grid),
-                  onSnap: () => setState(() => _snapping = !_snapping),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ZMeasureCanvasAction(
+                      icon: _grid ? Icons.grid_on_outlined : Icons.grid_off_outlined,
+                      tooltip: 'Сетка',
+                      active: _grid,
+                      onPressed: () => setState(() => _grid = !_grid),
+                    ),
+                    const SizedBox(width: 5),
+                    ZMeasureCanvasAction(
+                      icon: _snapping ? Icons.link : Icons.link_off,
+                      tooltip: 'Привязки',
+                      active: _snapping,
+                      onPressed: () => setState(() => _snapping = !_snapping),
+                    ),
+                  ],
                 ),
               ),
-              Positioned(
-                left: 8,
-                bottom: 10,
-                child: _UndoRedo(
-                  onUndo: widget.canUndo ? widget.onUndo : null,
-                  onRedo: widget.canRedo ? widget.onRedo : null,
+              if (_editingGeometry)
+                Positioned(
+                  left: 8,
+                  right: 8,
+                  bottom: 8,
+                  child: _compactEditingBar(),
                 ),
-              ),
               Positioned(
                 right: 8,
-                bottom: 8,
+                bottom: _editingGeometry ? 60 : 8,
                 child: _CanvasControls(
                   floor: floor,
                   onFit: _fit,
@@ -1086,35 +1559,14 @@ class _CanvasControls extends StatelessWidget {
   final VoidCallback onZoomOut;
 
   @override
-  Widget build(BuildContext context) => Column(
+  Widget build(BuildContext context) => Row(
         mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _small(Icons.remove_rounded, onZoomOut),
-              const SizedBox(width: 5),
-              _small(Icons.add_rounded, onZoomIn),
-            ],
-          ),
-          const SizedBox(height: 5),
-          _small(Icons.fullscreen_rounded, onFit),
-          const SizedBox(height: 5),
-          InkWell(
-            onTap: onFit,
-            child: Container(
-              width: 54,
-              height: 54,
-              padding: const EdgeInsets.all(4),
-              decoration: BoxDecoration(
-                color: const Color(0xFF07171D).withValues(alpha: .96),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: ZamerColors.outlineSoft),
-              ),
-              child: CustomPaint(painter: _MiniMapPainter(floor)),
-            ),
-          ),
+          _small(Icons.remove_rounded, onZoomOut),
+          const SizedBox(width: 5),
+          _small(Icons.add_rounded, onZoomIn),
+          const SizedBox(width: 5),
+          _small(Icons.center_focus_strong_rounded, onFit),
         ],
       );
 
@@ -1167,11 +1619,13 @@ class _WallInspector extends StatelessWidget {
     required this.wall,
     required this.floor,
     required this.onEdit,
+    required this.onShift,
     required this.onDelete,
   });
   final PlanWall wall;
   final FloorPlan floor;
   final VoidCallback onEdit;
+  final VoidCallback onShift;
   final VoidCallback onDelete;
 
   double get _angle {
@@ -1234,12 +1688,17 @@ class _WallInspector extends StatelessWidget {
                           iconColor: ZamerColors.textSecondary,
                           onSelected: (value) {
                             if (value == 'edit') onEdit();
+                            if (value == 'shift') onShift();
                             if (value == 'delete') onDelete();
                           },
                           itemBuilder: (context) => const [
                             PopupMenuItem(
                               value: 'edit',
                               child: Text('Изменить стену'),
+                            ),
+                            PopupMenuItem(
+                              value: 'shift',
+                              child: Text('Сдвинуть стену'),
                             ),
                             PopupMenuItem(
                               value: 'delete',

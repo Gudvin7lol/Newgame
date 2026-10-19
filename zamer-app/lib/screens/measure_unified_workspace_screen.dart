@@ -14,25 +14,12 @@ import 'master_equipment_screen.dart';
 import 'materials_master_screen.dart';
 import 'measure_floor_plan_layer_screen.dart';
 import 'plan_editor_production_screen.dart';
-import 'plan_editor_screen.dart';
-import 'plan_geometry_tools_screen.dart';
+import 'measure_plan_tool.dart';
+export 'measure_plan_tool.dart' show MeasurePlanTool;
 import 'planning_objects_screen.dart';
 
 /// Every plan operation is available in the same Measure workspace.
 /// No basic/advanced editor navigation or duplicate app-level section.
-enum MeasurePlanTool {
-  overview,
-  select,
-  nodes,
-  exterior,
-  partition,
-  arc,
-  precision,
-  openings,
-  demolition,
-  dimensions,
-}
-
 /// The field-first Measure workspace.
 ///
 /// Geometry, flooring, furniture, electrical, engineering and materials are
@@ -143,83 +130,81 @@ class _MeasureUnifiedWorkspaceScreenState
     });
   }
 
-  PlanMode get _legacyPlanMode => switch (_planTool) {
-    MeasurePlanTool.select => PlanMode.select,
-    MeasurePlanTool.nodes => PlanMode.nodes,
-    MeasurePlanTool.exterior => PlanMode.exterior,
-    MeasurePlanTool.partition => PlanMode.partition,
-    MeasurePlanTool.arc => PlanMode.arc,
-    MeasurePlanTool.openings => PlanMode.opening,
-    MeasurePlanTool.demolition => PlanMode.demolition,
-    MeasurePlanTool.dimensions => PlanMode.dimension,
-    MeasurePlanTool.overview || MeasurePlanTool.precision => PlanMode.select,
-  };
-
+  // One compact row of tools and a project-action overflow.
   Widget _planToolbar() => Container(
+    height: 46,
+    padding: const EdgeInsets.fromLTRB(7, 3, 2, 3),
     decoration: const BoxDecoration(
       color: ZamerColors.surfaceLow,
       border: Border(bottom: BorderSide(color: ZamerColors.outlineSoft)),
     ),
-    padding: const EdgeInsets.fromLTRB(8, 5, 8, 5),
-    child: SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          for (final (tool, label, icon) in _planTools)
-            Padding(
-              padding: const EdgeInsets.only(right: 6),
-              child: ChoiceChip(
-                selected: _planTool == tool,
-                showCheckmark: false,
-                avatar: Icon(icon, size: 16,
-                    color: _planTool == tool
-                        ? ZamerColors.accentInk : ZamerColors.textSecondary),
-                label: Text(label),
-                labelStyle: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: _planTool == tool
-                      ? ZamerColors.accentInk : ZamerColors.textPrimary,
+    child: Row(
+      children: [
+        Expanded(
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: _planTools.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 4),
+            itemBuilder: (_, index) {
+              final (tool, label, icon) = _planTools[index];
+              final selected = _planTool == tool;
+              return Tooltip(
+                message: label,
+                child: Material(
+                  color: selected ? ZamerColors.accent : ZamerColors.surface,
+                  borderRadius: BorderRadius.circular(9),
+                  child: InkWell(
+                    key: ValueKey('measure-tool-${tool.name}'),
+                    borderRadius: BorderRadius.circular(9),
+                    onTap: () => _selectPlanTool(tool),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(icon, size: 17,
+                            color: selected ? ZamerColors.accentInk : ZamerColors.textSecondary),
+                          const SizedBox(width: 5),
+                          Text(label, style: TextStyle(
+                            fontSize: 11, fontWeight: FontWeight.w700,
+                            color: selected ? ZamerColors.accentInk : ZamerColors.textPrimary,
+                          )),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
-                backgroundColor: ZamerColors.surface,
-                selectedColor: ZamerColors.accent,
-                side: const BorderSide(color: ZamerColors.outlineSoft),
-                onSelected: (_) => _selectPlanTool(tool),
-              ),
-            ),
-        ],
-      ),
-    ),
-  );
-
-  Widget _planActions() => Padding(
-    padding: const EdgeInsets.fromLTRB(8, 0, 8, 4),
-    child: SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          _quickAction(Icons.document_scanner_outlined, 'Импорт', widget.onScanPlan),
-          _quickAction(Icons.grid_view_outlined, 'Помещения', widget.onOpenRooms),
-          _quickAction(Icons.layers_outlined, 'Этажи', widget.onOpenFloors),
-          _quickAction(Icons.category_outlined, 'Каталог', _openCatalogSheet),
-          _quickAction(Icons.fact_check_outlined, 'Проверка', widget.onOpenReview),
-          _quickAction(Icons.picture_as_pdf_outlined, 'PDF', widget.onExportPdf),
-        ],
-      ),
-    ),
-  );
-
-  Widget _quickAction(IconData icon, String label, VoidCallback action) =>
-      Padding(
-        padding: const EdgeInsets.only(right: 7),
-        child: ActionChip(
-          avatar: Icon(icon, size: 15, color: ZamerColors.textSecondary),
-          label: Text(label, style: const TextStyle(fontSize: 10)),
-          backgroundColor: ZamerColors.surface,
-          side: const BorderSide(color: ZamerColors.outlineSoft),
-          onPressed: action,
+              );
+            },
+          ),
         ),
-      );
+        PopupMenuButton<String>(
+          key: const ValueKey('measure-plan-more'),
+          tooltip: 'Операции проекта',
+          icon: const Icon(Icons.more_vert_rounded, size: 20),
+          onSelected: (action) => switch (action) {
+            'import' => widget.onScanPlan(),
+            'rooms' => widget.onOpenRooms(),
+            'floors' => widget.onOpenFloors(),
+            'catalog' => _openCatalogSheet(),
+            'review' => widget.onOpenReview(),
+            'pdf' => widget.onExportPdf(),
+            'photo' => widget.onOpenPhoto(),
+            _ => widget.onMore(),
+          },
+          itemBuilder: (_) => const [
+            PopupMenuItem(value: 'import', child: Text('Импорт плана')),
+            PopupMenuItem(value: 'rooms', child: Text('Помещения')),
+            PopupMenuItem(value: 'floors', child: Text('Этажи')),
+            PopupMenuItem(value: 'catalog', child: Text('Каталог')),
+            PopupMenuItem(value: 'review', child: Text('Проверка обмера')),
+            PopupMenuItem(value: 'pdf', child: Text('PDF')),
+            PopupMenuItem(value: 'photo', child: Text('Фото')),
+          ],
+        ),
+      ],
+    ),
+  );
 
   static const _layers = <(String, IconData)>[
     ('План', Icons.architecture_outlined),
@@ -343,34 +328,23 @@ class _MeasureUnifiedWorkspaceScreenState
     }
 
     final pages = <Widget>[
-      _planTool == MeasurePlanTool.overview
-          ? PlanEditorProductionScreen(
-              floor: widget.floor,
-              onChanged: widget.onChanged,
-              onOpenObjects: () => _selectLayer(2),
-              onOpenReview: widget.onOpenReview,
-              onOpenPlanGeometry: () => _selectPlanTool(MeasurePlanTool.precision),
-              onOpen3D: widget.onOpen3D,
-              onOpenFloors: widget.onOpenFloors,
-              onOpenSettings: widget.onMore,
-              onOpenMaterials: () => _selectLayer(5),
-              onUndo: widget.onUndo,
-              onRedo: widget.onRedo,
-              canUndo: widget.canUndo,
-              canRedo: widget.canRedo,
-            )
-          : _planTool == MeasurePlanTool.precision
-              ? PlanGeometryToolsScreen(
-                  floor: widget.floor,
-                  onChanged: widget.onChanged,
-                  embedded: true,
-                )
-              : PlanEditorScreen(
-                  floor: widget.floor,
-                  onChanged: widget.onChanged,
-                  mode: _legacyPlanMode,
-                  embedded: true,
-                ),
+      // Persistent plan renderer for all tool modes. No second CAD screen.
+      PlanEditorProductionScreen(
+        floor: widget.floor,
+        onChanged: widget.onChanged,
+        planTool: _planTool,
+        onOpenObjects: () => _selectLayer(2),
+        onOpenReview: widget.onOpenReview,
+        onOpenPlanGeometry: () => _selectPlanTool(MeasurePlanTool.precision),
+        onOpen3D: widget.onOpen3D,
+        onOpenFloors: widget.onOpenFloors,
+        onOpenSettings: widget.onMore,
+        onOpenMaterials: () => _selectLayer(5),
+        onUndo: widget.onUndo,
+        onRedo: widget.onRedo,
+        canUndo: widget.canUndo,
+        canRedo: widget.canRedo,
+      ),
       MeasureFloorPlanLayerScreen(
         floor: widget.floor,
         onChanged: widget.onChanged,
@@ -403,70 +377,70 @@ class _MeasureUnifiedWorkspaceScreenState
       ),
       body: Column(
         children: [
-          ZWorkspaceContextStrip(
-            icon: _layers[_layer].$2,
-            title: _layers[_layer].$1,
-            subtitle: switch (_layer) {
-              0 => 'Геометрия, проёмы, размеры и помещения',
-              1 => 'Раскладка покрытия прямо на измеренном плане',
-              2 => 'Добавление, перемещение и вращение объектов на плане',
-              3 => 'Розетки, выключатели, свет и группы',
-              4 => 'Вода, канализация, отопление и трассы',
-              _ => 'Отделка стен, пола и потолка',
-            },
-            metrics: [
-              ZWorkspaceMetric(
-                icon: Icons.square_foot_outlined,
-                value: '${widget.floor.walls.length}',
-                label: 'стен',
-              ),
-              ZWorkspaceMetric(
-                icon: Icons.chair_alt_outlined,
-                value: '${widget.floor.planObjects.length}',
-                label: 'объектов',
-              ),
-              ZWorkspaceMetric(
-                icon: Icons.electrical_services_outlined,
-                value: '${widget.floor.electricalPoints.length}',
-                label: 'точек',
-              ),
-            ],
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
-            child: Row(
-              children: [
-                Expanded(
-                  child: ZMeasureViewTabs(
-                    value: _view,
-                    enabledModes: const [
-                      ZMeasureViewMode.twoD,
-                      ZMeasureViewMode.threeD,
-                      ZMeasureViewMode.photo,
-                    ],
-                    onChanged: _selectView,
-                  ),
+          if (_layer != 0) ...[
+            ZWorkspaceContextStrip(
+              icon: _layers[_layer].$2,
+              title: _layers[_layer].$1,
+              subtitle: switch (_layer) {
+                0 => 'Геометрия, проёмы, размеры и помещения',
+                1 => 'Раскладка покрытия прямо на измеренном плане',
+                2 => 'Добавление, перемещение и вращение объектов на плане',
+                3 => 'Розетки, выключатели, свет и группы',
+                4 => 'Вода, канализация, отопление и трассы',
+                _ => 'Отделка стен, пола и потолка',
+              },
+              metrics: [
+                ZWorkspaceMetric(
+                  icon: Icons.square_foot_outlined,
+                  value: '${widget.floor.walls.length}',
+                  label: 'стен',
                 ),
-                if (_layer == 2) ...[
-                  const SizedBox(width: 8),
-                  FilledButton.tonalIcon(
-                    onPressed: _openCatalogSheet,
-                    icon: const Icon(Icons.add_rounded, size: 18),
-                    label: const Text('Каталог'),
-                  ),
-                ],
+                ZWorkspaceMetric(
+                  icon: Icons.chair_alt_outlined,
+                  value: '${widget.floor.planObjects.length}',
+                  label: 'объектов',
+                ),
+                ZWorkspaceMetric(
+                  icon: Icons.electrical_services_outlined,
+                  value: '${widget.floor.electricalPoints.length}',
+                  label: 'точек',
+                ),
               ],
             ),
-          ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: ZMeasureViewTabs(
+                      value: _view,
+                      enabledModes: const [
+                        ZMeasureViewMode.twoD,
+                        ZMeasureViewMode.threeD,
+                        ZMeasureViewMode.photo,
+                      ],
+                      onChanged: _selectView,
+                    ),
+                  ),
+                  if (_layer == 2) ...[
+                    const SizedBox(width: 8),
+                    FilledButton.tonalIcon(
+                      onPressed: _openCatalogSheet,
+                      icon: const Icon(Icons.add_rounded, size: 18),
+                      label: const Text('Каталог'),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+  
+          ],
           ZWorkspaceSubnav(
             items: _layers,
             selectedIndex: _layer,
             onSelected: _selectLayer,
           ),
-          if (_layer == 0) ...[
-            _planToolbar(),
-            _planActions(),
-          ],
+          if (_layer == 0) _planToolbar(),
           Expanded(
             child: IndexedStack(index: _layer, children: pages),
           ),

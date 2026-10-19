@@ -109,7 +109,8 @@ void main() {
     expect(measure.contains('MeasurePlanTool.precision'), isTrue);
     expect(measure.contains('_planToolbar()'), isTrue,
         reason: 'precision geometry belongs to the main Measure toolbar');
-    expect(measure.contains('PlanGeometryToolsScreen('), isTrue);
+    expect(measure.contains('PlanGeometryToolsScreen('), isFalse);
+    expect(measure.contains('planTool: _planTool'), isTrue);
     expect(measure.contains('widget.onOpenFloors'), isTrue);
     expect(measure.contains('ZWorkspacePrimaryNav('), isTrue);
   });

@@ -39,7 +39,11 @@ void main() {
   test('Measure material strip shows all relevant materials and can collapse', () {
     final source =
         File('lib/screens/plan_editor_master_v4_screen.dart').readAsStringSync();
-    expect(source, contains('bool _materialsExpanded = true'));
+    // +136 prioritizes canvas area. Users can expand the full catalogue
+    // on demand; keeping this panel expanded at startup overcrowded Measure.
+    expect(source, contains('bool _materialsExpanded = false'));
+    expect(source, contains('if (widget.planTool == MeasurePlanTool.overview)'));
+    expect(source, contains('_materialsExpanded = !_materialsExpanded'));
     expect(source, contains('MaterialCatalog.floorFinishes'));
     expect(source, contains('MaterialCatalog.wallFinishes'));
     expect(source, isNot(contains('.take(8)')));
