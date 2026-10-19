@@ -49,7 +49,7 @@ class StudioActivity : Activity() {
             setBackgroundColor(bg)
         }
         val brand = TextView(this).apply {
-            text = "Z / ENGINE    •    CORE 0.7"
+            text = "Z / ENGINE    •    CORE 0.8"
             setTextColor(Color.WHITE)
             textSize = 17f
             setPadding(18.dp(), 9.dp(), 12.dp(), 9.dp())
@@ -293,6 +293,15 @@ class StudioActivity : Activity() {
                         "Ребро" to { activate(Tool.EDGE) },
                         "Камера" to { activate(Tool.CAMERA) }
                     )
+
+                }
+                3 -> {
+                    controls(actions,
+                        "Грань" to { activate(Tool.FACE) },
+                        "Ребро" to { activate(Tool.EDGE) },
+                        "Вершина" to { activate(Tool.VERTEX) },
+                        "Камера" to { activate(Tool.CAMERA) }
+                    )
                     controls(actions,
                         "Extrude +" to { act { Native.extrude(engine, 0.05f) } },
                         "Extrude −" to { act { Native.extrude(engine, -0.05f) } },
@@ -300,29 +309,82 @@ class StudioActivity : Activity() {
                         "Subdivide" to { act { Native.subdivide(engine) } }
                     )
                     controls(actions,
-                        "Loop Cut" to {
-                            surface.queueEvent {
-                                val success = Native.loopCut(engine)
-                                val state = Native.sceneInfo(engine)
-                                runOnUiThread {
-                                    if (success) tool = Tool.VERTEX
-                                    inspector.text = if (success) "Loop Cut выполнен. Выбрана новая вершина.\n$state"
-                                        else "Loop Cut: выбери ребро замкнутой цепочки четырёхугольников."
-                                }
+                        "Loop Cut" to { surface.queueEvent {
+                            val ok = Native.loopCut(engine)
+                            val info = Native.sceneInfo(engine)
+                            runOnUiThread {
+                                if (ok) tool = Tool.VERTEX
+                                inspector.text = if (ok) "Loop Cut выполнен.\n" + info
+                                else "Loop Cut: выбери ребро цепочки четырёхугольников."
                             }
-                        },
-                        "Split Edge" to {
-                            surface.queueEvent {
-                                val success = Native.splitEdge(engine)
-                                val state = Native.sceneInfo(engine)
-                                runOnUiThread {
-                                    if (success) tool = Tool.VERTEX
-                                    inspector.text = if (success) "Ребро разделено на два.\n$state"
-                                        else "Split Edge: сначала выбери ребро замкнутой сетки."
+                        } },
+                        "Split Edge" to { surface.queueEvent {
+                            val ok = Native.splitEdge(engine)
+                            val info = Native.sceneInfo(engine)
+                            runOnUiThread {
+                                if (ok) tool = Tool.VERTEX
+                                inspector.text = if (ok) "Ребро разделено.\n" + info
+                                else "Split Edge: выбери ребро."
+                            }
+                        } },
+                        "Mark A" to { surface.queueEvent {
+                            val ok = Native.markBridgeFace(engine)
+                            val info = Native.sceneInfo(engine)
+                            runOnUiThread {
+                                inspector.text = if (ok) "Грань A отмечена. Выбери противоположную грань B, затем Bridge.\n" + info
+                                else "Для Mark A выбери четырёхугольную грань."
+                            }
+                        } },
+                        "Bridge" to { surface.queueEvent {
+                            val ok = Native.bridgeFaces(engine)
+                            val info = Native.sceneInfo(engine)
+                            runOnUiThread {
+                                if (ok) tool = Tool.FACE
+                                inspector.text = if (ok) "Bridge: внутренний канал создан.\n" + info
+                                else "Bridge: нужны противоположные квад-граня одного объекта. Сначала Mark A."
+                            }
+                        } }
+                    )
+                    val bevelRow = LinearLayout(this).apply {
+                        orientation = LinearLayout.HORIZONTAL
+                        setBackgroundColor(panel)
+                        setPadding(5.dp(), 0, 5.dp(), 0)
+                    }
+                    bevelRow.addView(TextView(this).apply {
+                        text = "Фаска, мм"
+                        textSize = 12f
+                        setTextColor(accent)
+                    }, LinearLayout.LayoutParams(85.dp(), 42.dp()))
+                    val bevelInput = EditText(this).apply {
+                        setText("20")
+                        textSize = 13f
+                        setTextColor(Color.WHITE)
+                        setSingleLine(true)
+                        inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
+                    }
+                    bevelRow.addView(bevelInput, LinearLayout.LayoutParams(0, 42.dp(), 1f))
+                    bevelRow.addView(Button(this).apply {
+                        text = "Bevel"
+                        isAllCaps = false
+                        textSize = 12f
+                        setOnClickListener {
+                            val mm = bevelInput.text.toString().toFloatOrNull()
+                            if (mm == null || !mm.isFinite() || mm <= 0f || mm > 100f) {
+                                inspector.text = "Ширина фаски должна быть больше 0 и не больше 100 мм."
+                            } else {
+                                surface.queueEvent {
+                                    val ok = Native.bevelEdge(engine, mm / 1000f)
+                                    val info = Native.sceneInfo(engine)
+                                    runOnUiThread {
+                                        if (ok) tool = Tool.FACE
+                                        inspector.text = if (ok) "Bevel " + mm + " мм выполнен.\n" + info
+                                        else "Bevel: выбери выпуклое ребро и уменьши ширину, если срез не помещается."
+                                    }
                                 }
                             }
                         }
-                    )
+                    }, LinearLayout.LayoutParams(105.dp(), 42.dp()))
+                    actions.addView(bevelRow)
                 }
                 1 -> {
                     controls(actions,
@@ -396,7 +458,8 @@ class StudioActivity : Activity() {
 
         controls(tabs,
             "Модель" to { page(0) },
-            "Трансформ." to { page(1) },
+            "Топология" to { page(3) },
+            "Трансф." to { page(1) },
             "Файлы" to { page(2) }
         )
         page(0)
