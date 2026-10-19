@@ -1,4 +1,5 @@
 #include "native_renderer.hpp"
+#include "glb_export.hpp"
 #include <jni.h>
 #include <string>
 #include <algorithm>
@@ -41,6 +42,18 @@ JNIEXPORT jboolean JNICALL Java_com_zamer_studio_Native_setPbr(JNIEnv*,jobject,j
     const zamer::Vec3 color={float((raw>>16)&255u)/255.f,float((raw>>8)&255u)/255.f,float(raw&255u)/255.f};
     return r->scene.setCustomMaterial(color,float(metal),float(rough))?JNI_TRUE:JNI_FALSE;
 }
+JNIEXPORT jbyteArray JNICALL Java_com_zamer_studio_Native_exportGlb(JNIEnv*env,jobject,jlong p){
+    if(!p)return env->NewByteArray(0);
+    auto buffer=zamer::exportGLB(engine(p)->scene);
+    if(buffer.empty()||buffer.size()>32u*1024u*1024u)return env->NewByteArray(0);
+    jbyteArray result=env->NewByteArray(jsize(buffer.size()));
+    if(result)env->SetByteArrayRegion(result,0,jsize(buffer.size()),reinterpret_cast<const jbyte*>(buffer.data()));
+    return result;
+}
+JNIEXPORT jboolean JNICALL Java_com_zamer_studio_Native_setPattern(JNIEnv*,jobject,jlong p,jint pattern,jfloat uvScale){
+    if(!p)return JNI_FALSE;
+    return engine(p)->scene.setPattern(int(pattern),float(uvScale))?JNI_TRUE:JNI_FALSE;
+}
 JNIEXPORT jboolean JNICALL Java_com_zamer_studio_Native_setSmooth(JNIEnv*,jobject,jlong p,jboolean smooth){
     return p&&engine(p)->scene.setSmoothShading(smooth==JNI_TRUE)?JNI_TRUE:JNI_FALSE;
 }
@@ -51,10 +64,10 @@ JNIEXPORT jstring JNICALL Java_com_zamer_studio_Native_materialState(JNIEnv*env,
     const auto&o=r.objects[size_t(r.selected)];
     auto c=[](float f)->unsigned{return unsigned(std::round(std::clamp(f,0.f,1.f)*255.f));};
     char buf[120];
-    std::snprintf(buf,sizeof(buf),"%02X%02X%02X|%.4f|%.4f|%d|%d",
+    std::snprintf(buf,sizeof(buf),"%02X%02X%02X|%.4f|%.4f|%d|%d|%d|%.4f",
        c(o.pbr.color.x),c(o.pbr.color.y),c(o.pbr.color.z),
        double(o.pbr.metallic),double(o.pbr.roughness),
-       int(o.smoothShading),int(o.customMaterial));
+       int(o.smoothShading),int(o.customMaterial),int(o.pattern),double(o.uvScale));
     return env->NewStringUTF(buf);
 }
 JNIEXPORT jboolean JNICALL Java_com_zamer_studio_Native_markBridgeFace(JNIEnv*,jobject,jlong p){return p&&engine(p)->markBridgeFace()?JNI_TRUE:JNI_FALSE;}

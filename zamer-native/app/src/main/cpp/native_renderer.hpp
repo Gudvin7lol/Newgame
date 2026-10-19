@@ -41,7 +41,7 @@ private:
  int elementMode=0;
  int bridgeFaceA=-1,bridgeObject=-1;
  bool dragCheckpointed=false;
- GLint mvpLoc=-1,modelLoc=-1,cameraLoc=-1,colorLoc=-1,metalLoc=-1,roughLoc=-1,selectLoc=-1,flatLoc=-1,markerLoc=-1;
+ GLint mvpLoc=-1,modelLoc=-1,cameraLoc=-1,colorLoc=-1,metalLoc=-1,roughLoc=-1,selectLoc=-1,flatLoc=-1,markerLoc=-1,patternLoc=-1,uvScaleLoc=-1;
  GLuint compile(GLenum kind,const char*src);
  void drawGrid(const std::array<float,16>&proj,const std::array<float,16>&view,Vec3 eye);
  void drawItem(Object&obj,int id,const std::array<float,16>&proj,const std::array<float,16>&view,Vec3 eye);

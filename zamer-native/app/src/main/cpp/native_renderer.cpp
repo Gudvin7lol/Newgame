@@ -43,12 +43,15 @@ const char* vShader=R"shader(#version 300 es
 precision highp float;
 layout(location=0) in vec3 aPos;
 layout(location=1) in vec3 aNormal;
+layout(location=2) in vec2 aUV;
 uniform mat4 mvp,model;
 uniform float markerSize;
 out vec3 nWorld,pWorld;
+out vec2 texUV;
 void main(){
  vec4 w=model*vec4(aPos,1.0);
  pWorld=w.xyz;
+ texUV=aUV;
  nWorld=normalize(transpose(inverse(mat3(model)))*aNormal);
  gl_Position=mvp*vec4(aPos,1.0);
  gl_PointSize=markerSize;
@@ -56,18 +59,42 @@ void main(){
 const char* fShader=R"shader(#version 300 es
 precision highp float;
 in vec3 nWorld,pWorld;
+in vec2 texUV;
 uniform vec3 eyePos,baseColor;
 uniform float metallic,roughness;
-uniform int isSelected,uFlatMode;
+uniform int isSelected,uFlatMode,patternMode;
+uniform float uvScale;
 out vec4 outColor;
 const float PI=3.14159265;
 void main(){
  if(uFlatMode==1){outColor=vec4(baseColor,1.0);return;}
  vec3 n=normalize(nWorld),v=normalize(eyePos-pWorld);
+ vec3 surfaceColor=baseColor;
+ float roughLocal=roughness;
+ vec2 uv=texUV*uvScale;
+ if(patternMode==1){
+    // Yarn warp/weft: subtle procedural textile, no imported image needed.
+    float warp=pow(0.5+0.5*cos(uv.x*100.0),4.0);
+    float weft=pow(0.5+0.5*cos(uv.y*100.0),4.0);
+    surfaceColor*=0.78+0.17*(warp+weft);
+    roughLocal=clamp(roughLocal+0.06*(warp+weft),0.04,1.0);
+ }else if(patternMode==2){
+    // Soft oak-like planar grain, generated from the per-corner UVs.
+    float grain=sin((uv.x+0.04*sin(uv.y*9.0))*52.0+sin(uv.y*2.7)*3.0);
+    float streak=0.5+0.5*grain;
+    surfaceColor*=vec3(0.73+0.25*streak,0.75+0.21*streak,0.79+0.15*streak);
+ }else if(patternMode==3){
+    float pores=sin(uv.x*87.0)*sin(uv.y*96.0);
+    surfaceColor*=0.91+0.065*pores;
+    roughLocal=clamp(roughLocal+0.045*pores,0.04,1.0);
+ }else if(patternMode==4){
+    float brushed=0.5+0.5*sin(uv.y*270.0);
+    surfaceColor*=0.96+0.04*brushed;
+ }
  vec3 l=normalize(vec3(-0.4,0.85,0.44)),h=normalize(v+l);
  float nl=max(dot(n,l),0.0),nv=max(dot(n,v),0.0);
- vec3 a=pow(baseColor,vec3(2.2)),f0=mix(vec3(0.04),a,metallic);
- float r=max(roughness,0.07),rr=r*r,rr2=rr*rr;
+ vec3 a=pow(clamp(surfaceColor,0.0,1.0),vec3(2.2)),f0=mix(vec3(0.04),a,metallic);
+ float r=max(roughLocal,0.07),rr=r*r,rr2=rr*rr;
  float nh=max(dot(n,h),0.0),den=nh*nh*(rr2-1.0)+1.0;
  float D=rr2/max(PI*den*den,0.00001);
  float k=pow(r+1.0,2.0)/8.0;
@@ -113,6 +140,8 @@ void Renderer::initGl(){
  metalLoc=glGetUniformLocation(program,"metallic");roughLoc=glGetUniformLocation(program,"roughness");
  selectLoc=glGetUniformLocation(program,"isSelected");flatLoc=glGetUniformLocation(program,"uFlatMode");
  markerLoc=glGetUniformLocation(program,"markerSize");
+ patternLoc=glGetUniformLocation(program,"patternMode");
+ uvScaleLoc=glGetUniformLocation(program,"uvScale");
  glGenBuffers(1,&gridBuffer);
  glGenBuffers(1,&faceBuffer);
  glGenBuffers(1,&gizmoBuffer);
@@ -161,14 +190,15 @@ void Renderer::drawItem(Object&o,int index,const M&p,const M&v,Vec3 eye){
  if(o.gpuBuffer==0){glGenBuffers(1,&o.gpuBuffer);o.dirty=true;}
  glBindBuffer(GL_ARRAY_BUFFER,o.gpuBuffer);
  if(o.dirty){
-  auto vertices=o.mesh.interleavedTriangles(o.smoothShading);
-  o.gpuVertices=int(vertices.size()/6);
+  auto vertices=o.mesh.interleavedTrianglesUV(o.smoothShading);
+  o.gpuVertices=int(vertices.size()/8);
   glBufferData(GL_ARRAY_BUFFER,GLsizeiptr(vertices.size()*sizeof(float)),vertices.data(),GL_DYNAMIC_DRAW);
   o.dirty=false;
  }
- glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,6*sizeof(float),nullptr);
- glVertexAttribPointer(1,3,GL_FLOAT,GL_FALSE,6*sizeof(float),reinterpret_cast<void*>(3*sizeof(float)));
- glEnableVertexAttribArray(0);glEnableVertexAttribArray(1);
+ glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,8*sizeof(float),nullptr);
+ glVertexAttribPointer(1,3,GL_FLOAT,GL_FALSE,8*sizeof(float),reinterpret_cast<void*>(3*sizeof(float)));
+ glVertexAttribPointer(2,2,GL_FLOAT,GL_FALSE,8*sizeof(float),reinterpret_cast<void*>(6*sizeof(float)));
+ glEnableVertexAttribArray(0);glEnableVertexAttribArray(1);glEnableVertexAttribArray(2);
  M model=objectMatrix(o),mvp=mul(p,mul(v,model));
  glUniformMatrix4fv(mvpLoc,1,GL_FALSE,mvp.data());glUniformMatrix4fv(modelLoc,1,GL_FALSE,model.data());
  glUniform3f(cameraLoc,eye.x,eye.y,eye.z);
@@ -176,7 +206,10 @@ void Renderer::drawItem(Object&o,int index,const M&p,const M&v,Vec3 eye){
  glUniform3f(colorLoc,m.color.x,m.color.y,m.color.z);
  glUniform1f(metalLoc,m.metallic);glUniform1f(roughLoc,m.roughness);
  glUniform1i(selectLoc,index==scene.selected?1:0);
+ glUniform1i(patternLoc,o.pattern);
+ glUniform1f(uvScaleLoc,o.uvScale);
  glDrawArrays(GL_TRIANGLES,0,o.gpuVertices);
+ glDisableVertexAttribArray(2);
 }
 int Renderer::pickAt(float x,float y,bool face){
     const float aspect=float(width)/float(std::max(1,height));
