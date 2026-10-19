@@ -20,8 +20,6 @@ import 'master_profile_screen.dart';
 import 'measure_unified_workspace_screen.dart';
 import 'measurement_review_screen.dart';
 import 'photo_studio_screen.dart';
-import 'plan_editor_screen.dart';
-import 'plan_geometry_tools_screen.dart';
 import 'projects_screen.dart';
 import 'rooms_screen.dart';
 import 'scan_plan_screen.dart';
@@ -50,6 +48,8 @@ class FloorWorkspaceScreen extends StatefulWidget {
 class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
   int _mode = 0;
   final _history = <String>[];
+  final ValueNotifier<MeasurePlanTool> _planToolRequest =
+      ValueNotifier<MeasurePlanTool>(MeasurePlanTool.overview);
   int _historyIndex = 0;
 
   @override
@@ -57,6 +57,12 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
     super.initState();
     _mode = widget.initialMode.clamp(0, 2).toInt();
     _history.add(jsonEncode(widget.floor.toJson()));
+  }
+
+  @override
+  void dispose() {
+    _planToolRequest.dispose();
+    super.dispose();
   }
 
   void _recordHistory() {
@@ -148,33 +154,16 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
     if (mounted) setState(() {});
   }
 
-  Future<void> _openGeometryTools({
-    PlanGeometryTool initialTool = PlanGeometryTool.radius,
-  }) async {
-    await Navigator.push<void>(
-      context,
-      MaterialPageRoute<void>(
-        builder: (_) => PlanGeometryToolsScreen(
-          floor: widget.floor,
-          onChanged: _changed,
-          initialTool: initialTool,
-        ),
-      ),
-    );
-    if (mounted) setState(() {});
-  }
-
-  Future<void> _openAdvancedEditor() async {
-    await Navigator.push<void>(
-      context,
-      MaterialPageRoute<void>(
-        builder: (_) => Scaffold(
-          appBar: AppBar(title: const Text('Расширенный редактор')),
-          body: PlanEditorScreen(floor: widget.floor, onChanged: _changed),
-        ),
-      ),
-    );
-    if (mounted) setState(() {});
+  void _openPlanTool(MeasurePlanTool tool) {
+    if (!mounted) return;
+    // The selected geometry operation is part of the same Measure screen.
+    // Even when the user is in the floor/materials subnav, take them straight
+    // to the plan toolbar without navigating to a second editor route.
+    if (_mode != 0) setState(() => _mode = 0);
+    if (_planToolRequest.value == tool) {
+      _planToolRequest.value = MeasurePlanTool.overview;
+    }
+    _planToolRequest.value = tool;
   }
 
   Future<void> _openPhoto() async {
@@ -388,20 +377,11 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
               ),
               ZActionTile(
                 icon: Icons.architecture_outlined,
-                title: 'Радиусы и узлы',
-                subtitle: 'Точная геометрия стен',
+                title: 'Инструменты плана',
+                subtitle: 'Стены, узлы, дуги, радиусы, проёмы, демонтаж и размеры',
                 onTap: () {
                   Navigator.pop(sheetContext);
-                  _openGeometryTools();
-                },
-              ),
-              ZActionTile(
-                icon: Icons.tune_rounded,
-                title: 'Расширенный редактор',
-                subtitle: 'Дополнительные операции геометрии',
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  _openAdvancedEditor();
+                  _openPlanTool(MeasurePlanTool.nodes);
                 },
               ),
               ZActionTile(
@@ -519,8 +499,11 @@ class _FloorWorkspaceScreenState extends State<FloorWorkspaceScreen> {
         onOpen3D: () => _selectPrimaryMode(1),
         onOpenPhoto: _openPhoto,
         onOpenReview: _openMeasurementReview,
-        onOpenGeometry: _openGeometryTools,
+        planToolRequest: _planToolRequest,
         onOpenFloors: _showFloorPicker,
+        onOpenRooms: _openRooms,
+        onScanPlan: _scanOrImport,
+        onExportPdf: () => ReportService.shareFloorPdf(widget.project, widget.floor),
         onHome: _goHome,
         onCatalog: _openCatalogFromMeasure,
         onProfile: _openProfile,
