@@ -60,5 +60,30 @@ int main(){
     cutting.objects[0].selectedEdgeA=0;cutting.objects[0].selectedEdgeB=1;
     assert(cutting.splitSelectedEdge());
     assert(cutting.objects[0].mesh.isClosed());
+
+    Mesh chamfer=Mesh::cube();
+    const int bevelFace=bevelConvexEdge(chamfer,0,1,0.055f);
+    assert(bevelFace>=0&&chamfer.isClosed()&&chamfer.valid());
+    assert(chamfer.faces.size()==7);
+    assert(chamfer.vertices.size()>=12);
+    const std::string beforeBadBevel=std::to_string(chamfer.faces.size());
+    assert(bevelConvexEdge(chamfer,0,1,-0.01f)==-1);
+    assert(std::to_string(chamfer.faces.size())==beforeBadBevel);
+    Mesh tunnel=Mesh::cube();
+    assert(bridgeOppositeQuads(tunnel,2,3,0.20f));
+    assert(tunnel.valid()&&tunnel.isClosed());
+    assert(tunnel.vertices.size()==16&&tunnel.faces.size()==16);
+    Mesh wrong=Mesh::cube();
+    assert(!bridgeOppositeQuads(wrong,0,2,0.2f));
+    assert(wrong.vertices.size()==8&&wrong.faces.size()==6);
+    Scene operation;operation.add(0);
+    operation.objects[0].selectedEdgeA=0;operation.objects[0].selectedEdgeB=1;
+    operation.checkpoint();
+    assert(operation.bevelSelectedEdge(0.025f));
+    assert(operation.objects[0].mesh.isClosed());
+    assert(operation.undo()&&operation.objects[0].mesh.faces.size()==6);
+    assert(operation.bridgeSelectedFaces(2,3));
+    assert(operation.objects[0].mesh.isClosed());
+    assert(operation.objects[0].mesh.valid());
     std::cout<<"MESH EDIT TESTS OK: shared edges, precision vertex/edge moves, undo\n";
 }

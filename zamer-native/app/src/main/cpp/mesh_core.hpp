@@ -69,6 +69,8 @@ public:
     bool moveComponent(int mode,int axis,float metres);
     bool splitSelectedEdge();
     bool loopCutSelectedEdge();
+    bool bevelSelectedEdge(float metres);
+    bool bridgeSelectedFaces(int faceA,int faceB);
     bool inset(float fraction);
     bool extrude(float metres);
     void subdivide();

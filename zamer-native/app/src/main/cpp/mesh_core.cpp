@@ -328,6 +328,45 @@ bool Scene::loopCutSelectedEdge(){
     obj.selectedFace=0;obj.dirty=true;
     return true;
 }
+bool Scene::bevelSelectedEdge(float metres){
+    if(selected<0||size_t(selected)>=objects.size()||!std::isfinite(metres))return false;
+    Object&o=objects[size_t(selected)];
+    if(o.selectedEdgeA<0||o.selectedEdgeB<0)return false;
+    Vec3 n{};
+    int count=0;
+    for(size_t i=0;i<o.mesh.faces.size();i++){
+        const auto&face=o.mesh.faces[i];
+        for(size_t k=0;k<face.size();k++){
+            int a=face[k],b=face[(k+1)%face.size()];
+            if((a==o.selectedEdgeA&&b==o.selectedEdgeB)||
+               (a==o.selectedEdgeB&&b==o.selectedEdgeA)){
+                n+=o.mesh.faceNormal(int(i));count++;break;
+            }
+        }
+    }
+    if(count!=2||n.length()<0.01f)return false;
+    n=n.normalized();
+    const float inverseScale=std::sqrt(
+        (n.x/o.scale.x)*(n.x/o.scale.x)+
+        (n.y/o.scale.y)*(n.y/o.scale.y)+
+        (n.z/o.scale.z)*(n.z/o.scale.z));
+    const int cap=bevelConvexEdge(o.mesh,o.selectedEdgeA,o.selectedEdgeB,metres*inverseScale);
+    if(cap<0)return false;
+    o.selectedFace=cap;
+    o.selectedEdgeA=-1;o.selectedEdgeB=-1;
+    o.selectedVertex=-1;
+    o.dirty=true;
+    return true;
+}
+bool Scene::bridgeSelectedFaces(int faceA,int faceB){
+    if(selected<0||size_t(selected)>=objects.size())return false;
+    Object&o=objects[size_t(selected)];
+    if(!bridgeOppositeQuads(o.mesh,faceA,faceB,0.24f))return false;
+    o.selectedFace=0;
+    o.selectedEdgeA=-1;o.selectedEdgeB=-1;o.selectedVertex=-1;
+    o.dirty=true;
+    return true;
+}
 void Scene::setMaterial(int id){
     if(selected<0||size_t(selected)>=objects.size())return;
     auto&o=objects[size_t(selected)];
