@@ -10,6 +10,7 @@ import '../services/material_catalog.dart';
 import '../services/object_catalog.dart';
 import '../services/plan_direct_interaction.dart';
 import '../services/orthogonal_wall_edit_service.dart';
+import '../services/plan_visibility_service.dart';
 import 'measure_plan_tool.dart';
 import '../services/space_check_service.dart';
 import '../widgets/cad_plan_painter.dart';
@@ -61,6 +62,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
 
   final TransformationController _transform = TransformationController();
   final Set<ProjectLayer> _visibleLayers = ProjectLayer.values.toSet();
+  final Set<PlanDisplayLayer> _visibleCategories = PlanDisplayLayer.values.toSet();
+  final Set<PlanCollisionKind> _collisionKinds = <PlanCollisionKind>{};
 
   ZMeasureTool _tool = ZMeasureTool.walls;
   String? _selectedWallId;
@@ -273,7 +276,10 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     PlanWall? result;
     var best = 34 / _scale;
     for (final wall in floor.walls) {
-      if (wall.isCurved) continue;
+      if (!_visibleCategories.contains(PlanDisplayLayer.walls) ||
+          !_visibleLayers.contains(
+            wall.demolition ? ProjectLayer.demolition : wall.projectLayer,
+          ) || wall.isCurved) continue;
       final a = floor.nodeById(wall.startNodeId);
       final b = floor.nodeById(wall.endNodeId);
       if (a == null || b == null) continue;
@@ -330,7 +336,15 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
 
   Iterable<Widget> _objectDragRegions() sync* {
     for (final object in floor.planObjects) {
-      if (!_visibleLayers.contains(object.layer)) continue;
+      if (!_visibleLayers.contains(object.layer) ||
+          !_visibleCategories.contains(switch (object.type) {
+            PlanObjectType.furniture => PlanDisplayLayer.furniture,
+            PlanObjectType.sanitary || PlanObjectType.waterPoint ||
+            PlanObjectType.drainPoint => PlanDisplayLayer.sanitary,
+            PlanObjectType.radiator => PlanDisplayLayer.engineering,
+            PlanObjectType.lighting => PlanDisplayLayer.electrical,
+            _ => PlanDisplayLayer.structures,
+          })) continue;
       final catalog = ObjectCatalog.byId(object.catalogId);
       final mount = catalog.id == object.catalogId
           ? catalog.mount
@@ -966,45 +980,231 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     await _changed();
   }
 
+  /// Visibility is view state only: toggling a category never mutates a
+  /// PlanWall, PlanObject, ElectricalPoint or saved project material.
   Future<void> _layersSheet() async {
-    final draft = Set<ProjectLayer>.of(_visibleLayers);
+    final draftConstruction = Set<ProjectLayer>.of(_visibleLayers);
+    final draftCategories = Set<PlanDisplayLayer>.of(_visibleCategories);
+    final draftCollisions = Set<PlanCollisionKind>.of(_collisionKinds);
+    final marks = PlanCollisionService.inspect(floor);
+    if (!mounted) return;
+
     await showModalBottomSheet<void>(
       context: context,
       backgroundColor: ZamerColors.surface,
+      isScrollControlled: true,
       showDragHandle: true,
       builder: (sheetContext) => StatefulBuilder(
-        builder: (context, setSheet) => SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                for (final layer in ProjectLayer.values)
-                  CheckboxListTile(
-                    value: draft.contains(layer),
-                    title: Text(layer.label),
-                    onChanged: (value) => setSheet(() {
-                      if (value == true) {
-                        draft.add(layer);
-                      } else if (draft.length > 1) {
-                        draft.remove(layer);
-                      }
-                    }),
+        builder: (context, setSheet) {
+          void toggle<T>(Set<T> target, T value, bool enabled) {
+            setSheet(() {
+              if (enabled) {
+                target.add(value);
+              } else {
+                target.remove(value);
+              }
+            });
+          }
+          return SafeArea(
+            child: SizedBox(
+              height: MediaQuery.sizeOf(context).height * .77,
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(children: [
+                      const Icon(Icons.layers_outlined, size: 20),
+                      const SizedBox(width: 10),
+                      const Expanded(
+                        child: Text('Слои и коллизии',
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      ),
+                      TextButton(
+                        onPressed: () => setSheet(() {
+                          draftConstruction
+                            ..clear()
+                            ..addAll(ProjectLayer.values);
+                          draftCategories
+                            ..clear()
+                            ..addAll(PlanDisplayLayer.values);
+                          draftCollisions.clear();
+                        }),
+                        child: const Text('Сброс'),
+                      ),
+                    ]),
                   ),
-                FilledButton(
-                  onPressed: () {
-                    setState(() {
-                      _visibleLayers
-                        ..clear()
-                        ..addAll(draft);
-                    });
-                    Navigator.pop(sheetContext);
-                  },
-                  child: const Text('Готово'),
-                ),
-              ],
+                  Expanded(
+                    child: ListView(
+                      key: const ValueKey('plan-layers-list'),
+                      children: [
+                        const ListTile(
+                          dense: true,
+                          title: Text('Строительные слои',
+                            style: TextStyle(fontWeight: FontWeight.w700)),
+                          subtitle: Text('Существующее, демонтаж и новая планировка'),
+                        ),
+                        for (final layer in ProjectLayer.values)
+                          SwitchListTile.adaptive(
+                            dense: true,
+                            title: Text(layer.label),
+                            value: draftConstruction.contains(layer),
+                            onChanged: (enabled) =>
+                              toggle(draftConstruction, layer, enabled),
+                          ),
+                        const Divider(height: 16),
+                        const ListTile(
+                          dense: true,
+                          title: Text('Элементы плана',
+                            style: TextStyle(fontWeight: FontWeight.w700)),
+                          subtitle: Text('Скрытые объекты не удаляются из проекта'),
+                        ),
+                        for (final layer in PlanDisplayLayer.values)
+                          SwitchListTile.adaptive(
+                            dense: true,
+                            key: ValueKey('layer-${layer.name}'),
+                            title: Text(layer.label),
+                            value: draftCategories.contains(layer),
+                            onChanged: (enabled) =>
+                              toggle(draftCategories, layer, enabled),
+                          ),
+                        const Divider(height: 16),
+                        ListTile(
+                          dense: true,
+                          title: const Text('Контроль коллизий',
+                            style: TextStyle(fontWeight: FontWeight.w700)),
+                          subtitle: Text(
+                            '${marks.length} обнаружено · цветные метки на плане',
+                          ),
+                        ),
+                        for (final kind in PlanCollisionKind.values)
+                          SwitchListTile.adaptive(
+                            dense: true,
+                            key: ValueKey('collision-${kind.name}'),
+                            title: Text(kind.label),
+                            subtitle: Text(
+                              '${marks.where((issue) => issue.kind == kind).length} конфликтов',
+                            ),
+                            value: draftCollisions.contains(kind),
+                            onChanged: (enabled) =>
+                              toggle(draftCollisions, kind, enabled),
+                          ),
+                        const Padding(
+                          padding: EdgeInsets.fromLTRB(16, 8, 16, 12),
+                          child: Text(
+                            'Сейчас проверяются 2D-пересечения стен и объектов, '
+                            'а также свободный проход у двери. '
+                            'Коллизии кабелей и труб с конструкциями '
+                            'пока не рассчитываются.',
+                            style: TextStyle(fontSize: 11,
+                              color: ZamerColors.textSecondary),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: marks.isEmpty ? null : () {
+                              Navigator.pop(sheetContext);
+                              _collisionReport(marks);
+                            },
+                            icon: const Icon(Icons.fact_check_outlined, size: 18),
+                            label: Text('Ошибки (${marks.length})'),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: FilledButton(
+                            onPressed: () {
+                              setState(() {
+                                _visibleLayers
+                                  ..clear()
+                                  ..addAll(draftConstruction);
+                                _visibleCategories
+                                  ..clear()
+                                  ..addAll(draftCategories);
+                                _collisionKinds
+                                  ..clear()
+                                  ..addAll(draftCollisions);
+                                // Hidden walls/objects cannot remain selected.
+                                if (!_visibleCategories.contains(
+                                  PlanDisplayLayer.walls,
+                                )) _selectedWallId = null;
+                              });
+                              Navigator.pop(sheetContext);
+                            },
+                            child: const Text('Применить'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
+          );
+        },
+      ),
+    );
+  }
+
+  void _focusCollision(math.Point<double> position) {
+    if (_viewport.isEmpty) return;
+    final scale = math.max(1.0, _transform.value.getMaxScaleOnAxis())
+        .clamp(.28, 6.0);
+    final point = _origin +
+        Offset(position.x * _mmToPx, position.y * _mmToPx);
+    final center = Offset(_viewport.width / 2, _viewport.height / 2);
+    _transform.value = Matrix4.identity()
+      ..translate(center.dx - point.dx * scale, center.dy - point.dy * scale)
+      ..scale(scale);
+    setState(() {});
+  }
+
+  Future<void> _collisionReport(List<PlanCollisionMark> marks) async {
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: ZamerColors.surface,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (reportContext) => SafeArea(
+        child: SizedBox(
+          height: MediaQuery.sizeOf(reportContext).height * .62,
+          child: Column(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.fact_check_outlined),
+                title: Text('Коллизии: ${marks.length}'),
+                subtitle: const Text('Нажмите на ошибку, чтобы найти её на плане'),
+              ),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: marks.length,
+                  itemBuilder: (context, index) {
+                    final mark = marks[index];
+                    return ListTile(
+                      leading: Icon(Icons.warning_amber_rounded,
+                        color: mark.kind == PlanCollisionKind.doorClearance
+                          ? const Color(0xFFF6B35B)
+                          : const Color(0xFFEF5350)),
+                      title: Text(mark.kind.label),
+                      subtitle: Text(mark.description),
+                      trailing: const Icon(Icons.my_location_outlined),
+                      onTap: () {
+                        Navigator.pop(reportContext);
+                        setState(() => _collisionKinds.add(mark.kind));
+                        _focusCollision(mark.position);
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -1271,6 +1471,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                             selectedWallId: _selectedWallId,
                             showGrid: _grid,
                             visibleLayers: _visibleLayers,
+                            visibleCategories: _visibleCategories,
+                            collisionKinds: _collisionKinds,
                           ),
                         ),
                       ),
@@ -1288,6 +1490,15 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    ZMeasureCanvasAction(
+                      key: const ValueKey('plan-layers-button'),
+                      icon: Icons.layers_outlined,
+                      tooltip: 'Слои и коллизии',
+                      active: _collisionKinds.isNotEmpty ||
+                        _visibleCategories.length != PlanDisplayLayer.values.length,
+                      onPressed: _layersSheet,
+                    ),
+                    const SizedBox(width: 5),
                     ZMeasureCanvasAction(
                       icon: _grid ? Icons.grid_on_outlined : Icons.grid_off_outlined,
                       tooltip: 'Сетка',

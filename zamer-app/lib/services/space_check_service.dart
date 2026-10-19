@@ -2,10 +2,18 @@ import 'dart:math' as math;
 
 import '../models/models.dart';
 
+enum SpaceIssueKind { objectWall, objectObject, doorClearance }
+
 class SpaceIssue {
-  const SpaceIssue(this.description, {this.objectIds = const []});
+  const SpaceIssue(this.description, {
+    this.objectIds = const [],
+    this.kind = SpaceIssueKind.objectObject,
+    this.position,
+  });
   final String description;
   final List<String> objectIds;
+  final SpaceIssueKind kind;
+  final math.Point<double>? position;
 }
 
 class SpaceCheckService {
@@ -115,6 +123,8 @@ class SpaceCheckService {
           SpaceIssue(
             '${_name(object)} пересекает стену',
             objectIds: [object.id],
+            kind: SpaceIssueKind.objectWall,
+            position: math.Point<double>(object.xMm, object.yMm),
           ),
         );
     }
@@ -133,6 +143,8 @@ class SpaceCheckService {
             SpaceIssue(
               'Пересечение: ${_name(a)} и ${_name(b)}',
               objectIds: [a.id, b.id],
+              kind: SpaceIssueKind.objectObject,
+              position: math.Point<double>((a.xMm + b.xMm) / 2, (a.yMm + b.yMm) / 2),
             ),
           );
         }
@@ -175,6 +187,8 @@ class SpaceCheckService {
               SpaceIssue(
                 'Проход у двери перекрывает ${_name(object)}',
                 objectIds: [object.id],
+                kind: SpaceIssueKind.doorClearance,
+                position: math.Point<double>(from.xMm + dx * t, from.yMm + dy * t),
               ),
             );
           }
