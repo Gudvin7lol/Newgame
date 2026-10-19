@@ -13,9 +13,9 @@ int splitEdge(Mesh& mesh,int a,int b,float fraction=0.5f);
 // Inserts a complete closed edge loop through adjacent quad faces.
 // Does not mutate on failure or in non-quad regions. Returns seed midpoint ID.
 int loopCut(Mesh& mesh,int a,int b);
-// One-segment convex bevel by clipping the selected extremal edge with a plane.
+// Convex edge bevel with 1-8 cross-section segments. Only isolated extremal edges are supported.
 // Returns new chamfer polygon index, -1 if mesh/edge/width unsuitable.
-int bevelConvexEdge(Mesh& mesh,int a,int b,float width);
+int bevelConvexEdge(Mesh& mesh,int a,int b,float width,int segments=1);
 // Bridge two disjoint, nearly opposite quad faces through inset inner rings.
 bool bridgeOppositeQuads(Mesh& mesh,int faceA,int faceB,float insetFraction=0.2f);
 }

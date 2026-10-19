@@ -69,6 +69,19 @@ int main(){
     const std::string beforeBadBevel=std::to_string(chamfer.faces.size());
     assert(bevelConvexEdge(chamfer,0,1,-0.01f)==-1);
     assert(std::to_string(chamfer.faces.size())==beforeBadBevel);
+    for(int segments=2;segments<=8;segments++){
+        Mesh smooth=Mesh::cube();
+        const int newFace=bevelConvexEdge(smooth,0,1,0.06f,segments);
+        assert(newFace>=0);
+        assert(smooth.isClosed()&&smooth.valid());
+        assert(smooth.faces.size()==size_t(6+segments));
+        assert(smooth.vertices.size()==size_t(12+2*(segments-1)));
+    }
+    Mesh badSegment=Mesh::cube();
+    const auto beforeBad=badSegment.faces;
+    assert(bevelConvexEdge(badSegment,0,1,0.06f,0)==-1);
+    assert(bevelConvexEdge(badSegment,0,1,0.06f,9)==-1);
+    assert(badSegment.faces==beforeBad);
     Mesh tunnel=Mesh::cube();
     assert(bridgeOppositeQuads(tunnel,2,3,0.20f));
     assert(tunnel.valid()&&tunnel.isClosed());

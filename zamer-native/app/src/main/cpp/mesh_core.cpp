@@ -234,6 +234,22 @@ void Scene::add(int type){
     objects.push_back(std::move(o));
     selected=int(objects.size())-1;
 }
+bool Scene::duplicateSelected(){
+    if(selected<0||size_t(selected)>=objects.size()||objects.size()>=64)return false;
+    Object copy=objects[size_t(selected)];
+    copy.gpuBuffer=0;copy.gpuVertices=0;copy.dirty=true;
+    copy.position.x+=0.20f;
+    copy.position.z+=0.20f;
+    objects.push_back(std::move(copy));
+    selected=int(objects.size())-1;
+    return true;
+}
+bool Scene::deleteSelected(){
+    if(selected<0||size_t(selected)>=objects.size())return false;
+    objects.erase(objects.begin()+selected);
+    selected=objects.empty()?-1:std::min(selected,int(objects.size())-1);
+    return true;
+}
 void Scene::selectNext(){
     if(objects.empty()){selected=-1;return;}
     selected=(selected+1)%int(objects.size());
@@ -328,7 +344,7 @@ bool Scene::loopCutSelectedEdge(){
     obj.selectedFace=0;obj.dirty=true;
     return true;
 }
-bool Scene::bevelSelectedEdge(float metres){
+bool Scene::bevelSelectedEdge(float metres,int segments){
     if(selected<0||size_t(selected)>=objects.size()||!std::isfinite(metres))return false;
     Object&o=objects[size_t(selected)];
     if(o.selectedEdgeA<0||o.selectedEdgeB<0)return false;
@@ -350,7 +366,7 @@ bool Scene::bevelSelectedEdge(float metres){
         (n.x/o.scale.x)*(n.x/o.scale.x)+
         (n.y/o.scale.y)*(n.y/o.scale.y)+
         (n.z/o.scale.z)*(n.z/o.scale.z));
-    const int cap=bevelConvexEdge(o.mesh,o.selectedEdgeA,o.selectedEdgeB,metres*inverseScale);
+    const int cap=bevelConvexEdge(o.mesh,o.selectedEdgeA,o.selectedEdgeB,metres*inverseScale,segments);
     if(cap<0)return false;
     o.selectedFace=cap;
     o.selectedEdgeA=-1;o.selectedEdgeB=-1;

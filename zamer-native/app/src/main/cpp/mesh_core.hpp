@@ -63,13 +63,15 @@ public:
     bool redo();
     Scene();
     void add(int type);
+    bool duplicateSelected();
+    bool deleteSelected();
     void selectNext();
     void move(float x,float z);
     bool transform(int mode,int axis,float amount);
     bool moveComponent(int mode,int axis,float metres);
     bool splitSelectedEdge();
     bool loopCutSelectedEdge();
-    bool bevelSelectedEdge(float metres);
+    bool bevelSelectedEdge(float metres,int segments=1);
     bool bridgeSelectedFaces(int faceA,int faceB);
     bool inset(float fraction);
     bool extrude(float metres);

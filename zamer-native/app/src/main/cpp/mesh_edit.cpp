@@ -131,9 +131,9 @@ int loopCut(Mesh& mesh,int a,int b){
 }
 
 
-int bevelConvexEdge(Mesh&mesh,int a,int b,float width){
+int bevelConvexEdge(Mesh&mesh,int a,int b,float width,int segments){
     if(!mesh.valid()||!mesh.isClosed()||!edgeExists(mesh,a,b)||
-       !std::isfinite(width)||width<=0.00001f||width>0.4f||
+       !std::isfinite(width)||width<=0.00001f||width>0.4f||segments<1||segments>8||
        mesh.vertices.size()>190000||mesh.faces.size()>190000)return -1;
     std::vector<int> adjacent;
     for(size_t i=0;i<mesh.faces.size();++i){
@@ -197,7 +197,45 @@ int bevelConvexEdge(Mesh&mesh,int a,int b,float width){
         return std::atan2(dot(pl,v),dot(pl,u))<std::atan2(dot(pr,v),dot(pr,u));
     });
     const int capIndex=int(clipped.size());
-    clipped.push_back(cutVertices);
+    if(segments==1){
+        clipped.push_back(cutVertices);
+    }else{
+        // A rounded convex edge is a strip replacing the chamfer's planar
+        // quadrilateral. Its boundary uses the same shared vertices as the
+        // adjacent clipped faces so no cracks are introduced.
+        if(cutVertices.size()!=4 || out.vertices.size()+size_t(2*(segments-1))>=200000)return -1;
+        const Vec3 edgeDir=(mesh.vertices[size_t(b)]-mesh.vertices[size_t(a)]).normalized();
+        int first=-1;
+        float bestParallel=0.96f;
+        for(int i=0;i<4;i++){
+            Vec3 d=out.vertices[size_t(cutVertices[size_t((i+1)%4)])]-
+                   out.vertices[size_t(cutVertices[size_t(i)])];
+            float parallel=std::fabs(dot(d.normalized(),edgeDir));
+            if(parallel>bestParallel){bestParallel=parallel;first=i;}
+        }
+        if(first<0)return -1;
+        const int v0=cutVertices[size_t(first)];
+        const int v1=cutVertices[size_t((first+1)%4)];
+        const int v2=cutVertices[size_t((first+2)%4)];
+        const int v3=cutVertices[size_t((first+3)%4)];
+        int prevLeft=v0,prevRight=v1;
+        constexpr float kPi=3.14159265358979323846f;
+        for(int step=1;step<=segments;step++){
+            int nextLeft=v3,nextRight=v2;
+            if(step<segments){
+                const float t=float(step)/float(segments);
+                // Chord-to-arc approximation at a right-angle bevel. The
+                // chamfer boundary is preserved; extra vertices form the arc.
+                const Vec3 offset=n*(width*0.41421356f*std::sin(kPi*t));
+                nextLeft=int(out.vertices.size());
+                out.vertices.push_back(out.vertices[size_t(v0)]*(1.f-t)+out.vertices[size_t(v3)]*t+offset);
+                nextRight=int(out.vertices.size());
+                out.vertices.push_back(out.vertices[size_t(v1)]*(1.f-t)+out.vertices[size_t(v2)]*t+offset);
+            }
+            clipped.push_back({prevLeft,prevRight,nextRight,nextLeft});
+            prevLeft=nextLeft;prevRight=nextRight;
+        }
+    }
     out.faces=std::move(clipped);
     if(!out.valid()||!out.isClosed())return -1;
     mesh=std::move(out);

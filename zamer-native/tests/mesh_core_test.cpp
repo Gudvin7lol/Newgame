@@ -46,6 +46,16 @@ int main(){
     assert(scene.undo());
     assert(scene.redo());
     scene.add(2);
+    scene.checkpoint();
+    assert(scene.duplicateSelected());
+    assert(scene.objects.size()==4);
+    assert(scene.objects[3].gpuBuffer==0 && scene.objects[3].dirty);
+    assert(scene.undo() && scene.objects.size()==3);
+    assert(scene.redo() && scene.objects.size()==4);
+    scene.checkpoint();
+    assert(scene.deleteSelected() && scene.objects.size()==3);
+    assert(scene.undo() && scene.objects.size()==4);
+    assert(scene.deleteSelected() && scene.objects.size()==3);
     const std::string saved=scene.serialize();
     Scene restore;
     assert(restore.restore(saved));
