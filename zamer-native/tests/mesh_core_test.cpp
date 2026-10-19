@@ -133,13 +133,8 @@ int main(){
     assert(backward.objects[0].customMaterial);
     std::string oldV3=mat.serialize();
     oldV3.replace(0,std::string("ZAMER_NATIVE_MESH_4").size(),"ZAMER_NATIVE_MESH_3");
-    const auto patLineStart=oldV3.find('
-',oldV3.find('
-',oldV3.find('
-',oldV3.find('
-')+1)+1)+1)+1;
-    const auto patLineEnd=oldV3.find('
-',patLineStart);
+    const auto patLineStart=oldV3.find('\n',oldV3.find('\n',oldV3.find('\n',oldV3.find('\n')+1)+1)+1)+1;
+    const auto patLineEnd=oldV3.find('\n',patLineStart);
     assert(patLineEnd!=std::string::npos);
     std::string patternLine=oldV3.substr(patLineStart,patLineEnd-patLineStart);
     auto secondSpace=patternLine.find(' ',patternLine.find(' ')+1);
