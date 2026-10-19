@@ -7,6 +7,7 @@ import '../models/models.dart';
 import '../services/geometry_service.dart';
 import '../services/herringbone_layout.dart';
 import '../services/material_catalog.dart';
+import '../services/plan_visibility_service.dart';
 import 'top_view_object_renderer.dart';
 
 /// UI KIT 02 CAD renderer for +78.
@@ -34,7 +35,11 @@ class CadPlanPainterV2 extends CustomPainter {
     this.showDimensions = true,
     this.drawTopView,
     Set<ProjectLayer>? visibleLayers,
-  }) : visibleLayers = visibleLayers ?? ProjectLayer.values.toSet();
+    Set<PlanDisplayLayer>? visibleCategories,
+    Set<PlanCollisionKind>? collisionKinds,
+  }) : visibleLayers = visibleLayers ?? ProjectLayer.values.toSet(),
+       visibleCategories = visibleCategories ?? PlanDisplayLayer.values.toSet(),
+       collisionKinds = collisionKinds ?? <PlanCollisionKind>{};
 
   final FloorPlan floor;
   final double mmToPx;
@@ -44,6 +49,8 @@ class CadPlanPainterV2 extends CustomPainter {
   final bool showDimensions;
   final ObjectTopViewPainter? drawTopView;
   final Set<ProjectLayer> visibleLayers;
+  final Set<PlanDisplayLayer> visibleCategories;
+  final Set<PlanCollisionKind> collisionKinds;
 
   Offset _p(PlanNode n) => origin + Offset(n.xMm * mmToPx, n.yMm * mmToPx);
   Offset _q(math.Point<double> p) => origin + Offset(p.x * mmToPx, p.y * mmToPx);
@@ -52,11 +59,25 @@ class CadPlanPainterV2 extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     _background(canvas, size);
     final faces = GeometryService.roomFaces(floor);
-    _rooms(canvas, faces);
-    _walls(canvas);
+    if (visibleCategories.contains(PlanDisplayLayer.floorFinishes)) {
+      _rooms(canvas, faces);
+    }
+    if (visibleCategories.contains(PlanDisplayLayer.walls)) _walls(canvas);
     _objects(canvas);
-    _roomLabels(canvas, faces);
-    if (showDimensions) _outerDimensions(canvas);
+    if (visibleCategories.contains(PlanDisplayLayer.engineering)) {
+      _services(canvas);
+    }
+    if (visibleCategories.contains(PlanDisplayLayer.electrical)) {
+      _electrical(canvas);
+    }
+    if (visibleCategories.contains(PlanDisplayLayer.roomLabels)) {
+      _roomLabels(canvas, faces);
+    }
+    if (showDimensions &&
+        visibleCategories.contains(PlanDisplayLayer.dimensions)) {
+      _outerDimensions(canvas);
+    }
+    if (collisionKinds.isNotEmpty) _collisionOverlay(canvas);
   }
 
   void _background(Canvas canvas, Size size) {
@@ -424,7 +445,9 @@ class CadPlanPainterV2 extends CustomPainter {
           ..strokeWidth = width
           ..strokeCap = StrokeCap.square,
       );
-      _openings(canvas, wall, pa, pb, width);
+      if (visibleCategories.contains(PlanDisplayLayer.openings)) {
+        _openings(canvas, wall, pa, pb, width);
+      }
     }
   }
 
@@ -506,7 +529,17 @@ class CadPlanPainterV2 extends CustomPainter {
 
   void _objects(Canvas canvas) {
     for (final object in floor.planObjects) {
-      if (!visibleLayers.contains(object.layer) || object.elevationMm > 2300) {
+      final category = switch (object.type) {
+        PlanObjectType.furniture => PlanDisplayLayer.furniture,
+        PlanObjectType.sanitary ||
+        PlanObjectType.waterPoint ||
+        PlanObjectType.drainPoint => PlanDisplayLayer.sanitary,
+        PlanObjectType.radiator => PlanDisplayLayer.engineering,
+        PlanObjectType.lighting => PlanDisplayLayer.electrical,
+        _ => PlanDisplayLayer.structures,
+      };
+      if (!visibleCategories.contains(category) ||
+          !visibleLayers.contains(object.layer) || object.elevationMm > 2300) {
         continue;
       }
       final center = origin + Offset(object.xMm * mmToPx, object.yMm * mmToPx);
@@ -521,6 +554,85 @@ class CadPlanPainterV2 extends CustomPainter {
         center: center,
         mmToPx: mmToPx,
       );
+    }
+  }
+
+  // Draw simple, coordinate-accurate 2D schematic overlays for engineering.
+  // They use the same floor coordinates as the production plan and do not
+  // change or persist anything in the project.
+  void _electrical(Canvas canvas) {
+    final pointById = <String, ElectricalPoint>{
+      for (final point in floor.electricalPoints) point.id: point,
+    };
+    final line = Paint()
+      ..color = const Color(0xFFEDBD70).withValues(alpha: .8)
+      ..strokeWidth = 1.5;
+    for (final run in floor.electricalRuns) {
+      final a = pointById[run.startPointId];
+      final b = pointById[run.endPointId];
+      if (a == null || b == null) continue;
+      canvas.drawLine(
+        _q(math.Point<double>(a.xMm, a.yMm)),
+        _q(math.Point<double>(b.xMm, b.yMm)),
+        line,
+      );
+    }
+    for (final point in floor.electricalPoints) {
+      final center = _q(math.Point<double>(point.xMm, point.yMm));
+      canvas.drawCircle(center, 5, Paint()..color = const Color(0xFF0B2227));
+      canvas.drawCircle(center, 4, Paint()
+        ..color = const Color(0xFFEDBD70)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.8);
+    }
+  }
+
+  void _services(Canvas canvas) {
+    final colors = <ServiceRunType, Color>{
+      ServiceRunType.coldWater: const Color(0xFF39A7F7),
+      ServiceRunType.hotWater: const Color(0xFFF56860),
+      ServiceRunType.drain: const Color(0xFFB9BCC3),
+      ServiceRunType.heating: const Color(0xFFF8AB59),
+    };
+    for (final run in floor.serviceRuns) {
+      if (run.points.length < 2) continue;
+      final path = Path();
+      final first = run.points.first;
+      final start = _q(math.Point<double>(first.xMm, first.yMm));
+      path.moveTo(start.dx, start.dy);
+      for (final vertex in run.points.skip(1)) {
+        final p = _q(math.Point<double>(vertex.xMm, vertex.yMm));
+        path.lineTo(p.dx, p.dy);
+      }
+      canvas.drawPath(path, Paint()
+        ..color = colors[run.type] ?? const Color(0xFFB9BCC3)
+        ..strokeWidth = 2
+        ..style = PaintingStyle.stroke
+        ..strokeJoin = StrokeJoin.round);
+    }
+  }
+
+  void _collisionOverlay(Canvas canvas) {
+    for (final issue in PlanCollisionService.inspect(floor)) {
+      if (!collisionKinds.contains(issue.kind)) continue;
+      final center = _q(issue.position);
+      final paint = Paint()
+        ..color = issue.kind == PlanCollisionKind.doorClearance
+            ? const Color(0xFFF6B35B)
+            : const Color(0xFFEF5350);
+      canvas.drawCircle(center, 9, Paint()
+        ..color = const Color(0xFF0C1B20).withValues(alpha: .95));
+      canvas.drawCircle(center, 7.5, paint);
+      final text = TextPainter(
+        text: const TextSpan(
+          text: '!',
+          style: TextStyle(
+            color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      text.paint(canvas, center - Offset(text.width / 2, text.height / 2));
     }
   }
 
@@ -627,5 +739,7 @@ class CadPlanPainterV2 extends CustomPainter {
       oldDelegate.selectedWallId != selectedWallId ||
       oldDelegate.showGrid != showGrid ||
       oldDelegate.showDimensions != showDimensions ||
-      oldDelegate.visibleLayers != visibleLayers;
+      oldDelegate.visibleLayers != visibleLayers ||
+      oldDelegate.visibleCategories != visibleCategories ||
+      oldDelegate.collisionKinds != collisionKinds;
 }
