@@ -44,6 +44,9 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('layer-furniture')));
     await tester.pump();
+    await tester.ensureVisible(find.byKey(
+        const ValueKey('collisions-toggle')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('collisions-toggle')));
     await tester.pump();
     await tester.ensureVisible(find.text('Применить'));
