@@ -6,6 +6,7 @@ plugins {
 android {
     namespace = "com.zamer.studio"
     compileSdk = 35
+    ndkVersion = "27.2.12479018"
 
     defaultConfig {
         applicationId = "com.zamer.studio.native"
