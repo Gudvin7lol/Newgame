@@ -9,6 +9,8 @@ import '../services/geometry_service.dart';
 import '../services/material_catalog.dart';
 import '../services/object_catalog.dart';
 import '../services/plan_direct_interaction.dart';
+import '../services/orthogonal_wall_edit_service.dart';
+import 'measure_plan_tool.dart';
 import '../services/space_check_service.dart';
 import '../widgets/cad_plan_painter.dart';
 
@@ -19,6 +21,7 @@ class PlanEditorMasterV4Screen extends StatefulWidget {
     super.key,
     required this.floor,
     required this.onChanged,
+    this.planTool = MeasurePlanTool.overview,
     required this.onOpenObjects,
     required this.onOpenReview,
     required this.onOpenGeometry,
@@ -34,6 +37,7 @@ class PlanEditorMasterV4Screen extends StatefulWidget {
 
   final FloorPlan floor;
   final Future<void> Function() onChanged;
+  final MeasurePlanTool planTool;
   final VoidCallback onOpenObjects;
   final VoidCallback onOpenReview;
   final VoidCallback onOpenGeometry;
@@ -60,13 +64,20 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
 
   ZMeasureTool _tool = ZMeasureTool.walls;
   String? _selectedWallId;
+  String? _selectedNodeId;
+  String? _dragNodeId;
+  NodeSnapResult? _dragSnap;
+  math.Point<double> _fingerNodeOffsetMm = const math.Point(0, 0);
+  bool _nodeDragChanged = false;
+  int _angleSnapDegrees = 90;
+  ProjectLayer _drawingLayer = ProjectLayer.existing;
   String? _selectedRoomFaceKey;
   String? _wallStartNodeId;
   String? _dimensionStartNodeId;
   String? _dragObjectId;
   bool _dragObjectDirty = false;
   bool _layoutDragDirty = false;
-  bool _materialsExpanded = true;
+  bool _materialsExpanded = false;
   String _materialCategory = 'Пол';
   bool _materialPickMode = true;
   bool _grid = true;
@@ -110,7 +121,25 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   void initState() {
     super.initState();
     GeometryService.syncRoomMetadata(floor);
-    if (floor.walls.isNotEmpty) _selectedWallId = floor.walls.first.id;
+    _materialPickMode = widget.planTool == MeasurePlanTool.overview;
+  }
+
+  @override
+  void didUpdateWidget(covariant PlanEditorMasterV4Screen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.planTool != widget.planTool) {
+      // Switching tools must not continue an unfinished wall/arc, dimension,
+      // or vertex drag on the same shared canvas.
+      _wallStartNodeId = null;
+      _dimensionStartNodeId = null;
+      _dragNodeId = null;
+      _dragSnap = null;
+      _nodeDragChanged = false;
+      _selectedNodeId = null;
+      _selectedWallId = null;
+      _materialPickMode = widget.planTool == MeasurePlanTool.overview;
+      _materialsExpanded = false;
+    }
   }
 
   @override
@@ -455,6 +484,38 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
 
   Future<void> _tapCanvas(TapUpDetails details) async {
     final p = details.localPosition;
+    // Direct interaction on the same production CAD viewport. A tool change
+    // never navigates to an alternate floor-plan canvas.
+    if (widget.planTool != MeasurePlanTool.overview) {
+      switch (widget.planTool) {
+        case MeasurePlanTool.select:
+          setState(() {
+            _selectedWallId = _wallNear(p)?.id;
+            _selectedNodeId = _nodeNear(p)?.id;
+          });
+        case MeasurePlanTool.nodes:
+          setState(() {
+            _selectedNodeId = _nodeNear(p)?.id;
+            _selectedWallId = null;
+          });
+        case MeasurePlanTool.exterior:
+          await _createWall(p, type: WallType.exterior);
+        case MeasurePlanTool.partition:
+          await _createWall(p, type: WallType.partition);
+        case MeasurePlanTool.arc:
+        case MeasurePlanTool.precision:
+          await _createArc(p);
+        case MeasurePlanTool.openings:
+          await _addOpening(p, chooseType: true);
+        case MeasurePlanTool.demolition:
+          await _toggleDemolition(p);
+        case MeasurePlanTool.dimensions:
+          await _addDimension(p);
+        case MeasurePlanTool.overview:
+          break;
+      }
+      return;
+    }
     if (_materialPickMode) {
       final face = _roomAt(p);
       setState(() {
@@ -493,9 +554,39 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     }
   }
 
-  Future<void> _createWall(Offset p) async {
+  math.Point<double> _snapDrawTarget(
+    PlanNode start,
+    math.Point<double> raw,
+  ) {
+    if (!_snapping) return raw;
+    final captured = GeometryService.nearestNode(
+      floor, raw, thresholdMm: 14 / (_mmToPx * _scale),
+    );
+    if (captured != null && captured.id != start.id) {
+      return math.Point<double>(captured.xMm, captured.yMm);
+    }
+    final dx = raw.x - start.xMm;
+    final dy = raw.y - start.yMm;
+    final length = math.sqrt(dx * dx + dy * dy);
+    if (length <= 0) return raw;
+    var candidate = raw;
+    if (_angleSnapDegrees != 0) {
+      final radians = math.pi * _angleSnapDegrees / 180;
+      final snappedAngle = (math.atan2(dy, dx) / radians).round() * radians;
+      candidate = math.Point<double>(
+        start.xMm + math.cos(snappedAngle) * length,
+        start.yMm + math.sin(snappedAngle) * length,
+      );
+    }
+    final nearWall = GeometryService.nearestWallProjection(
+      floor, candidate, thresholdMm: 11 / (_mmToPx * _scale),
+    );
+    return nearWall?.point ?? candidate;
+  }
+
+  Future<void> _createWall(Offset p, {WallType type = WallType.partition}) async {
     if (_wallStartNodeId == null) {
-      final node = _nodeNear(p) ?? GeometryService.ensureAnchor(floor, _toMm(p));
+      final node = GeometryService.ensureAnchor(floor, _toMm(p));
       setState(() {
         _wallStartNodeId = node.id;
         _selectedWallId = null;
@@ -504,35 +595,34 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       return;
     }
     final start = floor.nodeById(_wallStartNodeId!);
-    if (start == null) return;
-    var point = _toMm(p);
-    if (_snapping) {
-      final dx = point.x - start.xMm;
-      final dy = point.y - start.yMm;
-      if (dx.abs() > dy.abs()) {
-        point = math.Point(point.x, start.yMm);
-      } else {
-        point = math.Point(start.xMm, point.y);
-      }
+    if (start == null) {
+      setState(() => _wallStartNodeId = null);
+      return;
     }
+    final point = _snapDrawTarget(start, _toMm(p));
     if (math.Point(point.x - start.xMm, point.y - start.yMm).magnitude < 120) {
       return;
     }
-    final before = floor.walls.map((e) => e.id).toSet();
+    final oldIds = floor.walls.map((w) => w.id).toSet();
     final end = GeometryService.addWallFromNode(
       floor,
       startNodeId: start.id,
       endPoint: point,
-      type: WallType.partition,
-      thicknessMm: 120,
-      material: WallMaterial.drywall,
+      type: type,
+      thicknessMm: type == WallType.exterior ? 300 : 100,
+      material: type == WallType.exterior
+          ? WallMaterial.gasBlock : WallMaterial.drywall,
     );
-    final created = floor.walls.where((w) => !before.contains(w.id)).toList();
+    final created = floor.walls.where((w) => !oldIds.contains(w.id)).toList();
+    for (final wall in created) {
+      wall.projectLayer = _drawingLayer;
+      wall.demolition = _drawingLayer == ProjectLayer.demolition;
+    }
     setState(() {
-      _wallStartNodeId = end.id;
-      if (created.isNotEmpty) _selectedWallId = created.first.id;
+      _wallStartNodeId = end.id; // next touch extends the same wall chain
+      if (created.isNotEmpty) _selectedWallId = created.last.id;
     });
-    await _changed();
+    if (created.isNotEmpty) await _changed();
   }
 
   Future<void> _addOpening(Offset p) async {
