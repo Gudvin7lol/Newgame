@@ -3,17 +3,19 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('Measure routes advanced wall work to production geometry', () {
+  test('Measure embeds precise wall geometry without separate editor routes', () {
     final workspace =
         File('lib/screens/floor_workspace_screen.dart').readAsStringSync();
     final measure = File('lib/screens/measure_unified_workspace_screen.dart')
         .readAsStringSync();
 
-    expect(workspace.contains("import 'plan_geometry_tools_screen.dart';"), isTrue);
-    expect(workspace.contains('PlanGeometryToolsScreen('), isTrue);
-    expect(measure.contains('onOpenAdvanced: widget.onOpenGeometry'), isTrue);
-    expect(workspace.contains("title: 'Радиусы и узлы'"), isTrue);
-    expect(workspace.contains("title: 'Расширенный редактор'"), isTrue);
+    expect(workspace.contains("import 'plan_geometry_tools_screen.dart';"), isFalse);
+    expect(workspace.contains('PlanGeometryToolsScreen('), isFalse);
+    expect(measure.contains('PlanGeometryToolsScreen('), isTrue);
+    expect(measure.contains('MeasurePlanTool.precision'), isTrue);
+    expect(measure.contains('embedded: true'), isTrue);
+    expect(workspace.contains("title: 'Расширенный редактор'"), isFalse);
+    expect(workspace.contains('_openAdvancedEditor'), isFalse);
   });
 
   test('geometry production tool keeps real radius and node operations', () {
