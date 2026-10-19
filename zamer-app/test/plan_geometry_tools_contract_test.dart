@@ -11,9 +11,12 @@ void main() {
 
     expect(workspace.contains("import 'plan_geometry_tools_screen.dart';"), isFalse);
     expect(workspace.contains('PlanGeometryToolsScreen('), isFalse);
-    expect(measure.contains('PlanGeometryToolsScreen('), isTrue);
+    expect(measure.contains('PlanGeometryToolsScreen('), isFalse);
+    expect(measure.contains('PlanEditorProductionScreen('), isTrue);
+    expect(measure.contains('planTool: _planTool'), isTrue);
     expect(measure.contains('MeasurePlanTool.precision'), isTrue);
-    expect(measure.contains('embedded: true'), isTrue);
+    expect(measure.contains('embedded: true'), isTrue,
+        reason: 'Objects placement stays embedded in Measure');
     expect(workspace.contains("title: 'Расширенный редактор'"), isFalse);
     expect(workspace.contains('_openAdvancedEditor'), isFalse);
   });
