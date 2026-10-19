@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 
 import '../models/models.dart';
 import 'plan_editor_master_v4_screen.dart';
+import 'measure_plan_tool.dart';
 
 class PlanEditorProductionScreen extends StatelessWidget {
   const PlanEditorProductionScreen({
     super.key,
     required this.floor,
     required this.onChanged,
+    this.planTool = MeasurePlanTool.overview,
     required this.onOpenObjects,
     required this.onOpenReview,
     required this.onOpenPlanGeometry,
@@ -23,6 +25,7 @@ class PlanEditorProductionScreen extends StatelessWidget {
 
   final FloorPlan floor;
   final Future<void> Function() onChanged;
+  final MeasurePlanTool planTool;
   final VoidCallback onOpenObjects;
   final VoidCallback onOpenReview;
   final VoidCallback onOpenPlanGeometry;
@@ -40,6 +43,7 @@ class PlanEditorProductionScreen extends StatelessWidget {
     return PlanEditorMasterV4Screen(
       floor: floor,
       onChanged: onChanged,
+      planTool: planTool,
       onOpenObjects: onOpenObjects,
       onOpenReview: onOpenReview,
       onOpenGeometry: onOpenPlanGeometry,
