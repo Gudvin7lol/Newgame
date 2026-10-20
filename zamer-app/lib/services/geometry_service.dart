@@ -314,10 +314,14 @@ class GeometryService {
     return best;
   }
 
-  static PlanNode ensureAnchor(FloorPlan floor, math.Point<double> p) {
-    final node = nearestNode(floor, p);
+  static PlanNode ensureAnchor(
+    FloorPlan floor,
+    math.Point<double> p, {
+    double captureMm = 120,
+  }) {
+    final node = nearestNode(floor, p, thresholdMm: captureMm);
     if (node != null) return node;
-    final wallHit = nearestWallProjection(floor, p);
+    final wallHit = nearestWallProjection(floor, p, thresholdMm: captureMm);
     if (wallHit != null && wallHit.t > 0.02 && wallHit.t < 0.98) {
       return _splitWallAt(floor, wallHit.wall, wallHit.t, wallHit.point);
     }
@@ -453,23 +457,33 @@ class GeometryService {
     required WallType type,
     required double thicknessMm,
     required WallMaterial material,
+    double endpointCaptureMm = 80,
+    double endpointRoundingMm = 5,
   }) {
     final start = floor.nodeById(startNodeId);
     if (start == null) throw StateError('Start node not found');
 
-    final targetNear = nearestNode(floor, endPoint, thresholdMm: 80);
+    final targetNear = nearestNode(
+      floor, endPoint, thresholdMm: endpointCaptureMm,
+    );
     late final PlanNode end;
     if (targetNear != null) {
       end = targetNear;
     } else {
-      final wallHit = nearestWallProjection(floor, endPoint, thresholdMm: 80);
+      final wallHit = nearestWallProjection(
+        floor, endPoint, thresholdMm: endpointCaptureMm,
+      );
       if (wallHit != null && wallHit.t > 0.02 && wallHit.t < 0.98) {
         end = _splitWallAt(floor, wallHit.wall, wallHit.t, wallHit.point);
       } else {
         end = PlanNode(
           id: _id('n'),
-          xMm: _round5(endPoint.x),
-          yMm: _round5(endPoint.y),
+          xMm: endpointRoundingMm > 0
+              ? (endPoint.x / endpointRoundingMm).round() * endpointRoundingMm
+              : endPoint.x,
+          yMm: endpointRoundingMm > 0
+              ? (endPoint.y / endpointRoundingMm).round() * endpointRoundingMm
+              : endPoint.y,
         );
         floor.nodes.add(end);
       }
