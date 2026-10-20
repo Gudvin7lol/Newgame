@@ -73,7 +73,8 @@ void main() {
     () {
       final src = File('lib/screens/plan_editor_master_v4_screen.dart')
           .readAsStringSync();
-      expect(src, contains('PlanCollisionKind.values.toSet()'));
+      expect(src, contains('PlanCollisionKind.values'));
+      expect(src, contains('_collisionKinds'));
       expect(src, contains('_selectedObjectId'));
       expect(src, contains('details.globalPosition'));
       expect(src, contains('_pinchInProgress'));
