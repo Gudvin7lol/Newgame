@@ -761,84 +761,97 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     final start = floor.nodeById(id);
     if (start == null) return;
 
-    final length = TextEditingController(text: '3000');
-    final angle = TextEditingController(
-      text: _lastWallAngleDegrees.round().toString(),
-    );
+    // TextFormField owns its internal controller for its entire lifetime.
+    // Disposing an external controller immediately after Navigator.pop would
+    // break Flutter's outgoing bottom-sheet animation (and on-screen keyboard).
+    var lengthText = '3000';
+    var angleText = _lastWallAngleDegrees.round().toString();
     final values = await showModalBottomSheet<(double, double)>(
       context: context,
       backgroundColor: ZamerColors.surface,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (sheet) => Padding(
-        padding: EdgeInsets.fromLTRB(
-          16, 6, 16,
-          MediaQuery.viewInsetsOf(sheet).bottom + 20,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Построить стену по размеру',
-              style: TextStyle(fontWeight: FontWeight.w700)),
-            const SizedBox(height: 8),
-            TextField(
-              key: const ValueKey('wall-build-length-mm'),
-              controller: length,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              autofocus: true,
-              decoration: const InputDecoration(
-                labelText: 'Точная длина',
-                suffixText: 'мм',
-                helperText: 'Длина по оси стены от последнего узла',
-              ),
+      builder: (sheet) => SafeArea(
+        top: false,
+        child: AnimatedPadding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.viewInsetsOf(sheet).bottom,
+          ),
+          duration: const Duration(milliseconds: 150),
+          curve: Curves.easeOut,
+          child: SingleChildScrollView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: const EdgeInsets.fromLTRB(16, 6, 16, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Построить стену по размеру',
+                    style: TextStyle(fontWeight: FontWeight.w700)),
+                const SizedBox(height: 8),
+                TextFormField(
+                  key: const ValueKey('wall-build-length-mm'),
+                  initialValue: lengthText,
+                  onChanged: (value) => lengthText = value,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  autofocus: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Точная длина',
+                    suffixText: 'мм',
+                    helperText: 'Длина по оси стены от последнего узла',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextFormField(
+                  key: const ValueKey('wall-build-angle-deg'),
+                  initialValue: angleText,
+                  onChanged: (value) => angleText = value,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true, signed: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'Направление от оси X',
+                    suffixText: '°',
+                    helperText:
+                        '0° вправо, 90° вниз, 180° влево, −90° вверх',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    key: const ValueKey('wall-build-apply'),
+                    onPressed: () {
+                      final value = double.tryParse(
+                        lengthText.trim().replaceAll(',', '.'),
+                      );
+                      final degrees = double.tryParse(
+                        angleText.trim().replaceAll(',', '.'),
+                      );
+                      if (value == null ||
+                          degrees == null ||
+                          !value.isFinite ||
+                          !degrees.isFinite ||
+                          value < WallDrawingService.minimumLengthMm ||
+                          value > WallDrawingService.maximumLengthMm) {
+                        ScaffoldMessenger.of(sheet).showSnackBar(
+                          const SnackBar(content: Text(
+                            'Укажите длину 120–100000 мм и допустимый угол',
+                          )),
+                        );
+                        return;
+                      }
+                      Navigator.pop(sheet, (value, degrees));
+                    },
+                    child: const Text('Построить'),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
-            TextField(
-              key: const ValueKey('wall-build-angle-deg'),
-              controller: angle,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true, signed: true,
-              ),
-              decoration: const InputDecoration(
-                labelText: 'Направление от оси X',
-                suffixText: '°',
-                helperText: '0° вправо, 90° вниз, 180° влево, −90° вверх',
-              ),
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                key: const ValueKey('wall-build-apply'),
-                onPressed: () {
-                  final value = double.tryParse(
-                    length.text.trim().replaceAll(',', '.'),
-                  );
-                  final degrees = double.tryParse(
-                    angle.text.trim().replaceAll(',', '.'),
-                  );
-                  if (value == null || degrees == null ||
-                      !value.isFinite || !degrees.isFinite ||
-                      value < WallDrawingService.minimumLengthMm ||
-                      value > WallDrawingService.maximumLengthMm) {
-                    ScaffoldMessenger.of(sheet).showSnackBar(
-                      const SnackBar(content: Text(
-                        'Укажите длину 120–100000 мм и допустимый угол',
-                      )),
-                    );
-                    return;
-                  }
-                  Navigator.pop(sheet, (value, degrees));
-                },
-                child: const Text('Построить'),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
-    length.dispose();
-    angle.dispose();
     if (values == null || !mounted) return;
     final point = WallDrawingService.lengthEndpoint(
       start: math.Point<double>(start.xMm, start.yMm),
