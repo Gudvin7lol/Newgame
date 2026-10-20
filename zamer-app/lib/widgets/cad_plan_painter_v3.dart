@@ -21,7 +21,8 @@ class CadPlanPainterV3 extends CustomPainter {
     Set<PlanDisplayLayer>? visibleCategories,
     Set<PlanCollisionKind>? collisionKinds,
   }) : visibleLayers = visibleLayers ?? ProjectLayer.values.toSet(),
-       visibleCategories = visibleCategories ?? PlanDisplayLayer.values.toSet(),
+       visibleCategories = visibleCategories ?? (PlanDisplayLayer.values.toSet()
+         ..remove(PlanDisplayLayer.axisDimensions)),
        collisionKinds = collisionKinds ?? <PlanCollisionKind>{},
        super(repaint: ImportedTopViewAssets.instance) {
     unawaited(ImportedTopViewAssets.instance.ensureLoaded());
