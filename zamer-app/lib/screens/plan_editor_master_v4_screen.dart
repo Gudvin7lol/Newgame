@@ -84,6 +84,9 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   WallDrawingTarget? _liveWallSnap;
   bool _showLiveWallFaces = true;
   bool _captureWallFace = true;
+  // Drawing and viewport navigation are mutually exclusive. This prevents
+  // accidental camera shifts while placing a wall on a phone.
+  bool _moveCameraInsteadOfDrawing = false;
   String? _dragWallId;
   double _dragWallOffsetMm = 0;
   bool _dragWallModified = false;
@@ -156,6 +159,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       _wallStartNodeId = null;
       _lastWallSnapLabel = null;
       _liveWallSnap = null;
+      _moveCameraInsteadOfDrawing = false;
       _dimensionStartNodeId = null;
       _dimensionStartInterior = null;
       _dimensionStartInteriorNodeId = null;
@@ -610,6 +614,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   }
 
   Future<void> _tapCanvas(TapUpDetails details) async {
+    // A tap in the deliberate navigation mode must never create a wall.
+    if (_drawingWall && _moveCameraInsteadOfDrawing) return;
     final p = details.localPosition;
     // Direct interaction on the same production CAD viewport. A tool change
     // never navigates to an alternate floor-plan canvas.
@@ -695,11 +701,11 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     allowWallFaces: _captureWallFace,
   );
 
-  // Listener is passive: it never claims a gesture. InteractiveViewer can
-  // still pan and zoom. During wall construction the draft marker always
+  // Listener is passive: it never claims a gesture. Navigation is only
+  // possible when the user explicitly selects the hand control. The draft
   // uses the same WallDrawingService.snap() result as the committed segment.
   void _updateLiveWallGuide(PointerEvent event) {
-    if (!_drawingWall ||
+    if (_moveCameraInsteadOfDrawing || !_drawingWall ||
         (widget.planTool != MeasurePlanTool.exterior &&
          widget.planTool != MeasurePlanTool.partition) ||
         _wallStartNodeId == null) return;
@@ -1889,6 +1895,22 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       widget.planTool != MeasurePlanTool.overview &&
       widget.planTool != MeasurePlanTool.select;
 
+  // Completely freeze the viewport (including pinch scaling) during wall
+  // placement; navigation is explicitly enabled with the hand control.
+  // This is safer than restoring the camera matrix in a gesture callback:
+  // tap coordinates and snap capture stay consistent for the whole gesture.
+  bool get _cameraGestureEnabled =>
+      !_drawingWall || _moveCameraInsteadOfDrawing;
+
+  void _toggleCameraNavigation() {
+    setState(() {
+      _moveCameraInsteadOfDrawing = !_moveCameraInsteadOfDrawing;
+      _liveWallSnap = null;
+      _lastWallSnapLabel = _moveCameraInsteadOfDrawing
+          ? 'Навигация по плану' : null;
+    });
+  }
+
   Widget _compactEditingBar() {
     final hasStart = _wallStartNodeId != null;
     final nodesSelected = widget.planTool == MeasurePlanTool.nodes &&
@@ -1909,11 +1931,15 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
               child: Row(
                 children: [
                   if (_drawingWall) ...[
-                    if (!hasStart)
+                    if (_moveCameraInsteadOfDrawing)
+                      const Text('Режим перемещения · нажмите руку снова',
+                        style: TextStyle(fontSize: 11,
+                          color: ZamerColors.textSecondary)),
+                    if (!_moveCameraInsteadOfDrawing && !hasStart)
                       const Text('Нажмите начало стены',
                         style: TextStyle(fontSize: 11,
                           color: ZamerColors.textPrimary)),
-                    if (hasStart &&
+                    if (!_moveCameraInsteadOfDrawing && hasStart &&
                         (widget.planTool == MeasurePlanTool.exterior ||
                          widget.planTool == MeasurePlanTool.partition))
                       TextButton.icon(
@@ -2150,8 +2176,12 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                   onInteractionStart: _wallDragStart,
                   onInteractionUpdate: _wallDragUpdate,
                   onInteractionEnd: (_) => unawaited(_wallDragFinish()),
-                  panEnabled: widget.planTool != MeasurePlanTool.nodes,
-                  scaleEnabled: widget.planTool != MeasurePlanTool.nodes,
+                  // The user's finger draws walls; it must not drag or zoom
+                  // the camera until the dedicated hand mode is activated.
+                  panEnabled: widget.planTool != MeasurePlanTool.nodes &&
+                      _cameraGestureEnabled,
+                  scaleEnabled: widget.planTool != MeasurePlanTool.nodes &&
+                      _cameraGestureEnabled,
                   boundaryMargin: const EdgeInsets.all(2200),
                   constrained: false,
                   child: Stack(
@@ -2235,6 +2265,20 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    if (_drawingWall) ...[
+                      ZMeasureCanvasAction(
+                        key: const ValueKey('wall-camera-navigation'),
+                        icon: _moveCameraInsteadOfDrawing
+                            ? Icons.edit_outlined
+                            : Icons.pan_tool_alt_outlined,
+                        tooltip: _moveCameraInsteadOfDrawing
+                            ? 'Вернуться к построению стен'
+                            : 'Переместить или увеличить план',
+                        active: _moveCameraInsteadOfDrawing,
+                        onPressed: _toggleCameraNavigation,
+                      ),
+                      const SizedBox(width: 5),
+                    ],
                     ZMeasureCanvasAction(
                       key: const ValueKey('plan-layers-button'),
                       icon: Icons.layers_outlined,
