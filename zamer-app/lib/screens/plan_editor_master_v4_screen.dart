@@ -6,6 +6,7 @@ import '../design_system/zamer_measure_chrome.dart';
 import '../design_system/zamer_tokens.dart';
 import '../models/models.dart';
 import '../services/geometry_service.dart';
+import '../services/wall_drawing_service.dart';
 import '../services/material_catalog.dart';
 import '../services/object_catalog.dart';
 import '../services/plan_direct_interaction.dart';
@@ -73,6 +74,13 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   math.Point<double> _fingerNodeOffsetMm = const math.Point(0, 0);
   bool _nodeDragChanged = false;
   int _angleSnapDegrees = 90;
+  double _lastWallAngleDegrees = 0;
+  String? _dragWallId;
+  double _dragWallOffsetMm = 0;
+  bool _dragWallModified = false;
+  String? _dragWallRejected;
+  Matrix4? _dragWallBaseTransform;
+  math.Point<double>? _dragWallStartMm;
   ProjectLayer _drawingLayer = ProjectLayer.existing;
   String? _selectedRoomFaceKey;
   String? _wallStartNodeId;
@@ -140,6 +148,10 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       _nodeDragChanged = false;
       _selectedNodeId = null;
       _selectedWallId = null;
+      _dragWallId = null;
+      _dragWallStartMm = null;
+      _dragWallBaseTransform = null;
+      _dragWallRejected = null;
       _materialPickMode = widget.planTool == MeasurePlanTool.overview;
       _materialsExpanded = false;
     }
@@ -568,39 +580,26 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     }
   }
 
-  math.Point<double> _snapDrawTarget(
+  WallDrawingTarget _snapDrawTarget(
     PlanNode start,
     math.Point<double> raw,
-  ) {
-    if (!_snapping) return raw;
-    final captured = GeometryService.nearestNode(
-      floor, raw, thresholdMm: 14 / (_mmToPx * _scale),
-    );
-    if (captured != null && captured.id != start.id) {
-      return math.Point<double>(captured.xMm, captured.yMm);
-    }
-    final dx = raw.x - start.xMm;
-    final dy = raw.y - start.yMm;
-    final length = math.sqrt(dx * dx + dy * dy);
-    if (length <= 0) return raw;
-    var candidate = raw;
-    if (_angleSnapDegrees != 0) {
-      final radians = math.pi * _angleSnapDegrees / 180;
-      final snappedAngle = (math.atan2(dy, dx) / radians).round() * radians;
-      candidate = math.Point<double>(
-        start.xMm + math.cos(snappedAngle) * length,
-        start.yMm + math.sin(snappedAngle) * length,
-      );
-    }
-    final nearWall = GeometryService.nearestWallProjection(
-      floor, candidate, thresholdMm: 11 / (_mmToPx * _scale),
-    );
-    return nearWall?.point ?? candidate;
-  }
+  ) => WallDrawingService.snap(
+    floor,
+    startNodeId: start.id,
+    raw: raw,
+    enabled: _snapping,
+    angleStepDegrees: _angleSnapDegrees,
+    nodeCaptureMm: 14 / (_mmToPx * _scale),
+    wallCaptureMm: 12 / (_mmToPx * _scale),
+  );
 
   Future<void> _createWall(Offset p, {WallType type = WallType.partition}) async {
     if (_wallStartNodeId == null) {
-      final node = GeometryService.ensureAnchor(floor, _toMm(p));
+      final node = GeometryService.ensureAnchor(
+        floor,
+        _toMm(p),
+        captureMm: _snapping ? 13 / (_mmToPx * _scale) : 0,
+      );
       setState(() {
         _wallStartNodeId = node.id;
         _selectedWallId = null;
@@ -613,8 +612,27 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       setState(() => _wallStartNodeId = null);
       return;
     }
-    final point = _snapDrawTarget(start, _toMm(p));
-    if (math.Point(point.x - start.xMm, point.y - start.yMm).magnitude < 120) {
+    final snap = _snapDrawTarget(start, _toMm(p));
+    await _commitWallSegment(
+      start: start,
+      point: snap.point,
+      type: type,
+    );
+  }
+
+  Future<void> _commitWallSegment({
+    required PlanNode start,
+    required math.Point<double> point,
+    required WallType type,
+    bool exactLength = false,
+  }) async {
+    final startPoint = math.Point<double>(start.xMm, start.yMm);
+    final distance = WallDrawingService.distance(startPoint, point);
+    if (distance < WallDrawingService.minimumLengthMm) return;
+    if (distance > WallDrawingService.maximumLengthMm) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Длина стены должна быть не больше 100 м')),
+      );
       return;
     }
     final oldIds = floor.walls.map((w) => w.id).toSet();
@@ -626,17 +644,122 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       thicknessMm: type == WallType.exterior ? 300 : 100,
       material: type == WallType.exterior
           ? WallMaterial.gasBlock : WallMaterial.drywall,
+      // An entered length, e.g. 3123 mm at 45°, must not be moved by a
+      // 5-mm rounding rule or a nearby (but different) 80-mm endpoint.
+      endpointCaptureMm: exactLength ? .5 : 80,
+      endpointRoundingMm: exactLength ? 0 : 5,
     );
     final created = floor.walls.where((w) => !oldIds.contains(w.id)).toList();
     for (final wall in created) {
       wall.projectLayer = _drawingLayer;
       wall.demolition = _drawingLayer == ProjectLayer.demolition;
     }
+    _lastWallAngleDegrees =
+        math.atan2(end.yMm - start.yMm, end.xMm - start.xMm) * 180 / math.pi;
     setState(() {
-      _wallStartNodeId = end.id; // next touch extends the same wall chain
+      _wallStartNodeId = end.id;
       if (created.isNotEmpty) _selectedWallId = created.last.id;
     });
     if (created.isNotEmpty) await _changed();
+  }
+
+  Future<void> _enterWallLength() async {
+    final id = _wallStartNodeId;
+    if (id == null) return;
+    final start = floor.nodeById(id);
+    if (start == null) return;
+
+    final length = TextEditingController(text: '3000');
+    final angle = TextEditingController(
+      text: _lastWallAngleDegrees.round().toString(),
+    );
+    final values = await showModalBottomSheet<(double, double)>(
+      context: context,
+      backgroundColor: ZamerColors.surface,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheet) => Padding(
+        padding: EdgeInsets.fromLTRB(
+          16, 6, 16,
+          MediaQuery.viewInsetsOf(sheet).bottom + 20,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Построить стену по размеру',
+              style: TextStyle(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
+            TextField(
+              key: const ValueKey('wall-build-length-mm'),
+              controller: length,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'Точная длина',
+                suffixText: 'мм',
+                helperText: 'Длина по оси стены от последнего узла',
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              key: const ValueKey('wall-build-angle-deg'),
+              controller: angle,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true, signed: true,
+              ),
+              decoration: const InputDecoration(
+                labelText: 'Направление от оси X',
+                suffixText: '°',
+                helperText: '0° вправо, 90° вниз, 180° влево, −90° вверх',
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                key: const ValueKey('wall-build-apply'),
+                onPressed: () {
+                  final value = double.tryParse(
+                    length.text.trim().replaceAll(',', '.'),
+                  );
+                  final degrees = double.tryParse(
+                    angle.text.trim().replaceAll(',', '.'),
+                  );
+                  if (value == null || degrees == null ||
+                      !value.isFinite || !degrees.isFinite ||
+                      value < WallDrawingService.minimumLengthMm ||
+                      value > WallDrawingService.maximumLengthMm) {
+                    ScaffoldMessenger.of(sheet).showSnackBar(
+                      const SnackBar(content: Text(
+                        'Укажите длину 120–100000 мм и допустимый угол',
+                      )),
+                    );
+                    return;
+                  }
+                  Navigator.pop(sheet, (value, degrees));
+                },
+                child: const Text('Построить'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    length.dispose();
+    angle.dispose();
+    if (values == null || !mounted) return;
+    final point = WallDrawingService.lengthEndpoint(
+      start: math.Point<double>(start.xMm, start.yMm),
+      lengthMm: values.$1,
+      angleDegrees: values.$2,
+    );
+    await _commitWallSegment(
+      start: start,
+      point: point,
+      type: widget.planTool == MeasurePlanTool.exterior
+          ? WallType.exterior : WallType.partition,
+      exactLength: true,
+    );
   }
 
   Future<void> _addOpening(Offset p, {bool chooseType = false}) async {
@@ -1349,6 +1472,15 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                               fontWeight: FontWeight.w700)),
                       ),
                     ),
+                    if (hasStart &&
+                        (widget.planTool == MeasurePlanTool.exterior ||
+                         widget.planTool == MeasurePlanTool.partition))
+                      TextButton.icon(
+                        key: const ValueKey('wall-build-exact-length'),
+                        onPressed: _enterWallLength,
+                        icon: const Icon(Icons.straighten_outlined, size: 17),
+                        label: const Text('Длина'),
+                      ),
                     PopupMenuButton<ProjectLayer>(
                       tooltip: 'Слой построения',
                       onSelected: (layer) => setState(() => _drawingLayer = layer),
