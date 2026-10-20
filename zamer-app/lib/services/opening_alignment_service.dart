@@ -74,7 +74,7 @@ class OpeningAlignmentService {
       }
     }
     stops.sort();
-    for (var i = 1; i < stops.length; i++) {
+    for (var i = 1; i < stops.length && stops.length > 2; i++) {
       if (requestedCenter >= stops[i - 1] &&
           requestedCenter <= stops[i]) {
         candidate((stops[i - 1] + stops[i]) / 2, 'Центр участка стены');
