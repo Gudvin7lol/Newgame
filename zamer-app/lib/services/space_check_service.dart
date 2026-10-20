@@ -160,6 +160,55 @@ class SpaceCheckService {
     return true;
   }
 
+  /// Swept region of the door leaf on the plan, in millimetres. Shared by
+  /// collision detection and the displayed clearance overlay.
+  static List<math.Point<double>> doorSwingZone(
+    FloorPlan floor, PlanWall wall, WallOpening opening,
+  ) {
+    if (opening.type != OpeningType.door || opening.widthMm <= 0) {
+      return const [];
+    }
+    final from = floor.nodeById(wall.startNodeId);
+    final to = floor.nodeById(wall.endNodeId);
+    if (from == null || to == null) return const [];
+    final dx = to.xMm - from.xMm, dy = to.yMm - from.yMm;
+    final length = math.sqrt(dx * dx + dy * dy);
+    if (length < 1) return const [];
+    final alongX = dx / length;
+    final alongY = dy / length;
+    final isRight = opening.doorSwing == DoorSwing.rightIn ||
+        opening.doorSwing == DoorSwing.rightOut;
+    final hingeDistance = opening.offsetFromStartMm +
+        (isRight ? opening.widthMm : 0.0);
+    final hinge = math.Point<double>(
+      from.xMm + alongX * hingeDistance,
+      from.yMm + alongY * hingeDistance,
+    );
+    final positive = opening.doorSwing == DoorSwing.leftIn ||
+        opening.doorSwing == DoorSwing.rightIn;
+    final closedAngle = math.atan2(
+      isRight ? -alongY : alongY,
+      isRight ? -alongX : alongX,
+    );
+    final openAngle = math.atan2(
+      positive ? alongX : -alongX,
+      positive ? -alongY : alongY,
+    );
+    var sweep = openAngle - closedAngle;
+    while (sweep > math.pi) { sweep -= 2 * math.pi; }
+    while (sweep < -math.pi) { sweep += 2 * math.pi; }
+    final sector = <math.Point<double>>[hinge];
+    for (var step = 0; step <= 24; step++) {
+      final a = closedAngle + sweep * step / 24;
+      sector.add(math.Point<double>(
+        hinge.x + math.cos(a) * opening.widthMm,
+        hinge.y + math.sin(a) * opening.widthMm,
+      ));
+    }
+
+    return sector;
+  }
+
   static List<SpaceIssue> inspect(FloorPlan floor) {
     final issues = <SpaceIssue>[];
     final objects = floor.planObjects.where(_occupiesFloor).toList();
@@ -212,37 +261,8 @@ class SpaceCheckService {
           continue;
         // Check the actual 90-degree swept area of the opening leaf,
         // not a generic 1200 mm box on both sides of the wall.
-        final alongX = dx / length;
-        final alongY = dy / length;
-        final isRight = opening.doorSwing == DoorSwing.rightIn ||
-            opening.doorSwing == DoorSwing.rightOut;
-        final hingeDistance = opening.offsetFromStartMm +
-            (isRight ? opening.widthMm : 0.0);
-        final hinge = math.Point<double>(
-          from.xMm + alongX * hingeDistance,
-          from.yMm + alongY * hingeDistance,
-        );
-        final positive = opening.doorSwing == DoorSwing.leftIn ||
-            opening.doorSwing == DoorSwing.rightIn;
-        final closedAngle = math.atan2(
-          isRight ? -alongY : alongY,
-          isRight ? -alongX : alongX,
-        );
-        final openAngle = math.atan2(
-          positive ? alongX : -alongX,
-          positive ? -alongY : alongY,
-        );
-        var sweep = openAngle - closedAngle;
-        while (sweep > math.pi) { sweep -= 2 * math.pi; }
-        while (sweep < -math.pi) { sweep += 2 * math.pi; }
-        final sector = <math.Point<double>>[hinge];
-        for (var step = 0; step <= 24; step++) {
-          final a = closedAngle + sweep * step / 24;
-          sector.add(math.Point<double>(
-            hinge.x + math.cos(a) * opening.widthMm,
-            hinge.y + math.sin(a) * opening.widthMm,
-          ));
-        }
+        final sector = doorSwingZone(floor, wall, opening);
+        if (sector.isEmpty) continue;
         for (final object in objects) {
           if (object.elevationMm >= opening.heightMm ||
               object.elevationMm + object.heightMm <= 0) continue;
