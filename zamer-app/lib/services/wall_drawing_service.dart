@@ -92,7 +92,7 @@ class WallDrawingService {
       final dy = point.y - source.y;
       final along = dx * ux + dy * uy;
       final lateral = (dx * uy - dy * ux).abs();
-      return along > 0 && lateral <= nodeCaptureMm;
+      return along > 0 && lateral <= .5;
     }
 
     // Prefer an actual shared node instead of generating nearly duplicate
@@ -164,15 +164,13 @@ class WallDrawingService {
         final midpoint = math.Point<double>(
           (p.x + q.x) / 2, (p.y + q.y) / 2,
         );
-        targetKind = distance(midpoint, projected) <= nodeCaptureMm * .25
-            ? NodeSnapKind.midpoint
-            : NodeSnapKind.wall;
-        if (targetKind == NodeSnapKind.midpoint &&
-            (angleStepDegrees == 0 ||
-                onLockedRay(midpoint) &&
-                distance(candidate, midpoint) < nodeCaptureMm * .25)) {
-          targetPoint = midpoint;
-        }
+        final atMiddle = distance(midpoint, projected) <=
+            nodeCaptureMm * .25 &&
+            distance(candidate, midpoint) < nodeCaptureMm * .25 &&
+            onLockedRay(midpoint);
+        targetKind = atMiddle
+            ? NodeSnapKind.midpoint : NodeSnapKind.wall;
+        if (atMiddle) targetPoint = midpoint;
       }
     }
 
@@ -190,7 +188,7 @@ class WallDrawingService {
           ? NodeSnapKind.angle45
           : angleStepDegrees == 90
               ? NodeSnapKind.ortho
-              : NodeSnapKind.grid,
+              : NodeSnapKind.none,
     );
   }
 }
