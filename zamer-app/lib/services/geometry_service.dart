@@ -318,6 +318,7 @@ class GeometryService {
     FloorPlan floor,
     math.Point<double> p, {
     double captureMm = 120,
+    double newNodeRoundingMm = 5,
   }) {
     final node = nearestNode(floor, p, thresholdMm: captureMm);
     if (node != null) return node;
@@ -327,8 +328,12 @@ class GeometryService {
     }
     final created = PlanNode(
       id: _id('n'),
-      xMm: _round5(p.x),
-      yMm: _round5(p.y),
+      xMm: newNodeRoundingMm > 0
+          ? (p.x / newNodeRoundingMm).round() * newNodeRoundingMm
+          : p.x,
+      yMm: newNodeRoundingMm > 0
+          ? (p.y / newNodeRoundingMm).round() * newNodeRoundingMm
+          : p.y,
     );
     floor.nodes.add(created);
     return created;
