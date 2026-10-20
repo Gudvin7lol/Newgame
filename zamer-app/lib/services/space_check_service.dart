@@ -273,7 +273,7 @@ class SpaceCheckService {
           if (_polygonsOverlap(sector, oc)) {
             issues.add(
               SpaceIssue(
-                'Зона открывания двери перекрыта: ${_name(object)}',
+                'Проход у двери перекрыт (зона открывания): ${_name(object)}',
                 objectIds: [object.id],
                 kind: SpaceIssueKind.doorClearance,
                 position: math.Point<double>(object.xMm, object.yMm),
