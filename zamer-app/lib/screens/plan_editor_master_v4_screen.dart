@@ -8,6 +8,7 @@ import '../design_system/zamer_tokens.dart';
 import '../models/models.dart';
 import '../services/geometry_service.dart';
 import '../services/wall_drawing_service.dart';
+import '../services/wall_length_edit_service.dart';
 import '../services/material_catalog.dart';
 import '../services/object_catalog.dart';
 import '../services/plan_direct_interaction.dart';
@@ -1110,39 +1111,192 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     await _changed();
   }
 
-  Future<void> _shiftSelectedWall() async {
+  Future<void> _resizeSelectedWall() async {
     final wall = _selectedWall;
     if (wall == null) return;
-    final controller = TextEditingController(text: '0');
-    final offset = await showModalBottomSheet<double>(
+
+    var lengthText = floor.wallLengthMm(wall).round().toString();
+    var keepStartFixed = true;
+    final target = await showModalBottomSheet<(double, bool)>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (sheet) => Padding(
-        padding: EdgeInsets.fromLTRB(16, 8, 16,
-          20 + MediaQuery.viewInsetsOf(sheet).bottom),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Сдвинуть стену параллельно'),
-            TextField(
-              controller: controller,
-              keyboardType: const TextInputType.numberWithOptions(signed: true, decimal: true),
-              decoration: const InputDecoration(
-                labelText: 'Смещение по X / Y', suffixText: 'мм',
-                helperText: 'Вертикальная стена: X; горизонтальная: Y'),
+      backgroundColor: ZamerColors.surface,
+      builder: (sheet) => SafeArea(
+        top: false,
+        child: AnimatedPadding(
+          duration: const Duration(milliseconds: 150),
+          curve: Curves.easeOut,
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.viewInsetsOf(sheet).bottom,
+          ),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 6, 16, 18),
+            child: StatefulBuilder(
+              builder: (context, refresh) => Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Изменить длину стены',
+                    style: TextStyle(fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Текущая длина: ${floor.wallLengthMm(wall).round()} мм',
+                    style: const TextStyle(
+                      fontSize: 12, color: ZamerColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    key: const ValueKey('existing-wall-length-mm'),
+                    initialValue: lengthText,
+                    autofocus: true,
+                    onChanged: (value) => lengthText = value,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'Новая длина',
+                      suffixText: 'мм',
+                      helperText: 'От 120 мм до 100 м',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text('Какой конец оставить неподвижным?',
+                      style: TextStyle(fontSize: 12)),
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    children: [
+                      ChoiceChip(
+                        key: const ValueKey('wall-resize-fix-start'),
+                        label: const Text('Начало'),
+                        selected: keepStartFixed,
+                        onSelected: (_) =>
+                          refresh(() => keepStartFixed = true),
+                      ),
+                      ChoiceChip(
+                        key: const ValueKey('wall-resize-fix-end'),
+                        label: const Text('Конец'),
+                        selected: !keepStartFixed,
+                        onSelected: (_) =>
+                          refresh(() => keepStartFixed = false),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Смежная перпендикулярная стена сместится, сохраняя '
+                    'прямые углы. Сложные узлы блокируются.',
+                    style: TextStyle(
+                      fontSize: 11, color: ZamerColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      key: const ValueKey('existing-wall-length-apply'),
+                      onPressed: () {
+                        final newLength = double.tryParse(
+                          lengthText.trim().replaceAll(',', '.'),
+                        );
+                        if (newLength == null ||
+                            !newLength.isFinite ||
+                            newLength < WallLengthEditService.minLengthMm ||
+                            newLength > WallLengthEditService.maxLengthMm) {
+                          ScaffoldMessenger.of(sheet).showSnackBar(
+                            const SnackBar(
+                              content: Text('Укажите длину 120–100000 мм'),
+                            ),
+                          );
+                          return;
+                        }
+                        Navigator.pop(sheet, (newLength, keepStartFixed));
+                      },
+                      child: const Text('Применить размер'),
+                    ),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 12),
-            FilledButton(onPressed: () {
-              final mm = double.tryParse(controller.text.replaceAll(',', '.'));
-              if (mm == null || !mm.isFinite) return;
-              Navigator.pop(sheet, mm);
-            }, child: const Text('Переместить')),
-          ],
+          ),
         ),
       ),
     );
-    controller.dispose();
+    if (target == null || !mounted) return;
+
+    final result = WallLengthEditService.resize(
+      floor, wallId: wall.id, lengthMm: target.$1,
+      keepStartFixed: target.$2,
+    );
+    if (!result.isValid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result.message)),
+      );
+      return;
+    }
+    await _changed();
+  }
+
+  Future<void> _shiftSelectedWall() async {
+    final wall = _selectedWall;
+    if (wall == null) return;
+    var offsetText = '0';
+    final offset = await showModalBottomSheet<double>(
+      context: context,
+      backgroundColor: ZamerColors.surface,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheet) => SafeArea(
+        top: false,
+        child: AnimatedPadding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.viewInsetsOf(sheet).bottom,
+          ),
+          duration: const Duration(milliseconds: 150),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Сдвинуть стену параллельно'),
+                TextFormField(
+                  initialValue: offsetText,
+                  onChanged: (value) => offsetText = value,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    signed: true, decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'Смещение по X / Y',
+                    suffixText: 'мм',
+                    helperText: 'Вертикальная стена: X; горизонтальная: Y',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                FilledButton(
+                  onPressed: () {
+                    final mm = double.tryParse(
+                      offsetText.trim().replaceAll(',', '.'),
+                    );
+                    if (mm == null || !mm.isFinite) {
+                      ScaffoldMessenger.of(sheet).showSnackBar(
+                        const SnackBar(content: Text('Укажите смещение в мм')),
+                      );
+                      return;
+                    }
+                    Navigator.pop(sheet, mm);
+                  },
+                  child: const Text('Переместить'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
     if (offset == null || offset == 0 || !mounted) return;
     final result = OrthogonalWallEditService.move(
       floor, wallId: wall.id, offsetMm: offset,
@@ -1442,64 +1596,87 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   Future<void> _editWall() async {
     final wall = _selectedWall;
     if (wall == null) return;
-    final thickness =
-        TextEditingController(text: wall.thicknessMm.round().toString());
-    final height = TextEditingController(
-      text: (wall.heightOverrideMm ?? floor.defaultHeightMm).round().toString(),
-    );
-    final save = await showModalBottomSheet<bool>(
+    var thicknessText = wall.thicknessMm.round().toString();
+    var heightText =
+        (wall.heightOverrideMm ?? floor.defaultHeightMm).round().toString();
+    final properties = await showModalBottomSheet<(double, double)>(
       context: context,
       isScrollControlled: true,
       backgroundColor: ZamerColors.surface,
       showDragHandle: true,
-      builder: (context) => Padding(
-        padding: EdgeInsets.fromLTRB(
-          16,
-          0,
-          16,
-          16 + MediaQuery.viewInsetsOf(context).bottom,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: thickness,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Толщина',
-                suffixText: 'мм',
-              ),
+      builder: (sheet) => SafeArea(
+        top: false,
+        child: AnimatedPadding(
+          duration: const Duration(milliseconds: 150),
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.viewInsetsOf(sheet).bottom,
+          ),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Параметры стены',
+                  style: TextStyle(fontWeight: FontWeight.w700)),
+                const SizedBox(height: 8),
+                TextFormField(
+                  initialValue: thicknessText,
+                  onChanged: (value) => thicknessText = value,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'Толщина', suffixText: 'мм',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextFormField(
+                  initialValue: heightText,
+                  onChanged: (value) => heightText = value,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'Высота', suffixText: 'мм',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () {
+                      final thickness = double.tryParse(
+                        thicknessText.trim().replaceAll(',', '.'),
+                      );
+                      final height = double.tryParse(
+                        heightText.trim().replaceAll(',', '.'),
+                      );
+                      if (thickness == null || height == null ||
+                          !thickness.isFinite || !height.isFinite ||
+                          thickness <= 40 || thickness > 1500 ||
+                          height <= 300 || height > 10000) {
+                        ScaffoldMessenger.of(sheet).showSnackBar(
+                          const SnackBar(
+                            content: Text('Проверьте толщину и высоту стены'),
+                          ),
+                        );
+                        return;
+                      }
+                      Navigator.pop(sheet, (thickness, height));
+                    },
+                    child: const Text('Сохранить'),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: height,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Высота',
-                suffixText: 'мм',
-              ),
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Сохранить'),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
-    if (save == true) {
-      final t = double.tryParse(thickness.text);
-      final h = double.tryParse(height.text);
-      if (t != null && t > 40) wall.thicknessMm = t;
-      if (h != null && h > 300) wall.heightOverrideMm = h;
-      await _changed();
-    }
-    thickness.dispose();
-    height.dispose();
+    if (properties == null || !mounted) return;
+    wall.thicknessMm = properties.$1;
+    wall.heightOverrideMm = properties.$2;
+    await _changed();
   }
 
   Future<void> _deleteWall() async {
@@ -1662,6 +1839,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
               wall: _selectedWall!,
               floor: floor,
               onEdit: _editWall,
+              onResize: _resizeSelectedWall,
               onShift: _shiftSelectedWall,
               onDelete: _deleteWall,
             ),
@@ -2104,12 +2282,14 @@ class _WallInspector extends StatelessWidget {
     required this.wall,
     required this.floor,
     required this.onEdit,
+    required this.onResize,
     required this.onShift,
     required this.onDelete,
   });
   final PlanWall wall;
   final FloorPlan floor;
   final VoidCallback onEdit;
+  final VoidCallback onResize;
   final VoidCallback onShift;
   final VoidCallback onDelete;
 
@@ -2173,6 +2353,7 @@ class _WallInspector extends StatelessWidget {
                           iconColor: ZamerColors.textSecondary,
                           onSelected: (value) {
                             if (value == 'edit') onEdit();
+                            if (value == 'resize') onResize();
                             if (value == 'shift') onShift();
                             if (value == 'delete') onDelete();
                           },
@@ -2180,6 +2361,10 @@ class _WallInspector extends StatelessWidget {
                             PopupMenuItem(
                               value: 'edit',
                               child: Text('Изменить стену'),
+                            ),
+                            PopupMenuItem(
+                              value: 'resize',
+                              child: Text('Изменить длину'),
                             ),
                             PopupMenuItem(
                               value: 'shift',
@@ -2200,7 +2385,7 @@ class _WallInspector extends StatelessWidget {
                         _metric(
                           'Длина',
                           '${floor.wallLengthMm(wall).round()} мм',
-                          locked: true,
+                          onTap: onResize,
                         ),
                         _metric('Угол', '${_angle.round()}°'),
                         _metric('Толщина', '${wall.thicknessMm.round()} мм'),
@@ -2218,8 +2403,12 @@ class _WallInspector extends StatelessWidget {
         ),
       );
 
-  Widget _metric(String label, String value, {bool locked = false}) => Expanded(
-        child: Container(
+  Widget _metric(String label, String value, {VoidCallback? onTap}) => Expanded(
+        child: InkWell(
+          key: label == 'Длина' ? const ValueKey('selected-wall-length') : null,
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(6),
+          child: Container(
           margin: const EdgeInsets.only(right: 4),
           padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
           decoration: BoxDecoration(
@@ -2254,16 +2443,17 @@ class _WallInspector extends StatelessWidget {
                       ),
                     ),
                   ),
-                  if (locked)
+                  if (onTap != null)
                     const Icon(
-                      Icons.lock_outline_rounded,
+                      Icons.edit_outlined,
                       size: 9,
-                      color: ZamerColors.textMuted,
+                      color: ZamerColors.accent,
                     ),
                 ],
               ),
             ],
           ),
+        ),
         ),
       );
 }
