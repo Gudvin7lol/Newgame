@@ -145,6 +145,35 @@ class CadPlanPainterV2 extends CustomPainter {
     return path;
   }
 
+  /// Render room finishes beyond the inner wall face so the same board/tile
+  /// grid can be replayed inside the wall-thickness doorway patch.
+  /// Padding in whole repeat units retains plank/tile phase; even wood rows
+  /// preserve the half-board staggering when used.
+  Rect _finishRenderBounds(RoomFace face, RoomMaterialSettings settings) {
+    final rect = _roomPath(face).getBounds();
+    final preset = MaterialCatalog.byId(settings.floorMaterialId);
+    final pattern = settings.floorMode == 'tile' ? 'tile' : preset.pattern;
+    double repeatPad(double minimum, double repeat) {
+      return math.max(2, (minimum / repeat).ceil() + 1) * repeat;
+    }
+    var padX = 140.0, padY = 140.0;
+    if (pattern == 'tile') {
+      padX = repeatPad(140, math.max(16, settings.tileWidthMm * mmToPx));
+      padY = repeatPad(140, math.max(16, settings.tileHeightMm * mmToPx));
+    } else if (pattern == 'wood' &&
+        settings.laminatePattern != 'herringbone') {
+      final length = math.max(28, settings.laminatePlankLengthMm * mmToPx);
+      final width = math.max(8, settings.laminatePlankWidthMm * mmToPx);
+      padX = repeatPad(140, length);
+      // Keep an even number of board rows to preserve staggered joints.
+      padY = (math.max(2, (140 / width).ceil() + 1) / 2).ceil() * 2 * width;
+    }
+    return Rect.fromLTRB(
+      rect.left - padX, rect.top - padY,
+      rect.right + padX, rect.bottom + padY,
+    );
+  }
+
   void _rooms(Canvas canvas, List<RoomFace> faces) {
     for (final face in faces) {
       if (face.innerPolygon.length < 3) continue;
@@ -157,7 +186,7 @@ class CadPlanPainterV2 extends CustomPainter {
       canvas.save();
       canvas.clipPath(path);
       canvas.drawPath(path, Paint()..color = base);
-      _drawFinish(canvas, path.getBounds(), settings, preset);
+      _drawFinish(canvas, _finishRenderBounds(face, settings), settings, preset);
       canvas.restore();
     }
   }
@@ -529,7 +558,7 @@ class CadPlanPainterV2 extends CustomPainter {
       // A flat rectangle here looked like a broken board at every opening.
       final settings = _metaFor(face)?.materials ?? RoomMaterialSettings();
       final preset = MaterialCatalog.byId(settings.floorMaterialId);
-      _drawFinish(canvas, _roomPath(face).getBounds(), settings, preset);
+      _drawFinish(canvas, _finishRenderBounds(face, settings), settings, preset);
     }
     canvas.restore();
   }
