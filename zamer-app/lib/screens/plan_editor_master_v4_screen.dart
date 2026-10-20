@@ -732,8 +732,10 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
           ? WallMaterial.gasBlock : WallMaterial.drywall,
       // An entered length, e.g. 3123 mm at 45°, must not be moved by a
       // 5-mm rounding rule or a nearby (but different) 80-mm endpoint.
-      endpointCaptureMm: exactLength ? .5 : 80,
-      endpointRoundingMm: exactLength ? 0 : 5,
+      // The snap service already chose a geometric target. Re-capturing
+      // an unrelated node 80 mm away here would silently break 90°/45°.
+      endpointCaptureMm: .5,
+      endpointRoundingMm: 0,
     );
     final created = floor.walls.where((w) => !oldIds.contains(w.id)).toList();
     for (final wall in created) {
