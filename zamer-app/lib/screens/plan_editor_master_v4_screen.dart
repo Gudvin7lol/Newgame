@@ -14,6 +14,7 @@ import '../services/material_catalog.dart';
 import '../services/object_catalog.dart';
 import '../services/plan_direct_interaction.dart';
 import '../services/orthogonal_wall_edit_service.dart';
+import '../services/opening_alignment_service.dart';
 import '../services/plan_visibility_service.dart';
 import 'measure_plan_tool.dart';
 import '../services/space_check_service.dart';
@@ -98,6 +99,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   String? _dragOpeningId;
   double _openingGrabOffsetMm = 0;
   bool _openingDragDirty = false;
+  String? _openingSnapHint;
   String? _dragWallId;
   double _dragWallOffsetMm = 0;
   bool _dragWallModified = false;
@@ -1199,6 +1201,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     _openingGrabOffsetMm = hit == null
         ? 0 : hit.opening.offsetFromStartMm - hit.positionMm;
     _openingDragDirty = false;
+    _openingSnapHint = null;
     if (hit != null) setState(() => _selectedWallId = hit.wall.id);
   }
 
@@ -1218,8 +1221,16 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     final touch = details.localPosition - start;
     final position = (touch.dx * v.dx + touch.dy * v.dy) /
         v.distance / _mmToPx;
-    final wanted = (position + _openingGrabOffsetMm).roundToDouble();
+    final raw = position + _openingGrabOffsetMm;
+    final snap = _snapping ? OpeningAlignmentService.snap(
+      floor, wall, desiredOffsetMm: raw, openingWidthMm: opening.widthMm,
+      toleranceMm: 15 / (_mmToPx * _scale),
+    ) : null;
+    final chosen = snap != null && _openingValid(wall, opening,
+        snap.offsetMm, opening.widthMm) ? snap : null;
+    final wanted = (chosen?.offsetMm ?? raw).roundToDouble();
     if (!_openingValid(wall, opening, wanted, opening.widthMm)) return;
+    _openingSnapHint = chosen?.label;
     if ((opening.offsetFromStartMm - wanted).abs() < .5) return;
     opening.offsetFromStartMm = wanted;
     _openingDragDirty = true;
@@ -1406,8 +1417,14 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
         offsetFromStartMm: (length - width) / 2,
         doorSwing: DoorSwing.leftIn,
       );
-    candidate.offsetFromStartMm = (atMm - width / 2)
+    final rawOffset = (atMm - width / 2)
         .clamp(80.0, length - width - 80.0).toDouble();
+    final snap = _snapping ? OpeningAlignmentService.snap(
+      floor, wall, desiredOffsetMm: rawOffset, openingWidthMm: width,
+      toleranceMm: 17 / (_mmToPx * _scale),
+    ) : null;
+    candidate.offsetFromStartMm = snap?.offsetMm ?? rawOffset;
+    _openingSnapHint = snap?.label;
     if (!_openingValid(wall, candidate, candidate.offsetFromStartMm, width)) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('Здесь проём пересекается с другим проёмом.'),
@@ -2721,6 +2738,26 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                   ],
                 ),
               ),
+              if (widget.planTool == MeasurePlanTool.openings &&
+                  _openingSnapHint != null)
+                Positioned(
+                  left: 12,
+                  bottom: 62,
+                  child: IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: const Color(0xDF0B2630),
+                        borderRadius: BorderRadius.circular(5),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(5),
+                        child: Text(_openingSnapHint!,
+                          style: const TextStyle(fontSize: 10,
+                              color: ZamerColors.accent)),
+                      ),
+                    ),
+                  ),
+                ),
               if (_editingGeometry)
                 Positioned(
                   left: 8,
