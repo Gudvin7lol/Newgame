@@ -42,14 +42,37 @@ class SpaceCheckService {
       final length = math.sqrt(dx * dx + dy * dy);
       if (length < 1) continue;
       final angle = math.atan2(dy, dx) * 180 / math.pi;
-      final wallCorners = _corners(
-        (a.xMm + b.xMm) / 2,
-        (a.yMm + b.yMm) / 2,
-        length,
-        wall.thicknessMm,
-        angle,
-      );
-      if (_overlap(corners, wallCorners)) return true;
+      // A low door opening is a real opening in the solid wall. Check only
+      // intact wall segments so furniture can pass between rooms through it.
+      final blocked = <(double, double)>[];
+      var cursor = 0.0;
+      final passable = wall.openings.where((o) =>
+          o.type == OpeningType.door && o.sillHeightMm <= 35 &&
+          object.elevationMm >= 0 &&
+          object.elevationMm + object.heightMm <= o.heightMm)
+          .toList()
+        ..sort((a, b) => a.offsetFromStartMm.compareTo(b.offsetFromStartMm));
+      for (final opening in passable) {
+        final first = opening.offsetFromStartMm.clamp(0.0, length).toDouble();
+        final last = (opening.offsetFromStartMm + opening.widthMm)
+            .clamp(0.0, length).toDouble();
+        if (first > cursor) blocked.add((cursor, first));
+        cursor = math.max(cursor, last);
+      }
+      if (cursor < length) blocked.add((cursor, length));
+      for (final (first, last) in blocked) {
+        final segmentLength = last - first;
+        if (segmentLength < 1) continue;
+        final mid = (first + last) / 2 / length;
+        final wallCorners = _corners(
+          a.xMm + dx * mid,
+          a.yMm + dy * mid,
+          segmentLength,
+          wall.thicknessMm,
+          angle,
+        );
+        if (_overlap(corners, wallCorners)) return true;
+      }
     }
     return false;
   }
@@ -114,6 +137,29 @@ class SpaceCheckService {
     return true;
   }
 
+  static bool _polygonsOverlap(
+    List<math.Point<double>> a,
+    List<math.Point<double>> b,
+  ) {
+    // Separating-axis theorem for convex polygons (door quarter circle
+    // approximated by a convex 25-point arc fan).
+    for (final polygon in [a, b]) {
+      for (var i = 0; i < polygon.length; i++) {
+        final p = polygon[i], q = polygon[(i + 1) % polygon.length];
+        final ax = -(q.y - p.y), ay = q.x - p.x;
+        final length = math.sqrt(ax * ax + ay * ay);
+        if (length < 1e-6) continue;
+        final nx = ax / length, ny = ay / length;
+        final aMin = a.map((v) => v.x * nx + v.y * ny).reduce(math.min);
+        final aMax = a.map((v) => v.x * nx + v.y * ny).reduce(math.max);
+        final bMin = b.map((v) => v.x * nx + v.y * ny).reduce(math.min);
+        final bMax = b.map((v) => v.x * nx + v.y * ny).reduce(math.max);
+        if (aMax <= bMin + 3 || bMax <= aMin + 3) return false;
+      }
+    }
+    return true;
+  }
+
   static List<SpaceIssue> inspect(FloorPlan floor) {
     final issues = <SpaceIssue>[];
     final objects = floor.planObjects.where(_occupiesFloor).toList();
@@ -164,31 +210,53 @@ class SpaceCheckService {
             opening.offsetFromStartMm < 0 ||
             opening.offsetFromStartMm + opening.widthMm > length + 5)
           continue;
-        final t = (opening.offsetFromStartMm + opening.widthMm / 2) / length;
-        // A 600 mm deep strip on each side of the doorway is checked.
-        final clearance = _corners(
-          from.xMm + dx * t,
-          from.yMm + dy * t,
-          opening.widthMm,
-          1200,
-          math.atan2(dy, dx) * 180 / math.pi,
+        // Check the actual 90-degree swept area of the opening leaf,
+        // not a generic 1200 mm box on both sides of the wall.
+        final alongX = dx / length;
+        final alongY = dy / length;
+        final isRight = opening.doorSwing == DoorSwing.rightIn ||
+            opening.doorSwing == DoorSwing.rightOut;
+        final hingeDistance = opening.offsetFromStartMm +
+            (isRight ? opening.widthMm : 0.0);
+        final hinge = math.Point<double>(
+          from.xMm + alongX * hingeDistance,
+          from.yMm + alongY * hingeDistance,
         );
+        final positive = opening.doorSwing == DoorSwing.leftIn ||
+            opening.doorSwing == DoorSwing.rightIn;
+        final closedAngle = math.atan2(
+          isRight ? -alongY : alongY,
+          isRight ? -alongX : alongX,
+        );
+        final openAngle = math.atan2(
+          positive ? alongX : -alongX,
+          positive ? -alongY : alongY,
+        );
+        var sweep = openAngle - closedAngle;
+        while (sweep > math.pi) { sweep -= 2 * math.pi; }
+        while (sweep < -math.pi) { sweep += 2 * math.pi; }
+        final sector = <math.Point<double>>[hinge];
+        for (var step = 0; step <= 24; step++) {
+          final a = closedAngle + sweep * step / 24;
+          sector.add(math.Point<double>(
+            hinge.x + math.cos(a) * opening.widthMm,
+            hinge.y + math.sin(a) * opening.widthMm,
+          ));
+        }
         for (final object in objects) {
-          if (object.elevationMm >= opening.heightMm) continue;
+          if (object.elevationMm >= opening.heightMm ||
+              object.elevationMm + object.heightMm <= 0) continue;
           final oc = _corners(
-            object.xMm,
-            object.yMm,
-            object.widthMm,
-            object.depthMm,
-            object.rotationDeg,
+            object.xMm, object.yMm, object.widthMm,
+            object.depthMm, object.rotationDeg,
           );
-          if (_overlap(clearance, oc)) {
+          if (_polygonsOverlap(sector, oc)) {
             issues.add(
               SpaceIssue(
-                'Проход у двери перекрывает ${_name(object)}',
+                'Зона открывания двери перекрыта: ${_name(object)}',
                 objectIds: [object.id],
                 kind: SpaceIssueKind.doorClearance,
-                position: math.Point<double>(from.xMm + dx * t, from.yMm + dy * t),
+                position: math.Point<double>(object.xMm, object.yMm),
               ),
             );
           }
