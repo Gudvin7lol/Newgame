@@ -87,7 +87,12 @@ class RoomInteriorDimensionsService {
     List<RoomFace>? faces,
   }) => [
     for (final face in faces ?? GeometryService.roomFaces(floor))
-      ...forFace(face),
+      // A curved wall's centreline chord is not the true finished face.
+      // Suppress unsupported curved-room dimensions instead of publishing
+      // a plausible but false straight-line room measurement.
+      if (face.edges.every((edge) =>
+          floor.wallById(edge.wallId)?.isCurved == false))
+        ...forFace(face),
   ];
 
   static bool _finite(math.Point<double> p) =>
