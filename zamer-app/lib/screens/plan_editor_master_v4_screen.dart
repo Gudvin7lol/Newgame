@@ -733,6 +733,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
 
   void _wallPointerDown(PointerDownEvent event) {
     if (!_drawingWall || _moveCameraInsteadOfDrawing ||
+        (widget.planTool != MeasurePlanTool.exterior &&
+         widget.planTool != MeasurePlanTool.partition) ||
         _wallStartNodeId == null || _wallPointerId != null) return;
     _wallPointerId = event.pointer;
     _wallPointerStartGlobal = event.position;
@@ -744,6 +746,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   }
 
   void _wallPointerMove(PointerMoveEvent event) {
+    if (_wallPointerId != null && event.pointer != _wallPointerId) return;
     _updateLiveWallGuide(event);
     if (event.pointer != _wallPointerId || _wallPointerStartGlobal == null ||
         !_drawingWall || _moveCameraInsteadOfDrawing) return;
@@ -788,6 +791,10 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     matrix.storage[13] += dy;
     _transform.value = matrix;
     _updateWallGuideAt(_transform.toScene(pos));
+  }
+
+  void _wallPointerCancel(PointerCancelEvent event) {
+    if (event.pointer == _wallPointerId) _stopEdgePan();
   }
 
   void _wallPointerUp(PointerEvent event) {
@@ -2529,7 +2536,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                         onPointerDown: _wallPointerDown,
                         onPointerMove: _wallPointerMove,
                         onPointerUp: _wallPointerUp,
-                        onPointerCancel: _wallPointerUp,
+                        onPointerCancel: _wallPointerCancel,
                         onPointerHover: _updateLiveWallGuide,
                         child: GestureDetector(
                         behavior: HitTestBehavior.opaque,
