@@ -577,8 +577,16 @@ class GeometryService {
     double t,
     math.Point<double> point,
   ) {
-    final existing = nearestNode(floor, point, thresholdMm: 25);
-    if (existing != null) return existing;
+    // A close, unrelated point is NOT a valid junction. Most importantly,
+    // even when a node lies exactly on a host wall, the wall must actually
+    // be split so all incident edges share that same topological node.
+    final start = floor.nodeById(wall.startNodeId);
+    final end = floor.nodeById(wall.endNodeId);
+    for (final node in <PlanNode?>[start, end]) {
+      if (node != null &&
+          _pointDistance(math.Point<double>(node.xMm, node.yMm), point)
+              <= .5) return node;
+    }
     final hit = _IntersectionHit(point: point, tNew: 0, tWall: t);
     return _splitWallAtMany(floor, wall, [hit]).first;
   }
@@ -598,14 +606,17 @@ class GeometryService {
       ..sort((a, b) => a.tWall.compareTo(b.tWall));
     final nodes = <PlanNode>[];
     for (final hit in sorted) {
-      final near = nearestNode(floor, hit.point, thresholdMm: 25);
-      if (near != null) {
+      final near = nearestNode(floor, hit.point, thresholdMm: .5);
+      // Never attach a wall to an off-axis vertex only because the finger
+      // came within 25 mm. Nor round an exact 90-degree intersection to the
+      // nearest 5 mm, which can create a visibly skewed partition.
+      if (near != null && near.id != start.id && near.id != end.id) {
         nodes.add(near);
       } else {
         final n = PlanNode(
           id: _id('n'),
-          xMm: _round5(hit.point.x),
-          yMm: _round5(hit.point.y),
+          xMm: hit.point.x,
+          yMm: hit.point.y,
         );
         floor.nodes.add(n);
         nodes.add(n);
