@@ -76,6 +76,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   bool _nodeDragChanged = false;
   int _angleSnapDegrees = 90;
   double _lastWallAngleDegrees = 0;
+  String? _lastWallSnapLabel;
   String? _dragWallId;
   double _dragWallOffsetMm = 0;
   bool _dragWallModified = false;
@@ -143,6 +144,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       // Switching tools must not continue an unfinished wall/arc, dimension,
       // or vertex drag on the same shared canvas.
       _wallStartNodeId = null;
+      _lastWallSnapLabel = null;
       _dimensionStartNodeId = null;
       _dragNodeId = null;
       _dragSnap = null;
@@ -688,6 +690,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       );
       setState(() {
         _wallStartNodeId = node.id;
+        _lastWallSnapLabel = 'Начало стены';
         _selectedWallId = null;
       });
       await _changed();
@@ -699,6 +702,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       return;
     }
     final snap = _snapDrawTarget(start, _toMm(p));
+    setState(() => _lastWallSnapLabel = snap.kind.label);
     await _commitWallSegment(
       start: start,
       point: snap.point,
@@ -846,6 +850,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       type: widget.planTool == MeasurePlanTool.exterior
           ? WallType.exterior : WallType.partition,
     );
+    if (mounted) setState(() => _lastWallSnapLabel = 'По точному размеру');
   }
 
   Future<void> _addOpening(Offset p, {bool chooseType = false}) async {
@@ -1542,6 +1547,11 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                         style: const TextStyle(fontSize: 11,
                           color: ZamerColors.textPrimary)),
                     const SizedBox(width: 8),
+                    if (hasStart && _lastWallSnapLabel != null)
+                      Text(_lastWallSnapLabel!,
+                        style: const TextStyle(
+                          fontSize: 10, color: ZamerColors.textSecondary)),
+                    const SizedBox(width: 6),
                     PopupMenuButton<int>(
                       tooltip: 'Угловая привязка',
                       onSelected: (value) => setState(() => _angleSnapDegrees = value),
@@ -1604,7 +1614,10 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
           ),
           if (hasStart)
             TextButton.icon(
-              onPressed: () => setState(() => _wallStartNodeId = null),
+              onPressed: () => setState(() {
+                _wallStartNodeId = null;
+                _lastWallSnapLabel = null;
+              }),
               icon: const Icon(Icons.check_rounded, size: 17),
               label: const Text('Стоп'),
             ),
@@ -1697,6 +1710,25 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                           ),
                         ),
                       ),
+                      // Always reveal the chained wall's real CAD start node
+                      // without stealing touch events or covering furniture.
+                      if (_drawingWall && _wallStartNodeId != null)
+                        if (floor.nodeById(_wallStartNodeId!) case final start?)
+                          Positioned(
+                            left: _toCanvas(start).dx - 5,
+                            top: _toCanvas(start).dy - 5,
+                            child: IgnorePointer(
+                              child: Container(
+                                width: 10, height: 10,
+                                decoration: BoxDecoration(
+                                  color: ZamerColors.accent,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: ZamerColors.background, width: 1.5),
+                                ),
+                              ),
+                            ),
+                          ),
                       if (widget.planTool == MeasurePlanTool.overview)
                         if (_layoutDragRegion() case final region?) region,
                       if (widget.planTool == MeasurePlanTool.overview)
