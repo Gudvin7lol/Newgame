@@ -1414,6 +1414,9 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     var best = pixelToleranceMm;
     ({math.Point<double> point, String nodeId})? result;
     for (final face in _faces) {
+      if (face.edges.any(
+        (edge) => floor.wallById(edge.wallId)?.isCurved != false,
+      )) continue;
       // The real corners exclude intermediate collinear vertices introduced
       // when a host wall was split at a T-junction.
       for (final dimension in RoomInteriorDimensionsService.forFace(face)) {
