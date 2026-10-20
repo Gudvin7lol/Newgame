@@ -1244,36 +1244,59 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   Future<void> _shiftSelectedWall() async {
     final wall = _selectedWall;
     if (wall == null) return;
-    final controller = TextEditingController(text: '0');
+    var offsetText = '0';
     final offset = await showModalBottomSheet<double>(
       context: context,
+      backgroundColor: ZamerColors.surface,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (sheet) => Padding(
-        padding: EdgeInsets.fromLTRB(16, 8, 16,
-          20 + MediaQuery.viewInsetsOf(sheet).bottom),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Сдвинуть стену параллельно'),
-            TextField(
-              controller: controller,
-              keyboardType: const TextInputType.numberWithOptions(signed: true, decimal: true),
-              decoration: const InputDecoration(
-                labelText: 'Смещение по X / Y', suffixText: 'мм',
-                helperText: 'Вертикальная стена: X; горизонтальная: Y'),
+      builder: (sheet) => SafeArea(
+        top: false,
+        child: AnimatedPadding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.viewInsetsOf(sheet).bottom,
+          ),
+          duration: const Duration(milliseconds: 150),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Сдвинуть стену параллельно'),
+                TextFormField(
+                  initialValue: offsetText,
+                  onChanged: (value) => offsetText = value,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    signed: true, decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'Смещение по X / Y',
+                    suffixText: 'мм',
+                    helperText: 'Вертикальная стена: X; горизонтальная: Y',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                FilledButton(
+                  onPressed: () {
+                    final mm = double.tryParse(
+                      offsetText.trim().replaceAll(',', '.'),
+                    );
+                    if (mm == null || !mm.isFinite) {
+                      ScaffoldMessenger.of(sheet).showSnackBar(
+                        const SnackBar(content: Text('Укажите смещение в мм')),
+                      );
+                      return;
+                    }
+                    Navigator.pop(sheet, mm);
+                  },
+                  child: const Text('Переместить'),
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
-            FilledButton(onPressed: () {
-              final mm = double.tryParse(controller.text.replaceAll(',', '.'));
-              if (mm == null || !mm.isFinite) return;
-              Navigator.pop(sheet, mm);
-            }, child: const Text('Переместить')),
-          ],
+          ),
         ),
       ),
     );
-    controller.dispose();
     if (offset == null || offset == 0 || !mounted) return;
     final result = OrthogonalWallEditService.move(
       floor, wallId: wall.id, offsetMm: offset,
@@ -1573,64 +1596,87 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   Future<void> _editWall() async {
     final wall = _selectedWall;
     if (wall == null) return;
-    final thickness =
-        TextEditingController(text: wall.thicknessMm.round().toString());
-    final height = TextEditingController(
-      text: (wall.heightOverrideMm ?? floor.defaultHeightMm).round().toString(),
-    );
-    final save = await showModalBottomSheet<bool>(
+    var thicknessText = wall.thicknessMm.round().toString();
+    var heightText =
+        (wall.heightOverrideMm ?? floor.defaultHeightMm).round().toString();
+    final properties = await showModalBottomSheet<(double, double)>(
       context: context,
       isScrollControlled: true,
       backgroundColor: ZamerColors.surface,
       showDragHandle: true,
-      builder: (context) => Padding(
-        padding: EdgeInsets.fromLTRB(
-          16,
-          0,
-          16,
-          16 + MediaQuery.viewInsetsOf(context).bottom,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: thickness,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Толщина',
-                suffixText: 'мм',
-              ),
+      builder: (sheet) => SafeArea(
+        top: false,
+        child: AnimatedPadding(
+          duration: const Duration(milliseconds: 150),
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.viewInsetsOf(sheet).bottom,
+          ),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Параметры стены',
+                  style: TextStyle(fontWeight: FontWeight.w700)),
+                const SizedBox(height: 8),
+                TextFormField(
+                  initialValue: thicknessText,
+                  onChanged: (value) => thicknessText = value,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'Толщина', suffixText: 'мм',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextFormField(
+                  initialValue: heightText,
+                  onChanged: (value) => heightText = value,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'Высота', suffixText: 'мм',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () {
+                      final thickness = double.tryParse(
+                        thicknessText.trim().replaceAll(',', '.'),
+                      );
+                      final height = double.tryParse(
+                        heightText.trim().replaceAll(',', '.'),
+                      );
+                      if (thickness == null || height == null ||
+                          !thickness.isFinite || !height.isFinite ||
+                          thickness <= 40 || thickness > 1500 ||
+                          height <= 300 || height > 10000) {
+                        ScaffoldMessenger.of(sheet).showSnackBar(
+                          const SnackBar(
+                            content: Text('Проверьте толщину и высоту стены'),
+                          ),
+                        );
+                        return;
+                      }
+                      Navigator.pop(sheet, (thickness, height));
+                    },
+                    child: const Text('Сохранить'),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: height,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Высота',
-                suffixText: 'мм',
-              ),
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Сохранить'),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
-    if (save == true) {
-      final t = double.tryParse(thickness.text);
-      final h = double.tryParse(height.text);
-      if (t != null && t > 40) wall.thicknessMm = t;
-      if (h != null && h > 300) wall.heightOverrideMm = h;
-      await _changed();
-    }
-    thickness.dispose();
-    height.dispose();
+    if (properties == null || !mounted) return;
+    wall.thicknessMm = properties.$1;
+    wall.heightOverrideMm = properties.$2;
+    await _changed();
   }
 
   Future<void> _deleteWall() async {
