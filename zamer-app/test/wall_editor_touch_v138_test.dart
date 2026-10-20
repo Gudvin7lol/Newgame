@@ -37,7 +37,8 @@ void main() {
     ]) {
       expect(source, contains(method), reason: 'Missing action $method');
     }
-    expect(source, contains('endpointCaptureMm: exactLength ? .5 : 80'));
+    expect(source, contains('endpointCaptureMm: .5'));
+    expect(source, contains('endpointRoundingMm: 0'));
   });
 
   testWidgets('enter exact length inside same CAD viewport', (tester) async {
