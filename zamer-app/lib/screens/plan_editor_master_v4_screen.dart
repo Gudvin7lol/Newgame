@@ -1344,7 +1344,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
         doorSwing: DoorSwing.leftIn,
       );
     candidate.offsetFromStartMm = (atMm - width / 2)
-        .clamp(80.0, length - width - 80.0);
+        .clamp(80.0, length - width - 80.0).toDouble();
     if (!_openingValid(wall, candidate, candidate.offsetFromStartMm, width)) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('Здесь проём пересекается с другим проёмом.'),
