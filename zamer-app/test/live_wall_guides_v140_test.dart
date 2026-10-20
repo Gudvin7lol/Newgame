@@ -137,6 +137,81 @@ void main() {
     expect(floor.nodeDegree(node.id), 3);
   });
 
+  test('host wall sockets stay linked after splitting into two segments', () {
+    final floor = hostWithPartitionStart();
+    final socket = ElectricalPoint(
+      id: 'socket', type: ElectricalPointType.socket,
+      xMm: 3200, yMm: 0,
+      wallId: 'host', wallOffsetMm: 3200,
+    );
+    floor.electricalPoints.add(socket);
+    final end = GeometryService.addWallFromNode(
+      floor,
+      startNodeId: 'partition-start',
+      endPoint: const math.Point<double>(2000, 0),
+      type: WallType.partition,
+      thicknessMm: 100,
+      material: WallMaterial.drywall,
+      endpointCaptureMm: .5,
+    );
+    expect(floor.nodeDegree(end.id), 3);
+    final linked = floor.wallById(socket.wallId!);
+    expect(linked, isNotNull, reason: 'A socket must not reference the old host ID');
+    expect(linked!.thicknessMm, 300);
+    expect(linked.startNodeId, end.id);
+    expect(socket.wallOffsetMm, closeTo(1200, .001));
+    expect(socket.xMm, 3200);
+    expect(socket.yMm, 0);
+  });
+
+  test('splitting through an opening is rejected before mutating host', () {
+    final floor = hostWithPartitionStart();
+    floor.wallById('host')!.openings.add(WallOpening(
+      id: 'door', type: OpeningType.door,
+      widthMm: 900, heightMm: 2100,
+      offsetFromStartMm: 1600,
+    ));
+    final before = floor.toJson().toString();
+    expect(
+      () => GeometryService.addWallFromNode(
+        floor,
+        startNodeId: 'partition-start',
+        endPoint: const math.Point<double>(2000, 0),
+        type: WallType.partition,
+        thicknessMm: 100,
+        material: WallMaterial.drywall,
+        endpointCaptureMm: .5,
+      ),
+      throwsA(isA<StateError>()),
+    );
+    expect(floor.toJson().toString(), before);
+  });
+
+  test('replaced host segments are not reported as newly drawn walls', () {
+    final floor = hostWithPartitionStart();
+    final newWalls = <PlanWall>[];
+    GeometryService.addWallFromNode(
+      floor, startNodeId: 'partition-start',
+      endPoint: const math.Point<double>(2000, 0),
+      type: WallType.partition,
+      thicknessMm: 100,
+      material: WallMaterial.drywall,
+      endpointCaptureMm: .5,
+      newlyDrawnWalls: newWalls,
+    );
+    expect(newWalls.length, 1);
+    newWalls.single.projectLayer = ProjectLayer.proposed;
+    expect(floor.walls.where(
+      (wall) => wall.projectLayer == ProjectLayer.proposed,
+    ).length, 1);
+    expect(floor.walls.where(
+      (wall) => wall.projectLayer == ProjectLayer.existing,
+    ).length, 2);
+    expect(floor.walls.where(
+      (wall) => wall.thicknessMm == 300,
+    ).length, 2);
+  });
+
   test('preview painter is a noninteractive overlay and labels hit kind', () {
     final painter = WallDraftGuidePainter(
       from: const Offset(100, 100),
