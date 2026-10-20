@@ -745,12 +745,24 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
 
   Future<void> _createWall(Offset p, {WallType type = WallType.partition}) async {
     if (_wallStartNodeId == null) {
-      final node = GeometryService.ensureAnchor(
-        floor,
-        _toMm(p),
-        captureMm: _snapping ? 13 / (_mmToPx * _scale) : 0,
-        newNodeRoundingMm: _snapping ? 5 : 0,
-      );
+      final snapshot = FloorPlan.fromJson(floor.toJson());
+      late final PlanNode node;
+      try {
+        node = GeometryService.ensureAnchor(
+          floor,
+          _toMm(p),
+          captureMm: _snapping ? 13 / (_mmToPx * _scale) : 0,
+          newNodeRoundingMm: _snapping ? 5 : 0,
+        );
+      } on StateError catch (error) {
+        floor.restoreFrom(snapshot);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(error.message.toString())),
+          );
+        }
+        return;
+      }
       setState(() {
         _wallStartNodeId = node.id;
         _lastWallSnapLabel = 'Начало стены';
@@ -789,23 +801,38 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       return;
     }
     final oldIds = floor.walls.map((w) => w.id).toSet();
-    final end = GeometryService.addWallFromNode(
-      floor,
-      startNodeId: start.id,
-      endPoint: point,
-      type: type,
-      thicknessMm: type == WallType.exterior ? 300 : 100,
-      material: type == WallType.exterior
-          ? WallMaterial.gasBlock : WallMaterial.drywall,
-      // An entered length, e.g. 3123 mm at 45°, must not be moved by a
-      // 5-mm rounding rule or a nearby (but different) 80-mm endpoint.
-      // The snap service already chose a geometric target. Re-capturing
-      // an unrelated node 80 mm away here would silently break 90°/45°.
-      endpointCaptureMm: .5,
-      endpointRoundingMm: 0,
-    );
-    final created = floor.walls.where((w) => !oldIds.contains(w.id)).toList();
-    for (final wall in created) {
+    final snapshot = FloorPlan.fromJson(floor.toJson());
+    final drawn = <PlanWall>[];
+    late final PlanNode end;
+    try {
+      end = GeometryService.addWallFromNode(
+        floor,
+        startNodeId: start.id,
+        endPoint: point,
+        type: type,
+        thicknessMm: type == WallType.exterior ? 300 : 100,
+        material: type == WallType.exterior
+            ? WallMaterial.gasBlock : WallMaterial.drywall,
+        // The snap engine already chose the geometric target: do not
+        // capture an unrelated node within 80 mm or round exact dimensions.
+        endpointCaptureMm: .5,
+        endpointRoundingMm: 0,
+        newlyDrawnWalls: drawn,
+      );
+    } on StateError catch (error) {
+      // A wall can intersect multiple hosts; if any requested split is
+      // invalid, never leave a half-completed floor or detached opening.
+      floor.restoreFrom(snapshot);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error.message.toString())),
+        );
+      }
+      return;
+    }
+    final changed = drawn.isNotEmpty ||
+        floor.walls.any((wall) => !oldIds.contains(wall.id));
+    for (final wall in drawn) {
       wall.projectLayer = _drawingLayer;
       wall.demolition = _drawingLayer == ProjectLayer.demolition;
     }
@@ -814,9 +841,9 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     setState(() {
       _wallStartNodeId = end.id;
       _liveWallSnap = null;
-      if (created.isNotEmpty) _selectedWallId = created.last.id;
+      if (drawn.isNotEmpty) _selectedWallId = drawn.last.id;
     });
-    if (created.isNotEmpty) await _changed();
+    if (changed) await _changed();
   }
 
   Future<void> _enterWallLength() async {
