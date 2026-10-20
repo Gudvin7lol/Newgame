@@ -38,6 +38,7 @@ class ZamerOpeningRenderMetrics {
     required double widthMm,
     required double heightMm,
     required double wallThicknessMm,
+    bool recessedWindow = false,
   }) {
     final widthM = math.max(0.20, widthMm / 1000);
     final heightM = math.max(0.20, heightMm / 1000);
@@ -45,7 +46,10 @@ class ZamerOpeningRenderMetrics {
     final frameBarM = (math.min(widthM, heightM) * 0.055)
         .clamp(0.035, 0.055)
         .toDouble();
-    final frameDepthM = math.max(0.080, safeWallM + 0.018);
+    // Window profiles must not project beyond the construction wall.
+    final frameDepthM = recessedWindow
+        ? math.max(0.025, safeWallM - 0.012)
+        : math.max(0.080, safeWallM + 0.018);
     final casingWidthM = (frameBarM * 1.45).clamp(0.055, 0.080).toDouble();
 
     return ZamerOpeningRenderMetrics(
@@ -55,7 +59,9 @@ class ZamerOpeningRenderMetrics {
       frameBarM: frameBarM,
       casingWidthM: casingWidthM,
       casingDepthM: 0.014,
-      sillBoardDepthM: math.max(0.16, safeWallM + 0.075),
+      sillBoardDepthM: recessedWindow
+          ? math.max(0.025, safeWallM - 0.008)
+          : math.max(0.16, safeWallM + 0.075),
       sillBoardThicknessM: 0.028,
       mullionWidthM: (frameBarM * 0.70).clamp(0.026, 0.038).toDouble(),
       leafWidthM: math.max(0.12, widthM - frameBarM * 1.55),
