@@ -127,7 +127,8 @@ void main() {
     expect(src, contains('_moveCameraInsteadOfDrawing'));
     expect(src, contains('_openingDragUpdate'));
     expect(src, contains('if (_moveCameraInsteadOfDrawing) return;'));
-    expect(src, contains('if (_moveCameraInsteadOfDrawing || !_drawingWall ||'));
+    expect(src, contains('void _updateWallGuideAt('));
+    expect(src, contains('_drawingWall'));
     expect(src, contains("ValueKey('wall-camera-navigation')"));
   });
 }
