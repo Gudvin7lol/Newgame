@@ -88,6 +88,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   // accidental camera shifts while placing a wall on a phone.
   bool _moveCameraInsteadOfDrawing = false;
   Timer? _edgePanTimer;
+  final Set<int> _activeCanvasPointers = <int>{};
+  bool _pinchInProgress = false;
   int? _wallPointerId;
   Offset? _wallPointerStartGlobal;
   Offset? _wallPointerViewport;
@@ -763,7 +765,15 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   }
 
   void _wallPointerDown(PointerDownEvent event) {
-    if (!_drawingWall || _moveCameraInsteadOfDrawing ||
+    _activeCanvasPointers.add(event.pointer);
+    if (_activeCanvasPointers.length > 1) {
+      // Two fingers zoom without committing a phantom wall segment.
+      _pinchInProgress = true;
+      _stopEdgePan();
+      return;
+    }
+    if (_pinchInProgress ||
+        !_drawingWall || _moveCameraInsteadOfDrawing ||
         (widget.planTool != MeasurePlanTool.exterior &&
          widget.planTool != MeasurePlanTool.partition) ||
         _wallStartNodeId == null || _wallPointerId != null) return;
@@ -777,6 +787,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   }
 
   void _wallPointerMove(PointerMoveEvent event) {
+    if (_pinchInProgress) return;
     if (_wallPointerId != null && event.pointer != _wallPointerId) return;
     _updateLiveWallGuide(event);
     if (event.pointer != _wallPointerId || _wallPointerStartGlobal == null ||
@@ -802,8 +813,10 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       _edgePanTimer = null;
       return;
     }
-    const margin = 54.0;
-    const speed = 13.0;
+    // An extended edge band avoids the old premature slowdown; speed
+    // continues ramping up as the finger approaches or passes the edge.
+    const margin = 105.0;
+    const speed = 22.0;
     double velocity(double coordinate, double extent) {
       if (coordinate < margin) {
         return speed * ((margin - coordinate) / margin).clamp(0.0, 1.0);
@@ -825,10 +838,17 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   }
 
   void _wallPointerCancel(PointerCancelEvent event) {
+    _activeCanvasPointers.remove(event.pointer);
     if (event.pointer == _wallPointerId) _stopEdgePan();
+    if (_activeCanvasPointers.isEmpty) _pinchInProgress = false;
   }
 
   void _wallPointerUp(PointerEvent event) {
+    _activeCanvasPointers.remove(event.pointer);
+    if (_pinchInProgress) {
+      if (_activeCanvasPointers.isEmpty) _pinchInProgress = false;
+      return;
+    }
     if (event.pointer != _wallPointerId) return;
     final endViewport = _wallPointerViewport;
     final shouldCommit = _wallPointerDragging && _wallStartNodeId != null &&
@@ -2559,8 +2579,10 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                   // the camera until the dedicated hand mode is activated.
                   panEnabled: widget.planTool != MeasurePlanTool.nodes &&
                       _cameraGestureEnabled,
+                  // Two-finger pinch is safe during drawing; single-finger pan
+                  // remains locked so moving a wall cannot move the camera.
                   scaleEnabled: widget.planTool != MeasurePlanTool.nodes &&
-                      _cameraGestureEnabled,
+                      (_drawingWall || _cameraGestureEnabled),
                   boundaryMargin: const EdgeInsets.all(2200),
                   constrained: false,
                   child: Stack(
