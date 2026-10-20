@@ -120,9 +120,13 @@ void main() {
     final src =
         File('lib/screens/plan_editor_master_v4_screen.dart').readAsStringSync();
     expect(src, contains('bool get _cameraGestureEnabled'));
-    expect(src, contains('panEnabled: widget.planTool != MeasurePlanTool.nodes &&'));
-    expect(src, contains('scaleEnabled: widget.planTool != MeasurePlanTool.nodes &&'));
-    expect(src, contains('if (_drawingWall && _moveCameraInsteadOfDrawing) return;'));
+    expect(src, contains('panEnabled:'));
+    expect(src, contains('_cameraGestureEnabled'));
+    expect(src, contains('_edgePanTick()'));
+    expect(src, contains('scaleEnabled:'));
+    expect(src, contains('_moveCameraInsteadOfDrawing'));
+    expect(src, contains('_openingDragUpdate'));
+    expect(src, contains('if (_moveCameraInsteadOfDrawing) return;'));
     expect(src, contains('if (_moveCameraInsteadOfDrawing || !_drawingWall ||'));
     expect(src, contains("ValueKey('wall-camera-navigation')"));
   });
