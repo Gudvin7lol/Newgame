@@ -37,6 +37,7 @@ class CadPlanPainterV2 extends CustomPainter {
     this.selectedWallId,
     this.showGrid = true,
     this.showDimensions = true,
+    this.showOpeningDimensions = false,
     this.drawTopView,
     Set<ProjectLayer>? visibleLayers,
     Set<PlanDisplayLayer>? visibleCategories,
@@ -52,6 +53,7 @@ class CadPlanPainterV2 extends CustomPainter {
   final String? selectedWallId;
   final bool showGrid;
   final bool showDimensions;
+  final bool showOpeningDimensions;
   final ObjectTopViewPainter? drawTopView;
   final Set<ProjectLayer> visibleLayers;
   final Set<PlanDisplayLayer> visibleCategories;
@@ -93,7 +95,11 @@ class CadPlanPainterV2 extends CustomPainter {
   }
 
   void _background(Canvas canvas, Size size) {
-    canvas.drawRect(Offset.zero & size, Paint()..color = ZamerColors.background);
+    // Do not paint thousands of full-length grid lines on the extended
+    // virtual canvas; Flutter supplies the visible local clip rectangle.
+    final visible = canvas.getLocalClipBounds().intersect(Offset.zero & size);
+    if (visible.isEmpty) return;
+    canvas.drawRect(visible, Paint()..color = ZamerColors.background);
     if (!showGrid) return;
 
     final minor = 250 * mmToPx;
@@ -107,19 +113,23 @@ class CadPlanPainterV2 extends CustomPainter {
       ..color = const Color(0xFF29434A).withValues(alpha: .46)
       ..strokeWidth = .72;
 
-    for (double x = origin.dx % minor; x < size.width; x += minor) {
+    final gridX = origin.dx +
+        ((visible.left - origin.dx) / minor).floor() * minor;
+    final gridY = origin.dy +
+        ((visible.top - origin.dy) / minor).floor() * minor;
+    for (double x = gridX; x <= visible.right; x += minor) {
       final index = ((x - origin.dx) / minor).round().abs();
       canvas.drawLine(
-        Offset(x, 0),
-        Offset(x, size.height),
+        Offset(x, visible.top),
+        Offset(x, visible.bottom),
         index % 4 == 0 ? majorPaint : minorPaint,
       );
     }
-    for (double y = origin.dy % minor; y < size.height; y += minor) {
+    for (double y = gridY; y <= visible.bottom; y += minor) {
       final index = ((y - origin.dy) / minor).round().abs();
       canvas.drawLine(
-        Offset(0, y),
-        Offset(size.width, y),
+        Offset(visible.left, y),
+        Offset(visible.right, y),
         index % 4 == 0 ? majorPaint : minorPaint,
       );
     }
@@ -235,10 +245,10 @@ class CadPlanPainterV2 extends CustomPainter {
     final offsetY = settings.laminateOffsetYMm * mmToPx;
     final joint = Paint()
       ..color = Color.lerp(base, Colors.black, .56)!.withValues(alpha: .42)
-      ..strokeWidth = .55;
+      ..strokeWidth = math.max(.07, .45 * mmToPx);
     final grain = Paint()
       ..color = Color.lerp(base, Colors.white, .42)!.withValues(alpha: .13)
-      ..strokeWidth = .45;
+      ..strokeWidth = math.max(.07, .3 * mmToPx);
 
     var row = 0;
     for (double y = bounds.top - plankW + offsetY;
@@ -292,7 +302,7 @@ class CadPlanPainterV2 extends CustomPainter {
     final joint = Paint()
       ..color = Color.lerp(base, Colors.black, .60)!.withValues(alpha: .44)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = .55;
+      ..strokeWidth = math.max(.07, .45 * mmToPx);
     final shades = <Paint>[
       Paint()..color = Color.lerp(base, Colors.white, .06)!,
       Paint()..color = Color.lerp(base, Colors.black, .035)!,
@@ -324,7 +334,9 @@ class CadPlanPainterV2 extends CustomPainter {
     final tileH = math.max(16.0, settings.tileHeightMm * mmToPx);
     final offsetX = settings.tileOffsetXMm * mmToPx;
     final offsetY = settings.tileOffsetYMm * mmToPx;
-    final grout = math.max(.45, settings.floorTileGroutMm * mmToPx);
+    // Grout is a material measurement in millimetres, not a UI stroke.
+    // The old minimum .45 px inflated a 2 mm joint to 4.5 mm at plan scale.
+    final grout = math.max(.07, settings.floorTileGroutMm * mmToPx);
     final line = Paint()
       ..color = const Color(0xFF777B7C).withValues(alpha: .54)
       ..strokeWidth = grout;
@@ -564,6 +576,49 @@ class CadPlanPainterV2 extends CustomPainter {
     canvas.restore();
   }
 
+  void _openingMeasurements(
+    Canvas canvas,
+    PlanWall wall,
+    Offset wallStart,
+    Offset wallEnd,
+    Offset jambStart,
+    Offset jambEnd,
+    Offset normal,
+  ) {
+    final axis = wallEnd - wallStart;
+    final length = axis.distance;
+    if (length < 1) return;
+    final t = axis / length;
+    final values = <({Offset from, Offset to, double mm})>[
+      (from: wallStart, to: jambStart,
+       mm: (jambStart - wallStart).distance / mmToPx),
+      (from: jambEnd, to: wallEnd,
+       mm: (wallEnd - jambEnd).distance / mmToPx),
+    ];
+    final line = Paint()
+      ..color = const Color(0xFF9FC5D2).withValues(alpha: .72)
+      ..strokeWidth = .60;
+    for (final run in values) {
+      if (run.mm < 20 || (run.to - run.from).distance < 28) continue;
+      final a = run.from - normal * (wall.thicknessMm * mmToPx / 2 + 11);
+      final b = run.to - normal * (wall.thicknessMm * mmToPx / 2 + 11);
+      canvas.drawLine(a, b, line);
+      canvas.drawLine(a - normal * 2, a + normal * 2, line);
+      canvas.drawLine(b - normal * 2, b + normal * 2, line);
+      final label = TextPainter(
+        text: TextSpan(
+          text: '${run.mm.round()}',
+          style: const TextStyle(color: Color(0xFFC0D3D7),
+            fontSize: 8, fontWeight: FontWeight.w500),
+        ),
+        maxLines: 1,
+        textDirection: TextDirection.ltr,
+      )..layout();
+      final mid = (a + b) / 2;
+      label.paint(canvas, mid - Offset(label.width / 2, label.height + 2));
+    }
+  }
+
   void _openings(
     Canvas canvas,
     PlanWall wall,
@@ -591,9 +646,15 @@ class CadPlanPainterV2 extends CustomPainter {
       final left = p1 - unit * 1.4;
       final right = p2 + unit * 1.4;
       final half = wallWidth / 2 + 2.4;
+      if (showOpeningDimensions) {
+        _openingMeasurements(canvas, wall, a, b, p1, p2, normal);
+      }
       if (opening.type == OpeningType.window) {
+        // The frame profile is wholly inside the wall thickness, rather
+        // than the old cut rectangle extending 2.4 px beyond both faces.
+        final frameHalf = math.max(1.0, wallWidth / 2 - 1.0);
         _doorwayQuad(
-          canvas, left, right, normal, -half, half,
+          canvas, p1, p2, normal, -frameHalf, frameHalf,
           const Color(0xFFDDE7E9),
         );
         final frame = Paint()
@@ -874,11 +935,11 @@ class CadPlanPainterV2 extends CustomPainter {
   /// remains collinear across the T-junction.
   void _innerDimensions(Canvas canvas, List<RoomFace> faces) {
     final linePaint = Paint()
-      ..color = const Color(0xFF52757A).withValues(alpha: .46)
-      ..strokeWidth = .50;
+      ..color = const Color(0xFF52757A).withValues(alpha: .23)
+      ..strokeWidth = .38;
     final capPaint = Paint()
-      ..color = const Color(0xFF52757A).withValues(alpha: .56)
-      ..strokeWidth = .55;
+      ..color = const Color(0xFF52757A).withValues(alpha: .29)
+      ..strokeWidth = .40;
     for (final dimension in RoomInteriorDimensionsService.forFloor(
       floor, faces: faces,
     )) {
@@ -919,9 +980,9 @@ class CadPlanPainterV2 extends CustomPainter {
         text: TextSpan(
           text: '${dimension.lengthMm.round()}',
           style: const TextStyle(
-            color: Color(0xFF456167),
-            fontSize: 7.0,
-            fontWeight: FontWeight.w600,
+            color: Color(0xFF73888C),
+            fontSize: 6.8,
+            fontWeight: FontWeight.w500,
           ),
         ),
         maxLines: 1,
@@ -936,7 +997,7 @@ class CadPlanPainterV2 extends CustomPainter {
       );
       canvas.drawRRect(
         RRect.fromRectAndRadius(bg, const Radius.circular(2)),
-        Paint()..color = const Color(0xFFF3F0E8).withValues(alpha: .82),
+        Paint()..color = const Color(0xFFF3F0E8).withValues(alpha: .48),
       );
       text.paint(
         canvas,
@@ -1014,8 +1075,8 @@ class CadPlanPainterV2 extends CustomPainter {
       final p1 = pa - normal * offset;
       final p2 = pb - normal * offset;
       final paint = Paint()
-        ..color = const Color(0xFF96AAA9).withValues(alpha: .48)
-        ..strokeWidth = .52;
+        ..color = const Color(0xFF96AAA9).withValues(alpha: .25)
+        ..strokeWidth = .38;
       canvas.drawLine(p1, p2, paint);
       canvas.drawLine(p1 - normal * 3.5, p1 + normal * 3.5, paint);
       canvas.drawLine(p2 - normal * 3.5, p2 + normal * 3.5, paint);
@@ -1041,7 +1102,7 @@ class CadPlanPainterV2 extends CustomPainter {
           ),
           const Radius.circular(2),
         ),
-        Paint()..color = const Color(0xFF344F56).withValues(alpha: .60),
+        Paint()..color = const Color(0xFF344F56).withValues(alpha: .35),
       );
       text.paint(canvas, Offset(mid.dx - text.width / 2, mid.dy - text.height / 2));
     }
