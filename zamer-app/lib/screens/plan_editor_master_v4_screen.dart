@@ -66,7 +66,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
 
   final TransformationController _transform = TransformationController();
   final Set<ProjectLayer> _visibleLayers = ProjectLayer.values.toSet();
-  final Set<PlanDisplayLayer> _visibleCategories = PlanDisplayLayer.values.toSet();
+  final Set<PlanDisplayLayer> _visibleCategories = PlanDisplayLayer.values.toSet()
+    ..remove(PlanDisplayLayer.axisDimensions);
   final Set<PlanCollisionKind> _collisionKinds = <PlanCollisionKind>{};
 
   ZMeasureTool _tool = ZMeasureTool.walls;
