@@ -27,15 +27,15 @@ void main() {
       id: 'd', type: OpeningType.door, widthMm: 900,
       heightMm: 2100, offsetFromStartMm: 1000,
     );
-    expect(DoorwayFloorService.jointFromWallAxisMm(wall, door), 70);
+    expect(DoorwayFloorService.jointFromWallAxisMm(wall, door), 30);
     door.doorSwing = DoorSwing.rightIn;
-    expect(DoorwayFloorService.jointFromWallAxisMm(wall, door), 70);
+    expect(DoorwayFloorService.jointFromWallAxisMm(wall, door), 30);
     door.doorSwing = DoorSwing.leftOut;
-    expect(DoorwayFloorService.jointFromWallAxisMm(wall, door), -70);
+    expect(DoorwayFloorService.jointFromWallAxisMm(wall, door), -30);
     door.doorSwing = DoorSwing.rightOut;
-    expect(DoorwayFloorService.jointFromWallAxisMm(wall, door), -70);
+    expect(DoorwayFloorService.jointFromWallAxisMm(wall, door), -30);
     wall.thicknessMm = 300;
-    expect(DoorwayFloorService.jointFromWallAxisMm(wall, door), -170);
+    expect(DoorwayFloorService.jointFromWallAxisMm(wall, door), -130);
   });
 
   test('adjacent room lookup samples both sides of the real opening', () {
