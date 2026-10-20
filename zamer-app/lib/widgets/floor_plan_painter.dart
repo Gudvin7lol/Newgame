@@ -501,7 +501,10 @@ class FloorPlanPainter extends CustomPainter {
           : origin + Offset(
               m.interiorEnd!.x * mmToPx, m.interiorEnd!.y * mmToPx);
       final calc = m.isInterior
-          ? (m.interiorEnd! - m.interiorStart!).magnitude
+          ? math.sqrt(
+              math.pow(m.interiorEnd!.x - m.interiorStart!.x, 2) +
+              math.pow(m.interiorEnd!.y - m.interiorStart!.y, 2),
+            )
           : GeometryService.distance(a, b);
       final delta = (m.measuredMm - calc).abs();
       final ok = delta <= 5;
