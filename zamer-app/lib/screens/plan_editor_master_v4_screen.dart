@@ -2672,7 +2672,7 @@ class _WallInspector extends StatelessWidget {
                     child: Row(
                       children: [
                         _metric(
-                          'Длина',
+                          'Длина по оси',
                           '${floor.wallLengthMm(wall).round()} мм',
                           onTap: onResize,
                         ),
@@ -2694,7 +2694,7 @@ class _WallInspector extends StatelessWidget {
 
   Widget _metric(String label, String value, {VoidCallback? onTap}) => Expanded(
         child: InkWell(
-          key: label == 'Длина' ? const ValueKey('selected-wall-length') : null,
+          key: label == 'Длина по оси' ? const ValueKey('selected-wall-length') : null,
           onTap: onTap,
           borderRadius: BorderRadius.circular(6),
           child: Container(
