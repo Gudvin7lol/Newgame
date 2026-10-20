@@ -255,12 +255,12 @@ void main() {
       tester.getTopLeft(find.byType(InteractiveViewer)) +
         MatrixUtils.transformPoint(transform.value, p);
 
-    final source = const Offset(3500, 1200); // 2000, 1000 mm
+    final source = const Offset(16200, 16100); // 2000, 1000 mm
     await tester.tapAt(toGlobal(source));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('wall-build-exact-length')), findsOneWidget);
 
-    final target = toGlobal(const Offset(3500, 1080));
+    final target = toGlobal(const Offset(16200, 15980));
     final finger = await tester.startGesture(target);
     await finger.moveBy(const Offset(10, 0));
     await tester.pump();
