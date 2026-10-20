@@ -588,7 +588,6 @@ class CadPlanPainterV2 extends CustomPainter {
     final axis = wallEnd - wallStart;
     final length = axis.distance;
     if (length < 1) return;
-    final t = axis / length;
     final values = <({Offset from, Offset to, double mm})>[
       (from: wallStart, to: jambStart,
        mm: (jambStart - wallStart).distance / mmToPx),
