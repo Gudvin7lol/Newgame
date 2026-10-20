@@ -321,7 +321,7 @@ class GeometryService {
     double newNodeRoundingMm = 5,
   }) {
     final node = nearestNode(floor, p, thresholdMm: captureMm);
-    if (node != null) return node;
+    if (node != null) return _connectInteriorNode(floor, node);
     final wallHit = nearestWallProjection(floor, p, thresholdMm: captureMm);
     if (wallHit != null && wallHit.t > 0.02 && wallHit.t < 0.98) {
       return _splitWallAt(floor, wallHit.wall, wallHit.t, wallHit.point);
@@ -473,7 +473,7 @@ class GeometryService {
     );
     late final PlanNode end;
     if (targetNear != null) {
-      end = targetNear;
+      end = _connectInteriorNode(floor, targetNear);
     } else {
       final wallHit = nearestWallProjection(
         floor, endPoint, thresholdMm: endpointCaptureMm,
@@ -569,6 +569,44 @@ class GeometryService {
         return true;
     }
     return false;
+  }
+
+  // An unconnected node may already sit directly on a wall axis. Reusing
+  // that vertex without splitting the host produces a visually convincing
+  // but topologically broken T-junction (degree 1 instead of degree 3).
+  // Only vertices truly ON the host axis may be materialized into a junction:
+  // never capture an unrelated vertex 10-25 mm away.
+  static PlanNode _connectInteriorNode(FloorPlan floor, PlanNode node) {
+    const axisEpsilonMm = .01;
+    final position = math.Point<double>(node.xMm, node.yMm);
+    for (final wall in List<PlanWall>.from(floor.walls)) {
+      if (wall.isCurved ||
+          wall.startNodeId == node.id ||
+          wall.endNodeId == node.id) continue;
+      final a = floor.nodeById(wall.startNodeId);
+      final b = floor.nodeById(wall.endNodeId);
+      if (a == null || b == null) continue;
+      final vx = b.xMm - a.xMm;
+      final vy = b.yMm - a.yMm;
+      final length2 = vx * vx + vy * vy;
+      if (length2 < 1) continue;
+      final t = ((position.x - a.xMm) * vx +
+          (position.y - a.yMm) * vy) / length2;
+      if (t <= .02 || t >= .98) continue;
+      final projected = math.Point<double>(
+        a.xMm + vx * t,
+        a.yMm + vy * t,
+      );
+      if (_pointDistance(position, projected) > axisEpsilonMm) continue;
+      _splitWallAtMany(floor, wall, [
+        _IntersectionHit(
+          point: position,
+          tNew: 0,
+          tWall: t,
+        ),
+      ]);
+    }
+    return node;
   }
 
   static PlanNode _splitWallAt(
