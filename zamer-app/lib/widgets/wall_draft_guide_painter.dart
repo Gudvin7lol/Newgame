@@ -17,6 +17,7 @@ class WallDraftGuidePainter extends CustomPainter {
     required this.snapKind,
     required this.snapLabel,
     this.facePoint,
+    this.oppositeCorner,
     this.drawFaces = true,
   });
 
@@ -28,6 +29,8 @@ class WallDraftGuidePainter extends CustomPainter {
   final NodeSnapKind snapKind;
   final String snapLabel;
   final Offset? facePoint;
+  /// A real, more distant corner on the construction axis. Guide only.
+  final Offset? oppositeCorner;
   final bool drawFaces;
 
   @override
@@ -79,6 +82,17 @@ class WallDraftGuidePainter extends CustomPainter {
       canvas.drawCircle(facePoint!, 4 * inv, hitPaint);
     }
 
+    // A dashed alignment guide shows the actual opposite room corner,
+    // without pulling the endpoint to a far-away node unexpectedly.
+    if (oppositeCorner case final corner?) {
+      final hintPaint = Paint()
+        ..color = guideBlue.withValues(alpha: .58)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = .8 * inv;
+      _dash(canvas, to, corner, hintPaint, 7 * inv);
+      canvas.drawCircle(corner, 5 * inv, hintPaint);
+    }
+
     // Snap shapes are deliberately different: circle=node, diamond=middle,
     // square=wall, crosshair=axis. The text still names the same target.
     canvas.drawCircle(to, 10 * inv, Paint()..color = dark.withValues(alpha: .9));
@@ -112,8 +126,10 @@ class WallDraftGuidePainter extends CustomPainter {
     final millimetres = lengthPx / mmToPx;
     final angle = math.atan2(delta.dy, delta.dx) * 180 / math.pi;
     final degrees = ((angle % 360) + 360) % 360;
+    final extra = oppositeCorner == null ? '' :
+        ' · угол напротив ${((oppositeCorner! - to).distance / mmToPx).round()} мм';
     final label = '${millimetres.round()} мм  ·  '
-        '${degrees.round()}°  ·  $snapLabel';
+        '${degrees.round()}°  ·  $snapLabel$extra';
     final textPainter = TextPainter(
       text: TextSpan(
         text: label,
@@ -186,5 +202,6 @@ class WallDraftGuidePainter extends CustomPainter {
       oldDelegate.snapKind != snapKind ||
       oldDelegate.snapLabel != snapLabel ||
       oldDelegate.facePoint != facePoint ||
+      oldDelegate.oppositeCorner != oppositeCorner ||
       oldDelegate.drawFaces != drawFaces;
 }
