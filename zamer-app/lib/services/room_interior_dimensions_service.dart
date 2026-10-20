@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import '../models/models.dart';
+import 'geometry_service.dart';
 
 /// A true corner-to-corner measurement along the interior face of a room.
 /// Coordinates are millimetres, measured between intersections of adjacent
@@ -85,7 +86,7 @@ class RoomInteriorDimensionsService {
     FloorPlan floor, {
     List<RoomFace>? faces,
   }) => [
-    for (final face in faces ?? const <RoomFace>[])
+    for (final face in faces ?? GeometryService.roomFaces(floor))
       ...forFace(face),
   ];
 
