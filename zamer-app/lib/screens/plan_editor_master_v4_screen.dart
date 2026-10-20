@@ -81,6 +81,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   String? _lastWallSnapLabel;
   WallDrawingTarget? _liveWallSnap;
   bool _showLiveWallFaces = true;
+  bool _captureWallFace = true;
   String? _dragWallId;
   double _dragWallOffsetMm = 0;
   bool _dragWallModified = false;
@@ -684,6 +685,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     angleStepDegrees: _angleSnapDegrees,
     nodeCaptureMm: 14 / (_mmToPx * _scale),
     wallCaptureMm: 12 / (_mmToPx * _scale),
+    allowWallFaces: _captureWallFace,
   );
 
   // Listener is passive: it never claims a gesture. InteractiveViewer can
@@ -703,12 +705,13 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
         previous.kind == snap.kind &&
         previous.targetNodeId == snap.targetNodeId &&
         previous.targetWallId == snap.targetWallId &&
+        previous.facePoint == snap.facePoint &&
         WallDrawingService.distance(previous.point, snap.point) < 2) {
       return;
     }
     setState(() {
       _liveWallSnap = snap;
-      _lastWallSnapLabel = snap.kind.label;
+      _lastWallSnapLabel = snap.label;
     });
   }
 
@@ -730,7 +733,12 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       zoom: _scale,
       wallThicknessMm: widget.planTool == MeasurePlanTool.exterior ? 300 : 100,
       snapKind: snap.kind,
-      snapLabel: snap.kind.label,
+      snapLabel: snap.label,
+      facePoint: snap.facePoint == null ? null :
+          _origin + Offset(
+            snap.facePoint!.x * _mmToPx,
+            snap.facePoint!.y * _mmToPx,
+          ),
       drawFaces: _showLiveWallFaces,
     );
   }
@@ -758,7 +766,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       return;
     }
     final snap = _snapDrawTarget(start, _toMm(p));
-    setState(() => _lastWallSnapLabel = snap.kind.label);
+    setState(() => _lastWallSnapLabel = snap.label);
     await _commitWallSegment(
       start: start,
       point: snap.point,
@@ -1832,6 +1840,34 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                             color: _showLiveWallFaces
                                 ? ZamerColors.accent
                                 : ZamerColors.textSecondary,
+                          ),
+                        ),
+                      ),
+                    ),
+                    PopupMenuButton<bool>(
+                      tooltip: 'Привязка новой стены к оси или грани',
+                      onSelected: (capture) => setState(() {
+                        _captureWallFace = capture;
+                        _liveWallSnap = null;
+                      }),
+                      itemBuilder: (_) => const [
+                        PopupMenuItem(
+                          value: false,
+                          child: Text('К оси существующей стены'),
+                        ),
+                        PopupMenuItem(
+                          value: true,
+                          child: Text('К грани → общий узел на оси'),
+                        ),
+                      ],
+                      child: Padding(
+                        padding: const EdgeInsets.all(5),
+                        child: Text(
+                          _captureWallFace ? 'Грани' : 'Оси',
+                          style: const TextStyle(
+                            color: ZamerColors.accent,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ),
