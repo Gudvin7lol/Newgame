@@ -277,18 +277,72 @@ class MeasurementReviewService {
       final a = floor.nodeById(measure.startNodeId);
       final b = floor.nodeById(measure.endNodeId);
       if (a == null || b == null) continue;
-      final sections = _collinearSections(floor, a, b);
-      final derived = sections ?? GeometryService.distance(a, b);
+
+      double derived;
+      String measurementType;
+      math.Point<double> position;
+      if (measure.isInterior) {
+        // Saved endpoints are inside corners. Compare their measured value
+        // against the latest room-side polygon, NEVER against centreline
+        // nodes; that mistake creates a false 'thickness' discrepancy.
+        math.Point<double>? currentA;
+        math.Point<double>? currentB;
+        var bestDisplacement = double.infinity;
+        for (final face in faces) {
+          final ai = face.nodeIds.indexOf(measure.startNodeId);
+          final bi = face.nodeIds.indexOf(measure.endNodeId);
+          if (ai < 0 || bi < 0 ||
+              ai >= face.innerPolygon.length ||
+              bi >= face.innerPolygon.length) continue;
+          final cornerA = face.innerPolygon[ai];
+          final cornerB = face.innerPolygon[bi];
+          final oldA = measure.interiorStart!;
+          final oldB = measure.interiorEnd!;
+          final displacement =
+              math.sqrt(math.pow(cornerA.x - oldA.x, 2) +
+                        math.pow(cornerA.y - oldA.y, 2)) +
+              math.sqrt(math.pow(cornerB.x - oldB.x, 2) +
+                        math.pow(cornerB.y - oldB.y, 2));
+          if (displacement < bestDisplacement) {
+            bestDisplacement = displacement;
+            currentA = cornerA;
+            currentB = cornerB;
+          }
+        }
+        // If room topology changed and neither corner can be re-associated,
+        // do not invent an axial comparison. A separate topology validation
+        // will report an unclosed or changed room.
+        if (currentA == null || currentB == null) continue;
+        derived = math.sqrt(
+          math.pow(currentA.x - currentB.x, 2) +
+          math.pow(currentA.y - currentB.y, 2),
+        );
+        position = math.Point<double>(
+          (currentA.x + currentB.x) / 2,
+          (currentA.y + currentB.y) / 2,
+        );
+        measurementType = 'Внутренний размер';
+      } else {
+        final sections = _collinearSections(floor, a, b);
+        derived = sections ?? GeometryService.distance(a, b);
+        position = math.Point<double>(
+          (a.xMm + b.xMm) / 2,
+          (a.yMm + b.yMm) / 2,
+        );
+        measurementType =
+            sections == null ? 'Диагональ/контроль' : 'Сумма участков';
+      }
+
       final delta = derived - measure.measuredMm;
       if (delta.abs() >= 5) {
         issues.add(
           MeasurementIssue(
             MeasurementIssueKind.discrepancy,
-            '${sections == null ? 'Диагональ/контроль' : 'Сумма участков'} '
+            '$measurementType '
             '${measure.label.isEmpty ? measure.id : measure.label}: '
             '${measure.measuredMm.round()} мм против ${derived.round()} мм на плане; '
             'расхождение ${delta.abs().round()} мм',
-            math.Point((a.xMm + b.xMm) / 2, (a.yMm + b.yMm) / 2),
+            position,
             deltaMm: delta,
           ),
         );
