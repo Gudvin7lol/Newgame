@@ -925,7 +925,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     }
     final start = floor.nodeById(_wallStartNodeId!);
     if (start == null) return;
-    final point = _snapDrawTarget(start, _toMm(p));
+    final point = _snapDrawTarget(start, _toMm(p)).point;
     final chord = math.sqrt(math.pow(point.x - start.xMm, 2) +
         math.pow(point.y - start.yMm, 2));
     if (chord < 100) return;
