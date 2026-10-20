@@ -85,6 +85,7 @@ class CadPlanPainterV2 extends CustomPainter {
       if (visibleCategories.contains(PlanDisplayLayer.axisDimensions)) {
         _outerDimensions(canvas);
       }
+      _controlDimensions(canvas);
     }
     if (collisionKinds.isNotEmpty) _collisionOverlay(canvas);
   }
@@ -798,6 +799,59 @@ class CadPlanPainterV2 extends CustomPainter {
       text.paint(
         canvas,
         center - Offset(text.width / 2, text.height / 2),
+      );
+    }
+  }
+
+  void _controlDimensions(Canvas canvas) {
+    for (final measure in floor.measures) {
+      // A recorded inner-face size and a structural axis size are different
+      // types of measurements. Do not show one under the other's filter.
+      if (measure.isInterior &&
+          !visibleCategories.contains(PlanDisplayLayer.dimensions)) continue;
+      if (!measure.isInterior &&
+          !visibleCategories.contains(PlanDisplayLayer.axisDimensions)) continue;
+      final startNode = floor.nodeById(measure.startNodeId);
+      final endNode = floor.nodeById(measure.endNodeId);
+      if (startNode == null || endNode == null) continue;
+      final p1 = measure.interiorStart ??
+          math.Point<double>(startNode.xMm, startNode.yMm);
+      final p2 = measure.interiorEnd ??
+          math.Point<double>(endNode.xMm, endNode.yMm);
+      final a = _q(p1), b = _q(p2);
+      if ((b - a).distance < 1) continue;
+      final colour = measure.isInterior
+          ? const Color(0xFF247EA0)
+          : const Color(0xFFDAAC4B);
+      final paint = Paint()
+        ..color = colour
+        ..strokeWidth = .8;
+      canvas.drawLine(a, b, paint);
+      canvas.drawCircle(a, 2.3, Paint()..color = colour);
+      canvas.drawCircle(b, 2.3, Paint()..color = colour);
+      final text = TextPainter(
+        text: TextSpan(
+          text: 'контр. ${measure.measuredMm.round()}',
+          style: const TextStyle(
+            color: Color(0xFF14252D),
+            fontSize: 7,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+        maxLines: 1,
+      )..layout();
+      final mid = (a + b) / 2;
+      final panel = Rect.fromCenter(
+        center: mid, width: text.width + 8, height: text.height + 4,
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(panel, const Radius.circular(2)),
+        Paint()..color = const Color(0xFFEEF4F5),
+      );
+      text.paint(
+        canvas,
+        mid - Offset(text.width / 2, text.height / 2),
       );
     }
   }
