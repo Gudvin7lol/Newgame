@@ -16,6 +16,7 @@ enum PlanDisplayLayer {
   engineering,
   structures,
   dimensions,
+  axisDimensions,
   roomLabels,
 }
 
@@ -29,7 +30,8 @@ extension PlanDisplayLayerLabel on PlanDisplayLayer {
     PlanDisplayLayer.electrical => 'Электрика',
     PlanDisplayLayer.engineering => 'Инженерные сети',
     PlanDisplayLayer.structures => 'Конструкции и прочие объекты',
-    PlanDisplayLayer.dimensions => 'Размеры',
+    PlanDisplayLayer.dimensions => 'Размеры внутри помещений',
+    PlanDisplayLayer.axisDimensions => 'Конструктивные размеры по осям',
     PlanDisplayLayer.roomLabels => 'Подписи помещений',
   };
 }
