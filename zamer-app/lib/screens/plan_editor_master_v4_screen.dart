@@ -65,7 +65,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   // Extended virtual CAD plane: no more short viewport edges cutting off
   // a 30–100 m run. Grid rendering is clipped to the visible camera region.
   static const _canvasSize = Size(32000, 32000);
-  static const _origin = Offset(16000, 16000);
+  Offset _origin = const Offset(16000, 16000);
   static const _mmToPx = .10;
 
   final TransformationController _transform = TransformationController();
@@ -846,7 +846,29 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     matrix.storage[12] += dx;
     matrix.storage[13] += dy;
     _transform.value = matrix;
+    _rebaseSceneAt(pos);
     _updateWallGuideAt(_transform.toScene(pos));
+  }
+
+  // Rebase CAD scene coordinates when an edge-drawn wall approaches the
+  // finite Flutter canvas. Changing the origin and compensating the camera
+  // by exactly zoom*shift preserves every saved millimetre coordinate and
+  // the wall endpoint under the user's finger. Panning can continue across
+  // successive virtual tiles without changing the saved floor geometry.
+  void _rebaseSceneAt(Offset viewportPoint) {
+    final scene = _transform.toScene(viewportPoint);
+    const low = 6000.0, high = 26000.0, step = 12000.0;
+    final shiftX = scene.dx < low ? step : scene.dx > high ? -step : 0.0;
+    final shiftY = scene.dy < low ? step : scene.dy > high ? -step : 0.0;
+    if (shiftX == 0 && shiftY == 0) return;
+    final delta = Offset(shiftX, shiftY);
+    final zoom = _scale;
+    final matrix = Matrix4.copy(_transform.value);
+    matrix.storage[12] -= delta.dx * zoom;
+    matrix.storage[13] -= delta.dy * zoom;
+    _origin += delta;
+    _transform.value = matrix;
+    if (mounted) setState(() {});
   }
 
   void _wallPointerCancel(PointerCancelEvent event) {
