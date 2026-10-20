@@ -43,6 +43,7 @@ enum PlanCollisionKind {
   objectWall,
   objectObject,
   doorClearance,
+  doorDoor,
 }
 
 extension PlanCollisionKindLabel on PlanCollisionKind {
@@ -51,6 +52,7 @@ extension PlanCollisionKindLabel on PlanCollisionKind {
     PlanCollisionKind.objectWall => 'Объекты со стенами',
     PlanCollisionKind.objectObject => 'Пересечения объектов',
     PlanCollisionKind.doorClearance => 'Перекрытые дверные проходы',
+    PlanCollisionKind.doorDoor => 'Пересечение дверных полотен',
   };
 }
 
@@ -84,6 +86,7 @@ class PlanCollisionService {
         SpaceIssueKind.objectWall => PlanCollisionKind.objectWall,
         SpaceIssueKind.objectObject => PlanCollisionKind.objectObject,
         SpaceIssueKind.doorClearance => PlanCollisionKind.doorClearance,
+        SpaceIssueKind.doorDoor => PlanCollisionKind.doorDoor,
       };
       final position = issue.position;
       if (position == null) continue;
