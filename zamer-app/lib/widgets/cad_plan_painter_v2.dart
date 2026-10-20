@@ -261,6 +261,14 @@ class CadPlanPainterV2 extends CustomPainter {
       for (double x = bounds.left - plankL + offsetX + halfShift;
           x <= bounds.right + plankL;
           x += plankL) {
+        final variation = ((x * .017 + y * .031).round().abs() % 7);
+        canvas.drawRect(
+          Rect.fromLTWH(x, y, plankL, plankW),
+          Paint()..color = variation.isEven
+              ? Colors.white.withValues(alpha: .035)
+              : Colors.black.withValues(alpha: .024),
+        );
+        // Joints and bevels are sub-mm features, not thick screen borders.
         canvas.drawLine(Offset(x, y), Offset(x, y + plankW), joint);
         final seed = ((x * .07 + y * .11).round().abs() % 5) / 5;
         final gy = y + plankW * (.28 + seed * .42);
@@ -270,6 +278,8 @@ class CadPlanPainterV2 extends CustomPainter {
           grain,
         );
       }
+      canvas.drawLine(
+          Offset(bounds.left, y), Offset(bounds.right, y), joint);
       row++;
     }
   }
@@ -341,9 +351,22 @@ class CadPlanPainterV2 extends CustomPainter {
       ..color = const Color(0xFF777B7C).withValues(alpha: .54)
       ..strokeWidth = grout;
 
+    // Slight board-to-board variation prevents the old perfectly flat
+    // material look, without fabricating high-contrast baked grout.
     for (double x = bounds.left - tileW + offsetX;
         x <= bounds.right + tileW;
         x += tileW) {
+      for (double y = bounds.top - tileH + offsetY;
+          y <= bounds.bottom + tileH;
+          y += tileH) {
+        final variant = ((x * .01 + y * .017).round().abs() % 5);
+        canvas.drawRect(
+          Rect.fromLTWH(x, y, tileW, tileH),
+          Paint()..color = variant.isEven
+              ? Colors.white.withValues(alpha: .029)
+              : Colors.black.withValues(alpha: .018),
+        );
+      }
       canvas.drawLine(Offset(x, bounds.top), Offset(x, bounds.bottom), line);
     }
     for (double y = bounds.top - tileH + offsetY;
