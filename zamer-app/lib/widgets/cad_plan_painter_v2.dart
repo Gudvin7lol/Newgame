@@ -8,6 +8,7 @@ import '../services/geometry_service.dart';
 import '../services/herringbone_layout.dart';
 import '../services/material_catalog.dart';
 import '../services/plan_visibility_service.dart';
+import '../services/room_interior_dimensions_service.dart';
 import 'cad_wall_join_geometry.dart';
 import 'top_view_object_renderer.dart';
 
@@ -39,7 +40,8 @@ class CadPlanPainterV2 extends CustomPainter {
     Set<PlanDisplayLayer>? visibleCategories,
     Set<PlanCollisionKind>? collisionKinds,
   }) : visibleLayers = visibleLayers ?? ProjectLayer.values.toSet(),
-       visibleCategories = visibleCategories ?? PlanDisplayLayer.values.toSet(),
+       visibleCategories = visibleCategories ?? (PlanDisplayLayer.values.toSet()
+         ..remove(PlanDisplayLayer.axisDimensions)),
        collisionKinds = collisionKinds ?? <PlanCollisionKind>{};
 
   final FloorPlan floor;
@@ -74,9 +76,16 @@ class CadPlanPainterV2 extends CustomPainter {
     if (visibleCategories.contains(PlanDisplayLayer.roomLabels)) {
       _roomLabels(canvas, faces);
     }
-    if (showDimensions &&
-        visibleCategories.contains(PlanDisplayLayer.dimensions)) {
-      _outerDimensions(canvas);
+    if (showDimensions) {
+      if (visibleCategories.contains(PlanDisplayLayer.dimensions)) {
+        _innerDimensions(canvas, faces);
+      }
+      // Axial labels are engineering reference data. They are opt-in:
+      // room measurements always refer to inside corners, not these axes.
+      if (visibleCategories.contains(PlanDisplayLayer.axisDimensions)) {
+        _outerDimensions(canvas);
+      }
+      _controlDimensions(canvas);
     }
     if (collisionKinds.isNotEmpty) _collisionOverlay(canvas);
   }
@@ -713,6 +722,136 @@ class CadPlanPainterV2 extends CustomPainter {
       painter.paint(
         canvas,
         Offset(center.dx - painter.width / 2, center.dy - painter.height / 2),
+      );
+    }
+  }
+
+  /// Native room size chain. Each line starts and ends at intersections of
+  /// real room-side wall faces, including unequal-thickness inner corners.
+  /// A split host wall forms one uninterrupted dimension if its inner face
+  /// remains collinear across the T-junction.
+  void _innerDimensions(Canvas canvas, List<RoomFace> faces) {
+    final linePaint = Paint()
+      ..color = const Color(0xFF1F555A).withValues(alpha: .9)
+      ..strokeWidth = .78;
+    final capPaint = Paint()
+      ..color = const Color(0xFF20535A)
+      ..strokeWidth = .9;
+    for (final dimension in RoomInteriorDimensionsService.forFloor(
+      floor, faces: faces,
+    )) {
+      final a = _q(dimension.start);
+      final b = _q(dimension.end);
+      final vector = b - a;
+      if (vector.distance < 24) continue;
+
+      final tangent = vector / vector.distance;
+      // The half-edge traversal keeps the room on its right in screen
+      // coordinates; therefore this offset remains on the room side.
+      final roomNormal = Offset(-tangent.dy, tangent.dx);
+      const marginPx = 10.0;
+      final inset = roomNormal * marginPx;
+      final p1 = a + inset;
+      final p2 = b + inset;
+
+      // Witnesses originate at actual inside corners. The short offset line
+      // is only a label/readability aid; its ends are not axis points.
+      canvas.drawLine(a + roomNormal * 2.5, p1 + roomNormal * 2.0, linePaint);
+      canvas.drawLine(b + roomNormal * 2.5, p2 + roomNormal * 2.0, linePaint);
+      canvas.drawLine(p1, p2, linePaint);
+      canvas.drawLine(
+        p1 - roomNormal * 3,
+        p1 + roomNormal * 3,
+        capPaint,
+      );
+      canvas.drawLine(
+        p2 - roomNormal * 3,
+        p2 + roomNormal * 3,
+        capPaint,
+      );
+
+      // Distance is calculated in millimetres from the offset polygon and
+      // rounded only for display. Saved CAD geometry retains full precision.
+      if (vector.distance < 46) continue;
+      final text = TextPainter(
+        text: TextSpan(
+          text: '${dimension.lengthMm.round()}',
+          style: const TextStyle(
+            color: Color(0xFF112B2E),
+            fontSize: 7.1,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        maxLines: 1,
+        textDirection: TextDirection.ltr,
+      )..layout();
+
+      final center = (p1 + p2) / 2;
+      final bg = Rect.fromCenter(
+        center: center,
+        width: text.width + 9,
+        height: text.height + 3.5,
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(bg, const Radius.circular(2)),
+        Paint()..color = const Color(0xFFFFE0BC).withValues(alpha: .94),
+      );
+      text.paint(
+        canvas,
+        center - Offset(text.width / 2, text.height / 2),
+      );
+    }
+  }
+
+  void _controlDimensions(Canvas canvas) {
+    for (final measure in floor.measures) {
+      // A recorded inner-face size and a structural axis size are different
+      // types of measurements. Do not show one under the other's filter.
+      if (measure.isInterior &&
+          !visibleCategories.contains(PlanDisplayLayer.dimensions)) continue;
+      if (!measure.isInterior &&
+          !visibleCategories.contains(PlanDisplayLayer.axisDimensions)) continue;
+      final startNode = floor.nodeById(measure.startNodeId);
+      final endNode = floor.nodeById(measure.endNodeId);
+      if (startNode == null || endNode == null) continue;
+      final p1 = measure.interiorStart ??
+          math.Point<double>(startNode.xMm, startNode.yMm);
+      final p2 = measure.interiorEnd ??
+          math.Point<double>(endNode.xMm, endNode.yMm);
+      final a = _q(p1), b = _q(p2);
+      if ((b - a).distance < 1) continue;
+      final colour = measure.isInterior
+          ? const Color(0xFF247EA0)
+          : const Color(0xFFDAAC4B);
+      final paint = Paint()
+        ..color = colour
+        ..strokeWidth = .8;
+      canvas.drawLine(a, b, paint);
+      canvas.drawCircle(a, 2.3, Paint()..color = colour);
+      canvas.drawCircle(b, 2.3, Paint()..color = colour);
+      final text = TextPainter(
+        text: TextSpan(
+          text: 'контр. ${measure.measuredMm.round()}',
+          style: const TextStyle(
+            color: Color(0xFF14252D),
+            fontSize: 7,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+        maxLines: 1,
+      )..layout();
+      final mid = (a + b) / 2;
+      final panel = Rect.fromCenter(
+        center: mid, width: text.width + 8, height: text.height + 4,
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(panel, const Radius.circular(2)),
+        Paint()..color = const Color(0xFFEEF4F5),
+      );
+      text.paint(
+        canvas,
+        mid - Offset(text.width / 2, text.height / 2),
       );
     }
   }

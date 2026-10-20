@@ -12,12 +12,21 @@ class WallDrawingTarget {
     required this.kind,
     this.targetNodeId,
     this.targetWallId,
+    this.facePoint,
   });
 
   final math.Point<double> point;
   final NodeSnapKind kind;
   final String? targetNodeId;
   final String? targetWallId;
+  /// If the user touched a wall's visible face, this records the physical
+  /// face point while [point] remains the canonical host wall axis. The
+  /// preview can show this conversion instead of silently creating a gap.
+  final math.Point<double>? facePoint;
+
+  String get label => facePoint == null
+      ? kind.label
+      : 'Грань → общая ось';
 }
 
 class WallDrawingService {
@@ -53,6 +62,7 @@ class WallDrawingService {
     int angleStepDegrees = 90,
     double nodeCaptureMm = 100,
     double wallCaptureMm = 70,
+    bool allowWallFaces = true,
   }) {
     final start = floor.nodeById(startNodeId);
     if (start == null) {
@@ -119,6 +129,7 @@ class WallDrawingService {
     PlanWall? targetWall;
     math.Point<double>? targetPoint;
     NodeSnapKind targetKind = NodeSnapKind.wall;
+    math.Point<double>? targetFacePoint;
     var bestDistance = wallCaptureMm;
 
     for (final wall in floor.walls) {
@@ -156,11 +167,26 @@ class WallDrawingService {
         projected = math.Point<double>(p.x + dx * t, p.y + dy * t);
       }
 
-      final d = distance(candidate, projected);
+      final axisDistance = distance(candidate, projected);
+      final half = wall.thicknessMm / 2;
+      final faceDistance = allowWallFaces
+          ? (axisDistance - half).abs() : double.infinity;
+      final d = math.min(axisDistance, faceDistance);
       if (d < bestDistance) {
         bestDistance = d;
         targetWall = wall;
         targetPoint = projected;
+        targetFacePoint = null;
+        if (faceDistance < axisDistance && half > 0) {
+          final normalX = -dy / math.sqrt(length2);
+          final normalY = dx / math.sqrt(length2);
+          final sign = (candidate.x - projected.x) * normalX +
+                  (candidate.y - projected.y) * normalY >= 0 ? 1.0 : -1.0;
+          targetFacePoint = math.Point<double>(
+            projected.x + normalX * half * sign,
+            projected.y + normalY * half * sign,
+          );
+        }
         final midpoint = math.Point<double>(
           (p.x + q.x) / 2, (p.y + q.y) / 2,
         );
@@ -170,7 +196,10 @@ class WallDrawingService {
             onLockedRay(midpoint);
         targetKind = atMiddle
             ? NodeSnapKind.midpoint : NodeSnapKind.wall;
-        if (atMiddle) targetPoint = midpoint;
+        if (atMiddle) {
+          targetPoint = midpoint;
+          targetFacePoint = null;
+        }
       }
     }
 
@@ -179,6 +208,7 @@ class WallDrawingService {
         point: targetPoint!,
         kind: targetKind,
         targetWallId: targetWall.id,
+        facePoint: targetFacePoint,
       );
     }
 

@@ -321,7 +321,7 @@ class GeometryService {
     double newNodeRoundingMm = 5,
   }) {
     final node = nearestNode(floor, p, thresholdMm: captureMm);
-    if (node != null) return node;
+    if (node != null) return _connectInteriorNode(floor, node);
     final wallHit = nearestWallProjection(floor, p, thresholdMm: captureMm);
     if (wallHit != null && wallHit.t > 0.02 && wallHit.t < 0.98) {
       return _splitWallAt(floor, wallHit.wall, wallHit.t, wallHit.point);
@@ -464,6 +464,7 @@ class GeometryService {
     required WallMaterial material,
     double endpointCaptureMm = 80,
     double endpointRoundingMm = 5,
+    List<PlanWall>? newlyDrawnWalls,
   }) {
     final start = floor.nodeById(startNodeId);
     if (start == null) throw StateError('Start node not found');
@@ -473,7 +474,7 @@ class GeometryService {
     );
     late final PlanNode end;
     if (targetNear != null) {
-      end = targetNear;
+      end = _connectInteriorNode(floor, targetNear);
     } else {
       final wallHit = nearestWallProjection(
         floor, endPoint, thresholdMm: endpointCaptureMm,
@@ -547,16 +548,16 @@ class GeometryService {
       final b = compact[i + 1].node;
       if (a.id == b.id || distance(a, b) < 20) continue;
       if (_wallExists(floor, a.id, b.id)) continue;
-      floor.walls.add(
-        PlanWall(
-          id: _id('w'),
-          startNodeId: a.id,
-          endNodeId: b.id,
-          type: type,
-          thicknessMm: thicknessMm,
-          material: material,
-        ),
+      final newWall = PlanWall(
+        id: _id('w'),
+        startNodeId: a.id,
+        endNodeId: b.id,
+        type: type,
+        thicknessMm: thicknessMm,
+        material: material,
       );
+      floor.walls.add(newWall);
+      newlyDrawnWalls?.add(newWall);
     }
 
     return compact.last.node;
@@ -571,14 +572,60 @@ class GeometryService {
     return false;
   }
 
+  // An unconnected node may already sit directly on a wall axis. Reusing
+  // that vertex without splitting the host produces a visually convincing
+  // but topologically broken T-junction (degree 1 instead of degree 3).
+  // Only vertices truly ON the host axis may be materialized into a junction:
+  // never capture an unrelated vertex 10-25 mm away.
+  static PlanNode _connectInteriorNode(FloorPlan floor, PlanNode node) {
+    const axisEpsilonMm = .01;
+    final position = math.Point<double>(node.xMm, node.yMm);
+    for (final wall in List<PlanWall>.from(floor.walls)) {
+      if (wall.isCurved ||
+          wall.startNodeId == node.id ||
+          wall.endNodeId == node.id) continue;
+      final a = floor.nodeById(wall.startNodeId);
+      final b = floor.nodeById(wall.endNodeId);
+      if (a == null || b == null) continue;
+      final vx = b.xMm - a.xMm;
+      final vy = b.yMm - a.yMm;
+      final length2 = vx * vx + vy * vy;
+      if (length2 < 1) continue;
+      final t = ((position.x - a.xMm) * vx +
+          (position.y - a.yMm) * vy) / length2;
+      if (t <= .02 || t >= .98) continue;
+      final projected = math.Point<double>(
+        a.xMm + vx * t,
+        a.yMm + vy * t,
+      );
+      if (_pointDistance(position, projected) > axisEpsilonMm) continue;
+      _splitWallAtMany(floor, wall, [
+        _IntersectionHit(
+          point: position,
+          tNew: 0,
+          tWall: t,
+        ),
+      ]);
+    }
+    return node;
+  }
+
   static PlanNode _splitWallAt(
     FloorPlan floor,
     PlanWall wall,
     double t,
     math.Point<double> point,
   ) {
-    final existing = nearestNode(floor, point, thresholdMm: 25);
-    if (existing != null) return existing;
+    // A close, unrelated point is NOT a valid junction. Most importantly,
+    // even when a node lies exactly on a host wall, the wall must actually
+    // be split so all incident edges share that same topological node.
+    final start = floor.nodeById(wall.startNodeId);
+    final end = floor.nodeById(wall.endNodeId);
+    for (final node in <PlanNode?>[start, end]) {
+      if (node != null &&
+          _pointDistance(math.Point<double>(node.xMm, node.yMm), point)
+              <= .5) return node;
+    }
     final hit = _IntersectionHit(point: point, tNew: 0, tWall: t);
     return _splitWallAtMany(floor, wall, [hit]).first;
   }
@@ -596,16 +643,52 @@ class GeometryService {
 
     final sorted = List<_IntersectionHit>.from(hits)
       ..sort((a, b) => a.tWall.compareTo(b.tWall));
+
+    // Validate all cut positions BEFORE adding a node or deleting a wall.
+    // A T-junction cannot silently narrow a door/window or detach sockets.
+    for (final hit in sorted) {
+      final along = hit.tWall * wallLength;
+      for (final opening in wall.openings) {
+        if (along > opening.offsetFromStartMm + .01 &&
+            along < opening.offsetFromStartMm + opening.widthMm - .01) {
+          throw StateError(
+            'Примыкание пересекает дверной или оконный проём.',
+          );
+        }
+      }
+    }
+    final attachedDevices = <(ElectricalPoint, double)>[];
+    for (final point in floor.electricalPoints.where(
+      (item) => item.wallId == wall.id,
+    )) {
+      final deltaX = end.xMm - start.xMm;
+      final deltaY = end.yMm - start.yMm;
+      final projection = (
+        (point.xMm - start.xMm) * deltaX +
+        (point.yMm - start.yMm) * deltaY
+      ) / (wallLength * wallLength);
+      final originalOffset =
+          point.wallOffsetMm ?? projection * wallLength;
+      if (!originalOffset.isFinite ||
+          originalOffset < -.01 ||
+          originalOffset > wallLength + .01) {
+        throw StateError('Привязка электроточки к стене некорректна.');
+      }
+      attachedDevices.add((point, originalOffset.clamp(0, wallLength).toDouble()));
+    }
     final nodes = <PlanNode>[];
     for (final hit in sorted) {
-      final near = nearestNode(floor, hit.point, thresholdMm: 25);
-      if (near != null) {
+      final near = nearestNode(floor, hit.point, thresholdMm: .5);
+      // Never attach a wall to an off-axis vertex only because the finger
+      // came within 25 mm. Nor round an exact 90-degree intersection to the
+      // nearest 5 mm, which can create a visibly skewed partition.
+      if (near != null && near.id != start.id && near.id != end.id) {
         nodes.add(near);
       } else {
         final n = PlanNode(
           id: _id('n'),
-          xMm: _round5(hit.point.x),
-          yMm: _round5(hit.point.y),
+          xMm: hit.point.x,
+          yMm: hit.point.y,
         );
         floor.nodes.add(n);
         nodes.add(n);
@@ -622,6 +705,7 @@ class GeometryService {
     breakDistances.add(wallLength);
 
     floor.walls.removeWhere((w) => w.id == wall.id);
+    final produced = <(PlanWall, double, double)>[];
     for (var i = 0; i < chain.length - 1; i++) {
       final a = chain[i];
       final b = chain[i + 1];
@@ -645,6 +729,19 @@ class GeometryService {
         }
       }
       floor.walls.add(segment);
+      produced.add((segment, d0, d1));
+    }
+    // Preserve electrical wallId and offset when host wall IDs are replaced.
+    // World-space coordinates remain stable, so socket symbols do not jump.
+    for (final (point, originalOffset) in attachedDevices) {
+      for (final (segment, d0, d1) in produced) {
+        if (originalOffset < d0 - .01 ||
+            originalOffset > d1 + .01) continue;
+        point.wallId = segment.id;
+        point.wallOffsetMm =
+            (originalOffset - d0).clamp(0, d1 - d0).toDouble();
+        break;
+      }
     }
     return nodes;
   }

@@ -490,9 +490,22 @@ class FloorPlanPainter extends CustomPainter {
       final a = floor.nodeById(m.startNodeId);
       final b = floor.nodeById(m.endNodeId);
       if (a == null || b == null) continue;
-      final pa = p(a);
-      final pb = p(b);
-      final calc = GeometryService.distance(a, b);
+      // Survey controls made from room-side corners keep their exact
+      // persisted endpoints; legacy controls continue to use axis nodes.
+      final pa = m.interiorStart == null
+          ? p(a)
+          : origin + Offset(
+              m.interiorStart!.x * mmToPx, m.interiorStart!.y * mmToPx);
+      final pb = m.interiorEnd == null
+          ? p(b)
+          : origin + Offset(
+              m.interiorEnd!.x * mmToPx, m.interiorEnd!.y * mmToPx);
+      final calc = m.isInterior
+          ? math.sqrt(
+              math.pow(m.interiorEnd!.x - m.interiorStart!.x, 2) +
+              math.pow(m.interiorEnd!.y - m.interiorStart!.y, 2),
+            )
+          : GeometryService.distance(a, b);
       final delta = (m.measuredMm - calc).abs();
       final ok = delta <= 5;
       canvas.drawLine(

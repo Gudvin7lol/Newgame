@@ -614,6 +614,10 @@ class ControlMeasure {
     required this.endNodeId,
     required this.measuredMm,
     this.label = '',
+    this.startXMm,
+    this.startYMm,
+    this.endXMm,
+    this.endYMm,
   });
 
   final String id;
@@ -622,12 +626,34 @@ class ControlMeasure {
   double measuredMm;
   String label;
 
+  // Room measurements are anchored to actual inner-wall corners, not axes.
+  // Null values mean a legacy axis-based measurement, retaining full
+  // backwards compatibility for projects saved before +140.
+  double? startXMm, startYMm, endXMm, endYMm;
+
+  bool get isInterior =>
+      startXMm != null && startYMm != null &&
+      endXMm != null && endYMm != null;
+
+  math.Point<double>? get interiorStart => isInterior
+      ? math.Point<double>(startXMm!, startYMm!)
+      : null;
+  math.Point<double>? get interiorEnd => isInterior
+      ? math.Point<double>(endXMm!, endYMm!)
+      : null;
+
   Map<String, dynamic> toJson() => {
     'id': id,
     'startNodeId': startNodeId,
     'endNodeId': endNodeId,
     'measuredMm': measuredMm,
     'label': label,
+    if (isInterior) ...{
+      'startXMm': startXMm,
+      'startYMm': startYMm,
+      'endXMm': endXMm,
+      'endYMm': endYMm,
+    },
   };
 
   factory ControlMeasure.fromJson(Map<String, dynamic> json) => ControlMeasure(
@@ -636,6 +662,10 @@ class ControlMeasure {
     endNodeId: json['endNodeId'] as String,
     measuredMm: (json['measuredMm'] as num).toDouble(),
     label: json['label'] as String? ?? '',
+    startXMm: (json['startXMm'] as num?)?.toDouble(),
+    startYMm: (json['startYMm'] as num?)?.toDouble(),
+    endXMm: (json['endXMm'] as num?)?.toDouble(),
+    endYMm: (json['endYMm'] as num?)?.toDouble(),
   );
 }
 
