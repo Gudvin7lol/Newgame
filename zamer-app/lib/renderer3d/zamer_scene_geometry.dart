@@ -56,6 +56,7 @@ class ZamerSceneGeometry {
       floorSurfaces.add(
         ZamerFloorSurface(
           roomKey: face.key,
+          sharedFloorGroup: sharedFloorAnchor,
           polygonMm: polygon,
           materialMode: settings.floorMode,
           materialId: settings.floorMaterialId,
@@ -479,6 +480,7 @@ class ZamerSceneBounds {
 class ZamerFloorSurface {
   const ZamerFloorSurface({
     required this.roomKey,
+    this.sharedFloorGroup = false,
     required this.polygonMm,
     required this.materialMode,
     required this.materialId,
@@ -503,6 +505,7 @@ class ZamerFloorSurface {
     required this.ceilingHeightMm,
   });
   final String roomKey;
+  final bool sharedFloorGroup;
   final List<math.Point<double>> polygonMm;
   final String materialMode;
   final String materialId;
