@@ -16,6 +16,7 @@ class WallDraftGuidePainter extends CustomPainter {
     required this.wallThicknessMm,
     required this.snapKind,
     required this.snapLabel,
+    this.facePoint,
     this.drawFaces = true,
   });
 
@@ -26,6 +27,7 @@ class WallDraftGuidePainter extends CustomPainter {
   final double wallThicknessMm;
   final NodeSnapKind snapKind;
   final String snapLabel;
+  final Offset? facePoint;
   final bool drawFaces;
 
   @override
@@ -64,6 +66,18 @@ class WallDraftGuidePainter extends CustomPainter {
     final startPaint = Paint()..color = dark;
     canvas.drawCircle(from, 6.2 * inv, startPaint);
     canvas.drawCircle(from, 4.7 * inv, Paint()..color = guideBlue);
+
+    // The touch point may be at the visible face of a thick wall. Explain
+    // how the topological T-junction uses the host axis rather than
+    // accidentally storing a free endpoint on the finish boundary.
+    if (facePoint != null) {
+      final hitPaint = Paint()
+        ..color = guideBlue.withValues(alpha: .85)
+        ..strokeWidth = 1.7 * inv
+        ..style = PaintingStyle.stroke;
+      _dash(canvas, facePoint!, to, hitPaint, 4 * inv);
+      canvas.drawCircle(facePoint!, 4 * inv, hitPaint);
+    }
 
     // Snap shapes are deliberately different: circle=node, diamond=middle,
     // square=wall, crosshair=axis. The text still names the same target.
@@ -171,5 +185,6 @@ class WallDraftGuidePainter extends CustomPainter {
       oldDelegate.wallThicknessMm != wallThicknessMm ||
       oldDelegate.snapKind != snapKind ||
       oldDelegate.snapLabel != snapLabel ||
+      oldDelegate.facePoint != facePoint ||
       oldDelegate.drawFaces != drawFaces;
 }
