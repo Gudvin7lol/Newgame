@@ -464,6 +464,7 @@ class GeometryService {
     required WallMaterial material,
     double endpointCaptureMm = 80,
     double endpointRoundingMm = 5,
+    List<PlanWall>? newlyDrawnWalls,
   }) {
     final start = floor.nodeById(startNodeId);
     if (start == null) throw StateError('Start node not found');
@@ -547,16 +548,16 @@ class GeometryService {
       final b = compact[i + 1].node;
       if (a.id == b.id || distance(a, b) < 20) continue;
       if (_wallExists(floor, a.id, b.id)) continue;
-      floor.walls.add(
-        PlanWall(
-          id: _id('w'),
-          startNodeId: a.id,
-          endNodeId: b.id,
-          type: type,
-          thicknessMm: thicknessMm,
-          material: material,
-        ),
+      final newWall = PlanWall(
+        id: _id('w'),
+        startNodeId: a.id,
+        endNodeId: b.id,
+        type: type,
+        thicknessMm: thicknessMm,
+        material: material,
       );
+      floor.walls.add(newWall);
+      newlyDrawnWalls?.add(newWall);
     }
 
     return compact.last.node;
