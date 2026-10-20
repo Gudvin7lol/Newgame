@@ -687,6 +687,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
         floor,
         _toMm(p),
         captureMm: _snapping ? 13 / (_mmToPx * _scale) : 0,
+        newNodeRoundingMm: _snapping ? 5 : 0,
       );
       setState(() {
         _wallStartNodeId = node.id;
