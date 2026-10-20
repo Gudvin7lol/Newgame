@@ -8,6 +8,7 @@ import '../design_system/zamer_tokens.dart';
 import '../models/models.dart';
 import '../services/geometry_service.dart';
 import '../services/wall_drawing_service.dart';
+import '../services/wall_length_edit_service.dart';
 import '../services/material_catalog.dart';
 import '../services/object_catalog.dart';
 import '../services/plan_direct_interaction.dart';
@@ -1110,6 +1111,136 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     await _changed();
   }
 
+  Future<void> _resizeSelectedWall() async {
+    final wall = _selectedWall;
+    if (wall == null) return;
+
+    var lengthText = floor.wallLengthMm(wall).round().toString();
+    var keepStartFixed = true;
+    final target = await showModalBottomSheet<(double, bool)>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: ZamerColors.surface,
+      builder: (sheet) => SafeArea(
+        top: false,
+        child: AnimatedPadding(
+          duration: const Duration(milliseconds: 150),
+          curve: Curves.easeOut,
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.viewInsetsOf(sheet).bottom,
+          ),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 6, 16, 18),
+            child: StatefulBuilder(
+              builder: (context, refresh) => Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Изменить длину стены',
+                    style: TextStyle(fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Текущая длина: ${floor.wallLengthMm(wall).round()} мм',
+                    style: const TextStyle(
+                      fontSize: 12, color: ZamerColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    key: const ValueKey('existing-wall-length-mm'),
+                    initialValue: lengthText,
+                    autofocus: true,
+                    onChanged: (value) => lengthText = value,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'Новая длина',
+                      suffixText: 'мм',
+                      helperText: 'От 120 мм до 100 м',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text('Какой конец оставить неподвижным?',
+                      style: TextStyle(fontSize: 12)),
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    children: [
+                      ChoiceChip(
+                        key: const ValueKey('wall-resize-fix-start'),
+                        label: const Text('Начало'),
+                        selected: keepStartFixed,
+                        onSelected: (_) =>
+                          refresh(() => keepStartFixed = true),
+                      ),
+                      ChoiceChip(
+                        key: const ValueKey('wall-resize-fix-end'),
+                        label: const Text('Конец'),
+                        selected: !keepStartFixed,
+                        onSelected: (_) =>
+                          refresh(() => keepStartFixed = false),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Смежная перпендикулярная стена сместится, сохраняя '
+                    'прямые углы. Сложные узлы блокируются.',
+                    style: TextStyle(
+                      fontSize: 11, color: ZamerColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      key: const ValueKey('existing-wall-length-apply'),
+                      onPressed: () {
+                        final newLength = double.tryParse(
+                          lengthText.trim().replaceAll(',', '.'),
+                        );
+                        if (newLength == null ||
+                            !newLength.isFinite ||
+                            newLength < WallLengthEditService.minLengthMm ||
+                            newLength > WallLengthEditService.maxLengthMm) {
+                          ScaffoldMessenger.of(sheet).showSnackBar(
+                            const SnackBar(
+                              content: Text('Укажите длину 120–100000 мм'),
+                            ),
+                          );
+                          return;
+                        }
+                        Navigator.pop(sheet, (newLength, keepStartFixed));
+                      },
+                      child: const Text('Применить размер'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    if (target == null || !mounted) return;
+
+    final result = WallLengthEditService.resize(
+      floor, wallId: wall.id, lengthMm: target.$1,
+      keepStartFixed: target.$2,
+    );
+    if (!result.isValid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result.message)),
+      );
+      return;
+    }
+    await _changed();
+  }
+
   Future<void> _shiftSelectedWall() async {
     final wall = _selectedWall;
     if (wall == null) return;
@@ -1662,6 +1793,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
               wall: _selectedWall!,
               floor: floor,
               onEdit: _editWall,
+              onResize: _resizeSelectedWall,
               onShift: _shiftSelectedWall,
               onDelete: _deleteWall,
             ),
