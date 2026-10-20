@@ -9,6 +9,7 @@ import '../models/models.dart';
 import '../services/geometry_service.dart';
 import '../services/wall_drawing_service.dart';
 import '../services/wall_length_edit_service.dart';
+import '../services/room_interior_dimensions_service.dart';
 import '../services/material_catalog.dart';
 import '../services/object_catalog.dart';
 import '../services/plan_direct_interaction.dart';
@@ -93,6 +94,9 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   String? _selectedRoomFaceKey;
   String? _wallStartNodeId;
   String? _dimensionStartNodeId;
+  math.Point<double>? _dimensionStartInterior;
+  String? _dimensionStartInteriorNodeId;
+  bool _measureRoomInterior = true;
   String? _dragObjectId;
   bool _dragObjectDirty = false;
   bool _layoutDragDirty = false;
@@ -153,6 +157,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       _lastWallSnapLabel = null;
       _liveWallSnap = null;
       _dimensionStartNodeId = null;
+      _dimensionStartInterior = null;
+      _dimensionStartInteriorNodeId = null;
       _dragNodeId = null;
       _dragSnap = null;
       _nodeDragChanged = false;
@@ -1401,7 +1407,81 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     await _changed();
   }
 
+  ({math.Point<double> point, String nodeId})?
+      _nearestRoomInteriorCorner(Offset canvasPoint) {
+    final raw = _toMm(canvasPoint);
+    final pixelToleranceMm = 18 / (_mmToPx * _scale);
+    var best = pixelToleranceMm;
+    ({math.Point<double> point, String nodeId})? result;
+    for (final face in _faces) {
+      // The real corners exclude intermediate collinear vertices introduced
+      // when a host wall was split at a T-junction.
+      for (final dimension in RoomInteriorDimensionsService.forFace(face)) {
+        final i = dimension.startEdgeIndex;
+        if (i >= face.nodeIds.length) continue;
+        final candidate = dimension.start;
+        final d = WallDrawingService.distance(raw, candidate);
+        if (d >= best) continue;
+        best = d;
+        result = (point: candidate, nodeId: face.nodeIds[i]);
+      }
+    }
+    return result;
+  }
+
   Future<void> _addDimension(Offset p) async {
+    if (_measureRoomInterior) {
+      final corner = _nearestRoomInteriorCorner(p);
+      if (corner == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text(
+              'Нажмите на внутренний угол замкнутого помещения',
+            )),
+          );
+        }
+        return;
+      }
+      final from = _dimensionStartInterior;
+      final nodeId = _dimensionStartInteriorNodeId;
+      if (from == null || nodeId == null) {
+        setState(() {
+          _dimensionStartInterior = corner.point;
+          _dimensionStartInteriorNodeId = corner.nodeId;
+        });
+        return;
+      }
+      if (nodeId == corner.nodeId) return;
+      final length = WallDrawingService.distance(from, corner.point);
+      if (length < 1) return;
+      final measure = ControlMeasure(
+        id: 'm-${DateTime.now().microsecondsSinceEpoch}',
+        startNodeId: nodeId,
+        endNodeId: corner.nodeId,
+        startXMm: from.x,
+        startYMm: from.y,
+        endXMm: corner.point.x,
+        endYMm: corner.point.y,
+        measuredMm: length,
+        label: 'Внутренний размер',
+      );
+      floor.measures.add(measure);
+      floor.dimensionRecords['control:${measure.id}'] = DimensionRecord(
+        valueMm: length,
+        source: DimensionSource.calculated,
+        author: 'Замер',
+        recordedAt: DateTime.now(),
+      );
+      setState(() {
+        _dimensionStartInterior = null;
+        _dimensionStartInteriorNodeId = null;
+      });
+      await _changed();
+      return;
+    }
+
+    // Axial measurements remain available intentionally for structural
+    // checks; they are not silently treated as actual room dimensions.
     final node = _nodeNear(p);
     if (node == null) return;
     if (_dimensionStartNodeId == null) {
@@ -1416,6 +1496,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       startNodeId: start.id,
       endNodeId: node.id,
       measuredMm: value,
+      label: 'По осям',
     );
     floor.measures.add(measure);
     floor.dimensionRecords['control:${measure.id}'] = DimensionRecord(
@@ -1930,6 +2011,54 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                       icon: const Icon(Icons.edit_location_alt_outlined, size: 17),
                       label: const Text('Координаты узла'),
                     )
+                  else if (widget.planTool == MeasurePlanTool.dimensions)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _measureRoomInterior
+                            ? (_dimensionStartInterior == null
+                                ? 'Внутренний угол 1 → угол 2'
+                                : 'Выберите второй внутренний угол')
+                            : (_dimensionStartNodeId == null
+                                ? 'Конструктивный размер по осям'
+                                : 'Выберите второй узел'),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: ZamerColors.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(width: 7),
+                        PopupMenuButton<bool>(
+                          key: const ValueKey('dimension-reference-mode'),
+                          tooltip: 'База измерения',
+                          onSelected: (value) => setState(() {
+                            _measureRoomInterior = value;
+                            _dimensionStartNodeId = null;
+                            _dimensionStartInterior = null;
+                            _dimensionStartInteriorNodeId = null;
+                          }),
+                          itemBuilder: (_) => const [
+                            PopupMenuItem(
+                              value: true,
+                              child: Text('Внутри помещения (по граням)'),
+                            ),
+                            PopupMenuItem(
+                              value: false,
+                              child: Text('Конструктивно (по осям)'),
+                            ),
+                          ],
+                          child: Text(
+                            _measureRoomInterior ? 'Внутри ▾' : 'Оси ▾',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: ZamerColors.accent,
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
                   else
                     Text(widget.planTool == MeasurePlanTool.nodes
                         ? 'Перетащите узел пальцем'
@@ -2072,6 +2201,22 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                               ),
                             ),
                           ),
+                      // Anchor the control measurement at the actual
+                      // inside-corner intersection, not the axis node.
+                      if (widget.planTool == MeasurePlanTool.dimensions &&
+                          _measureRoomInterior &&
+                          _dimensionStartInterior case final p?)
+                        Positioned(
+                          left: _origin.dx + p.x * _mmToPx - 6,
+                          top: _origin.dy + p.y * _mmToPx - 6,
+                          child: const IgnorePointer(
+                            child: Icon(
+                              Icons.add_circle,
+                              color: ZamerColors.accent,
+                              size: 12,
+                            ),
+                          ),
+                        ),
                       if (widget.planTool == MeasurePlanTool.overview)
                         if (_layoutDragRegion() case final region?) region,
                       if (widget.planTool == MeasurePlanTool.overview)
