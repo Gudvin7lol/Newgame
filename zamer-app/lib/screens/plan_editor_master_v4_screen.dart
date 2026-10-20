@@ -901,8 +901,13 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
          widget.planTool != MeasurePlanTool.partition)) return null;
     final start = floor.nodeById(startId);
     if (start == null) return null;
+    final corner = _snapping ? WallDrawingService.alignedCornerAhead(
+      floor, startNodeId: start.id, currentPoint: snap.point,
+    ) : null;
     return WallDraftGuidePainter(
       from: _toCanvas(start),
+      oppositeCorner: corner == null ? null :
+          _origin + Offset(corner.x * _mmToPx, corner.y * _mmToPx),
       to: _origin + Offset(
         snap.point.x * _mmToPx,
         snap.point.y * _mmToPx,
