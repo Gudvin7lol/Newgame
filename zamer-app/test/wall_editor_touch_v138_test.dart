@@ -57,7 +57,7 @@ void main() {
       find.byType(InteractiveViewer));
     final control = viewer.transformationController!;
     final point = MatrixUtils.transformPoint(
-      control.value, const Offset(3300, 1100),
+      control.value, const Offset(16000, 16000),
     );
     final viewportTopLeft =
         tester.getTopLeft(find.byType(InteractiveViewer));
