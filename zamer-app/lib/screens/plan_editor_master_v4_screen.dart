@@ -87,6 +87,11 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   // Drawing and viewport navigation are mutually exclusive. This prevents
   // accidental camera shifts while placing a wall on a phone.
   bool _moveCameraInsteadOfDrawing = false;
+  Timer? _edgePanTimer;
+  int? _wallPointerId;
+  Offset? _wallPointerStartGlobal;
+  Offset? _wallPointerViewport;
+  bool _wallPointerDragging = false;
   String? _dragWallId;
   double _dragWallOffsetMm = 0;
   bool _dragWallModified = false;
@@ -160,6 +165,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       _lastWallSnapLabel = null;
       _liveWallSnap = null;
       _moveCameraInsteadOfDrawing = false;
+      _stopEdgePan();
       _dimensionStartNodeId = null;
       _dimensionStartInterior = null;
       _dimensionStartInteriorNodeId = null;
@@ -179,6 +185,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
 
   @override
   void dispose() {
+    _stopEdgePan();
     _transform.dispose();
     super.dispose();
   }
@@ -615,7 +622,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
 
   Future<void> _tapCanvas(TapUpDetails details) async {
     // A tap in the deliberate navigation mode must never create a wall.
-    if (_drawingWall && _moveCameraInsteadOfDrawing) return;
+    if (_moveCameraInsteadOfDrawing) return;
     final p = details.localPosition;
     // Direct interaction on the same production CAD viewport. A tool change
     // never navigates to an alternate floor-plan canvas.
@@ -704,14 +711,103 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   // Listener is passive: it never claims a gesture. Navigation is only
   // possible when the user explicitly selects the hand control. The draft
   // uses the same WallDrawingService.snap() result as the committed segment.
+  void _stopEdgePan() {
+    _edgePanTimer?.cancel();
+    _edgePanTimer = null;
+    _wallPointerId = null;
+    _wallPointerViewport = null;
+    _wallPointerStartGlobal = null;
+    _wallPointerDragging = false;
+  }
+
+  void _wallPointerDown(PointerDownEvent event) {
+    if (!_drawingWall || _moveCameraInsteadOfDrawing ||
+        _wallStartNodeId == null || _wallPointerId != null) return;
+    _wallPointerId = event.pointer;
+    _wallPointerStartGlobal = event.position;
+    _wallPointerViewport = MatrixUtils.transformPoint(
+      _transform.value, event.localPosition,
+    );
+    _wallPointerDragging = false;
+    _updateLiveWallGuide(event);
+  }
+
+  void _wallPointerMove(PointerMoveEvent event) {
+    _updateLiveWallGuide(event);
+    if (event.pointer != _wallPointerId || _wallPointerStartGlobal == null ||
+        !_drawingWall || _moveCameraInsteadOfDrawing) return;
+    _wallPointerViewport = MatrixUtils.transformPoint(
+      _transform.value, event.localPosition,
+    );
+    if ((event.position - _wallPointerStartGlobal!).distance > 9) {
+      _wallPointerDragging = true;
+    }
+    if (_wallPointerDragging && _edgePanTimer == null) {
+      _edgePanTimer = Timer.periodic(
+        const Duration(milliseconds: 30), (_) => _edgePanTick(),
+      );
+    }
+  }
+
+  void _edgePanTick() {
+    final pos = _wallPointerViewport;
+    if (!mounted || pos == null || !_wallPointerDragging ||
+        !_drawingWall || _moveCameraInsteadOfDrawing || _viewport.isEmpty) {
+      _edgePanTimer?.cancel();
+      _edgePanTimer = null;
+      return;
+    }
+    const margin = 54.0;
+    const speed = 13.0;
+    double velocity(double coordinate, double extent) {
+      if (coordinate < margin) {
+        return speed * ((margin - coordinate) / margin).clamp(0.0, 1.0);
+      }
+      if (coordinate > extent - margin) {
+        return -speed *
+            ((coordinate - (extent - margin)) / margin).clamp(0.0, 1.0);
+      }
+      return 0;
+    }
+    final dx = velocity(pos.dx, _viewport.width);
+    final dy = velocity(pos.dy, _viewport.height);
+    if (dx == 0 && dy == 0) return;
+    final matrix = Matrix4.copy(_transform.value);
+    matrix.storage[12] += dx;
+    matrix.storage[13] += dy;
+    _transform.value = matrix;
+    _updateWallGuideAt(_transform.toScene(pos));
+  }
+
+  void _wallPointerUp(PointerEvent event) {
+    if (event.pointer != _wallPointerId) return;
+    final endViewport = _wallPointerViewport;
+    final shouldCommit = _wallPointerDragging && _wallStartNodeId != null &&
+        _drawingWall && !_moveCameraInsteadOfDrawing && endViewport != null;
+    final target = endViewport == null ? null :
+        _transform.toScene(endViewport);
+    _stopEdgePan();
+    if (shouldCommit && target != null) {
+      unawaited(_createWall(
+        target,
+        type: widget.planTool == MeasurePlanTool.exterior
+            ? WallType.exterior : WallType.partition,
+      ));
+    }
+  }
+
   void _updateLiveWallGuide(PointerEvent event) {
+    _updateWallGuideAt(event.localPosition);
+  }
+
+  void _updateWallGuideAt(Offset canvasPosition) {
     if (_moveCameraInsteadOfDrawing || !_drawingWall ||
         (widget.planTool != MeasurePlanTool.exterior &&
          widget.planTool != MeasurePlanTool.partition) ||
         _wallStartNodeId == null) return;
     final start = floor.nodeById(_wallStartNodeId!);
     if (start == null) return;
-    final raw = _toMm(event.localPosition);
+    final raw = _toMm(canvasPosition);
     final snap = _snapDrawTarget(start, raw);
     final previous = _liveWallSnap;
     if (previous != null &&
@@ -1900,9 +1996,11 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   // This is safer than restoring the camera matrix in a gesture callback:
   // tap coordinates and snap capture stay consistent for the whole gesture.
   bool get _cameraGestureEnabled =>
-      !_drawingWall || _moveCameraInsteadOfDrawing;
+      (!_drawingWall && widget.planTool != MeasurePlanTool.openings) ||
+      _moveCameraInsteadOfDrawing;
 
   void _toggleCameraNavigation() {
+    _stopEdgePan();
     setState(() {
       _moveCameraInsteadOfDrawing = !_moveCameraInsteadOfDrawing;
       _liveWallSnap = null;
@@ -2187,18 +2285,29 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                   child: Stack(
                     children: [
                       Listener(
-                        onPointerDown: _updateLiveWallGuide,
-                        onPointerMove: _updateLiveWallGuide,
+                        onPointerDown: _wallPointerDown,
+                        onPointerMove: _wallPointerMove,
+                        onPointerUp: _wallPointerUp,
+                        onPointerCancel: _wallPointerUp,
                         onPointerHover: _updateLiveWallGuide,
                         child: GestureDetector(
                         behavior: HitTestBehavior.opaque,
                         onTapUp: _tapCanvas,
                         onPanStart: widget.planTool == MeasurePlanTool.nodes
-                            ? _nodeDragStart : null,
+                            ? _nodeDragStart
+                            : widget.planTool == MeasurePlanTool.openings &&
+                                !_moveCameraInsteadOfDrawing
+                                ? _openingDragStart : null,
                         onPanUpdate: widget.planTool == MeasurePlanTool.nodes
-                            ? _nodeDragUpdate : null,
+                            ? _nodeDragUpdate
+                            : widget.planTool == MeasurePlanTool.openings &&
+                                !_moveCameraInsteadOfDrawing
+                                ? _openingDragUpdate : null,
                         onPanEnd: widget.planTool == MeasurePlanTool.nodes
-                            ? _nodeDragEnd : null,
+                            ? _nodeDragEnd
+                            : widget.planTool == MeasurePlanTool.openings &&
+                                !_moveCameraInsteadOfDrawing
+                                ? _openingDragEnd : null,
                         child: CustomPaint(
                           key: const ValueKey('measure-shared-canvas'),
                           size: _canvasSize,
@@ -2265,7 +2374,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (_drawingWall) ...[
+                    if (_drawingWall || widget.planTool == MeasurePlanTool.openings) ...[
                       ZMeasureCanvasAction(
                         key: const ValueKey('wall-camera-navigation'),
                         icon: _moveCameraInsteadOfDrawing
