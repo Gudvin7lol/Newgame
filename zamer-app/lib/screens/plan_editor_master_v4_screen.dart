@@ -17,6 +17,7 @@ import '../services/plan_visibility_service.dart';
 import 'measure_plan_tool.dart';
 import '../services/space_check_service.dart';
 import '../widgets/cad_plan_painter.dart';
+import '../widgets/wall_draft_guide_painter.dart';
 
 /// UI KIT 02 production editor rebuilt around the approved portrait concept.
 /// +80 adds direct room selection and one-tap material application.
@@ -78,6 +79,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   int _angleSnapDegrees = 90;
   double _lastWallAngleDegrees = 0;
   String? _lastWallSnapLabel;
+  WallDrawingTarget? _liveWallSnap;
+  bool _showLiveWallFaces = true;
   String? _dragWallId;
   double _dragWallOffsetMm = 0;
   bool _dragWallModified = false;
@@ -146,6 +149,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       // or vertex drag on the same shared canvas.
       _wallStartNodeId = null;
       _lastWallSnapLabel = null;
+      _liveWallSnap = null;
       _dimensionStartNodeId = null;
       _dragNodeId = null;
       _dragSnap = null;
@@ -682,6 +686,55 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     wallCaptureMm: 12 / (_mmToPx * _scale),
   );
 
+  // Listener is passive: it never claims a gesture. InteractiveViewer can
+  // still pan and zoom. During wall construction the draft marker always
+  // uses the same WallDrawingService.snap() result as the committed segment.
+  void _updateLiveWallGuide(PointerEvent event) {
+    if (!_drawingWall ||
+        (widget.planTool != MeasurePlanTool.exterior &&
+         widget.planTool != MeasurePlanTool.partition) ||
+        _wallStartNodeId == null) return;
+    final start = floor.nodeById(_wallStartNodeId!);
+    if (start == null) return;
+    final raw = _toMm(event.localPosition);
+    final snap = _snapDrawTarget(start, raw);
+    final previous = _liveWallSnap;
+    if (previous != null &&
+        previous.kind == snap.kind &&
+        previous.targetNodeId == snap.targetNodeId &&
+        previous.targetWallId == snap.targetWallId &&
+        WallDrawingService.distance(previous.point, snap.point) < 2) {
+      return;
+    }
+    setState(() {
+      _liveWallSnap = snap;
+      _lastWallSnapLabel = snap.kind.label;
+    });
+  }
+
+  WallDraftGuidePainter? _wallPreviewPainter() {
+    final startId = _wallStartNodeId;
+    final snap = _liveWallSnap;
+    if (startId == null || snap == null ||
+        (widget.planTool != MeasurePlanTool.exterior &&
+         widget.planTool != MeasurePlanTool.partition)) return null;
+    final start = floor.nodeById(startId);
+    if (start == null) return null;
+    return WallDraftGuidePainter(
+      from: _toCanvas(start),
+      to: _origin + Offset(
+        snap.point.x * _mmToPx,
+        snap.point.y * _mmToPx,
+      ),
+      mmToPx: _mmToPx,
+      zoom: _scale,
+      wallThicknessMm: widget.planTool == MeasurePlanTool.exterior ? 300 : 100,
+      snapKind: snap.kind,
+      snapLabel: snap.kind.label,
+      drawFaces: _showLiveWallFaces,
+    );
+  }
+
   Future<void> _createWall(Offset p, {WallType type = WallType.partition}) async {
     if (_wallStartNodeId == null) {
       final node = GeometryService.ensureAnchor(
@@ -693,6 +746,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       setState(() {
         _wallStartNodeId = node.id;
         _lastWallSnapLabel = 'Начало стены';
+        _liveWallSnap = null;
         _selectedWallId = null;
       });
       await _changed();
@@ -751,6 +805,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
         math.atan2(end.yMm - start.yMm, end.xMm - start.xMm) * 180 / math.pi;
     setState(() {
       _wallStartNodeId = end.id;
+      _liveWallSnap = null;
       if (created.isNotEmpty) _selectedWallId = created.last.id;
     });
     if (created.isNotEmpty) await _changed();
@@ -1763,6 +1818,24 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                               fontWeight: FontWeight.w700)),
                       ),
                     ),
+                    Tooltip(
+                      message: 'Показать границы толщины строящейся стены',
+                      child: InkWell(
+                        key: const ValueKey('wall-live-face-guides'),
+                        onTap: () => setState(() =>
+                            _showLiveWallFaces = !_showLiveWallFaces),
+                        child: Padding(
+                          padding: const EdgeInsets.all(5),
+                          child: Icon(
+                            Icons.border_outer_rounded,
+                            size: 18,
+                            color: _showLiveWallFaces
+                                ? ZamerColors.accent
+                                : ZamerColors.textSecondary,
+                          ),
+                        ),
+                      ),
+                    ),
                     PopupMenuButton<ProjectLayer>(
                       tooltip: 'Слой построения',
                       onSelected: (layer) => setState(() => _drawingLayer = layer),
@@ -1812,6 +1885,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
               onPressed: () => setState(() {
                 _wallStartNodeId = null;
                 _lastWallSnapLabel = null;
+                _liveWallSnap = null;
               }),
               icon: const Icon(Icons.check_rounded, size: 17),
               label: const Text('Стоп'),
@@ -1885,7 +1959,11 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                   constrained: false,
                   child: Stack(
                     children: [
-                      GestureDetector(
+                      Listener(
+                        onPointerDown: _updateLiveWallGuide,
+                        onPointerMove: _updateLiveWallGuide,
+                        onPointerHover: _updateLiveWallGuide,
+                        child: GestureDetector(
                         behavior: HitTestBehavior.opaque,
                         onTapUp: _tapCanvas,
                         onPanStart: widget.planTool == MeasurePlanTool.nodes
@@ -1907,7 +1985,9 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                             visibleCategories: _visibleCategories,
                             collisionKinds: _collisionKinds,
                           ),
+                          foregroundPainter: _wallPreviewPainter(),
                         ),
+                      ),
                       ),
                       // Always reveal the chained wall's real CAD start node
                       // without stealing touch events or covering furniture.
