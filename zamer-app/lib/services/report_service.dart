@@ -15,6 +15,7 @@ import 'material_service.dart';
 import 'engineering_service.dart';
 import 'estimate_service.dart';
 import 'measurement_review_service.dart';
+import 'room_interior_dimensions_service.dart';
 
 class ReportService {
   static Future<void> shareFloorPdf(
@@ -100,7 +101,7 @@ class ReportService {
     for (final wall in floor.walls) {
       final record = floor.dimensionRecords['wall:${wall.id}:length'];
       dimensionLines.add(
-        'Стена ${wall.id}: ${floor.wallLengthMm(wall).round()} мм • '
+        'Стена ${wall.id}, длина по оси: ${floor.wallLengthMm(wall).round()} мм • '
         '${record?.source.label ?? 'расчётный размер'}'
         '${record == null ? '' : ' • ${record.author} • ${record.recordedAt.toLocal().toString().split('.').first}'}',
       );
@@ -120,9 +121,28 @@ class ReportService {
     for (final measure in floor.measures) {
       final source = floor.dimensionRecords['control:${measure.id}'];
       dimensionLines.add(
-        'Контроль ${measure.id}: ${measure.measuredMm.round()} мм • '
+        'Контроль ${measure.id}, '
+        '${measure.isInterior ? 'между внутренними углами' : 'по осям'}: '
+        '${measure.measuredMm.round()} мм • '
         '${source?.source.label ?? 'источник не указан'}',
       );
+    }
+    // The engineering sheet must not silently label centreline distances
+    // as a room's usable clear dimensions. Print the same room-side chains
+    // that are visible in the CAD editor, using millimetre precision.
+    final inside = RoomInteriorDimensionsService.forFloor(
+      floor, faces: faces,
+    );
+    for (final face in faces) {
+      final name = floor.roomMetaByKey(face.key)?.name ?? 'Помещение';
+      final edges = inside.where((item) => item.faceKey == face.key).toList();
+      if (edges.isEmpty) continue;
+      for (var i = 0; i < edges.length; i++) {
+        dimensionLines.add(
+          '$name, внутренняя грань ${i + 1}, '
+          'от угла до угла: ${edges[i].lengthMm.round()} мм',
+        );
+      }
     }
     for (final room in floor.roomMetas) {
       final source = floor.dimensionRecords['room:${room.id}:height'];
