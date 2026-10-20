@@ -642,6 +642,39 @@ class GeometryService {
 
     final sorted = List<_IntersectionHit>.from(hits)
       ..sort((a, b) => a.tWall.compareTo(b.tWall));
+
+    // Validate all cut positions BEFORE adding a node or deleting a wall.
+    // A T-junction cannot silently narrow a door/window or detach sockets.
+    for (final hit in sorted) {
+      final along = hit.tWall * wallLength;
+      for (final opening in wall.openings) {
+        if (along > opening.offsetFromStartMm + .01 &&
+            along < opening.offsetFromStartMm + opening.widthMm - .01) {
+          throw StateError(
+            'Примыкание пересекает дверной или оконный проём.',
+          );
+        }
+      }
+    }
+    final attachedDevices = <(ElectricalPoint, double)>[];
+    for (final point in floor.electricalPoints.where(
+      (item) => item.wallId == wall.id,
+    )) {
+      final deltaX = end.xMm - start.xMm;
+      final deltaY = end.yMm - start.yMm;
+      final projection = (
+        (point.xMm - start.xMm) * deltaX +
+        (point.yMm - start.yMm) * deltaY
+      ) / (wallLength * wallLength);
+      final originalOffset =
+          point.wallOffsetMm ?? projection * wallLength;
+      if (!originalOffset.isFinite ||
+          originalOffset < -.01 ||
+          originalOffset > wallLength + .01) {
+        throw StateError('Привязка электроточки к стене некорректна.');
+      }
+      attachedDevices.add((point, originalOffset.clamp(0, wallLength).toDouble()));
+    }
     final nodes = <PlanNode>[];
     for (final hit in sorted) {
       final near = nearestNode(floor, hit.point, thresholdMm: .5);
@@ -671,6 +704,7 @@ class GeometryService {
     breakDistances.add(wallLength);
 
     floor.walls.removeWhere((w) => w.id == wall.id);
+    final produced = <(PlanWall, double, double)>[];
     for (var i = 0; i < chain.length - 1; i++) {
       final a = chain[i];
       final b = chain[i + 1];
@@ -694,6 +728,19 @@ class GeometryService {
         }
       }
       floor.walls.add(segment);
+      produced.add((segment, d0, d1));
+    }
+    // Preserve electrical wallId and offset when host wall IDs are replaced.
+    // World-space coordinates remain stable, so socket symbols do not jump.
+    for (final (point, originalOffset) in attachedDevices) {
+      for (final (segment, d0, d1) in produced) {
+        if (originalOffset < d0 - .01 ||
+            originalOffset > d1 + .01) continue;
+        point.wallId = segment.id;
+        point.wallOffsetMm =
+            (originalOffset - d0).clamp(0, d1 - d0).toDouble();
+        break;
+      }
     }
     return nodes;
   }
