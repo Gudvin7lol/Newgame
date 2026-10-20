@@ -20,7 +20,7 @@ Widget testScreen(FloorPlan floor, MeasurePlanTool mode) => MaterialApp(
     );
 
 void main() {
-  testWidgets('one finger cannot pan or zoom camera while building walls',
+  testWidgets('one finger cannot pan camera while building walls; pinch remains enabled',
       (tester) async {
     tester.view.physicalSize = const Size(480, 1100);
     tester.view.devicePixelRatio = 1;
@@ -36,7 +36,7 @@ void main() {
     final transform = viewer().transformationController!;
     final initial = List<double>.of(transform.value.storage);
     expect(viewer().panEnabled, isFalse);
-    expect(viewer().scaleEnabled, isFalse);
+    expect(viewer().scaleEnabled, isTrue);
 
     final rect = tester.getRect(find.byType(InteractiveViewer));
     final fingerStart = rect.center - const Offset(45, 95);
@@ -94,7 +94,7 @@ void main() {
     await tester.tap(hand);
     await tester.pumpAndSettle();
     expect(viewer().panEnabled, isFalse);
-    expect(viewer().scaleEnabled, isFalse);
+    expect(viewer().scaleEnabled, isTrue);
     expect(tester.takeException(), isNull);
   });
 
