@@ -10,6 +10,7 @@ import '../services/herringbone_layout.dart';
 import '../services/material_catalog.dart';
 import '../services/plan_visibility_service.dart';
 import '../services/room_interior_dimensions_service.dart';
+import '../services/space_check_service.dart';
 import 'cad_wall_join_geometry.dart';
 import 'top_view_object_renderer.dart';
 
@@ -741,6 +742,31 @@ class CadPlanPainterV2 extends CustomPainter {
   }
 
   void _collisionOverlay(Canvas canvas) {
+    if (collisionKinds.contains(PlanCollisionKind.doorClearance)) {
+      // Quietly show where each leaf sweeps. Actual obstructions get a strong
+      // orange warning marker below. This makes the collision zone tangible.
+      final tint = const Color(0xFFF6B35B);
+      for (final wall in floor.walls) {
+        for (final opening in wall.openings) {
+          if (opening.type != OpeningType.door) continue;
+          final region = SpaceCheckService.doorSwingZone(floor, wall, opening);
+          if (region.length < 3) continue;
+          final start = _q(region.first);
+          final path = Path()..moveTo(start.dx, start.dy);
+          for (final p in region.skip(1)) {
+            final point = _q(p);
+            path.lineTo(point.dx, point.dy);
+          }
+          path.close();
+          canvas.drawPath(path, Paint()
+            ..color = tint.withValues(alpha: .055));
+          canvas.drawPath(path, Paint()
+            ..color = tint.withValues(alpha: .20)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = .65);
+        }
+      }
+    }
     for (final issue in PlanCollisionService.inspect(floor)) {
       if (!collisionKinds.contains(issue.kind)) continue;
       final center = _q(issue.position);
