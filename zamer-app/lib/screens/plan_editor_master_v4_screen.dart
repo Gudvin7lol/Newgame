@@ -1639,7 +1639,10 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       child: Column(
         children: [
           Expanded(child: _canvas()),
+          // Keep the viewport height stable through the gesture; opening
+          // an inspector half-way through a finger drag changes the mapping.
           if (_selectedWall != null && !_drawingWall &&
+              _dragWallId == null &&
               (widget.planTool == MeasurePlanTool.select ||
                widget.planTool == MeasurePlanTool.overview))
             _WallInspector(
