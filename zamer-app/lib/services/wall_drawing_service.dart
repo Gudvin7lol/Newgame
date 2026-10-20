@@ -36,6 +36,43 @@ class WallDrawingService {
   static double distance(math.Point<double> a, math.Point<double> b) =>
       math.sqrt(math.pow(a.x - b.x, 2) + math.pow(a.y - b.y, 2));
 
+  /// Finds an actual far corner on the current construction ray without
+  /// snapping the free endpoint to it prematurely. The UI shows this as a
+  /// passive alignment hint while the user is extending a wall.
+  static math.Point<double>? alignedCornerAhead(
+    FloorPlan floor, {
+    required String startNodeId,
+    required math.Point<double> currentPoint,
+    double toleranceMm = 30,
+  }) {
+    final start = floor.nodeById(startNodeId);
+    if (start == null) return null;
+    final dx = currentPoint.x - start.xMm;
+    final dy = currentPoint.y - start.yMm;
+    final length = math.sqrt(dx * dx + dy * dy);
+    if (length < minimumLengthMm) return null;
+    final ux = dx / length, uy = dy / length;
+    final junctionIds = <String, int>{};
+    for (final wall in floor.walls) {
+      junctionIds.update(wall.startNodeId, (v) => v + 1, ifAbsent: () => 1);
+      junctionIds.update(wall.endNodeId, (v) => v + 1, ifAbsent: () => 1);
+    }
+    math.Point<double>? nearest;
+    var nearestAlong = double.infinity;
+    for (final node in floor.nodes) {
+      if (node.id == startNodeId ||
+          (junctionIds[node.id] ?? 0) < 2) continue;
+      final vx = node.xMm - start.xMm, vy = node.yMm - start.yMm;
+      final along = vx * ux + vy * uy;
+      final lateral = (vx * uy - vy * ux).abs();
+      if (along <= length + 50 || along >= nearestAlong ||
+          lateral > toleranceMm) continue;
+      nearestAlong = along;
+      nearest = math.Point<double>(node.xMm, node.yMm);
+    }
+    return nearest;
+  }
+
   static math.Point<double> lengthEndpoint({
     required math.Point<double> start,
     required double lengthMm,
