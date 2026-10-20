@@ -2236,12 +2236,14 @@ class _WallInspector extends StatelessWidget {
     required this.wall,
     required this.floor,
     required this.onEdit,
+    required this.onResize,
     required this.onShift,
     required this.onDelete,
   });
   final PlanWall wall;
   final FloorPlan floor;
   final VoidCallback onEdit;
+  final VoidCallback onResize;
   final VoidCallback onShift;
   final VoidCallback onDelete;
 
@@ -2305,6 +2307,7 @@ class _WallInspector extends StatelessWidget {
                           iconColor: ZamerColors.textSecondary,
                           onSelected: (value) {
                             if (value == 'edit') onEdit();
+                            if (value == 'resize') onResize();
                             if (value == 'shift') onShift();
                             if (value == 'delete') onDelete();
                           },
@@ -2312,6 +2315,10 @@ class _WallInspector extends StatelessWidget {
                             PopupMenuItem(
                               value: 'edit',
                               child: Text('Изменить стену'),
+                            ),
+                            PopupMenuItem(
+                              value: 'resize',
+                              child: Text('Изменить длину'),
                             ),
                             PopupMenuItem(
                               value: 'shift',
@@ -2332,7 +2339,7 @@ class _WallInspector extends StatelessWidget {
                         _metric(
                           'Длина',
                           '${floor.wallLengthMm(wall).round()} мм',
-                          locked: true,
+                          onTap: onResize,
                         ),
                         _metric('Угол', '${_angle.round()}°'),
                         _metric('Толщина', '${wall.thicknessMm.round()} мм'),
@@ -2350,8 +2357,12 @@ class _WallInspector extends StatelessWidget {
         ),
       );
 
-  Widget _metric(String label, String value, {bool locked = false}) => Expanded(
-        child: Container(
+  Widget _metric(String label, String value, {VoidCallback? onTap}) => Expanded(
+        child: InkWell(
+          key: label == 'Длина' ? const ValueKey('selected-wall-length') : null,
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(6),
+          child: Container(
           margin: const EdgeInsets.only(right: 4),
           padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
           decoration: BoxDecoration(
@@ -2386,16 +2397,17 @@ class _WallInspector extends StatelessWidget {
                       ),
                     ),
                   ),
-                  if (locked)
+                  if (onTap != null)
                     const Icon(
-                      Icons.lock_outline_rounded,
+                      Icons.edit_outlined,
                       size: 9,
-                      color: ZamerColors.textMuted,
+                      color: ZamerColors.accent,
                     ),
                 ],
               ),
             ],
           ),
+        ),
         ),
       );
 }
