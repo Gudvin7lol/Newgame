@@ -8,6 +8,7 @@ import '../services/geometry_service.dart';
 import '../services/herringbone_layout.dart';
 import '../services/material_catalog.dart';
 import '../services/plan_visibility_service.dart';
+import 'cad_wall_join_geometry.dart';
 import 'top_view_object_renderer.dart';
 
 /// UI KIT 02 CAD renderer for +78.
@@ -411,42 +412,74 @@ class CadPlanPainterV2 extends CustomPainter {
   }
 
   void _walls(Canvas canvas) {
-    for (final wall in floor.walls) {
-      final layer = wall.demolition ? ProjectLayer.demolition : wall.projectLayer;
-      if (!visibleLayers.contains(layer) || wall.isCurved) continue;
-      final a = floor.nodeById(wall.startNodeId);
-      final b = floor.nodeById(wall.endNodeId);
-      if (a == null || b == null) continue;
-      final pa = _p(a);
-      final pb = _p(b);
-      final width = math.max(3.8, wall.thicknessMm * mmToPx);
-      final selected = wall.id == selectedWallId;
-      final color = wall.demolition || wall.projectLayer == ProjectLayer.demolition
-          ? ZamerColors.danger
-          : selected
-              ? ZamerColors.accent
-              : wall.projectLayer == ProjectLayer.proposed
-                  ? const Color(0xFF5FD189)
-                  : const Color(0xFFF0F1ED);
+    final bodies = CadWallJoinGeometry.bodies(
+      floor: floor,
+      mmToPx: mmToPx,
+      origin: origin,
+      visibleLayers: visibleLayers,
+    );
+    final all = Path();
+    for (final layer in ProjectLayer.values) {
+      all.addPath(bodies[layer]!, Offset.zero);
+    }
+    // One shadow for the union of the bodies. Independent square-ended
+    // strokes used to produce black strips and bright bulges at T joints.
+    canvas.save();
+    canvas.translate(1.1, 1.2);
+    canvas.drawPath(
+      all,
+      Paint()..color = Colors.black.withValues(alpha: .26),
+    );
+    canvas.restore();
 
-      canvas.drawLine(
-        pa + const Offset(1.1, 1.2),
-        pb + const Offset(1.1, 1.2),
-        Paint()
-          ..color = Colors.black.withValues(alpha: .28)
-          ..strokeWidth = width + 1.6
-          ..strokeCap = StrokeCap.square,
+    const colors = <ProjectLayer, Color>{
+      ProjectLayer.existing: Color(0xFFF0F1ED),
+      ProjectLayer.demolition: ZamerColors.danger,
+      ProjectLayer.proposed: Color(0xFF5FD189),
+    };
+    for (final layer in ProjectLayer.values) {
+      if (!visibleLayers.contains(layer)) continue;
+      canvas.drawPath(
+        bodies[layer]!,
+        Paint()..color = colors[layer]!,
       );
-      canvas.drawLine(
-        pa,
-        pb,
-        Paint()
-          ..color = color
-          ..strokeWidth = width
-          ..strokeCap = StrokeCap.square,
-      );
-      if (visibleCategories.contains(PlanDisplayLayer.openings)) {
-        _openings(canvas, wall, pa, pb, width);
+    }
+
+    // Selection is a thin centreline highlight, not a full-width orange
+    // stroke. A selected 100-mm partition should never conceal its
+    // 300-mm host wall or look like an extra thick orange slab.
+    if (selectedWallId != null) {
+      final wall = floor.wallById(selectedWallId!);
+      if (wall != null && !wall.isCurved) {
+        final a = floor.nodeById(wall.startNodeId);
+        final b = floor.nodeById(wall.endNodeId);
+        if (a != null && b != null) {
+          canvas.drawLine(
+            _p(a), _p(b),
+            Paint()
+              ..color = ZamerColors.accent
+              ..strokeWidth = math.max(1.6, wall.thicknessMm * mmToPx * .11)
+              ..strokeCap = StrokeCap.butt,
+          );
+        }
+      }
+    }
+
+    // Openings are subtracted after the entire wall union has been filled.
+    // Drawing them per wall would allow a later adjacent wall to cover an
+    // earlier door or window at a junction.
+    if (visibleCategories.contains(PlanDisplayLayer.openings)) {
+      for (final wall in floor.walls) {
+        final layer =
+            wall.demolition ? ProjectLayer.demolition : wall.projectLayer;
+        if (!visibleLayers.contains(layer) || wall.isCurved) continue;
+        final a = floor.nodeById(wall.startNodeId);
+        final b = floor.nodeById(wall.endNodeId);
+        if (a == null || b == null) continue;
+        _openings(
+          canvas, wall, _p(a), _p(b),
+          math.max(3.8, wall.thicknessMm * mmToPx),
+        );
       }
     }
   }

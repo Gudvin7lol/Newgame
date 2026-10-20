@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -6,6 +7,7 @@ import '../design_system/zamer_measure_chrome.dart';
 import '../design_system/zamer_tokens.dart';
 import '../models/models.dart';
 import '../services/geometry_service.dart';
+import '../services/wall_drawing_service.dart';
 import '../services/material_catalog.dart';
 import '../services/object_catalog.dart';
 import '../services/plan_direct_interaction.dart';
@@ -73,6 +75,14 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   math.Point<double> _fingerNodeOffsetMm = const math.Point(0, 0);
   bool _nodeDragChanged = false;
   int _angleSnapDegrees = 90;
+  double _lastWallAngleDegrees = 0;
+  String? _lastWallSnapLabel;
+  String? _dragWallId;
+  double _dragWallOffsetMm = 0;
+  bool _dragWallModified = false;
+  String? _dragWallRejected;
+  Matrix4? _dragWallBaseTransform;
+  math.Point<double>? _dragWallStartMm;
   ProjectLayer _drawingLayer = ProjectLayer.existing;
   String? _selectedRoomFaceKey;
   String? _wallStartNodeId;
@@ -134,12 +144,17 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       // Switching tools must not continue an unfinished wall/arc, dimension,
       // or vertex drag on the same shared canvas.
       _wallStartNodeId = null;
+      _lastWallSnapLabel = null;
       _dimensionStartNodeId = null;
       _dragNodeId = null;
       _dragSnap = null;
       _nodeDragChanged = false;
       _selectedNodeId = null;
       _selectedWallId = null;
+      _dragWallId = null;
+      _dragWallStartMm = null;
+      _dragWallBaseTransform = null;
+      _dragWallRejected = null;
       _materialPickMode = widget.planTool == MeasurePlanTool.overview;
       _materialsExpanded = false;
     }
@@ -496,6 +511,91 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     setState(() {});
   }
 
+  // In Select mode a one-finger drag starting on an eligible straight wall
+  // translates both endpoints together. An empty-space gesture still pans
+  // the viewport; a two-finger gesture always remains a normal zoom.
+  void _wallDragStart(ScaleStartDetails details) {
+    if (widget.planTool != MeasurePlanTool.select ||
+        details.pointerCount != 1) return;
+    final point = _transform.toScene(details.localFocalPoint);
+    final wall = _wallNear(point);
+    if (wall == null || !OrthogonalWallEditService.preview(
+      floor, wallId: wall.id, offsetMm: 0,
+    ).isValid) return;
+    setState(() {
+      _selectedWallId = wall.id;
+      _dragWallId = wall.id;
+      _dragWallStartMm = _toMm(point);
+      _dragWallBaseTransform = Matrix4.copy(_transform.value);
+      _dragWallOffsetMm = 0;
+      _dragWallModified = false;
+      _dragWallRejected = null;
+    });
+  }
+
+  void _wallDragUpdate(ScaleUpdateDetails details) {
+    final id = _dragWallId;
+    final originMm = _dragWallStartMm;
+    final base = _dragWallBaseTransform;
+    if (id == null || originMm == null || base == null) return;
+    if (details.pointerCount != 1) {
+      unawaited(_wallDragFinish());
+      return;
+    }
+    // InteractiveViewer updates its matrix as part of the same gesture.
+    // Undo ONLY that camera pan while an actual wall is being dragged.
+    _transform.value = Matrix4.copy(base);
+    final touch = _toMm(_transform.toScene(details.localFocalPoint));
+    final wall = floor.wallById(id);
+    if (wall == null) return;
+    final a = floor.nodeById(wall.startNodeId);
+    final b = floor.nodeById(wall.endNodeId);
+    if (a == null || b == null) return;
+    final vertical = (a.xMm - b.xMm).abs() < .5;
+    final horizontal = (a.yMm - b.yMm).abs() < .5;
+    if (!vertical && !horizontal) return;
+
+    // Only the normal direction moves the wall; length and right angles
+    // remain constrained by OrthogonalWallEditService.
+    final rawOffset = vertical
+        ? touch.x - originMm.x : touch.y - originMm.y;
+    final step = _snapping ? 10.0 : 1.0;
+    final wanted = (rawOffset / step).round() * step;
+    final change = wanted - _dragWallOffsetMm;
+    if (change.abs() < .01) return;
+    final result = OrthogonalWallEditService.move(
+      floor, wallId: id, offsetMm: change,
+    );
+    if (!result.isValid) {
+      _dragWallRejected = result.message;
+      return;
+    }
+    _dragWallOffsetMm = wanted;
+    _dragWallRejected = null;
+    _dragWallModified = true;
+    setState(() {});
+  }
+
+  Future<void> _wallDragFinish() async {
+    if (_dragWallId == null) return;
+    final changed = _dragWallModified;
+    final rejected = _dragWallRejected;
+    setState(() {
+      _dragWallId = null;
+      _dragWallBaseTransform = null;
+      _dragWallStartMm = null;
+      _dragWallModified = false;
+      _dragWallRejected = null;
+      _dragWallOffsetMm = 0;
+    });
+    if (changed) await _changed(); // single undo/history snapshot per drag
+    if (!changed && rejected != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(rejected)),
+      );
+    }
+  }
+
   Future<void> _tapCanvas(TapUpDetails details) async {
     final p = details.localPosition;
     // Direct interaction on the same production CAD viewport. A tool change
@@ -568,41 +668,30 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     }
   }
 
-  math.Point<double> _snapDrawTarget(
+  WallDrawingTarget _snapDrawTarget(
     PlanNode start,
     math.Point<double> raw,
-  ) {
-    if (!_snapping) return raw;
-    final captured = GeometryService.nearestNode(
-      floor, raw, thresholdMm: 14 / (_mmToPx * _scale),
-    );
-    if (captured != null && captured.id != start.id) {
-      return math.Point<double>(captured.xMm, captured.yMm);
-    }
-    final dx = raw.x - start.xMm;
-    final dy = raw.y - start.yMm;
-    final length = math.sqrt(dx * dx + dy * dy);
-    if (length <= 0) return raw;
-    var candidate = raw;
-    if (_angleSnapDegrees != 0) {
-      final radians = math.pi * _angleSnapDegrees / 180;
-      final snappedAngle = (math.atan2(dy, dx) / radians).round() * radians;
-      candidate = math.Point<double>(
-        start.xMm + math.cos(snappedAngle) * length,
-        start.yMm + math.sin(snappedAngle) * length,
-      );
-    }
-    final nearWall = GeometryService.nearestWallProjection(
-      floor, candidate, thresholdMm: 11 / (_mmToPx * _scale),
-    );
-    return nearWall?.point ?? candidate;
-  }
+  ) => WallDrawingService.snap(
+    floor,
+    startNodeId: start.id,
+    raw: raw,
+    enabled: _snapping,
+    angleStepDegrees: _angleSnapDegrees,
+    nodeCaptureMm: 14 / (_mmToPx * _scale),
+    wallCaptureMm: 12 / (_mmToPx * _scale),
+  );
 
   Future<void> _createWall(Offset p, {WallType type = WallType.partition}) async {
     if (_wallStartNodeId == null) {
-      final node = GeometryService.ensureAnchor(floor, _toMm(p));
+      final node = GeometryService.ensureAnchor(
+        floor,
+        _toMm(p),
+        captureMm: _snapping ? 13 / (_mmToPx * _scale) : 0,
+        newNodeRoundingMm: _snapping ? 5 : 0,
+      );
       setState(() {
         _wallStartNodeId = node.id;
+        _lastWallSnapLabel = 'Начало стены';
         _selectedWallId = null;
       });
       await _changed();
@@ -613,8 +702,27 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       setState(() => _wallStartNodeId = null);
       return;
     }
-    final point = _snapDrawTarget(start, _toMm(p));
-    if (math.Point(point.x - start.xMm, point.y - start.yMm).magnitude < 120) {
+    final snap = _snapDrawTarget(start, _toMm(p));
+    setState(() => _lastWallSnapLabel = snap.kind.label);
+    await _commitWallSegment(
+      start: start,
+      point: snap.point,
+      type: type,
+    );
+  }
+
+  Future<void> _commitWallSegment({
+    required PlanNode start,
+    required math.Point<double> point,
+    required WallType type,
+  }) async {
+    final startPoint = math.Point<double>(start.xMm, start.yMm);
+    final distance = WallDrawingService.distance(startPoint, point);
+    if (distance < WallDrawingService.minimumLengthMm) return;
+    if (distance > WallDrawingService.maximumLengthMm) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Длина стены должна быть не больше 100 м')),
+      );
       return;
     }
     final oldIds = floor.walls.map((w) => w.id).toSet();
@@ -626,17 +734,137 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       thicknessMm: type == WallType.exterior ? 300 : 100,
       material: type == WallType.exterior
           ? WallMaterial.gasBlock : WallMaterial.drywall,
+      // An entered length, e.g. 3123 mm at 45°, must not be moved by a
+      // 5-mm rounding rule or a nearby (but different) 80-mm endpoint.
+      // The snap service already chose a geometric target. Re-capturing
+      // an unrelated node 80 mm away here would silently break 90°/45°.
+      endpointCaptureMm: .5,
+      endpointRoundingMm: 0,
     );
     final created = floor.walls.where((w) => !oldIds.contains(w.id)).toList();
     for (final wall in created) {
       wall.projectLayer = _drawingLayer;
       wall.demolition = _drawingLayer == ProjectLayer.demolition;
     }
+    _lastWallAngleDegrees =
+        math.atan2(end.yMm - start.yMm, end.xMm - start.xMm) * 180 / math.pi;
     setState(() {
-      _wallStartNodeId = end.id; // next touch extends the same wall chain
+      _wallStartNodeId = end.id;
       if (created.isNotEmpty) _selectedWallId = created.last.id;
     });
     if (created.isNotEmpty) await _changed();
+  }
+
+  Future<void> _enterWallLength() async {
+    final id = _wallStartNodeId;
+    if (id == null) return;
+    final start = floor.nodeById(id);
+    if (start == null) return;
+
+    // TextFormField owns its internal controller for its entire lifetime.
+    // Disposing an external controller immediately after Navigator.pop would
+    // break Flutter's outgoing bottom-sheet animation (and on-screen keyboard).
+    var lengthText = '3000';
+    var angleText = _lastWallAngleDegrees.round().toString();
+    final values = await showModalBottomSheet<(double, double)>(
+      context: context,
+      backgroundColor: ZamerColors.surface,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheet) => SafeArea(
+        top: false,
+        child: AnimatedPadding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.viewInsetsOf(sheet).bottom,
+          ),
+          duration: const Duration(milliseconds: 150),
+          curve: Curves.easeOut,
+          child: SingleChildScrollView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: const EdgeInsets.fromLTRB(16, 6, 16, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Построить стену по размеру',
+                    style: TextStyle(fontWeight: FontWeight.w700)),
+                const SizedBox(height: 8),
+                TextFormField(
+                  key: const ValueKey('wall-build-length-mm'),
+                  initialValue: lengthText,
+                  onChanged: (value) => lengthText = value,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  autofocus: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Точная длина',
+                    suffixText: 'мм',
+                    helperText: 'Длина по оси стены от последнего узла',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextFormField(
+                  key: const ValueKey('wall-build-angle-deg'),
+                  initialValue: angleText,
+                  onChanged: (value) => angleText = value,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true, signed: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'Направление от оси X',
+                    suffixText: '°',
+                    helperText:
+                        '0° вправо, 90° вниз, 180° влево, −90° вверх',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    key: const ValueKey('wall-build-apply'),
+                    onPressed: () {
+                      final value = double.tryParse(
+                        lengthText.trim().replaceAll(',', '.'),
+                      );
+                      final degrees = double.tryParse(
+                        angleText.trim().replaceAll(',', '.'),
+                      );
+                      if (value == null ||
+                          degrees == null ||
+                          !value.isFinite ||
+                          !degrees.isFinite ||
+                          value < WallDrawingService.minimumLengthMm ||
+                          value > WallDrawingService.maximumLengthMm) {
+                        ScaffoldMessenger.of(sheet).showSnackBar(
+                          const SnackBar(content: Text(
+                            'Укажите длину 120–100000 мм и допустимый угол',
+                          )),
+                        );
+                        return;
+                      }
+                      Navigator.pop(sheet, (value, degrees));
+                    },
+                    child: const Text('Построить'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    if (values == null || !mounted) return;
+    final point = WallDrawingService.lengthEndpoint(
+      start: math.Point<double>(start.xMm, start.yMm),
+      lengthMm: values.$1,
+      angleDegrees: values.$2,
+    );
+    await _commitWallSegment(
+      start: start,
+      point: point,
+      type: widget.planTool == MeasurePlanTool.exterior
+          ? WallType.exterior : WallType.partition,
+    );
+    if (mounted) setState(() => _lastWallSnapLabel = 'По точному размеру');
   }
 
   Future<void> _addOpening(Offset p, {bool chooseType = false}) async {
@@ -710,7 +938,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     }
     final start = floor.nodeById(_wallStartNodeId!);
     if (start == null) return;
-    final point = _snapDrawTarget(start, _toMm(p));
+    final point = _snapDrawTarget(start, _toMm(p)).point;
     final chord = math.sqrt(math.pow(point.x - start.xMm, 2) +
         math.pow(point.y - start.yMm, 2));
     if (chord < 100) return;
@@ -1328,11 +1556,20 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
               child: Row(
                 children: [
                   if (_drawingWall) ...[
-                    Text(hasStart ? 'Следующая точка стены'
-                                  : 'Нажмите начало стены',
-                        style: const TextStyle(fontSize: 11,
+                    if (!hasStart)
+                      const Text('Нажмите начало стены',
+                        style: TextStyle(fontSize: 11,
                           color: ZamerColors.textPrimary)),
-                    const SizedBox(width: 8),
+                    if (hasStart &&
+                        (widget.planTool == MeasurePlanTool.exterior ||
+                         widget.planTool == MeasurePlanTool.partition))
+                      TextButton.icon(
+                        key: const ValueKey('wall-build-exact-length'),
+                        onPressed: _enterWallLength,
+                        icon: const Icon(Icons.straighten_outlined, size: 17),
+                        label: const Text('Длина'),
+                      ),
+                    const SizedBox(width: 6),
                     PopupMenuButton<int>(
                       tooltip: 'Угловая привязка',
                       onSelected: (value) => setState(() => _angleSnapDegrees = value),
@@ -1364,6 +1601,15 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                           color: ZamerColors.textSecondary),
                       ),
                     ),
+                    if (hasStart &&
+                        _lastWallSnapLabel != null &&
+                        _lastWallSnapLabel != 'Начало стены')
+                      Padding(
+                        padding: const EdgeInsets.only(left: 6),
+                        child: Text(_lastWallSnapLabel!,
+                          style: const TextStyle(
+                            fontSize: 10, color: ZamerColors.textSecondary)),
+                      ),
                   ] else if (nodesSelected)
                     TextButton.icon(
                       onPressed: _editSelectedNode,
@@ -1386,7 +1632,10 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
           ),
           if (hasStart)
             TextButton.icon(
-              onPressed: () => setState(() => _wallStartNodeId = null),
+              onPressed: () => setState(() {
+                _wallStartNodeId = null;
+                _lastWallSnapLabel = null;
+              }),
               icon: const Icon(Icons.check_rounded, size: 17),
               label: const Text('Стоп'),
             ),
@@ -1403,7 +1652,10 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       child: Column(
         children: [
           Expanded(child: _canvas()),
+          // Keep the viewport height stable through the gesture; opening
+          // an inspector half-way through a finger drag changes the mapping.
           if (_selectedWall != null && !_drawingWall &&
+              _dragWallId == null &&
               (widget.planTool == MeasurePlanTool.select ||
                widget.planTool == MeasurePlanTool.overview))
             _WallInspector(
@@ -1446,6 +1698,9 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                   transformationController: _transform,
                   minScale: .28,
                   maxScale: 6,
+                  onInteractionStart: _wallDragStart,
+                  onInteractionUpdate: _wallDragUpdate,
+                  onInteractionEnd: (_) => unawaited(_wallDragFinish()),
                   panEnabled: widget.planTool != MeasurePlanTool.nodes,
                   scaleEnabled: widget.planTool != MeasurePlanTool.nodes,
                   boundaryMargin: const EdgeInsets.all(2200),
@@ -1476,6 +1731,25 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                           ),
                         ),
                       ),
+                      // Always reveal the chained wall's real CAD start node
+                      // without stealing touch events or covering furniture.
+                      if (_drawingWall && _wallStartNodeId != null)
+                        if (floor.nodeById(_wallStartNodeId!) case final start?)
+                          Positioned(
+                            left: _toCanvas(start).dx - 5,
+                            top: _toCanvas(start).dy - 5,
+                            child: IgnorePointer(
+                              child: Container(
+                                width: 10, height: 10,
+                                decoration: BoxDecoration(
+                                  color: ZamerColors.accent,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: ZamerColors.background, width: 1.5),
+                                ),
+                              ),
+                            ),
+                          ),
                       if (widget.planTool == MeasurePlanTool.overview)
                         if (_layoutDragRegion() case final region?) region,
                       if (widget.planTool == MeasurePlanTool.overview)
