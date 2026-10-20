@@ -1583,7 +1583,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                             ..addAll(ProjectLayer.values);
                           draftCategories
                             ..clear()
-                            ..addAll(PlanDisplayLayer.values);
+                            ..addAll(PlanDisplayLayer.values)
+                            ..remove(PlanDisplayLayer.axisDimensions);
                           draftCollisions.clear();
                         }),
                         child: const Text('Сброс'),
