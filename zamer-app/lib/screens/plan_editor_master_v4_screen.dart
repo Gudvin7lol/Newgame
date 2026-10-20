@@ -710,7 +710,6 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     required PlanNode start,
     required math.Point<double> point,
     required WallType type,
-    bool exactLength = false,
   }) async {
     final startPoint = math.Point<double>(start.xMm, start.yMm);
     final distance = WallDrawingService.distance(startPoint, point);
@@ -846,7 +845,6 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       point: point,
       type: widget.planTool == MeasurePlanTool.exterior
           ? WallType.exterior : WallType.partition,
-      exactLength: true,
     );
   }
 
