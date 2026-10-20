@@ -3,7 +3,7 @@ import 'dart:math' as math;
 import '../models/models.dart';
 
 /// Doorway floor boundary in real-world millimetres. The dividing line is
-/// 20 mm beyond the finished-side wall face in the room the door opens into.
+/// 20 mm inside the doorway from the swing-side wall face.
 /// Room membership is sampled from actual interior polygons, not wall IDs.
 class DoorwayFloorService {
   const DoorwayFloorService._();
@@ -15,7 +15,7 @@ class DoorwayFloorService {
 
   static double jointFromWallAxisMm(PlanWall wall, WallOpening opening) {
     final sign = opensToPositiveSide(opening.doorSwing) ? 1.0 : -1.0;
-    return sign * (wall.thicknessMm / 2 + jointInsetMm);
+    return sign * math.max(0.0, wall.thicknessMm / 2 - jointInsetMm);
   }
 
   static bool _inside(math.Point<double> p, List<math.Point<double>> points) {

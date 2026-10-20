@@ -34,8 +34,9 @@ List<ZamerDoorFloorBridgeSegment> buildDoorFloorBridgeSegments({
   final halfDepth = math.max(10.0, wallThicknessMm / 2);
   final opensPositive = opening.doorSwing == DoorSwing.leftIn ||
       opening.doorSwing == DoorSwing.rightIn;
-  // Finish joint is 20 mm past the wall's swing-side face, not on its axis.
-  final cut = (opensPositive ? 1.0 : -1.0) * (halfDepth + 20.0);
+  // The joint is 20 mm inside the doorway from its swing-side face.
+  final cut = (opensPositive ? 1.0 : -1.0) *
+      math.max(0.0, wallThicknessMm / 2 - 20.0);
   final minDepth = math.min(-halfDepth, cut);
   final maxDepth = math.max(halfDepth, cut);
   final angle = opening.rotationRad.isFinite ? opening.rotationRad : 0.0;
@@ -108,8 +109,8 @@ List<ZamerDoorFloorBridgeSegment> buildDoorFloorBridgeSegments({
     ];
   }
 
-  // Finish from the room opposite the swing continues 20 mm beyond the
-  // swing-side wall face. This must agree with the 2D threshold marker.
+  // Finish from the room opposite the swing ends 20 mm before the
+  // swing-side wall face, inside the doorway. This must agree with the 2D threshold marker.
   if (opensPositive) {
     return <ZamerDoorFloorBridgeSegment>[
       ZamerDoorFloorBridgeSegment(

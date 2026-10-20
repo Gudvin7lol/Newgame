@@ -69,7 +69,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   final Set<ProjectLayer> _visibleLayers = ProjectLayer.values.toSet();
   final Set<PlanDisplayLayer> _visibleCategories = PlanDisplayLayer.values.toSet()
     ..remove(PlanDisplayLayer.axisDimensions);
-  final Set<PlanCollisionKind> _collisionKinds = <PlanCollisionKind>{};
+  final Set<PlanCollisionKind> _collisionKinds = PlanCollisionKind.values.toSet();
 
   ZMeasureTool _tool = ZMeasureTool.walls;
   String? _selectedWallId;
@@ -88,6 +88,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   // accidental camera shifts while placing a wall on a phone.
   bool _moveCameraInsteadOfDrawing = false;
   Timer? _edgePanTimer;
+  final Set<int> _activeCanvasPointers = <int>{};
+  bool _pinchInProgress = false;
   int? _wallPointerId;
   Offset? _wallPointerStartGlobal;
   Offset? _wallPointerViewport;
@@ -110,6 +112,9 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   String? _dimensionStartInteriorNodeId;
   bool _measureRoomInterior = true;
   String? _dragObjectId;
+  String? _selectedObjectId;
+  Offset? _lastObjectDragGlobal;
+  bool _dragObjectBlocked = false;
   bool _dragObjectDirty = false;
   bool _layoutDragDirty = false;
   bool _materialsExpanded = false;
@@ -352,18 +357,26 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
 
   void _movePlanObject(PlanObject object, DragUpdateDetails details) {
     if (_dragObjectId != object.id) return;
+    final previousGlobal = _lastObjectDragGlobal;
+    _lastObjectDragGlobal = details.globalPosition;
+    if (previousGlobal == null) return;
+    final screenDelta = details.globalPosition - previousGlobal;
     final oldX = object.xMm;
     final oldY = object.yMm;
     PlanDirectInteraction.moveObjectByMm(
       object,
-      dxMm: details.delta.dx / _mmToPx,
-      dyMm: details.delta.dy / _mmToPx,
+      // Local delta is rotated by the hit target and affected by zoom.
+      // Global screen delta divided by zoom follows the user's finger.
+      dxMm: screenDelta.dx / (_mmToPx * _scale),
+      dyMm: screenDelta.dy / (_mmToPx * _scale),
       snapMm: _snapping ? 10 : 0,
     );
     if (SpaceCheckService.intersectsWall(floor, object)) {
       object.xMm = oldX;
       object.yMm = oldY;
+      _dragObjectBlocked = true;
     } else if (object.xMm != oldX || object.yMm != oldY) {
+      _dragObjectBlocked = false;
       _dragObjectDirty = true;
     }
     setState(() {});
@@ -374,6 +387,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     final changed = _dragObjectDirty;
     setState(() {
       _dragObjectId = null;
+      _lastObjectDragGlobal = null;
+      _dragObjectBlocked = false;
       _dragObjectDirty = false;
     });
     if (changed) await _changed();
@@ -412,14 +427,32 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
           angle: object.rotationDeg * math.pi / 180,
           child: GestureDetector(
             behavior: HitTestBehavior.translucent,
-            onPanStart: (_) => setState(() {
+            onTap: () => setState(() => _selectedObjectId = object.id),
+            onPanStart: (details) => setState(() {
+              _selectedObjectId = object.id;
               _dragObjectId = object.id;
+              _lastObjectDragGlobal = details.globalPosition;
+              _dragObjectBlocked = false;
               _dragObjectDirty = false;
             }),
             onPanUpdate: (details) => _movePlanObject(object, details),
             onPanEnd: (_) => _finishObjectDrag(),
             onPanCancel: _finishObjectDrag,
-            child: const SizedBox.expand(),
+            child: Container(
+              decoration: BoxDecoration(
+                color: _selectedObjectId == object.id
+                    ? ZamerColors.accent.withValues(alpha: .065)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(4),
+                border: _selectedObjectId == object.id
+                    ? Border.all(
+                        color: _dragObjectBlocked
+                            ? ZamerColors.danger : ZamerColors.accent,
+                        width: 1.5 / _scale,
+                      )
+                    : null,
+              ),
+            ),
           ),
         ),
       );
@@ -732,7 +765,15 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   }
 
   void _wallPointerDown(PointerDownEvent event) {
-    if (!_drawingWall || _moveCameraInsteadOfDrawing ||
+    _activeCanvasPointers.add(event.pointer);
+    if (_activeCanvasPointers.length > 1) {
+      // Two fingers zoom without committing a phantom wall segment.
+      _pinchInProgress = true;
+      _stopEdgePan();
+      return;
+    }
+    if (_pinchInProgress ||
+        !_drawingWall || _moveCameraInsteadOfDrawing ||
         (widget.planTool != MeasurePlanTool.exterior &&
          widget.planTool != MeasurePlanTool.partition) ||
         _wallStartNodeId == null || _wallPointerId != null) return;
@@ -746,6 +787,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   }
 
   void _wallPointerMove(PointerMoveEvent event) {
+    if (_pinchInProgress) return;
     if (_wallPointerId != null && event.pointer != _wallPointerId) return;
     _updateLiveWallGuide(event);
     if (event.pointer != _wallPointerId || _wallPointerStartGlobal == null ||
@@ -771,8 +813,10 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       _edgePanTimer = null;
       return;
     }
-    const margin = 54.0;
-    const speed = 13.0;
+    // An extended edge band avoids the old premature slowdown; speed
+    // continues ramping up as the finger approaches or passes the edge.
+    const margin = 105.0;
+    const speed = 22.0;
     double velocity(double coordinate, double extent) {
       if (coordinate < margin) {
         return speed * ((margin - coordinate) / margin).clamp(0.0, 1.0);
@@ -794,10 +838,17 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   }
 
   void _wallPointerCancel(PointerCancelEvent event) {
+    _activeCanvasPointers.remove(event.pointer);
     if (event.pointer == _wallPointerId) _stopEdgePan();
+    if (_activeCanvasPointers.isEmpty) _pinchInProgress = false;
   }
 
   void _wallPointerUp(PointerEvent event) {
+    _activeCanvasPointers.remove(event.pointer);
+    if (_pinchInProgress) {
+      if (_activeCanvasPointers.isEmpty) _pinchInProgress = false;
+      return;
+    }
     if (event.pointer != _wallPointerId) return;
     final endViewport = _wallPointerViewport;
     final shouldCommit = _wallPointerDragging && _wallStartNodeId != null &&
@@ -850,8 +901,13 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
          widget.planTool != MeasurePlanTool.partition)) return null;
     final start = floor.nodeById(startId);
     if (start == null) return null;
+    final corner = _snapping ? WallDrawingService.alignedCornerAhead(
+      floor, startNodeId: start.id, currentPoint: snap.point,
+    ) : null;
     return WallDraftGuidePainter(
       from: _toCanvas(start),
+      oppositeCorner: corner == null ? null :
+          _origin + Offset(corner.x * _mmToPx, corner.y * _mmToPx),
       to: _origin + Offset(
         snap.point.x * _mmToPx,
         snap.point.y * _mmToPx,
@@ -1935,7 +1991,9 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                             ..clear()
                             ..addAll(PlanDisplayLayer.values)
                             ..remove(PlanDisplayLayer.axisDimensions);
-                          draftCollisions.clear();
+                          draftCollisions
+                            ..clear()
+                            ..addAll(PlanCollisionKind.values);
                         }),
                         child: const Text('Сброс'),
                       ),
@@ -2526,8 +2584,10 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                   // the camera until the dedicated hand mode is activated.
                   panEnabled: widget.planTool != MeasurePlanTool.nodes &&
                       _cameraGestureEnabled,
+                  // Two-finger pinch is safe during drawing; single-finger pan
+                  // remains locked so moving a wall cannot move the camera.
                   scaleEnabled: widget.planTool != MeasurePlanTool.nodes &&
-                      _cameraGestureEnabled,
+                      (_drawingWall || _cameraGestureEnabled),
                   boundaryMargin: const EdgeInsets.all(2200),
                   constrained: false,
                   child: Stack(

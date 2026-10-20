@@ -56,7 +56,7 @@ void main() {
     expect(results, hasLength(1));
     expect(results.single.surface.roomKey, 'negative');
     expect(results.single.pointsMm.map((e) => e.y).reduce(math.min), -50);
-    expect(results.single.pointsMm.map((e) => e.y).reduce(math.max), 70);
+    expect(results.single.pointsMm.map((e) => e.y).reduce(math.max), 30);
   });
 
   test('3D threshold direction reverses for outward swing', () {
@@ -65,7 +65,7 @@ void main() {
     );
     expect(results, hasLength(1));
     expect(results.single.surface.roomKey, 'positive');
-    expect(results.single.pointsMm.map((e) => e.y).reduce(math.min), -70);
+    expect(results.single.pointsMm.map((e) => e.y).reduce(math.min), -30);
     expect(results.single.pointsMm.map((e) => e.y).reduce(math.max), 50);
   });
 

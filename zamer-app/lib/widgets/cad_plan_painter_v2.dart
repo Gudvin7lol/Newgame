@@ -10,6 +10,7 @@ import '../services/herringbone_layout.dart';
 import '../services/material_catalog.dart';
 import '../services/plan_visibility_service.dart';
 import '../services/room_interior_dimensions_service.dart';
+import '../services/space_check_service.dart';
 import 'cad_wall_join_geometry.dart';
 import 'top_view_object_renderer.dart';
 
@@ -144,6 +145,36 @@ class CadPlanPainterV2 extends CustomPainter {
     return path;
   }
 
+  /// Render room finishes beyond the inner wall face so the same board/tile
+  /// grid can be replayed inside the wall-thickness doorway patch.
+  /// Padding in whole repeat units retains plank/tile phase; even wood rows
+  /// preserve the half-board staggering when used.
+  Rect _finishRenderBounds(RoomFace face, RoomMaterialSettings settings) {
+    final rect = _roomPath(face).getBounds();
+    final preset = MaterialCatalog.byId(settings.floorMaterialId);
+    final pattern = settings.floorMode == 'tile' ? 'tile' : preset.pattern;
+    double repeatPad(double minimum, double repeat) {
+      return math.max(2, (minimum / repeat).ceil() + 1).toDouble() * repeat;
+    }
+    var padX = 140.0, padY = 140.0;
+    if (pattern == 'tile') {
+      padX = repeatPad(140, math.max(16.0, settings.tileWidthMm * mmToPx));
+      padY = repeatPad(140, math.max(16.0, settings.tileHeightMm * mmToPx));
+    } else if (pattern == 'wood' &&
+        settings.laminatePattern != 'herringbone') {
+      final length = math.max(28.0, settings.laminatePlankLengthMm * mmToPx);
+      final width = math.max(8.0, settings.laminatePlankWidthMm * mmToPx);
+      padX = repeatPad(140, length);
+      // Keep an even number of board rows to preserve staggered joints.
+      padY = ((math.max(2, (140 / width).ceil() + 1) / 2).ceil() * 2)
+          .toDouble() * width;
+    }
+    return Rect.fromLTRB(
+      rect.left - padX, rect.top - padY,
+      rect.right + padX, rect.bottom + padY,
+    );
+  }
+
   void _rooms(Canvas canvas, List<RoomFace> faces) {
     for (final face in faces) {
       if (face.innerPolygon.length < 3) continue;
@@ -156,7 +187,7 @@ class CadPlanPainterV2 extends CustomPainter {
       canvas.save();
       canvas.clipPath(path);
       canvas.drawPath(path, Paint()..color = base);
-      _drawFinish(canvas, path.getBounds(), settings, preset);
+      _drawFinish(canvas, _finishRenderBounds(face, settings), settings, preset);
       canvas.restore();
     }
   }
@@ -510,15 +541,27 @@ class CadPlanPainterV2 extends CustomPainter {
     Offset normal,
     double from,
     double to,
-    Color color,
-  ) {
+    Color color, {
+    RoomFace? face,
+  }) {
     final path = Path()
       ..moveTo((a + normal * from).dx, (a + normal * from).dy)
       ..lineTo((b + normal * from).dx, (b + normal * from).dy)
       ..lineTo((b + normal * to).dx, (b + normal * to).dy)
       ..lineTo((a + normal * to).dx, (a + normal * to).dy)
       ..close();
+    canvas.save();
+    canvas.clipPath(path);
     canvas.drawPath(path, Paint()..color = color);
+    if (face != null) {
+      // Repaint the *same procedural flooring* (planks, tiles, grout) through
+      // the door, using the neighboring room's existing pattern anchor.
+      // A flat rectangle here looked like a broken board at every opening.
+      final settings = _metaFor(face)?.materials ?? RoomMaterialSettings();
+      final preset = MaterialCatalog.byId(settings.floorMaterialId);
+      _drawFinish(canvas, _finishRenderBounds(face, settings), settings, preset);
+    }
+    canvas.restore();
   }
 
   void _openings(
@@ -589,17 +632,25 @@ class CadPlanPainterV2 extends CustomPainter {
       final split = DoorwayFloorService.jointFromWallAxisMm(
         wall, opening,
       ) * mmToPx;
-      // Also cover 20 mm of the room toward which the door opens. This
-      // places the joint 20 mm past that room's wall face, rather than on
-      // the centre axis. Continuous floors have no artificial joint.
+      // The joint lies 20 mm *inside the doorway* measured from the
+      // swing-side wall face, never outside the opening in the room.
       final low = math.min(-half, split - 1);
       final high = math.max(half, split + 1);
       if (joined) {
-        _doorwayQuad(canvas, left, right, normal, low, high, positive);
+        final intoPositive = DoorwayFloorService.opensToPositiveSide(
+          opening.doorSwing,
+        );
+        _doorwayQuad(
+          canvas, left, right, normal, low, high,
+          intoPositive ? negative : positive,
+          face: intoPositive ? adjacent.negative : adjacent.positive,
+        );
       } else {
         final cut = split.clamp(low, high).toDouble();
-        _doorwayQuad(canvas, left, right, normal, low, cut, negative);
-        _doorwayQuad(canvas, left, right, normal, cut, high, positive);
+        _doorwayQuad(canvas, left, right, normal, low, cut, negative,
+            face: adjacent.negative);
+        _doorwayQuad(canvas, left, right, normal, cut, high, positive,
+            face: adjacent.positive);
         canvas.drawLine(
           left + normal * cut,
           right + normal * cut,
@@ -721,6 +772,31 @@ class CadPlanPainterV2 extends CustomPainter {
   }
 
   void _collisionOverlay(Canvas canvas) {
+    if (collisionKinds.contains(PlanCollisionKind.doorClearance)) {
+      // Quietly show where each leaf sweeps. Actual obstructions get a strong
+      // orange warning marker below. This makes the collision zone tangible.
+      final tint = const Color(0xFFF6B35B);
+      for (final wall in floor.walls) {
+        for (final opening in wall.openings) {
+          if (opening.type != OpeningType.door) continue;
+          final region = SpaceCheckService.doorSwingZone(floor, wall, opening);
+          if (region.length < 3) continue;
+          final start = _q(region.first);
+          final path = Path()..moveTo(start.dx, start.dy);
+          for (final p in region.skip(1)) {
+            final point = _q(p);
+            path.lineTo(point.dx, point.dy);
+          }
+          path.close();
+          canvas.drawPath(path, Paint()
+            ..color = tint.withValues(alpha: .055));
+          canvas.drawPath(path, Paint()
+            ..color = tint.withValues(alpha: .20)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = .65);
+        }
+      }
+    }
     for (final issue in PlanCollisionService.inspect(floor)) {
       if (!collisionKinds.contains(issue.kind)) continue;
       final center = _q(issue.position);
@@ -798,11 +874,11 @@ class CadPlanPainterV2 extends CustomPainter {
   /// remains collinear across the T-junction.
   void _innerDimensions(Canvas canvas, List<RoomFace> faces) {
     final linePaint = Paint()
-      ..color = const Color(0xFF1F555A).withValues(alpha: .9)
-      ..strokeWidth = .78;
+      ..color = const Color(0xFF52757A).withValues(alpha: .46)
+      ..strokeWidth = .50;
     final capPaint = Paint()
-      ..color = const Color(0xFF20535A)
-      ..strokeWidth = .9;
+      ..color = const Color(0xFF52757A).withValues(alpha: .56)
+      ..strokeWidth = .55;
     for (final dimension in RoomInteriorDimensionsService.forFloor(
       floor, faces: faces,
     )) {
@@ -843,9 +919,9 @@ class CadPlanPainterV2 extends CustomPainter {
         text: TextSpan(
           text: '${dimension.lengthMm.round()}',
           style: const TextStyle(
-            color: Color(0xFF112B2E),
-            fontSize: 7.1,
-            fontWeight: FontWeight.w700,
+            color: Color(0xFF456167),
+            fontSize: 7.0,
+            fontWeight: FontWeight.w600,
           ),
         ),
         maxLines: 1,
@@ -860,7 +936,7 @@ class CadPlanPainterV2 extends CustomPainter {
       );
       canvas.drawRRect(
         RRect.fromRectAndRadius(bg, const Radius.circular(2)),
-        Paint()..color = const Color(0xFFFFE0BC).withValues(alpha: .94),
+        Paint()..color = const Color(0xFFF3F0E8).withValues(alpha: .82),
       );
       text.paint(
         canvas,
@@ -938,8 +1014,8 @@ class CadPlanPainterV2 extends CustomPainter {
       final p1 = pa - normal * offset;
       final p2 = pb - normal * offset;
       final paint = Paint()
-        ..color = const Color(0xFFE0E2DD).withValues(alpha: .84)
-        ..strokeWidth = .72;
+        ..color = const Color(0xFF96AAA9).withValues(alpha: .48)
+        ..strokeWidth = .52;
       canvas.drawLine(p1, p2, paint);
       canvas.drawLine(p1 - normal * 3.5, p1 + normal * 3.5, paint);
       canvas.drawLine(p2 - normal * 3.5, p2 + normal * 3.5, paint);
@@ -965,7 +1041,7 @@ class CadPlanPainterV2 extends CustomPainter {
           ),
           const Radius.circular(2),
         ),
-        Paint()..color = const Color(0xFF061217).withValues(alpha: .92),
+        Paint()..color = const Color(0xFF344F56).withValues(alpha: .60),
       );
       text.paint(canvas, Offset(mid.dx - text.width / 2, mid.dy - text.height / 2));
     }
