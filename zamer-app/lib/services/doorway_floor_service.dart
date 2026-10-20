@@ -51,7 +51,7 @@ class DoorwayFloorService {
         math.pow(b.yMm - a.yMm, 2));
     if (len < 1) return (positive: null, negative: null);
     final along = (opening.offsetFromStartMm + opening.widthMm / 2)
-        .clamp(0.0, len);
+        .clamp(0.0, len).toDouble();
     final cx = a.xMm + (b.xMm - a.xMm) * along / len;
     final cy = a.yMm + (b.yMm - a.yMm) * along / len;
     final nx = -(b.yMm - a.yMm) / len;
