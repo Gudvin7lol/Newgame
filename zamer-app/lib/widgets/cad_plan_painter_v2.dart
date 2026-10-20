@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../design_system/zamer_tokens.dart';
 import '../models/models.dart';
+import '../services/doorway_floor_service.dart';
 import '../services/geometry_service.dart';
 import '../services/herringbone_layout.dart';
 import '../services/material_catalog.dart';
@@ -65,7 +66,7 @@ class CadPlanPainterV2 extends CustomPainter {
     if (visibleCategories.contains(PlanDisplayLayer.floorFinishes)) {
       _rooms(canvas, faces);
     }
-    if (visibleCategories.contains(PlanDisplayLayer.walls)) _walls(canvas);
+    if (visibleCategories.contains(PlanDisplayLayer.walls)) _walls(canvas, faces);
     _objects(canvas);
     if (visibleCategories.contains(PlanDisplayLayer.engineering)) {
       _services(canvas);
@@ -420,7 +421,7 @@ class CadPlanPainterV2 extends CustomPainter {
     }
   }
 
-  void _walls(Canvas canvas) {
+  void _walls(Canvas canvas, List<RoomFace> faces) {
     final bodies = CadWallJoinGeometry.bodies(
       floor: floor,
       mmToPx: mmToPx,
@@ -487,10 +488,37 @@ class CadPlanPainterV2 extends CustomPainter {
         if (a == null || b == null) continue;
         _openings(
           canvas, wall, _p(a), _p(b),
-          math.max(3.8, wall.thicknessMm * mmToPx),
+          math.max(3.8, wall.thicknessMm * mmToPx), faces,
         );
       }
     }
+  }
+
+  Color _doorFinishColor(RoomFace? face, Color fallback) {
+    if (face == null) return fallback;
+    final meta = _metaFor(face);
+    final material = MaterialCatalog.byId(
+      (meta?.materials ?? RoomMaterialSettings()).floorMaterialId,
+    );
+    return Color.lerp(material.color, const Color(0xFF11181B), .16)!;
+  }
+
+  void _doorwayQuad(
+    Canvas canvas,
+    Offset a,
+    Offset b,
+    Offset normal,
+    double from,
+    double to,
+    Color color,
+  ) {
+    final path = Path()
+      ..moveTo((a + normal * from).dx, (a + normal * from).dy)
+      ..lineTo((b + normal * from).dx, (b + normal * from).dy)
+      ..lineTo((b + normal * to).dx, (b + normal * to).dy)
+      ..lineTo((a + normal * to).dx, (a + normal * to).dy)
+      ..close();
+    canvas.drawPath(path, Paint()..color = color);
   }
 
   void _openings(
@@ -499,6 +527,7 @@ class CadPlanPainterV2 extends CustomPainter {
     Offset a,
     Offset b,
     double wallWidth,
+    List<RoomFace> faces,
   ) {
     final length = floor.wallLengthMm(wall);
     if (length <= 0) return;
@@ -513,20 +542,21 @@ class CadPlanPainterV2 extends CustomPainter {
           .clamp(0.0, 1.0);
       final p1 = a + vector * startT;
       final p2 = a + vector * endT;
-      canvas.drawLine(
-        p1,
-        p2,
-        Paint()
-          ..color = ZamerColors.background
-          ..strokeWidth = wallWidth + 4.2
-          ..strokeCap = StrokeCap.square,
-      );
-
+      // The old code erased the wall using the dark canvas background,
+      // leaving a black bar through every doorway. A cut must instead be
+      // painted with the neighboring room's finish.
+      final left = p1 - unit * 1.4;
+      final right = p2 + unit * 1.4;
+      final half = wallWidth / 2 + 2.4;
       if (opening.type == OpeningType.window) {
+        _doorwayQuad(
+          canvas, left, right, normal, -half, half,
+          const Color(0xFFDDE7E9),
+        );
         final frame = Paint()
           ..color = const Color(0xFF4CB9F8)
           ..strokeWidth = math.max(1.2, wallWidth * .18)
-          ..strokeCap = StrokeCap.square;
+          ..strokeCap = StrokeCap.butt;
         canvas.drawLine(
           p1 + normal * wallWidth * .22,
           p2 + normal * wallWidth * .22,
@@ -538,34 +568,70 @@ class CadPlanPainterV2 extends CustomPainter {
           frame,
         );
         canvas.drawLine(
-          p1,
-          p2,
+          p1, p2,
           Paint()
             ..color = const Color(0xFFB8E4FA).withValues(alpha: .72)
             ..strokeWidth = 1.0,
         );
+        continue;
+      }
+
+      final adjacent = DoorwayFloorService.roomsByDoor(
+        floor, wall, opening, faces,
+      );
+      final positive = _doorFinishColor(
+        adjacent.positive, const Color(0xFFB9B8AE),
+      );
+      final negative = _doorFinishColor(adjacent.negative, positive);
+      final joined = DoorwayFloorService.continuous(
+        floor, adjacent.positive, adjacent.negative,
+      );
+      final split = DoorwayFloorService.jointFromWallAxisMm(
+        wall, opening,
+      ) * mmToPx;
+      // Also cover 20 mm of the room toward which the door opens. This
+      // places the joint 20 mm past that room's wall face, rather than on
+      // the centre axis. Continuous floors have no artificial joint.
+      final low = math.min(-half, split - 1);
+      final high = math.max(half, split + 1);
+      if (joined) {
+        _doorwayQuad(canvas, left, right, normal, low, high, positive);
       } else {
-        final hinge = p1;
-        final widthPx = (p2 - p1).distance;
-        final outside = opening.doorSwing == DoorSwing.leftOut ||
-            opening.doorSwing == DoorSwing.rightOut;
-        final side = outside ? -1.0 : 1.0;
-        final leaf = hinge + normal * widthPx * side;
-        final paint = Paint()
-          ..color = const Color(0xFFE6E4DE)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.0;
-        canvas.drawLine(hinge, leaf, paint);
-        final angle = math.atan2(unit.dy, unit.dx);
-        final start = side > 0 ? angle - math.pi / 2 : angle;
-        canvas.drawArc(
-          Rect.fromCircle(center: hinge, radius: widthPx),
-          start,
-          math.pi / 2,
-          false,
-          paint,
+        final cut = split.clamp(low, high).toDouble();
+        _doorwayQuad(canvas, left, right, normal, low, cut, negative);
+        _doorwayQuad(canvas, left, right, normal, cut, high, positive);
+        canvas.drawLine(
+          left + normal * cut,
+          right + normal * cut,
+          Paint()
+            ..color = const Color(0xFFD3CBC0)
+            ..strokeWidth = 1.0,
         );
       }
+
+      final isRight = opening.doorSwing == DoorSwing.rightIn ||
+          opening.doorSwing == DoorSwing.rightOut;
+      final hinge = isRight ? p2 : p1;
+      final closed = isRight ? -unit : unit;
+      final side = DoorwayFloorService.opensToPositiveSide(
+        opening.doorSwing,
+      ) ? 1.0 : -1.0;
+      final widthPx = (p2 - p1).distance;
+      final leaf = hinge + normal * widthPx * side;
+      final paint = Paint()
+        ..color = const Color(0xFFE6E4DE)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.0;
+      canvas.drawLine(hinge, leaf, paint);
+      final closedAngle = math.atan2(closed.dy, closed.dx);
+      final openAngle = math.atan2(normal.dy * side, normal.dx * side);
+      var sweep = openAngle - closedAngle;
+      while (sweep > math.pi) { sweep -= 2 * math.pi; }
+      while (sweep < -math.pi) { sweep += 2 * math.pi; }
+      canvas.drawArc(
+        Rect.fromCircle(center: hinge, radius: widthPx),
+        closedAngle, sweep, false, paint,
+      );
     }
   }
 

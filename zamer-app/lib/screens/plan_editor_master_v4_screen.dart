@@ -87,6 +87,15 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   // Drawing and viewport navigation are mutually exclusive. This prevents
   // accidental camera shifts while placing a wall on a phone.
   bool _moveCameraInsteadOfDrawing = false;
+  Timer? _edgePanTimer;
+  int? _wallPointerId;
+  Offset? _wallPointerStartGlobal;
+  Offset? _wallPointerViewport;
+  bool _wallPointerDragging = false;
+  String? _dragOpeningWallId;
+  String? _dragOpeningId;
+  double _openingGrabOffsetMm = 0;
+  bool _openingDragDirty = false;
   String? _dragWallId;
   double _dragWallOffsetMm = 0;
   bool _dragWallModified = false;
@@ -160,6 +169,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       _lastWallSnapLabel = null;
       _liveWallSnap = null;
       _moveCameraInsteadOfDrawing = false;
+      _stopEdgePan();
       _dimensionStartNodeId = null;
       _dimensionStartInterior = null;
       _dimensionStartInteriorNodeId = null;
@@ -169,6 +179,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       _selectedNodeId = null;
       _selectedWallId = null;
       _dragWallId = null;
+      _dragOpeningWallId = null;
+      _dragOpeningId = null;
       _dragWallStartMm = null;
       _dragWallBaseTransform = null;
       _dragWallRejected = null;
@@ -179,6 +191,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
 
   @override
   void dispose() {
+    _stopEdgePan();
     _transform.dispose();
     super.dispose();
   }
@@ -615,7 +628,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
 
   Future<void> _tapCanvas(TapUpDetails details) async {
     // A tap in the deliberate navigation mode must never create a wall.
-    if (_drawingWall && _moveCameraInsteadOfDrawing) return;
+    if (_moveCameraInsteadOfDrawing) return;
     final p = details.localPosition;
     // Direct interaction on the same production CAD viewport. A tool change
     // never navigates to an alternate floor-plan canvas.
@@ -639,7 +652,12 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
         case MeasurePlanTool.precision:
           await _createArc(p);
         case MeasurePlanTool.openings:
-          await _addOpening(p, chooseType: true);
+          final hit = _openingNear(p);
+          if (hit != null) {
+            await _editOpening(hit.wall, hit.opening);
+          } else {
+            await _addOpening(p, chooseType: true);
+          }
         case MeasurePlanTool.demolition:
           await _toggleDemolition(p);
         case MeasurePlanTool.dimensions:
@@ -704,14 +722,110 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   // Listener is passive: it never claims a gesture. Navigation is only
   // possible when the user explicitly selects the hand control. The draft
   // uses the same WallDrawingService.snap() result as the committed segment.
+  void _stopEdgePan() {
+    _edgePanTimer?.cancel();
+    _edgePanTimer = null;
+    _wallPointerId = null;
+    _wallPointerViewport = null;
+    _wallPointerStartGlobal = null;
+    _wallPointerDragging = false;
+  }
+
+  void _wallPointerDown(PointerDownEvent event) {
+    if (!_drawingWall || _moveCameraInsteadOfDrawing ||
+        (widget.planTool != MeasurePlanTool.exterior &&
+         widget.planTool != MeasurePlanTool.partition) ||
+        _wallStartNodeId == null || _wallPointerId != null) return;
+    _wallPointerId = event.pointer;
+    _wallPointerStartGlobal = event.position;
+    _wallPointerViewport = MatrixUtils.transformPoint(
+      _transform.value, event.localPosition,
+    );
+    _wallPointerDragging = false;
+    _updateLiveWallGuide(event);
+  }
+
+  void _wallPointerMove(PointerMoveEvent event) {
+    if (_wallPointerId != null && event.pointer != _wallPointerId) return;
+    _updateLiveWallGuide(event);
+    if (event.pointer != _wallPointerId || _wallPointerStartGlobal == null ||
+        !_drawingWall || _moveCameraInsteadOfDrawing) return;
+    _wallPointerViewport = MatrixUtils.transformPoint(
+      _transform.value, event.localPosition,
+    );
+    if ((event.position - _wallPointerStartGlobal!).distance > 9) {
+      _wallPointerDragging = true;
+    }
+    if (_wallPointerDragging && _edgePanTimer == null) {
+      _edgePanTimer = Timer.periodic(
+        const Duration(milliseconds: 30), (_) => _edgePanTick(),
+      );
+    }
+  }
+
+  void _edgePanTick() {
+    final pos = _wallPointerViewport;
+    if (!mounted || pos == null || !_wallPointerDragging ||
+        !_drawingWall || _moveCameraInsteadOfDrawing || _viewport.isEmpty) {
+      _edgePanTimer?.cancel();
+      _edgePanTimer = null;
+      return;
+    }
+    const margin = 54.0;
+    const speed = 13.0;
+    double velocity(double coordinate, double extent) {
+      if (coordinate < margin) {
+        return speed * ((margin - coordinate) / margin).clamp(0.0, 1.0);
+      }
+      if (coordinate > extent - margin) {
+        return -speed *
+            ((coordinate - (extent - margin)) / margin).clamp(0.0, 1.0);
+      }
+      return 0;
+    }
+    final dx = velocity(pos.dx, _viewport.width);
+    final dy = velocity(pos.dy, _viewport.height);
+    if (dx == 0 && dy == 0) return;
+    final matrix = Matrix4.copy(_transform.value);
+    matrix.storage[12] += dx;
+    matrix.storage[13] += dy;
+    _transform.value = matrix;
+    _updateWallGuideAt(_transform.toScene(pos));
+  }
+
+  void _wallPointerCancel(PointerCancelEvent event) {
+    if (event.pointer == _wallPointerId) _stopEdgePan();
+  }
+
+  void _wallPointerUp(PointerEvent event) {
+    if (event.pointer != _wallPointerId) return;
+    final endViewport = _wallPointerViewport;
+    final shouldCommit = _wallPointerDragging && _wallStartNodeId != null &&
+        _drawingWall && !_moveCameraInsteadOfDrawing && endViewport != null;
+    final target = endViewport == null ? null :
+        _transform.toScene(endViewport);
+    _stopEdgePan();
+    if (shouldCommit && target != null) {
+      unawaited(_createWall(
+        target,
+        type: widget.planTool == MeasurePlanTool.exterior
+            ? WallType.exterior : WallType.partition,
+      ));
+    }
+  }
+
   void _updateLiveWallGuide(PointerEvent event) {
+    _updateWallGuideAt(event.localPosition);
+  }
+
+  void _updateWallGuideAt(Offset canvasPosition) {
     if (_moveCameraInsteadOfDrawing || !_drawingWall ||
         (widget.planTool != MeasurePlanTool.exterior &&
          widget.planTool != MeasurePlanTool.partition) ||
         _wallStartNodeId == null) return;
     final start = floor.nodeById(_wallStartNodeId!);
     if (start == null) return;
-    final raw = _toMm(event.localPosition);
+    final raw = _toMm(canvasPosition);
     final snap = _snapDrawTarget(start, raw);
     final previous = _liveWallSnap;
     if (previous != null &&
@@ -971,6 +1085,222 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     if (mounted) setState(() => _lastWallSnapLabel = 'По точному размеру');
   }
 
+  ({PlanWall wall, WallOpening opening, double positionMm})?
+      _openingNear(Offset canvasPoint) {
+    final radius = 28 / _scale;
+    ({PlanWall wall, WallOpening opening, double positionMm})? best;
+    var bestDistance = double.infinity;
+    for (final wall in floor.walls) {
+      if (wall.isCurved) continue;
+      final a = floor.nodeById(wall.startNodeId);
+      final b = floor.nodeById(wall.endNodeId);
+      if (a == null || b == null) continue;
+      final first = _toCanvas(a), last = _toCanvas(b);
+      final v = last - first;
+      final lengthPx = v.distance;
+      if (lengthPx < 1) continue;
+      final unit = v / lengthPx;
+      final projectedPx = (canvasPoint - first).dx * unit.dx +
+          (canvasPoint - first).dy * unit.dy;
+      final normalDistance = (canvasPoint - (first + unit * projectedPx)).distance;
+      final positionMm = projectedPx / _mmToPx;
+      for (final opening in wall.openings) {
+        final across = math.max(
+          opening.offsetFromStartMm - positionMm,
+          positionMm - (opening.offsetFromStartMm + opening.widthMm),
+        );
+        final extraAlong = math.max(0.0, across) * _mmToPx;
+        final distance = math.sqrt(
+          normalDistance * normalDistance + extraAlong * extraAlong,
+        );
+        if (distance <= math.max(radius, wall.thicknessMm * _mmToPx / 2) &&
+            distance < bestDistance) {
+          best = (wall: wall, opening: opening, positionMm: positionMm);
+          bestDistance = distance;
+        }
+      }
+    }
+    return best;
+  }
+
+  bool _openingValid(PlanWall wall, WallOpening opening,
+      double offset, double width) {
+    final length = floor.wallLengthMm(wall);
+    if (!offset.isFinite || !width.isFinite || width < 350 ||
+        offset < 80 || offset + width > length - 80) return false;
+    for (final other in wall.openings) {
+      if (other.id == opening.id) continue;
+      if (offset < other.offsetFromStartMm + other.widthMm + 30 &&
+          offset + width + 30 > other.offsetFromStartMm) return false;
+    }
+    return true;
+  }
+
+  void _openingDragStart(DragStartDetails details) {
+    final hit = _openingNear(details.localPosition);
+    _dragOpeningWallId = hit?.wall.id;
+    _dragOpeningId = hit?.opening.id;
+    _openingGrabOffsetMm = hit == null
+        ? 0 : hit.opening.offsetFromStartMm - hit.positionMm;
+    _openingDragDirty = false;
+    if (hit != null) setState(() => _selectedWallId = hit.wall.id);
+  }
+
+  void _openingDragUpdate(DragUpdateDetails details) {
+    final wallId = _dragOpeningWallId, openingId = _dragOpeningId;
+    if (wallId == null || openingId == null) return;
+    final wall = floor.wallById(wallId);
+    if (wall == null) return;
+    final a = floor.nodeById(wall.startNodeId);
+    final b = floor.nodeById(wall.endNodeId);
+    if (a == null || b == null) return;
+    final opening = wall.openings.where((o) => o.id == openingId).firstOrNull;
+    if (opening == null) return;
+    final start = _toCanvas(a), end = _toCanvas(b);
+    final v = end - start;
+    if (v.distance < 1) return;
+    final touch = details.localPosition - start;
+    final position = (touch.dx * v.dx + touch.dy * v.dy) /
+        v.distance / _mmToPx;
+    final wanted = (position + _openingGrabOffsetMm).roundToDouble();
+    if (!_openingValid(wall, opening, wanted, opening.widthMm)) return;
+    if ((opening.offsetFromStartMm - wanted).abs() < .5) return;
+    opening.offsetFromStartMm = wanted;
+    _openingDragDirty = true;
+    setState(() {});
+  }
+
+  void _openingDragEnd(DragEndDetails details) {
+    final changed = _openingDragDirty;
+    _dragOpeningWallId = null;
+    _dragOpeningId = null;
+    _openingDragDirty = false;
+    if (changed) unawaited(_changed());
+  }
+
+  Future<void> _editOpening(PlanWall wall, WallOpening opening) async {
+    var positionText = opening.offsetFromStartMm.round().toString();
+    var widthText = opening.widthMm.round().toString();
+    var heightText = opening.heightMm.round().toString();
+    var sillText = opening.sillHeightMm.round().toString();
+    var swing = opening.doorSwing;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, update) => SafeArea(
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              16, 4, 16,
+              MediaQuery.viewInsetsOf(sheetContext).bottom + 16,
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(opening.type == OpeningType.door
+                      ? 'Редактирование двери' : 'Редактирование окна',
+                    style: Theme.of(sheetContext).textTheme.titleMedium),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    initialValue: positionText,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'От начала стены, мм'),
+                    onChanged: (v) => positionText = v,
+                  ),
+                  TextFormField(
+                    initialValue: widthText,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'Ширина, мм'),
+                    onChanged: (v) => widthText = v,
+                  ),
+                  TextFormField(
+                    initialValue: heightText,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'Высота, мм'),
+                    onChanged: (v) => heightText = v,
+                  ),
+                  if (opening.type == OpeningType.window)
+                    TextFormField(
+                      initialValue: sillText,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Высота подоконника, мм'),
+                      onChanged: (v) => sillText = v,
+                    ),
+                  if (opening.type == OpeningType.door)
+                    DropdownButtonFormField<DoorSwing>(
+                      initialValue: swing,
+                      decoration: const InputDecoration(
+                        labelText: 'Петли и направление открывания'),
+                      items: const [
+                        DropdownMenuItem(value: DoorSwing.leftIn,
+                          child: Text('Петли слева · внутрь')),
+                        DropdownMenuItem(value: DoorSwing.rightIn,
+                          child: Text('Петли справа · внутрь')),
+                        DropdownMenuItem(value: DoorSwing.leftOut,
+                          child: Text('Петли слева · наружу')),
+                        DropdownMenuItem(value: DoorSwing.rightOut,
+                          child: Text('Петли справа · наружу')),
+                      ],
+                      onChanged: (v) {
+                        if (v != null) update(() => swing = v);
+                      },
+                    ),
+                  const SizedBox(height: 14),
+                  Row(children: [
+                    TextButton.icon(
+                      onPressed: () async {
+                        wall.openings.removeWhere((o) => o.id == opening.id);
+                        Navigator.pop(sheetContext);
+                        await _changed();
+                      },
+                      icon: const Icon(Icons.delete_outline),
+                      label: const Text('Удалить'),
+                    ),
+                    const Spacer(),
+                    FilledButton(
+                      onPressed: () async {
+                        final position = double.tryParse(
+                          positionText.replaceAll(',', '.'));
+                        final width = double.tryParse(
+                          widthText.replaceAll(',', '.'));
+                        final height = double.tryParse(
+                          heightText.replaceAll(',', '.'));
+                        final sill = double.tryParse(
+                          sillText.replaceAll(',', '.'));
+                        if (position == null || width == null || height == null ||
+                            sill == null || height < 300 || height > 5000 ||
+                            sill < 0 || sill > 3000 ||
+                            !_openingValid(wall, opening, position, width)) {
+                          ScaffoldMessenger.of(sheetContext).showSnackBar(
+                            const SnackBar(content: Text(
+                              'Проверьте размеры и расстояния до других проёмов')),
+                          );
+                          return;
+                        }
+                        opening.offsetFromStartMm = position;
+                        opening.widthMm = width;
+                        opening.heightMm = height;
+                        opening.sillHeightMm = sill;
+                        opening.doorSwing = swing;
+                        Navigator.pop(sheetContext);
+                        await _changed();
+                      },
+                      child: const Text('Сохранить'),
+                    ),
+                  ]),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _addOpening(Offset p, {bool chooseType = false}) async {
     final wall = _wallNear(p);
     if (wall == null) return;
@@ -1004,8 +1334,14 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     final width = math.min(kind == OpeningType.door ? 900.0 : 1200.0,
         math.max(600.0, length * .32));
     if (length <= width + 160) return;
-    wall.openings.add(
-      WallOpening(
+    final a = floor.nodeById(wall.startNodeId);
+    final b = floor.nodeById(wall.endNodeId);
+    if (a == null || b == null) return;
+    final v = _toCanvas(b) - _toCanvas(a);
+    final touch = p - _toCanvas(a);
+    final atMm = (touch.dx * v.dx + touch.dy * v.dy) /
+        v.distance / _mmToPx;
+    final candidate = WallOpening(
         id: 'o-${DateTime.now().microsecondsSinceEpoch}',
         type: kind,
         widthMm: width,
@@ -1013,8 +1349,16 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
         sillHeightMm: kind == OpeningType.door ? 0 : 900,
         offsetFromStartMm: (length - width) / 2,
         doorSwing: DoorSwing.leftIn,
-      ),
-    );
+      );
+    candidate.offsetFromStartMm = (atMm - width / 2)
+        .clamp(80.0, length - width - 80.0).toDouble();
+    if (!_openingValid(wall, candidate, candidate.offsetFromStartMm, width)) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Здесь проём пересекается с другим проёмом.'),
+      ));
+      return;
+    }
+    wall.openings.add(candidate);
     setState(() => _selectedWallId = wall.id);
     await _changed();
   }
@@ -1900,9 +2244,11 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   // This is safer than restoring the camera matrix in a gesture callback:
   // tap coordinates and snap capture stay consistent for the whole gesture.
   bool get _cameraGestureEnabled =>
-      !_drawingWall || _moveCameraInsteadOfDrawing;
+      (!_drawingWall && widget.planTool != MeasurePlanTool.openings) ||
+      _moveCameraInsteadOfDrawing;
 
   void _toggleCameraNavigation() {
+    _stopEdgePan();
     setState(() {
       _moveCameraInsteadOfDrawing = !_moveCameraInsteadOfDrawing;
       _liveWallSnap = null;
@@ -2187,18 +2533,29 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                   child: Stack(
                     children: [
                       Listener(
-                        onPointerDown: _updateLiveWallGuide,
-                        onPointerMove: _updateLiveWallGuide,
+                        onPointerDown: _wallPointerDown,
+                        onPointerMove: _wallPointerMove,
+                        onPointerUp: _wallPointerUp,
+                        onPointerCancel: _wallPointerCancel,
                         onPointerHover: _updateLiveWallGuide,
                         child: GestureDetector(
                         behavior: HitTestBehavior.opaque,
                         onTapUp: _tapCanvas,
                         onPanStart: widget.planTool == MeasurePlanTool.nodes
-                            ? _nodeDragStart : null,
+                            ? _nodeDragStart
+                            : widget.planTool == MeasurePlanTool.openings &&
+                                !_moveCameraInsteadOfDrawing
+                                ? _openingDragStart : null,
                         onPanUpdate: widget.planTool == MeasurePlanTool.nodes
-                            ? _nodeDragUpdate : null,
+                            ? _nodeDragUpdate
+                            : widget.planTool == MeasurePlanTool.openings &&
+                                !_moveCameraInsteadOfDrawing
+                                ? _openingDragUpdate : null,
                         onPanEnd: widget.planTool == MeasurePlanTool.nodes
-                            ? _nodeDragEnd : null,
+                            ? _nodeDragEnd
+                            : widget.planTool == MeasurePlanTool.openings &&
+                                !_moveCameraInsteadOfDrawing
+                                ? _openingDragEnd : null,
                         child: CustomPaint(
                           key: const ValueKey('measure-shared-canvas'),
                           size: _canvasSize,
@@ -2265,7 +2622,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (_drawingWall) ...[
+                    if (_drawingWall || widget.planTool == MeasurePlanTool.openings) ...[
                       ZMeasureCanvasAction(
                         key: const ValueKey('wall-camera-navigation'),
                         icon: _moveCameraInsteadOfDrawing
