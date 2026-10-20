@@ -124,13 +124,13 @@ class SpaceCheckService {
       final legWidth = math.min(65.0, o.widthMm * .09);
       final legDepth = math.min(65.0, o.depthMm * .09);
       add(0, 0, o.widthMm, o.depthMm,
-          math.max(0, o.heightMm - topThickness), o.heightMm);
+          math.max(0.0, o.heightMm - topThickness), o.heightMm);
       for (final x in [-1.0, 1.0]) {
         for (final y in [-1.0, 1.0]) {
           add(x * (o.widthMm / 2 - legWidth / 2 - 40),
               y * (o.depthMm / 2 - legDepth / 2 - 40),
               legWidth, legDepth, 0,
-              math.max(0, o.heightMm - topThickness));
+              math.max(0.0, o.heightMm - topThickness));
         }
       }
     } else if (chair) {
