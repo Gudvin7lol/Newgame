@@ -2238,9 +2238,9 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                       // Anchor the control measurement at the actual
                       // inside-corner intersection, not the axis node.
                       if (widget.planTool == MeasurePlanTool.dimensions &&
-                          _measureRoomInterior &&
-                          _dimensionStartInterior case final p?)
-                        Positioned(
+                          _measureRoomInterior)
+                        if (_dimensionStartInterior case final p?)
+                          Positioned(
                           left: _origin.dx + p.x * _mmToPx - 6,
                           top: _origin.dy + p.y * _mmToPx - 6,
                           child: const IgnorePointer(
