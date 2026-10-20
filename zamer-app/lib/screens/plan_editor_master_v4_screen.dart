@@ -62,8 +62,10 @@ class PlanEditorMasterV4Screen extends StatefulWidget {
 }
 
 class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
-  static const _canvasSize = Size(7000, 12000);
-  static const _origin = Offset(3300, 1100);
+  // Extended virtual CAD plane: no more short viewport edges cutting off
+  // a 30–100 m run. Grid rendering is clipped to the visible camera region.
+  static const _canvasSize = Size(32000, 32000);
+  static const _origin = Offset(16000, 16000);
   static const _mmToPx = .10;
 
   final TransformationController _transform = TransformationController();
@@ -538,7 +540,15 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   }
 
   void _fit() {
-    if (_viewport.isEmpty || floor.nodes.isEmpty) return;
+    if (_viewport.isEmpty) return;
+    if (floor.nodes.isEmpty) {
+      final center = Offset(_viewport.width / 2, _viewport.height / 2);
+      _transform.value = Matrix4.identity()
+        ..translate(center.dx - _origin.dx,
+            center.dy - _origin.dy);
+      if (mounted) setState(() {});
+      return;
+    }
     const left = 70.0;
     const right = 70.0;
     const top = 18.0;
@@ -2605,7 +2615,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                   // remains locked so moving a wall cannot move the camera.
                   scaleEnabled: widget.planTool != MeasurePlanTool.nodes &&
                       (_drawingWall || _cameraGestureEnabled),
-                  boundaryMargin: const EdgeInsets.all(2200),
+                  boundaryMargin: const EdgeInsets.all(32000),
                   constrained: false,
                   child: Stack(
                     children: [
@@ -2645,6 +2655,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                             visibleLayers: _visibleLayers,
                             visibleCategories: _visibleCategories,
                             collisionKinds: _collisionKinds,
+                            showOpeningDimensions:
+                                widget.planTool == MeasurePlanTool.openings,
                           ),
                           foregroundPainter: _wallPreviewPainter(),
                         ),
