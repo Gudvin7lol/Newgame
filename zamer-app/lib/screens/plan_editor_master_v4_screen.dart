@@ -14,6 +14,7 @@ import '../services/material_catalog.dart';
 import '../services/object_catalog.dart';
 import '../services/plan_direct_interaction.dart';
 import '../services/orthogonal_wall_edit_service.dart';
+import '../services/opening_alignment_service.dart';
 import '../services/plan_visibility_service.dart';
 import 'measure_plan_tool.dart';
 import '../services/space_check_service.dart';
@@ -61,8 +62,10 @@ class PlanEditorMasterV4Screen extends StatefulWidget {
 }
 
 class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
-  static const _canvasSize = Size(7000, 12000);
-  static const _origin = Offset(3300, 1100);
+  // Extended virtual CAD plane: no more short viewport edges cutting off
+  // a 30–100 m run. Grid rendering is clipped to the visible camera region.
+  static const _canvasSize = Size(32000, 32000);
+  Offset _origin = const Offset(16000, 16000);
   static const _mmToPx = .10;
 
   final TransformationController _transform = TransformationController();
@@ -98,6 +101,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   String? _dragOpeningId;
   double _openingGrabOffsetMm = 0;
   bool _openingDragDirty = false;
+  String? _openingSnapHint;
   String? _dragWallId;
   double _dragWallOffsetMm = 0;
   bool _dragWallModified = false;
@@ -536,7 +540,15 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   }
 
   void _fit() {
-    if (_viewport.isEmpty || floor.nodes.isEmpty) return;
+    if (_viewport.isEmpty) return;
+    if (floor.nodes.isEmpty) {
+      final center = Offset(_viewport.width / 2, _viewport.height / 2);
+      _transform.value = Matrix4.identity()
+        ..translate(center.dx - _origin.dx,
+            center.dy - _origin.dy);
+      if (mounted) setState(() {});
+      return;
+    }
     const left = 70.0;
     const right = 70.0;
     const top = 18.0;
@@ -834,7 +846,29 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     matrix.storage[12] += dx;
     matrix.storage[13] += dy;
     _transform.value = matrix;
+    _rebaseSceneAt(pos);
     _updateWallGuideAt(_transform.toScene(pos));
+  }
+
+  // Rebase CAD scene coordinates when an edge-drawn wall approaches the
+  // finite Flutter canvas. Changing the origin and compensating the camera
+  // by exactly zoom*shift preserves every saved millimetre coordinate and
+  // the wall endpoint under the user's finger. Panning can continue across
+  // successive virtual tiles without changing the saved floor geometry.
+  void _rebaseSceneAt(Offset viewportPoint) {
+    final scene = _transform.toScene(viewportPoint);
+    const low = 6000.0, high = 26000.0, step = 12000.0;
+    final shiftX = scene.dx < low ? step : scene.dx > high ? -step : 0.0;
+    final shiftY = scene.dy < low ? step : scene.dy > high ? -step : 0.0;
+    if (shiftX == 0 && shiftY == 0) return;
+    final delta = Offset(shiftX, shiftY);
+    final zoom = _scale;
+    final matrix = Matrix4.copy(_transform.value);
+    matrix.storage[12] -= delta.dx * zoom;
+    matrix.storage[13] -= delta.dy * zoom;
+    _origin += delta;
+    _transform.value = matrix;
+    if (mounted) setState(() {});
   }
 
   void _wallPointerCancel(PointerCancelEvent event) {
@@ -1199,6 +1233,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     _openingGrabOffsetMm = hit == null
         ? 0 : hit.opening.offsetFromStartMm - hit.positionMm;
     _openingDragDirty = false;
+    _openingSnapHint = null;
     if (hit != null) setState(() => _selectedWallId = hit.wall.id);
   }
 
@@ -1218,8 +1253,16 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     final touch = details.localPosition - start;
     final position = (touch.dx * v.dx + touch.dy * v.dy) /
         v.distance / _mmToPx;
-    final wanted = (position + _openingGrabOffsetMm).roundToDouble();
+    final raw = position + _openingGrabOffsetMm;
+    final snap = _snapping ? OpeningAlignmentService.snap(
+      floor, wall, desiredOffsetMm: raw, openingWidthMm: opening.widthMm,
+      toleranceMm: 15 / (_mmToPx * _scale),
+    ) : null;
+    final chosen = snap != null && _openingValid(wall, opening,
+        snap.offsetMm, opening.widthMm) ? snap : null;
+    final wanted = (chosen?.offsetMm ?? raw).roundToDouble();
     if (!_openingValid(wall, opening, wanted, opening.widthMm)) return;
+    _openingSnapHint = chosen?.label;
     if ((opening.offsetFromStartMm - wanted).abs() < .5) return;
     opening.offsetFromStartMm = wanted;
     _openingDragDirty = true;
@@ -1406,8 +1449,14 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
         offsetFromStartMm: (length - width) / 2,
         doorSwing: DoorSwing.leftIn,
       );
-    candidate.offsetFromStartMm = (atMm - width / 2)
+    final rawOffset = (atMm - width / 2)
         .clamp(80.0, length - width - 80.0).toDouble();
+    final snap = _snapping ? OpeningAlignmentService.snap(
+      floor, wall, desiredOffsetMm: rawOffset, openingWidthMm: width,
+      toleranceMm: 17 / (_mmToPx * _scale),
+    ) : null;
+    candidate.offsetFromStartMm = snap?.offsetMm ?? rawOffset;
+    _openingSnapHint = snap?.label;
     if (!_openingValid(wall, candidate, candidate.offsetFromStartMm, width)) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('Здесь проём пересекается с другим проёмом.'),
@@ -2588,7 +2637,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                   // remains locked so moving a wall cannot move the camera.
                   scaleEnabled: widget.planTool != MeasurePlanTool.nodes &&
                       (_drawingWall || _cameraGestureEnabled),
-                  boundaryMargin: const EdgeInsets.all(2200),
+                  boundaryMargin: const EdgeInsets.all(32000),
                   constrained: false,
                   child: Stack(
                     children: [
@@ -2628,6 +2677,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                             visibleLayers: _visibleLayers,
                             visibleCategories: _visibleCategories,
                             collisionKinds: _collisionKinds,
+                            showOpeningDimensions:
+                                widget.planTool == MeasurePlanTool.openings,
                           ),
                           foregroundPainter: _wallPreviewPainter(),
                         ),
@@ -2721,6 +2772,26 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                   ],
                 ),
               ),
+              if (widget.planTool == MeasurePlanTool.openings &&
+                  _openingSnapHint != null)
+                Positioned(
+                  left: 12,
+                  bottom: 62,
+                  child: IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: const Color(0xDF0B2630),
+                        borderRadius: BorderRadius.circular(5),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(5),
+                        child: Text(_openingSnapHint!,
+                          style: const TextStyle(fontSize: 10,
+                              color: ZamerColors.accent)),
+                      ),
+                    ),
+                  ),
+                ),
               if (_editingGeometry)
                 Positioned(
                   left: 8,

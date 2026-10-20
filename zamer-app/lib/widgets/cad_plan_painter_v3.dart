@@ -17,6 +17,7 @@ class CadPlanPainterV3 extends CustomPainter {
     this.selectedWallId,
     this.showGrid = true,
     this.showDimensions = true,
+    this.showOpeningDimensions = false,
     Set<ProjectLayer>? visibleLayers,
     Set<PlanDisplayLayer>? visibleCategories,
     Set<PlanCollisionKind>? collisionKinds,
@@ -34,6 +35,7 @@ class CadPlanPainterV3 extends CustomPainter {
   final String? selectedWallId;
   final bool showGrid;
   final bool showDimensions;
+  final bool showOpeningDimensions;
   final Set<ProjectLayer> visibleLayers;
   final Set<PlanDisplayLayer> visibleCategories;
   final Set<PlanCollisionKind> collisionKinds;
@@ -47,6 +49,7 @@ class CadPlanPainterV3 extends CustomPainter {
       selectedWallId: selectedWallId,
       showGrid: showGrid,
       showDimensions: showDimensions,
+      showOpeningDimensions: showOpeningDimensions,
       visibleLayers: visibleLayers,
       visibleCategories: visibleCategories,
       collisionKinds: collisionKinds,

@@ -1720,6 +1720,7 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
       widthMm: opening.widthMm,
       heightMm: opening.heightMm,
       wallThicknessMm: opening.wallThicknessMm,
+      recessedWindow: opening.type == OpeningType.window,
     );
     final depthM = metrics.frameDepthM;
     final widthM = metrics.widthM;
@@ -1792,8 +1793,10 @@ class ZamerGpuViewportState extends State<ZamerGpuViewport>
     // door/window instead of a frame floating inside a hole. The casing is
     // kept just outside the frame depth so it cannot z-fight with wall finish.
     void addCasing(double faceSign) {
-      final z = faceSign *
-          (depthM / 2 + metrics.casingDepthM / 2 + 0.0015);
+      final z = faceSign * (opening.type == OpeningType.window
+          ? math.max(0.0, opening.wallThicknessMm / 2000 -
+              metrics.casingDepthM / 2 - .003)
+          : depthM / 2 + metrics.casingDepthM / 2 + 0.0015);
       final casingWidth = metrics.casingWidthM;
       root
         ..add(
