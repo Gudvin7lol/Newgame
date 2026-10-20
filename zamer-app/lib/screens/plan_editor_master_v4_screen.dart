@@ -1542,15 +1542,19 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
               child: Row(
                 children: [
                   if (_drawingWall) ...[
-                    Text(hasStart ? 'Следующая точка стены'
-                                  : 'Нажмите начало стены',
-                        style: const TextStyle(fontSize: 11,
+                    if (!hasStart)
+                      const Text('Нажмите начало стены',
+                        style: TextStyle(fontSize: 11,
                           color: ZamerColors.textPrimary)),
-                    const SizedBox(width: 8),
-                    if (hasStart && _lastWallSnapLabel != null)
-                      Text(_lastWallSnapLabel!,
-                        style: const TextStyle(
-                          fontSize: 10, color: ZamerColors.textSecondary)),
+                    if (hasStart &&
+                        (widget.planTool == MeasurePlanTool.exterior ||
+                         widget.planTool == MeasurePlanTool.partition))
+                      TextButton.icon(
+                        key: const ValueKey('wall-build-exact-length'),
+                        onPressed: _enterWallLength,
+                        icon: const Icon(Icons.straighten_outlined, size: 17),
+                        label: const Text('Длина'),
+                      ),
                     const SizedBox(width: 6),
                     PopupMenuButton<int>(
                       tooltip: 'Угловая привязка',
@@ -1568,15 +1572,6 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                               fontWeight: FontWeight.w700)),
                       ),
                     ),
-                    if (hasStart &&
-                        (widget.planTool == MeasurePlanTool.exterior ||
-                         widget.planTool == MeasurePlanTool.partition))
-                      TextButton.icon(
-                        key: const ValueKey('wall-build-exact-length'),
-                        onPressed: _enterWallLength,
-                        icon: const Icon(Icons.straighten_outlined, size: 17),
-                        label: const Text('Длина'),
-                      ),
                     PopupMenuButton<ProjectLayer>(
                       tooltip: 'Слой построения',
                       onSelected: (layer) => setState(() => _drawingLayer = layer),
@@ -1592,6 +1587,15 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                           color: ZamerColors.textSecondary),
                       ),
                     ),
+                    if (hasStart &&
+                        _lastWallSnapLabel != null &&
+                        _lastWallSnapLabel != 'Начало стены')
+                      Padding(
+                        padding: const EdgeInsets.only(left: 6),
+                        child: Text(_lastWallSnapLabel!,
+                          style: const TextStyle(
+                            fontSize: 10, color: ZamerColors.textSecondary)),
+                      ),
                   ] else if (nodesSelected)
                     TextButton.icon(
                       onPressed: _editSelectedNode,
