@@ -36,7 +36,7 @@ void main() {
     collisions.remove(PlanCollisionKind.objectWall);
     expect(floor.toJson().toString(), before);
     expect(layers.contains(PlanDisplayLayer.furniture), isFalse);
-    expect(collisions.length, 3);
+    expect(collisions.length, PlanCollisionKind.values.length - 1);
   });
 
   test('identifies object/wall and object/object collisions separately', () {
