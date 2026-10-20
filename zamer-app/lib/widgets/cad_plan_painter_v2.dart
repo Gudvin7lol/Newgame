@@ -154,19 +154,20 @@ class CadPlanPainterV2 extends CustomPainter {
     final preset = MaterialCatalog.byId(settings.floorMaterialId);
     final pattern = settings.floorMode == 'tile' ? 'tile' : preset.pattern;
     double repeatPad(double minimum, double repeat) {
-      return math.max(2, (minimum / repeat).ceil() + 1) * repeat;
+      return math.max(2, (minimum / repeat).ceil() + 1).toDouble() * repeat;
     }
     var padX = 140.0, padY = 140.0;
     if (pattern == 'tile') {
-      padX = repeatPad(140, math.max(16, settings.tileWidthMm * mmToPx));
-      padY = repeatPad(140, math.max(16, settings.tileHeightMm * mmToPx));
+      padX = repeatPad(140, math.max(16.0, settings.tileWidthMm * mmToPx));
+      padY = repeatPad(140, math.max(16.0, settings.tileHeightMm * mmToPx));
     } else if (pattern == 'wood' &&
         settings.laminatePattern != 'herringbone') {
-      final length = math.max(28, settings.laminatePlankLengthMm * mmToPx);
-      final width = math.max(8, settings.laminatePlankWidthMm * mmToPx);
+      final length = math.max(28.0, settings.laminatePlankLengthMm * mmToPx);
+      final width = math.max(8.0, settings.laminatePlankWidthMm * mmToPx);
       padX = repeatPad(140, length);
       // Keep an even number of board rows to preserve staggered joints.
-      padY = (math.max(2, (140 / width).ceil() + 1) / 2).ceil() * 2 * width;
+      padY = ((math.max(2, (140 / width).ceil() + 1) / 2).ceil() * 2)
+          .toDouble() * width;
     }
     return Rect.fromLTRB(
       rect.left - padX, rect.top - padY,
