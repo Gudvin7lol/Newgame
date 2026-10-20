@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -506,6 +507,91 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       ..translate(center.dx - scene.dx * next, center.dy - scene.dy * next)
       ..scale(next);
     setState(() {});
+  }
+
+  // In Select mode a one-finger drag starting on an eligible straight wall
+  // translates both endpoints together. An empty-space gesture still pans
+  // the viewport; a two-finger gesture always remains a normal zoom.
+  void _wallDragStart(ScaleStartDetails details) {
+    if (widget.planTool != MeasurePlanTool.select ||
+        details.pointerCount != 1) return;
+    final point = _transform.toScene(details.localFocalPoint);
+    final wall = _wallNear(point);
+    if (wall == null || !OrthogonalWallEditService.preview(
+      floor, wallId: wall.id, offsetMm: 0,
+    ).isValid) return;
+    setState(() {
+      _selectedWallId = wall.id;
+      _dragWallId = wall.id;
+      _dragWallStartMm = _toMm(point);
+      _dragWallBaseTransform = Matrix4.copy(_transform.value);
+      _dragWallOffsetMm = 0;
+      _dragWallModified = false;
+      _dragWallRejected = null;
+    });
+  }
+
+  void _wallDragUpdate(ScaleUpdateDetails details) {
+    final id = _dragWallId;
+    final originMm = _dragWallStartMm;
+    final base = _dragWallBaseTransform;
+    if (id == null || originMm == null || base == null) return;
+    if (details.pointerCount != 1) {
+      unawaited(_wallDragFinish());
+      return;
+    }
+    // InteractiveViewer updates its matrix as part of the same gesture.
+    // Undo ONLY that camera pan while an actual wall is being dragged.
+    _transform.value = Matrix4.copy(base);
+    final touch = _toMm(_transform.toScene(details.localFocalPoint));
+    final wall = floor.wallById(id);
+    if (wall == null) return;
+    final a = floor.nodeById(wall.startNodeId);
+    final b = floor.nodeById(wall.endNodeId);
+    if (a == null || b == null) return;
+    final vertical = (a.xMm - b.xMm).abs() < .5;
+    final horizontal = (a.yMm - b.yMm).abs() < .5;
+    if (!vertical && !horizontal) return;
+
+    // Only the normal direction moves the wall; length and right angles
+    // remain constrained by OrthogonalWallEditService.
+    final rawOffset = vertical
+        ? touch.x - originMm.x : touch.y - originMm.y;
+    final step = _snapping ? 10.0 : 1.0;
+    final wanted = (rawOffset / step).round() * step;
+    final change = wanted - _dragWallOffsetMm;
+    if (change.abs() < .01) return;
+    final result = OrthogonalWallEditService.move(
+      floor, wallId: id, offsetMm: change,
+    );
+    if (!result.isValid) {
+      _dragWallRejected = result.message;
+      return;
+    }
+    _dragWallOffsetMm = wanted;
+    _dragWallRejected = null;
+    _dragWallModified = true;
+    setState(() {});
+  }
+
+  Future<void> _wallDragFinish() async {
+    if (_dragWallId == null) return;
+    final changed = _dragWallModified;
+    final rejected = _dragWallRejected;
+    setState(() {
+      _dragWallId = null;
+      _dragWallBaseTransform = null;
+      _dragWallStartMm = null;
+      _dragWallModified = false;
+      _dragWallRejected = null;
+      _dragWallOffsetMm = 0;
+    });
+    if (changed) await _changed(); // single undo/history snapshot per drag
+    if (!changed && rejected != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(rejected)),
+      );
+    }
   }
 
   Future<void> _tapCanvas(TapUpDetails details) async {
@@ -1578,6 +1664,9 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                   transformationController: _transform,
                   minScale: .28,
                   maxScale: 6,
+                  onInteractionStart: _wallDragStart,
+                  onInteractionUpdate: _wallDragUpdate,
+                  onInteractionEnd: (_) => unawaited(_wallDragFinish()),
                   panEnabled: widget.planTool != MeasurePlanTool.nodes,
                   scaleEnabled: widget.planTool != MeasurePlanTool.nodes,
                   boundaryMargin: const EdgeInsets.all(2200),
