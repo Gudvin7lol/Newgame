@@ -92,6 +92,10 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   Offset? _wallPointerStartGlobal;
   Offset? _wallPointerViewport;
   bool _wallPointerDragging = false;
+  String? _dragOpeningWallId;
+  String? _dragOpeningId;
+  double _openingGrabOffsetMm = 0;
+  bool _openingDragDirty = false;
   String? _dragWallId;
   double _dragWallOffsetMm = 0;
   bool _dragWallModified = false;
@@ -175,6 +179,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       _selectedNodeId = null;
       _selectedWallId = null;
       _dragWallId = null;
+      _dragOpeningWallId = null;
+      _dragOpeningId = null;
       _dragWallStartMm = null;
       _dragWallBaseTransform = null;
       _dragWallRejected = null;
@@ -646,7 +652,12 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
         case MeasurePlanTool.precision:
           await _createArc(p);
         case MeasurePlanTool.openings:
-          await _addOpening(p, chooseType: true);
+          final hit = _openingNear(p);
+          if (hit != null) {
+            await _editOpening(hit.wall, hit.opening);
+          } else {
+            await _addOpening(p, chooseType: true);
+          }
         case MeasurePlanTool.demolition:
           await _toggleDemolition(p);
         case MeasurePlanTool.dimensions:
@@ -1067,6 +1078,222 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     if (mounted) setState(() => _lastWallSnapLabel = 'По точному размеру');
   }
 
+  ({PlanWall wall, WallOpening opening, double positionMm})?
+      _openingNear(Offset canvasPoint) {
+    final radius = 28 / _scale;
+    ({PlanWall wall, WallOpening opening, double positionMm})? best;
+    var bestDistance = double.infinity;
+    for (final wall in floor.walls) {
+      if (wall.isCurved) continue;
+      final a = floor.nodeById(wall.startNodeId);
+      final b = floor.nodeById(wall.endNodeId);
+      if (a == null || b == null) continue;
+      final first = _toCanvas(a), last = _toCanvas(b);
+      final v = last - first;
+      final lengthPx = v.distance;
+      if (lengthPx < 1) continue;
+      final unit = v / lengthPx;
+      final projectedPx = (canvasPoint - first).dx * unit.dx +
+          (canvasPoint - first).dy * unit.dy;
+      final normalDistance = (canvasPoint - (first + unit * projectedPx)).distance;
+      final positionMm = projectedPx / _mmToPx;
+      for (final opening in wall.openings) {
+        final across = math.max(
+          opening.offsetFromStartMm - positionMm,
+          positionMm - (opening.offsetFromStartMm + opening.widthMm),
+        );
+        final extraAlong = math.max(0.0, across) * _mmToPx;
+        final distance = math.sqrt(
+          normalDistance * normalDistance + extraAlong * extraAlong,
+        );
+        if (distance <= math.max(radius, wall.thicknessMm * _mmToPx / 2) &&
+            distance < bestDistance) {
+          best = (wall: wall, opening: opening, positionMm: positionMm);
+          bestDistance = distance;
+        }
+      }
+    }
+    return best;
+  }
+
+  bool _openingValid(PlanWall wall, WallOpening opening,
+      double offset, double width) {
+    final length = floor.wallLengthMm(wall);
+    if (!offset.isFinite || !width.isFinite || width < 350 ||
+        offset < 80 || offset + width > length - 80) return false;
+    for (final other in wall.openings) {
+      if (other.id == opening.id) continue;
+      if (offset < other.offsetFromStartMm + other.widthMm + 30 &&
+          offset + width + 30 > other.offsetFromStartMm) return false;
+    }
+    return true;
+  }
+
+  void _openingDragStart(DragStartDetails details) {
+    final hit = _openingNear(details.localPosition);
+    _dragOpeningWallId = hit?.wall.id;
+    _dragOpeningId = hit?.opening.id;
+    _openingGrabOffsetMm = hit == null
+        ? 0 : hit.opening.offsetFromStartMm - hit.positionMm;
+    _openingDragDirty = false;
+    if (hit != null) setState(() => _selectedWallId = hit.wall.id);
+  }
+
+  void _openingDragUpdate(DragUpdateDetails details) {
+    final wallId = _dragOpeningWallId, openingId = _dragOpeningId;
+    if (wallId == null || openingId == null) return;
+    final wall = floor.wallById(wallId);
+    if (wall == null) return;
+    final a = floor.nodeById(wall.startNodeId);
+    final b = floor.nodeById(wall.endNodeId);
+    if (a == null || b == null) return;
+    final opening = wall.openings.where((o) => o.id == openingId).firstOrNull;
+    if (opening == null) return;
+    final start = _toCanvas(a), end = _toCanvas(b);
+    final v = end - start;
+    if (v.distance < 1) return;
+    final touch = details.localPosition - start;
+    final position = (touch.dx * v.dx + touch.dy * v.dy) /
+        v.distance / _mmToPx;
+    final wanted = (position + _openingGrabOffsetMm).roundToDouble();
+    if (!_openingValid(wall, opening, wanted, opening.widthMm)) return;
+    if ((opening.offsetFromStartMm - wanted).abs() < .5) return;
+    opening.offsetFromStartMm = wanted;
+    _openingDragDirty = true;
+    setState(() {});
+  }
+
+  void _openingDragEnd(DragEndDetails details) {
+    final changed = _openingDragDirty;
+    _dragOpeningWallId = null;
+    _dragOpeningId = null;
+    _openingDragDirty = false;
+    if (changed) unawaited(_changed());
+  }
+
+  Future<void> _editOpening(PlanWall wall, WallOpening opening) async {
+    var positionText = opening.offsetFromStartMm.round().toString();
+    var widthText = opening.widthMm.round().toString();
+    var heightText = opening.heightMm.round().toString();
+    var sillText = opening.sillHeightMm.round().toString();
+    var swing = opening.doorSwing;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, update) => SafeArea(
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              16, 4, 16,
+              MediaQuery.viewInsetsOf(sheetContext).bottom + 16,
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(opening.type == OpeningType.door
+                      ? 'Редактирование двери' : 'Редактирование окна',
+                    style: Theme.of(sheetContext).textTheme.titleMedium),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    initialValue: positionText,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'От начала стены, мм'),
+                    onChanged: (v) => positionText = v,
+                  ),
+                  TextFormField(
+                    initialValue: widthText,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'Ширина, мм'),
+                    onChanged: (v) => widthText = v,
+                  ),
+                  TextFormField(
+                    initialValue: heightText,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'Высота, мм'),
+                    onChanged: (v) => heightText = v,
+                  ),
+                  if (opening.type == OpeningType.window)
+                    TextFormField(
+                      initialValue: sillText,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Высота подоконника, мм'),
+                      onChanged: (v) => sillText = v,
+                    ),
+                  if (opening.type == OpeningType.door)
+                    DropdownButtonFormField<DoorSwing>(
+                      initialValue: swing,
+                      decoration: const InputDecoration(
+                        labelText: 'Петли и направление открывания'),
+                      items: const [
+                        DropdownMenuItem(value: DoorSwing.leftIn,
+                          child: Text('Петли слева · внутрь')),
+                        DropdownMenuItem(value: DoorSwing.rightIn,
+                          child: Text('Петли справа · внутрь')),
+                        DropdownMenuItem(value: DoorSwing.leftOut,
+                          child: Text('Петли слева · наружу')),
+                        DropdownMenuItem(value: DoorSwing.rightOut,
+                          child: Text('Петли справа · наружу')),
+                      ],
+                      onChanged: (v) {
+                        if (v != null) update(() => swing = v);
+                      },
+                    ),
+                  const SizedBox(height: 14),
+                  Row(children: [
+                    TextButton.icon(
+                      onPressed: () async {
+                        wall.openings.removeWhere((o) => o.id == opening.id);
+                        Navigator.pop(sheetContext);
+                        await _changed();
+                      },
+                      icon: const Icon(Icons.delete_outline),
+                      label: const Text('Удалить'),
+                    ),
+                    const Spacer(),
+                    FilledButton(
+                      onPressed: () async {
+                        final position = double.tryParse(
+                          positionText.replaceAll(',', '.'));
+                        final width = double.tryParse(
+                          widthText.replaceAll(',', '.'));
+                        final height = double.tryParse(
+                          heightText.replaceAll(',', '.'));
+                        final sill = double.tryParse(
+                          sillText.replaceAll(',', '.'));
+                        if (position == null || width == null || height == null ||
+                            sill == null || height < 300 || height > 5000 ||
+                            sill < 0 || sill > 3000 ||
+                            !_openingValid(wall, opening, position, width)) {
+                          ScaffoldMessenger.of(sheetContext).showSnackBar(
+                            const SnackBar(content: Text(
+                              'Проверьте размеры и расстояния до других проёмов')),
+                          );
+                          return;
+                        }
+                        opening.offsetFromStartMm = position;
+                        opening.widthMm = width;
+                        opening.heightMm = height;
+                        opening.sillHeightMm = sill;
+                        opening.doorSwing = swing;
+                        Navigator.pop(sheetContext);
+                        await _changed();
+                      },
+                      child: const Text('Сохранить'),
+                    ),
+                  ]),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _addOpening(Offset p, {bool chooseType = false}) async {
     final wall = _wallNear(p);
     if (wall == null) return;
@@ -1100,8 +1327,14 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     final width = math.min(kind == OpeningType.door ? 900.0 : 1200.0,
         math.max(600.0, length * .32));
     if (length <= width + 160) return;
-    wall.openings.add(
-      WallOpening(
+    final a = floor.nodeById(wall.startNodeId);
+    final b = floor.nodeById(wall.endNodeId);
+    if (a == null || b == null) return;
+    final v = _toCanvas(b) - _toCanvas(a);
+    final touch = p - _toCanvas(a);
+    final atMm = (touch.dx * v.dx + touch.dy * v.dy) /
+        v.distance / _mmToPx;
+    final candidate = WallOpening(
         id: 'o-${DateTime.now().microsecondsSinceEpoch}',
         type: kind,
         widthMm: width,
@@ -1109,8 +1342,16 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
         sillHeightMm: kind == OpeningType.door ? 0 : 900,
         offsetFromStartMm: (length - width) / 2,
         doorSwing: DoorSwing.leftIn,
-      ),
-    );
+      );
+    candidate.offsetFromStartMm = (atMm - width / 2)
+        .clamp(80.0, length - width - 80.0);
+    if (!_openingValid(wall, candidate, candidate.offsetFromStartMm, width)) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Здесь проём пересекается с другим проёмом.'),
+      ));
+      return;
+    }
+    wall.openings.add(candidate);
     setState(() => _selectedWallId = wall.id);
     await _changed();
   }
