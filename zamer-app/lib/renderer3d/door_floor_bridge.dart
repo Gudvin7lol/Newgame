@@ -32,6 +32,12 @@ List<ZamerDoorFloorBridgeSegment> buildDoorFloorBridgeSegments({
   final wallThicknessMm = _safePositive(opening.wallThicknessMm, 100);
   final halfWidth = math.max(20.0, widthMm / 2);
   final halfDepth = math.max(10.0, wallThicknessMm / 2);
+  final opensPositive = opening.doorSwing == DoorSwing.leftIn ||
+      opening.doorSwing == DoorSwing.rightIn;
+  // Finish joint is 20 mm past the wall's swing-side face, not on its axis.
+  final cut = (opensPositive ? 1.0 : -1.0) * (halfDepth + 20.0);
+  final minDepth = math.min(-halfDepth, cut);
+  final maxDepth = math.max(halfDepth, cut);
   final angle = opening.rotationRad.isFinite ? opening.rotationRad : 0.0;
   final tx = math.cos(angle);
   final ty = math.sin(angle);
@@ -78,7 +84,7 @@ List<ZamerDoorFloorBridgeSegment> buildDoorFloorBridgeSegments({
     return <ZamerDoorFloorBridgeSegment>[
       ZamerDoorFloorBridgeSegment(
         surface: negative!,
-        pointsMm: quad(-halfDepth, halfDepth),
+        pointsMm: quad(minDepth, maxDepth),
       ),
     ];
   }
@@ -86,27 +92,36 @@ List<ZamerDoorFloorBridgeSegment> buildDoorFloorBridgeSegments({
     return <ZamerDoorFloorBridgeSegment>[
       ZamerDoorFloorBridgeSegment(
         surface: positive,
-        pointsMm: quad(-halfDepth, halfDepth),
+        pointsMm: quad(minDepth, maxDepth),
       ),
     ];
   }
-  if (identical(positive, negative) || positive.roomKey == negative.roomKey) {
+  if (identical(positive, negative) ||
+      positive.roomKey == negative.roomKey ||
+      (positive.sharedFloorGroup && negative.sharedFloorGroup &&
+       positive.materialId == negative.materialId)) {
     return <ZamerDoorFloorBridgeSegment>[
       ZamerDoorFloorBridgeSegment(
         surface: positive,
-        pointsMm: quad(-halfDepth, halfDepth),
+        pointsMm: quad(minDepth, maxDepth),
       ),
     ];
   }
 
+  // Finish from the room opposite the swing continues 20 mm beyond the
+  // swing-side wall face. This must agree with the 2D threshold marker.
+  if (opensPositive) {
+    return <ZamerDoorFloorBridgeSegment>[
+      ZamerDoorFloorBridgeSegment(
+        surface: negative,
+        pointsMm: quad(minDepth, cut),
+      ),
+    ];
+  }
   return <ZamerDoorFloorBridgeSegment>[
     ZamerDoorFloorBridgeSegment(
-      surface: negative,
-      pointsMm: quad(-halfDepth, 0),
-    ),
-    ZamerDoorFloorBridgeSegment(
       surface: positive,
-      pointsMm: quad(0, halfDepth),
+      pointsMm: quad(cut, maxDepth),
     ),
   ];
 }
