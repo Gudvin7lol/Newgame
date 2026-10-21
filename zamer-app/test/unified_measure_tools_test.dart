@@ -51,7 +51,8 @@ void main() {
     expect(master, contains('GeometryService.snapMoveTarget('));
     expect(master, contains('OrthogonalWallEditService.move('));
     expect(master, contains('_toggleDemolition('));
-    expect(master, contains('_addOpening(p, chooseType: true)'));
+    expect(master, contains('_addOpening(p,'));
+    expect(master, contains('chooseType: widget.preferredOpeningType == null'));
     expect(master, contains("ValueKey('measure-shared-canvas')"));
   });
 
