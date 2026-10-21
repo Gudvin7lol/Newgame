@@ -32,6 +32,7 @@ class PlanEditorMasterV4Screen extends StatefulWidget {
     this.planTool = MeasurePlanTool.overview,
     this.preferredOpeningType,
     this.onSelectionChanged,
+    this.nativeKitV2 = false,
     required this.onOpenObjects,
     required this.onOpenReview,
     required this.onOpenGeometry,
@@ -50,6 +51,7 @@ class PlanEditorMasterV4Screen extends StatefulWidget {
   final MeasurePlanTool planTool;
   final OpeningType? preferredOpeningType;
   final ValueChanged<String?>? onSelectionChanged;
+  final bool nativeKitV2;
   final VoidCallback onOpenObjects;
   final VoidCallback onOpenReview;
   final VoidCallback onOpenGeometry;
@@ -2964,7 +2966,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                 Positioned(
                   left: 8,
                   right: 8,
-                  bottom: 8,
+                  top: widget.nativeKitV2 ? 65 : null,
+                  bottom: widget.nativeKitV2 ? null : 8,
                   child: _compactEditingBar(),
                 ),
               Positioned(
