@@ -101,6 +101,9 @@ class _RecoveredMeasureWorkspaceScreenState
   }
 
   void _selectLayer(int value) {
+    // Re-selecting the active domain must preserve the current task and
+    // any partially drawn geometry, as required by UI Kit 1.2.
+    if (value == _layer) return;
     setState(() {
       _view = ZMeasureViewMode.twoD;
       _layer = value.clamp(0, _layers.length - 1).toInt();
