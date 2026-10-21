@@ -14,6 +14,7 @@ import '../services/material_catalog.dart';
 import '../services/object_catalog.dart';
 import '../services/plan_direct_interaction.dart';
 import '../services/orthogonal_wall_edit_service.dart';
+import '../services/node_move_constraint_service.dart';
 import '../services/opening_alignment_service.dart';
 import '../services/plan_visibility_service.dart';
 import 'measure_plan_tool.dart';
@@ -78,6 +79,9 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   String? _selectedWallId;
   String? _selectedNodeId;
   String? _dragNodeId;
+  FloorPlan? _nodeDragStartFloor;
+  Set<String> _nodeDragAffected = <String>{};
+  String? _nodeDragInvalid;
   NodeSnapResult? _dragSnap;
   math.Point<double> _fingerNodeOffsetMm = const math.Point(0, 0);
   bool _nodeDragChanged = false;
@@ -183,6 +187,9 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       _dimensionStartInterior = null;
       _dimensionStartInteriorNodeId = null;
       _dragNodeId = null;
+      _nodeDragStartFloor = null;
+      _nodeDragAffected.clear();
+      _nodeDragInvalid = null;
       _dragSnap = null;
       _nodeDragChanged = false;
       _selectedNodeId = null;
@@ -1553,6 +1560,9 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     setState(() {
       _selectedNodeId = node.id;
       _dragNodeId = node.id;
+      _nodeDragStartFloor = FloorPlan.fromJson(floor.toJson());
+      _nodeDragAffected.clear();
+      _nodeDragInvalid = null;
       _nodeDragChanged = false;
       _dragSnap = null;
       _fingerNodeOffsetMm = math.Point<double>(
@@ -1563,14 +1573,16 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
 
   void _nodeDragUpdate(DragUpdateDetails details) {
     final id = _dragNodeId;
-    if (widget.planTool != MeasurePlanTool.nodes || id == null) return;
-    final node = floor.nodeById(id);
-    if (node == null) return;
+    final base = _nodeDragStartFloor;
+    if (widget.planTool != MeasurePlanTool.nodes ||
+        id == null || base == null) return;
     final finger = _toMm(details.localPosition);
     final raw = finger + _fingerNodeOffsetMm;
     final radiusMm = 16 / (_mmToPx * _scale);
+    // Snap against the frozen drag-start floor. Moving linked walls during a
+    // gesture must not cause capture targets to chase the moving finger.
     final snap = GeometryService.snapMoveTarget(
-      floor,
+      base,
       movingNodeId: id,
       raw: raw,
       enabled: _snapping,
@@ -1580,37 +1592,72 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       previousSnap: _dragSnap,
       releaseThresholdMm: radiusMm * 1.5,
     );
-    if ((node.xMm - snap.point.x).abs() > 0.01 ||
-        (node.yMm - snap.point.y).abs() > 0.01) {
-      _nodeDragChanged = true;
+    final preview = NodeMoveConstraintService.evaluate(
+      base, nodeId: id, destination: snap.point,
+    );
+    if (!preview.isValid) {
+      // Keep the last valid geometry, not a diagonal triangle accidentally
+      // introduced into a previously orthogonal room.
+      setState(() => _nodeDragInvalid = preview.message);
+      return;
     }
-    node.xMm = snap.point.x;
-    node.yMm = snap.point.y;
-    setState(() => _dragSnap = snap);
+    NodeMoveConstraintService.apply(floor, preview);
+    setState(() {
+      _dragSnap = snap;
+      _nodeDragAffected = preview.movedNodeIds;
+      _nodeDragChanged = preview.movedNodeIds.isNotEmpty;
+      _nodeDragInvalid = null;
+    });
   }
 
   Future<void> _nodeDragEnd(DragEndDetails details) async {
     final id = _dragNodeId;
     if (id == null) return;
-    final node = floor.nodeById(id);
     final changed = _nodeDragChanged;
     final snap = _dragSnap;
+    final affected = Set<String>.of(_nodeDragAffected);
+    final rejected = _nodeDragInvalid;
     setState(() {
       _dragNodeId = null;
+      _nodeDragStartFloor = null;
+      _nodeDragAffected.clear();
       _dragSnap = null;
+      _nodeDragInvalid = null;
       _nodeDragChanged = false;
     });
-    if (node == null || !changed) return;
-    final result = GeometryService.finalizeNodeMove(
-      floor,
-      movingNodeId: id,
-      snap: snap ?? NodeSnapResult(
-        point: math.Point<double>(node.xMm, node.yMm),
-        kind: NodeSnapKind.none,
-      ),
-    );
-    _selectedNodeId = result?.id;
+    if (rejected != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        duration: const Duration(milliseconds: 1400),
+        content: Text(rejected),
+      ));
+    }
+    if (!changed) return;
+
+    // Only a solitary free endpoint may merge/split other topology nodes.
+    // A constrained grid shift has already moved all linked wall axes and
+    // must not additionally perform destructive merge operations.
+    if (affected.length <= 1 && snap != null) {
+      final moved = GeometryService.finalizeNodeMove(
+        floor, movingNodeId: id, snap: snap,
+      );
+      _selectedNodeId = moved?.id;
+    } else {
+      _selectedNodeId = id;
+    }
     await _changed();
+  }
+
+  void _nodeDragCancel() {
+    final base = _nodeDragStartFloor;
+    if (base != null) floor.restoreFrom(base);
+    setState(() {
+      _dragNodeId = null;
+      _nodeDragStartFloor = null;
+      _nodeDragAffected.clear();
+      _dragSnap = null;
+      _nodeDragInvalid = null;
+      _nodeDragChanged = false;
+    });
   }
 
   Future<void> _editSelectedNode() async {
@@ -1655,11 +1702,17 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     x.dispose();
     y.dispose();
     if (result == null || !mounted) return;
-    final moved = GeometryService.finalizeNodeMove(floor,
-      movingNodeId: id,
-      snap: NodeSnapResult(point: result, kind: NodeSnapKind.none),
+    final preview = NodeMoveConstraintService.evaluate(
+      floor, nodeId: id, destination: result,
     );
-    setState(() => _selectedNodeId = moved?.id);
+    if (!preview.isValid) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(preview.message ?? 'Недопустимая геометрия стен'),
+      ));
+      return;
+    }
+    NodeMoveConstraintService.apply(floor, preview);
+    setState(() => _selectedNodeId = id);
     await _changed();
   }
 
@@ -2660,6 +2713,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                             : widget.planTool == MeasurePlanTool.openings &&
                                 !_moveCameraInsteadOfDrawing
                                 ? _openingDragUpdate : null,
+                        onPanCancel: widget.planTool == MeasurePlanTool.nodes
+                            ? _nodeDragCancel : null,
                         onPanEnd: widget.planTool == MeasurePlanTool.nodes
                             ? _nodeDragEnd
                             : widget.planTool == MeasurePlanTool.openings &&
