@@ -1,6 +1,10 @@
 import 'dart:io';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zamer_app/models/models.dart';
+import 'package:zamer_app/screens/recovered_measure_workspace_screen.dart';
+import 'package:zamer_app/widgets/zamer_ui_kit_v2.dart';
 
 /// Regression: +145 shipped the native radial interface but Home still used
 /// the legacy FloorWorkspaceScreen, so actual users saw the OLD 2D controls.
@@ -42,4 +46,52 @@ void main() {
     expect(home, contains('onChanged: _save'));
     expect(home, contains('floor: project.floors.first'));
   });
+  testWidgets('UI Kit renders actual Measure canvas on narrow Android viewport',
+      (tester) async {
+    tester.view.physicalSize = const Size(393, 850);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final floor = FloorPlan(id: 'f', name: 'Этаж 1');
+    final project = MeasureProject(
+      id: 'p', name: 'Квартира', floors: [floor]);
+    await tester.pumpWidget(MaterialApp(
+      home: RecoveredMeasureWorkspaceScreen(
+        project: project,
+        floor: floor,
+        onChanged: () async {},
+        onUndo: null,
+        onRedo: null,
+        canUndo: false,
+        canRedo: false,
+        onMore: () {},
+        onOpen3D: () {},
+        onOpenPhoto: () {},
+        onOpenReview: () {},
+        onOpenGeometry: () {},
+        onOpenFloors: () {},
+        onHome: () {},
+        onProfile: () {},
+        onPrimaryMode: (_) {},
+      ),
+    ));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('zamer-native-v2-fan')),
+        findsOneWidget);
+    expect(find.byKey(const ValueKey('kit-v2-domain-0')),
+        findsOneWidget);
+    expect(find.byKey(const ValueKey('kit-v2-tasks')),
+        findsOneWidget);
+    expect(tester.takeException(), isNull,
+        reason: 'No infinite-width task button layout on TECNO');
+
+    await tester.tap(find.byKey(const ValueKey('kit-v2-task-0')));
+    await tester.pump();
+    expect(tester.widget<ZamerKitFan>(
+        find.byType(ZamerKitFan)).contextId,
+        startsWith('plan.wall.create'));
+    expect(tester.takeException(), isNull);
+  });
+
 }
