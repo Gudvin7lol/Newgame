@@ -282,7 +282,7 @@ class _RecoveredMeasureWorkspaceScreenState
 
   Widget _kitDomains() => Container(
     color: ZamerKitColors.bg,
-    padding: const EdgeInsets.fromLTRB(8, 9, 8, 8),
+    padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
     child: Row(
       children: [
         for (var i = 0; i < 4; i++) ...[
@@ -305,7 +305,7 @@ class _RecoveredMeasureWorkspaceScreenState
     final current = _layer < 4 ? _layer : 0;
     final categories = ZamerKitNavigation.categories(current);
     return Container(
-      height: 56,
+      height: 52,
       decoration: const BoxDecoration(
         color: ZamerKitColors.bg,
         border: Border(bottom: BorderSide(color: ZamerKitColors.line)),
@@ -339,7 +339,7 @@ class _RecoveredMeasureWorkspaceScreenState
                   // and Flexible label valid on small Android screens.
                   child: SizedBox(
                     width: categories[index].length > 10
-                        ? 156 : categories[index].length > 7 ? 140 : 116,
+                        ? 136 : categories[index].length > 7 ? 120 : 104,
                     child: ZamerKitSegment(
                       label: categories[index],
                       icon: icon,
