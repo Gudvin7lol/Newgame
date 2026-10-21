@@ -1284,15 +1284,44 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     _dragOpeningWallId = null;
     _dragOpeningId = null;
     _openingDragDirty = false;
+    setState(() => _openingSnapHint = null);
     if (changed) unawaited(_changed());
   }
 
   Future<void> _editOpening(PlanWall wall, WallOpening opening) async {
-    var positionText = opening.offsetFromStartMm.round().toString();
+    final positionController = TextEditingController(
+        text: opening.offsetFromStartMm.round().toString());
     var widthText = opening.widthMm.round().toString();
     var heightText = opening.heightMm.round().toString();
     var sillText = opening.sillHeightMm.round().toString();
     var swing = opening.doorSwing;
+
+    void alignTo(String target, BuildContext sheetContext) {
+      final width = double.tryParse(widthText.replaceAll(',', '.'));
+      final requested = double.tryParse(
+          positionController.text.replaceAll(',', '.'));
+      if (width == null || requested == null || width <= 0) return;
+      final candidates = OpeningAlignmentService.targets(
+        floor, wall, desiredOffsetMm: requested,
+        openingWidthMm: width,
+        toleranceMm: floor.wallLengthMm(wall),
+      ).where((p) => p.label == target &&
+          _openingValid(wall, opening, p.offsetMm, width)).toList();
+      if (candidates.isEmpty) {
+        ScaffoldMessenger.of(sheetContext).showSnackBar(SnackBar(
+          duration: const Duration(milliseconds: 1200),
+          content: Text('Нет доступной привязки: $target'),
+        ));
+        return;
+      }
+      candidates.sort((a, b) =>
+        (a.offsetMm - requested).abs().compareTo(
+            (b.offsetMm - requested).abs()));
+      positionController.text = candidates.first.offsetMm.round().toString();
+      positionController.selection = TextSelection.collapsed(
+          offset: positionController.text.length);
+    }
+
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -1313,11 +1342,31 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                     style: Theme.of(sheetContext).textTheme.titleMedium),
                   const SizedBox(height: 12),
                   TextFormField(
-                    initialValue: positionText,
-                    keyboardType: TextInputType.number,
+                    controller: positionController,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      signed: false, decimal: true),
                     decoration: const InputDecoration(
                       labelText: 'От начала стены, мм'),
-                    onChanged: (v) => positionText = v,
+                  ),
+                  Wrap(
+                    spacing: 5, runSpacing: 0,
+                    children: [
+                      ActionChip(
+                        label: const Text('Центр стены'),
+                        onPressed: () => alignTo(
+                            'Центр стены', sheetContext),
+                      ),
+                      ActionChip(
+                        label: const Text('Центр участка'),
+                        onPressed: () => alignTo(
+                            'Центр участка стены', sheetContext),
+                      ),
+                      ActionChip(
+                        label: const Text('По оси двери'),
+                        onPressed: () => alignTo(
+                            'По оси двери напротив', sheetContext),
+                      ),
+                    ],
                   ),
                   TextFormField(
                     initialValue: widthText,
@@ -1373,7 +1422,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                     FilledButton(
                       onPressed: () async {
                         final position = double.tryParse(
-                          positionText.replaceAll(',', '.'));
+                          positionController.text.replaceAll(',', '.'));
                         final width = double.tryParse(
                           widthText.replaceAll(',', '.'));
                         final height = double.tryParse(
@@ -1408,6 +1457,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
         ),
       ),
     );
+    positionController.dispose();
   }
 
   Future<void> _addOpening(Offset p, {bool chooseType = false}) async {
