@@ -17,10 +17,10 @@ void main() {
         isNot(contains('Сантехника')));
     expect(ZamerFanProfilesV2.profileIds.length, 43);
     final idle = ZamerFanProfilesV2.of('plan.idle',
-        enabledActions: {'wall', 'opening'});
-    expect(idle.first.label, 'Стена');
+        enabledActions: {'nodes', 'arc'});
+    expect(idle.first.label, 'Узлы');
     expect(idle.first.enabled, isTrue);
-    expect(idle.second.label, 'Проём');
+    expect(idle.second.label, 'Дуга');
     expect(idle.outer.last.enabled, isFalse);
   });
 
@@ -53,15 +53,21 @@ void main() {
       ),
     ));
     await tester.pump();
+    // Default collapsed view leaves drawing canvas usable.
+    expect(find.text('Стена'), findsNothing);
+    expect(find.byKey(const ValueKey('fan-quick-select')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('fan-expand')));
+    await tester.pumpAndSettle();
     expect(find.text('Стена'), findsOneWidget);
     final top = tester.getTopLeft(find.byType(ZamerKitFan));
-    await tester.tapAt(top + const Offset(139, 139));
+    await tester.tapAt(top + const Offset(112, 112));
     await tester.pump();
     expect(picked, ['wall']);
-    await tester.tapAt(top + const Offset(188, 188));
+    await tester.tapAt(top + const Offset(158, 158));
     await tester.pumpAndSettle();
     expect(find.text('Стена'), findsNothing);
-    expect(find.text('Выбрать'), findsOneWidget);
+    expect(find.byKey(const ValueKey('fan-quick-select')), findsOneWidget);
+    expect(find.byKey(const ValueKey('fan-expand')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
