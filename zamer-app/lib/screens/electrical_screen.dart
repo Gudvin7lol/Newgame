@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import '../models/models.dart';
 import '../services/geometry_service.dart';
 import '../widgets/electrical_plan_painter.dart';
+import '../widgets/cad_plan_painter.dart';
+import '../services/plan_visibility_service.dart';
 
 enum ElectricalMode { add, wire, select }
 
@@ -971,14 +973,31 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                     : null,
                 onPanEnd: _mode == ElectricalMode.select ? _dragEnd : null,
                 child: CustomPaint(
-                  painter: ElectricalPlanPainter(
+                  painter: widget.embedded ? CadPlanPainter(
+                    floor: widget.floor,
+                    mmToPx: t.scale,
+                    origin: t.origin,
+                    showDimensions: false,
+                    showGrid: true,
+                    visibleCategories: PlanDisplayLayer.values.toSet()
+                      ..remove(PlanDisplayLayer.electrical),
+                  ) : ElectricalPlanPainter(
                     floor: widget.floor,
                     scale: t.scale,
                     origin: t.origin,
                     selectedPointId: _selectedId,
                     wireStartPointId: _wireStartId,
-                    darkMode: widget.embedded,
                   ),
+                  foregroundPainter: widget.embedded
+                      ? ElectricalPlanPainter(
+                          floor: widget.floor,
+                          scale: t.scale,
+                          origin: t.origin,
+                          selectedPointId: _selectedId,
+                          wireStartPointId: _wireStartId,
+                          darkMode: true,
+                          overlayOnly: true,
+                        ) : null,
                   child: const SizedBox.expand(),
                 ),
               );
