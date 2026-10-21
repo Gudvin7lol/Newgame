@@ -65,7 +65,10 @@ void main() {
         File('lib/screens/planning_objects_screen.dart').readAsStringSync();
     expect(source, contains('this.embedded = false'));
     expect(source, contains('if (!widget.embedded)'));
-    expect(source, contains('if (widget.embedded) return;'));
+    // Empty embedded-canvas taps clear selection without creating objects.
+    expect(source, contains('if (widget.embedded) {'));
+    expect(source, contains('setState(() => _selectedId = null)'));
+    expect(source, contains('_notifySelection();'));
     expect(source, contains('d.rotation * 180 / math.pi'));
     expect(source, contains('onScaleUpdate: (d) => _objectScaleUpdate'));
   });

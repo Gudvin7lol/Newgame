@@ -13,6 +13,7 @@ class MasterEquipmentScreen extends StatefulWidget {
     this.onAdd,
     this.renderModelPreviews = true,
     this.embedded = false,
+    this.singleFurnitureView = false,
   });
 
   final String projectTitle;
@@ -20,6 +21,9 @@ class MasterEquipmentScreen extends StatefulWidget {
   final ValueChanged<ObjectCatalogItem>? onAdd;
   final bool renderModelPreviews;
   final bool embedded;
+  /// Single unified model browser used by the UI Kit 1.2 Furniture window.
+  /// No Kitchen / Decor / Plumbing sub-navigation in this mode.
+  final bool singleFurnitureView;
 
   @override
   State<MasterEquipmentScreen> createState() => _MasterEquipmentScreenState();
@@ -93,7 +97,8 @@ class _MasterEquipmentScreenState extends State<MasterEquipmentScreen> {
   List<ObjectCatalogItem> get _items {
     final query = _search.text.trim().toLowerCase();
     final items = ObjectCatalog.items.where((item) {
-      if (!_matchesTopFilter(item) || !_matchesCategory(item)) return false;
+      if (!widget.singleFurnitureView &&
+          (!_matchesTopFilter(item) || !_matchesCategory(item))) return false;
       if (_favoritesOnly && !_favorites.contains(item.id)) return false;
       return query.isEmpty ||
           item.name.toLowerCase().contains(query) ||
@@ -102,7 +107,7 @@ class _MasterEquipmentScreenState extends State<MasterEquipmentScreen> {
     if (items.isNotEmpty || query.isNotEmpty || _favoritesOnly) return items;
 
     return ObjectCatalog.items.where((item) {
-      if (!_matchesTopFilter(item)) return false;
+      if (!widget.singleFurnitureView && !_matchesTopFilter(item)) return false;
       return query.isEmpty || item.name.toLowerCase().contains(query);
     }).take(12).toList();
   }
@@ -138,7 +143,8 @@ class _MasterEquipmentScreenState extends State<MasterEquipmentScreen> {
                   spacing: 7,
                   runSpacing: 7,
                   children: [
-                    for (final label in _filters)
+                    if (!widget.singleFurnitureView)
+                      for (final label in _filters)
                       ChoiceChip(
                         selected: _filter == label,
                         label: Text(label),
@@ -192,7 +198,8 @@ class _MasterEquipmentScreenState extends State<MasterEquipmentScreen> {
             padding: EdgeInsets.fromLTRB(16, widget.embedded ? 10 : 0, 16, 8),
             child: Row(
               children: [
-                Expanded(child: Text('Оснащение', style: ZamerTypography.h2)),
+                Expanded(child: Text(widget.singleFurnitureView
+                    ? 'Мебель' : 'Оснащение', style: ZamerTypography.h2)),
                 Text('${items.length} моделей', style: ZamerTypography.caption),
               ],
             ),
@@ -237,7 +244,7 @@ class _MasterEquipmentScreenState extends State<MasterEquipmentScreen> {
             ),
           ),
           const SizedBox(height: 8),
-          SizedBox(
+          if (!widget.singleFurnitureView) SizedBox(
             height: 38,
             child: ListView.separated(
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -259,7 +266,7 @@ class _MasterEquipmentScreenState extends State<MasterEquipmentScreen> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                SizedBox(
+                if (!widget.singleFurnitureView) SizedBox(
                   width: 126,
                   child: ListView.separated(
                     padding: const EdgeInsets.fromLTRB(10, 0, 6, 12),

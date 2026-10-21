@@ -23,8 +23,10 @@ void main() {
     ]) {
       expect(source, contains(symbol), reason: '$symbol must stay in Measure');
     }
-    expect(source, contains('Перемещение и вращение объектов на плане'));
-    expect(source, contains('Направление и смещение раскладки прямо на плане'));
+    expect(source, contains('PlanningObjectsScreen('));
+    expect(source, contains('ZamerKitNavigation.categories(_layer)'));
+    expect(source, contains('MeasureFloorPlanLayerScreen('));
+    expect(source, contains('ZamerKitFan('));
   });
 
   test('equipment catalog and manipulation stay inside Measure', () {
@@ -32,7 +34,8 @@ void main() {
         .readAsStringSync();
     expect(source, contains('MasterEquipmentScreen'));
     expect(source, contains('EquipmentPlacementService.addCatalogItem'));
-    expect(source, contains("label: const Text('Каталог')"));
+    expect(source, contains("singleFurnitureView: true"));
+    expect(source, contains('Единый каталог мебели'));
     expect(source, contains('embedded: true'));
     expect(source, contains('Перемещай и вращай его прямо на плане.'));
   });

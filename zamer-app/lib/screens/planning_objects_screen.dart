@@ -1,4 +1,6 @@
 import 'dart:math' as math;
+import 'dart:async';
+import 'package:flutter/foundation.dart' show ValueListenable;
 
 import 'package:flutter/material.dart';
 
@@ -24,6 +26,8 @@ class PlanningObjectsScreen extends StatefulWidget {
     required this.floor,
     required this.onChanged,
     this.embedded = false,
+    this.onSelectedObjectChanged,
+    this.fanCommand,
   });
   final FloorPlan floor;
   final Future<void> Function() onChanged;
@@ -31,6 +35,8 @@ class PlanningObjectsScreen extends StatefulWidget {
   /// In Measure the catalog lives in the parent workspace. Embedded mode keeps
   /// this screen focused on direct placement, movement and rotation only.
   final bool embedded;
+  final ValueChanged<PlanObject?>? onSelectedObjectChanged;
+  final ValueListenable<String?>? fanCommand;
 
   @override
   State<PlanningObjectsScreen> createState() => _PlanningObjectsScreenState();
@@ -56,6 +62,7 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
   @override
   void initState() {
     super.initState();
+    widget.fanCommand?.addListener(_handleFanCommand);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       var changed = false;
       final liveFixtureIds = <String>{};
@@ -75,6 +82,89 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
       if (changed) await widget.onChanged();
       if (mounted) setState(() {});
     });
+  }
+
+  @override
+  void didUpdateWidget(covariant PlanningObjectsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.fanCommand != widget.fanCommand) {
+      oldWidget.fanCommand?.removeListener(_handleFanCommand);
+      widget.fanCommand?.addListener(_handleFanCommand);
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.fanCommand?.removeListener(_handleFanCommand);
+    super.dispose();
+  }
+
+  void _notifySelection() =>
+      widget.onSelectedObjectChanged?.call(_objectById(_selectedId));
+
+  void _handleFanCommand() {
+    final message = widget.fanCommand?.value;
+    if (message == null || !mounted) return;
+    final colon = message.indexOf(':');
+    if (colon < 0) return;
+    final command = message.substring(colon + 1);
+    if (command == 'select' || command == 'move') {
+      setState(() => _mode = _ObjectMode.select);
+    } else if (command == 'rotate') {
+      unawaited(_rotateSelected(90));
+    } else if (command == 'duplicate') {
+      unawaited(_duplicateSelected());
+    } else if (command == 'delete') {
+      unawaited(_deleteSelected());
+    }
+  }
+
+  Future<void> _duplicateSelected() async {
+    final original = _objectById(_selectedId);
+    if (original == null) return;
+    final copy = PlanObject.fromJson({
+      ...original.toJson(),
+      'id': _id(),
+      'xMm': original.xMm + 180,
+      'yMm': original.yMm + 180,
+    });
+    if (SpaceCheckService.intersectsWall(widget.floor, copy)) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Нет места для копии, сначала переместите предмет.'),
+      ));
+      return;
+    }
+    widget.floor.planObjects.add(copy);
+    _syncLightingElectricalPoint(copy);
+    setState(() => _selectedId = copy.id);
+    _notifySelection();
+    await widget.onChanged();
+  }
+
+  Future<void> _deleteSelected() async {
+    final object = _objectById(_selectedId);
+    if (object == null) return;
+    final approved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Удалить предмет?'),
+        content: Text(object.label.isEmpty
+            ? 'Удалить выбранную модель с плана?'
+            : 'Удалить «${object.label}» с плана?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Отмена')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Удалить')),
+        ],
+      ),
+    );
+    if (approved != true || !mounted) return;
+    _removeLightingElectricalPoint(object);
+    widget.floor.planObjects.removeWhere((o) => o.id == object.id);
+    setState(() => _selectedId = null);
+    _notifySelection();
+    await widget.onChanged();
   }
 
   String _fixtureElectricalId(PlanObject object) => 'fixture:${object.id}';
@@ -373,6 +463,7 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
           : d.localFocalPoint - (tx.origin + Offset(o.xMm, o.yMm) * tx.scale);
       _gestureDirty = false;
     });
+    _notifySelection();
   }
 
   void _objectScaleUpdate(ScaleUpdateDetails d, Size size) {
@@ -550,14 +641,23 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
     final existing = _near(p);
     if (existing != null) {
       setState(() => _selectedId = existing.id);
-      await _edit(existing);
+      _notifySelection();
+      // Kit v2: select first, edit in the inspector instead of instantly
+      // opening a modal. Standalone editor retains old tap-to-edit.
+      if (!widget.embedded) await _edit(existing);
       return;
     }
 
     // The unified Measure flow adds furniture through its Catalog sheet.
     // Empty taps must not clone the last catalog selection behind the user's
     // back. In embedded mode the canvas is manipulation-only.
-    if (widget.embedded) return;
+    if (widget.embedded) {
+      if (_selectedId != null) {
+        setState(() => _selectedId = null);
+        _notifySelection();
+      }
+      return;
+    }
 
     late PlanObject o;
     if (_source == _AddSource.catalog) {
@@ -783,7 +883,10 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
       return;
     }
     await widget.onChanged();
-    if (mounted) setState(() => _selectedId = null);
+    if (mounted) {
+      setState(() => _selectedId = null);
+      _notifySelection();
+    }
   }
 
   List<PlanObjectType> get _engineeringTypes => const [

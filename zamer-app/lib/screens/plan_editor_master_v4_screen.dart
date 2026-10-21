@@ -30,6 +30,9 @@ class PlanEditorMasterV4Screen extends StatefulWidget {
     required this.floor,
     required this.onChanged,
     this.planTool = MeasurePlanTool.overview,
+    this.preferredOpeningType,
+    this.onSelectionChanged,
+    this.nativeKitV2 = false,
     required this.onOpenObjects,
     required this.onOpenReview,
     required this.onOpenGeometry,
@@ -46,6 +49,9 @@ class PlanEditorMasterV4Screen extends StatefulWidget {
   final FloorPlan floor;
   final Future<void> Function() onChanged;
   final MeasurePlanTool planTool;
+  final OpeningType? preferredOpeningType;
+  final ValueChanged<String?>? onSelectionChanged;
+  final bool nativeKitV2;
   final VoidCallback onOpenObjects;
   final VoidCallback onOpenReview;
   final VoidCallback onOpenGeometry;
@@ -692,11 +698,15 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
             _selectedWallId = _wallNear(p)?.id;
             _selectedNodeId = _nodeNear(p)?.id;
           });
+          widget.onSelectionChanged?.call(_selectedWallId != null
+              ? 'wall' : _selectedNodeId != null ? 'node' : null);
         case MeasurePlanTool.nodes:
           setState(() {
             _selectedNodeId = _nodeNear(p)?.id;
             _selectedWallId = null;
           });
+          widget.onSelectionChanged?.call(
+              _selectedNodeId != null ? 'node' : null);
         case MeasurePlanTool.exterior:
           await _createWall(p, type: WallType.exterior);
         case MeasurePlanTool.partition:
@@ -707,9 +717,13 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
         case MeasurePlanTool.openings:
           final hit = _openingNear(p);
           if (hit != null) {
+            widget.onSelectionChanged?.call(
+              hit.opening.type == OpeningType.door ? 'door' : 'window');
             await _editOpening(hit.wall, hit.opening);
           } else {
-            await _addOpening(p, chooseType: true);
+            widget.onSelectionChanged?.call(null);
+            await _addOpening(p,
+              chooseType: widget.preferredOpeningType == null);
           }
         case MeasurePlanTool.demolition:
           await _toggleDemolition(p);
@@ -1463,7 +1477,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   Future<void> _addOpening(Offset p, {bool chooseType = false}) async {
     final wall = _wallNear(p);
     if (wall == null) return;
-    var kind = OpeningType.door;
+    var kind = widget.preferredOpeningType ?? OpeningType.door;
     if (chooseType) {
       final selected = await showModalBottomSheet<OpeningType>(
         context: context,
@@ -2952,7 +2966,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                 Positioned(
                   left: 8,
                   right: 8,
-                  bottom: 8,
+                  top: widget.nativeKitV2 ? 65 : null,
+                  bottom: widget.nativeKitV2 ? null : 8,
                   child: _compactEditingBar(),
                 ),
               Positioned(
