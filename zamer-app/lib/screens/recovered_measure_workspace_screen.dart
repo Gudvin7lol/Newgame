@@ -324,11 +324,18 @@ class _RecoveredMeasureWorkspaceScreenState
                 };
                 return KeyedSubtree(
                   key: ValueKey('kit-v2-task-$index'),
-                  child: ZamerKitSegment(
-                    label: categories[index],
-                    icon: icon,
-                    selected: selected,
-                    onTap: () => _selectTask(index),
+                  // Horizontal ListView gives children unbounded width.
+                  // An explicit chip width keeps the Segment's LayoutBuilder
+                  // and Flexible label valid on small Android screens.
+                  child: SizedBox(
+                    width: categories[index].length > 10
+                        ? 156 : categories[index].length > 7 ? 140 : 116,
+                    child: ZamerKitSegment(
+                      label: categories[index],
+                      icon: icon,
+                      selected: selected,
+                      onTap: () => _selectTask(index),
+                    ),
                   ),
                 );
               },

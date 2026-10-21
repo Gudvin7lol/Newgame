@@ -28,7 +28,8 @@ void main() {
       expect(home.contains(required), isTrue, reason: 'Missing Home action: $required');
     }
 
-    expect(home.contains('FloorWorkspaceScreen('), isTrue);
+    expect(home.contains('RecoveredProjectWorkspaceScreen('), isTrue);
+    expect(home.contains('FloorWorkspaceScreen('), isFalse);
     expect(home.contains('FloorsScreen('), isFalse);
   });
 

@@ -17,7 +17,8 @@ void main() {
     final source =
         File('lib/screens/production_home_screen.dart').readAsStringSync();
 
-    expect(source.contains('FloorWorkspaceScreen('), isTrue);
+    expect(source.contains('RecoveredProjectWorkspaceScreen('), isTrue);
+    expect(source.contains('FloorWorkspaceScreen('), isFalse);
     expect(source.contains('initialMode: mode.clamp(0, 2)'), isTrue);
     expect(source.contains('FloorsScreen('), isFalse);
   });

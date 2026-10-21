@@ -23,7 +23,8 @@ void main() {
     }
     expect(home.contains('FloorsScreen('), isFalse);
     expect(home.contains("import 'floors_screen.dart';"), isFalse);
-    expect(home.contains('FloorWorkspaceScreen('), isTrue);
+    expect(home.contains('RecoveredProjectWorkspaceScreen('), isTrue);
+    expect(home.contains('FloorWorkspaceScreen('), isFalse);
     for (final operation in const [
       '_createProject',
       '_rename(',
