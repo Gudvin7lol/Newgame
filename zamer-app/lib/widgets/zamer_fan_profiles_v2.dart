@@ -100,7 +100,7 @@ abstract final class ZamerFanProfilesV2 {
     'light':'Светильник', 'row':'Ряд',
     'toBlock':'В блок', 'composition':'Состав',
     'orientation':'Ориентация', 'route':'Трасса',
-    'byWall':'По стене', 'connect':'Подключить',
+    'connect':'Подключить',
     'reassignGroup':'Переназначить группу',
     'connections':'Подключения','groups':'Группы',
     'createGroup':'Создать группу','selectPoints':'Выбрать точки',
