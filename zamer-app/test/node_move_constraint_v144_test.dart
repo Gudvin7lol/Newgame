@@ -94,6 +94,21 @@ void main() {
     expect(result.message, contains('Проём'));
   });
 
+  test('moving a wall onto another unjoined wall is rejected', () {
+    final f = rectangle();
+    f.nodes.addAll([
+      PlanNode(id: 'e', xMm: 4300, yMm: 500),
+      PlanNode(id: 'g', xMm: 4300, yMm: 2500),
+    ]);
+    f.walls.add(PlanWall(id: 'eg',
+      startNodeId: 'e', endNodeId: 'g'));
+    final preview = NodeMoveConstraintService.evaluate(
+      f, nodeId: 'b', destination: const math.Point<double>(4300, 0),
+    );
+    expect(preview.isValid, isFalse);
+    expect(preview.message, contains('накладываются'));
+  });
+
   test('diagonal and curved wall geometry are protected from node drag', () {
     final f = rectangle();
     f.nodes.add(PlanNode(id: 'e', xMm: 600, yMm: -400));
