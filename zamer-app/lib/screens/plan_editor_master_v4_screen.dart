@@ -784,6 +784,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     nodeCaptureMm: 14 / (_mmToPx * _scale),
     wallCaptureMm: 12 / (_mmToPx * _scale),
     allowWallFaces: _captureWallFace,
+    previousSnap: _liveWallSnap,
   );
 
   // Listener is passive: it never claims a gesture. Navigation is only
