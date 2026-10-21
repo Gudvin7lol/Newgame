@@ -651,7 +651,13 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
     // The unified Measure flow adds furniture through its Catalog sheet.
     // Empty taps must not clone the last catalog selection behind the user's
     // back. In embedded mode the canvas is manipulation-only.
-    if (widget.embedded) return;
+    if (widget.embedded) {
+      if (_selectedId != null) {
+        setState(() => _selectedId = null);
+        _notifySelection();
+      }
+      return;
+    }
 
     late PlanObject o;
     if (_source == _AddSource.catalog) {
