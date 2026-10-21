@@ -90,7 +90,9 @@ class _MeasureUnifiedWorkspaceScreenState
   ElectricalMode _electricalMode = ElectricalMode.select;
   ElectricalPointType _electricalType = ElectricalPointType.socket;
   ZMeasureViewMode _view = ZMeasureViewMode.twoD;
-  MeasurePlanTool _planTool = MeasurePlanTool.select;
+  // Keep the familiar collapsed Floor/Walls material strip at first open.
+  // Native fan Select is independent from the overview inspector state.
+  MeasurePlanTool _planTool = MeasurePlanTool.overview;
 
   static const _planTools = <(MeasurePlanTool, String, IconData)>[
     (MeasurePlanTool.overview, 'Обзор', Icons.dashboard_customize_outlined),
@@ -108,8 +110,7 @@ class _MeasureUnifiedWorkspaceScreenState
   @override
   void initState() {
     super.initState();
-    _planTool = widget.planToolRequest.value == MeasurePlanTool.overview
-        ? MeasurePlanTool.select : widget.planToolRequest.value;
+    _planTool = widget.planToolRequest.value;
     widget.planToolRequest.addListener(_handlePlanToolRequest);
   }
 
