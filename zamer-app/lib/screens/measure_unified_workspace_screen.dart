@@ -739,7 +739,9 @@ class _MeasureUnifiedWorkspaceScreenState
                 if (_layer < 4)
                   Positioned(
                     right: 64,
-                    bottom: 18,
+                    // Keep the fan completely above the bottom Floor/Walls
+                    // strip instead of intercepting material-tab touches.
+                    bottom: 72,
                     child: ZamerKitFan(
                       key: const ValueKey('zamer-live-native-v2-fan'),
                       contextId: '${_fanContext}:${_categoryIndex}',
