@@ -487,8 +487,8 @@ class ZamerKitSegment extends StatelessWidget {
               gradient: LinearGradient(
                 begin: Alignment.topLeft, end: Alignment.bottomRight,
                 colors: selected
-                  ? const [Color(0xFFFFE4BB), Color(0xFFFFD0A1),
-                      Color(0xFFF4B784)]
+                  ? const [Color(0xFFFFE4BB), Color(0xFFFFD7AB),
+                      Color(0xFFFFD0A1), Color(0xFFF4B784)]
                   : const [Color(0xFF69696D), Color(0xFF353B42),
                       Color(0xFF20272D), Color(0xFF5C4A3B)],
                 stops: const [0, .18, .75, 1],
