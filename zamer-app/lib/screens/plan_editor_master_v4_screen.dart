@@ -72,7 +72,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   final TransformationController _transform = TransformationController();
   final Set<ProjectLayer> _visibleLayers = ProjectLayer.values.toSet();
   final Set<PlanDisplayLayer> _visibleCategories = PlanDisplayLayer.values.toSet()
-    ..remove(PlanDisplayLayer.axisDimensions);
+    ..remove(PlanDisplayLayer.axisDimensions)
+    ..remove(PlanDisplayLayer.dimensions);
   final Set<PlanCollisionKind> _collisionKinds = PlanCollisionKind.values.toSet();
 
   ZMeasureTool _tool = ZMeasureTool.walls;
@@ -2092,7 +2093,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                           draftCategories
                             ..clear()
                             ..addAll(PlanDisplayLayer.values)
-                            ..remove(PlanDisplayLayer.axisDimensions);
+                            ..remove(PlanDisplayLayer.axisDimensions)
+                            ..remove(PlanDisplayLayer.dimensions);
                           draftCollisions
                             ..clear()
                             ..addAll(PlanCollisionKind.values);
@@ -2729,8 +2731,13 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                             origin: _origin,
                             selectedWallId: _selectedWallId,
                             showGrid: _grid,
+                            zoom: _scale,
                             visibleLayers: _visibleLayers,
-                            visibleCategories: _visibleCategories,
+                            visibleCategories: <PlanDisplayLayer>{
+                              ..._visibleCategories,
+                              if (widget.planTool == MeasurePlanTool.dimensions)
+                                PlanDisplayLayer.dimensions,
+                            },
                             collisionKinds: _collisionKinds,
                             showOpeningDimensions:
                                 widget.planTool == MeasurePlanTool.openings,
