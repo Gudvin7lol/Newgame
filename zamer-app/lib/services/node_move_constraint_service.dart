@@ -145,18 +145,21 @@ class NodeMoveConstraintService {
             a.startNodeId == b.endNodeId ||
             a.endNodeId == b.startNodeId ||
             a.endNodeId == b.endNodeId) continue;
-        if (_crosses(
-              coordinates[a.startNodeId]!, coordinates[a.endNodeId]!,
-              coordinates[b.startNodeId]!, coordinates[b.endNodeId]!,
-            ) &&
-            !_crosses(
-              _original(before, a.startNodeId),
-              _original(before, a.endNodeId),
-              _original(before, b.startNodeId),
-              _original(before, b.endNodeId),
-            )) {
+        final newA = coordinates[a.startNodeId]!;
+        final newB = coordinates[a.endNodeId]!;
+        final newC = coordinates[b.startNodeId]!;
+        final newD = coordinates[b.endNodeId]!;
+        final oldA = _original(before, a.startNodeId);
+        final oldB = _original(before, a.endNodeId);
+        final oldC = _original(before, b.startNodeId);
+        final oldD = _original(before, b.endNodeId);
+        final newConflict = _crosses(newA, newB, newC, newD) ||
+            _overlapsAxis(newA, newB, newC, newD);
+        final oldConflict = _crosses(oldA, oldB, oldC, oldD) ||
+            _overlapsAxis(oldA, oldB, oldC, oldD);
+        if (newConflict && !oldConflict) {
           return const NodeMoveConstraintResult(
-            isValid: false, message: 'Стены пересекаются',
+            isValid: false, message: 'Стены пересекаются или накладываются',
           );
         }
       }
@@ -165,6 +168,30 @@ class NodeMoveConstraintService {
     return NodeMoveConstraintResult(
       isValid: true, positions: coordinates, movedNodeIds: changed,
     );
+  }
+
+  static bool _overlapsAxis(
+    math.Point<double> a, math.Point<double> b,
+    math.Point<double> c, math.Point<double> d,
+  ) {
+    const tolerance = 0.5, minOverlap = 10.0;
+    final vertical = (a.x - b.x).abs() < tolerance &&
+        (c.x - d.x).abs() < tolerance &&
+        (a.x - c.x).abs() < tolerance;
+    if (vertical) {
+      return math.min(math.max(a.y, b.y), math.max(c.y, d.y)) -
+          math.max(math.min(a.y, b.y), math.min(c.y, d.y)) >
+          minOverlap;
+    }
+    final horizontal = (a.y - b.y).abs() < tolerance &&
+        (c.y - d.y).abs() < tolerance &&
+        (a.y - c.y).abs() < tolerance;
+    if (horizontal) {
+      return math.min(math.max(a.x, b.x), math.max(c.x, d.x)) -
+          math.max(math.min(a.x, b.x), math.min(c.x, d.x)) >
+          minOverlap;
+    }
+    return false;
   }
 
   static math.Point<double> _original(FloorPlan f, String id) {
