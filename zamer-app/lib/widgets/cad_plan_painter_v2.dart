@@ -1012,8 +1012,8 @@ class CadPlanPainterV2 extends CustomPainter {
       final text = TextPainter(
         text: TextSpan(
           text: '${dimension.lengthMm.round()}',
-          style: const TextStyle(
-            color: Color(0xFF73888C),
+          style: TextStyle(
+            color: const Color(0xFF73888C),
             fontSize: 9.0 * invZoom,
             fontWeight: FontWeight.w500,
           ),
