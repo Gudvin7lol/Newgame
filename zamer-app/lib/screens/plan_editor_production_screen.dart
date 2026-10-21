@@ -12,6 +12,7 @@ class PlanEditorProductionScreen extends StatelessWidget {
     this.planTool = MeasurePlanTool.overview,
     this.preferredOpeningType,
     this.onSelectionChanged,
+    this.nativeKitV2 = false,
     required this.onOpenObjects,
     required this.onOpenReview,
     required this.onOpenPlanGeometry,
@@ -30,6 +31,7 @@ class PlanEditorProductionScreen extends StatelessWidget {
   final MeasurePlanTool planTool;
   final OpeningType? preferredOpeningType;
   final ValueChanged<String?>? onSelectionChanged;
+  final bool nativeKitV2;
   final VoidCallback onOpenObjects;
   final VoidCallback onOpenReview;
   final VoidCallback onOpenPlanGeometry;
@@ -50,6 +52,7 @@ class PlanEditorProductionScreen extends StatelessWidget {
       planTool: planTool,
       preferredOpeningType: preferredOpeningType,
       onSelectionChanged: onSelectionChanged,
+      nativeKitV2: nativeKitV2,
       onOpenObjects: onOpenObjects,
       onOpenReview: onOpenReview,
       onOpenGeometry: onOpenPlanGeometry,
