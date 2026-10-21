@@ -264,7 +264,10 @@ class _ZamerKitFanState extends State<ZamerKitFan> {
           }
         },
         onPanEnd: (_) {
-          // Release after scrolling must never fire the command under finger.
+          // Flutter's pan recognizer has already defeated the tap recognizer.
+          // Clear the gesture guard so the *next* genuine tap still works.
+          _draggingOuter = false;
+          _ringWasDragged = false;
         },
         child: Stack(
           clipBehavior: Clip.none,
