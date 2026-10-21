@@ -37,6 +37,7 @@ class CadPlanPainterV2 extends CustomPainter {
     this.selectedWallId,
     this.showGrid = true,
     this.showDimensions = true,
+    this.zoom = 1.0,
     this.showOpeningDimensions = false,
     this.drawTopView,
     Set<ProjectLayer>? visibleLayers,
@@ -53,6 +54,7 @@ class CadPlanPainterV2 extends CustomPainter {
   final String? selectedWallId;
   final bool showGrid;
   final bool showDimensions;
+  final double zoom;
   final bool showOpeningDimensions;
   final ObjectTopViewPainter? drawTopView;
   final Set<ProjectLayer> visibleLayers;
@@ -956,54 +958,57 @@ class CadPlanPainterV2 extends CustomPainter {
   /// A split host wall forms one uninterrupted dimension if its inner face
   /// remains collinear across the T-junction.
   void _innerDimensions(Canvas canvas, List<RoomFace> faces) {
+    // CAD world stays in millimetres, but dimension labels and witness lines
+    // occupy constant screen space as zoom changes.
+    final invZoom = 1.0 / math.max(0.28, zoom);
     final linePaint = Paint()
-      ..color = const Color(0xFF52757A).withValues(alpha: .23)
-      ..strokeWidth = .38;
+      ..color = const Color(0xFF52757A).withValues(alpha: .22)
+      ..strokeWidth = .48 * invZoom;
     final capPaint = Paint()
-      ..color = const Color(0xFF52757A).withValues(alpha: .29)
-      ..strokeWidth = .40;
+      ..color = const Color(0xFF52757A).withValues(alpha: .30)
+      ..strokeWidth = .52 * invZoom;
     for (final dimension in RoomInteriorDimensionsService.forFloor(
       floor, faces: faces,
     )) {
       final a = _q(dimension.start);
       final b = _q(dimension.end);
       final vector = b - a;
-      if (vector.distance < 24) continue;
+      if (vector.distance * zoom < 54) continue;
 
       final tangent = vector / vector.distance;
       // The half-edge traversal keeps the room on its right in screen
       // coordinates; therefore this offset remains on the room side.
       final roomNormal = Offset(-tangent.dy, tangent.dx);
-      const marginPx = 10.0;
+      final marginPx = 10.0 * invZoom;
       final inset = roomNormal * marginPx;
       final p1 = a + inset;
       final p2 = b + inset;
 
       // Witnesses originate at actual inside corners. The short offset line
       // is only a label/readability aid; its ends are not axis points.
-      canvas.drawLine(a + roomNormal * 2.5, p1 + roomNormal * 2.0, linePaint);
-      canvas.drawLine(b + roomNormal * 2.5, p2 + roomNormal * 2.0, linePaint);
+      canvas.drawLine(a + roomNormal * (2.5 * invZoom), p1 + roomNormal * (2.0 * invZoom), linePaint);
+      canvas.drawLine(b + roomNormal * (2.5 * invZoom), p2 + roomNormal * (2.0 * invZoom), linePaint);
       canvas.drawLine(p1, p2, linePaint);
       canvas.drawLine(
-        p1 - roomNormal * 3,
-        p1 + roomNormal * 3,
+        p1 - roomNormal * (3 * invZoom),
+        p1 + roomNormal * (3 * invZoom),
         capPaint,
       );
       canvas.drawLine(
-        p2 - roomNormal * 3,
-        p2 + roomNormal * 3,
+        p2 - roomNormal * (3 * invZoom),
+        p2 + roomNormal * (3 * invZoom),
         capPaint,
       );
 
       // Distance is calculated in millimetres from the offset polygon and
       // rounded only for display. Saved CAD geometry retains full precision.
-      if (vector.distance < 46) continue;
+      if (vector.distance * zoom < 70) continue;
       final text = TextPainter(
         text: TextSpan(
           text: '${dimension.lengthMm.round()}',
           style: const TextStyle(
             color: Color(0xFF73888C),
-            fontSize: 6.8,
+            fontSize: 9.0 * invZoom,
             fontWeight: FontWeight.w500,
           ),
         ),
@@ -1014,12 +1019,12 @@ class CadPlanPainterV2 extends CustomPainter {
       final center = (p1 + p2) / 2;
       final bg = Rect.fromCenter(
         center: center,
-        width: text.width + 9,
-        height: text.height + 3.5,
+        width: text.width + 7 * invZoom,
+        height: text.height + 3 * invZoom,
       );
       canvas.drawRRect(
-        RRect.fromRectAndRadius(bg, const Radius.circular(2)),
-        Paint()..color = const Color(0xFFF3F0E8).withValues(alpha: .48),
+        RRect.fromRectAndRadius(bg, Radius.circular(2 * invZoom)),
+        Paint()..color = const Color(0xFFF3F0E8).withValues(alpha: .38),
       );
       text.paint(
         canvas,
