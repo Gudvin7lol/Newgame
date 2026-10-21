@@ -16,11 +16,13 @@ class ElectricalScreen extends StatefulWidget {
     required this.onChanged,
     this.requestedMode,
     this.requestedType,
+    this.embedded = false,
   });
   final FloorPlan floor;
   final Future<void> Function() onChanged;
   final ElectricalMode? requestedMode;
   final ElectricalPointType? requestedType;
+  final bool embedded;
 
   @override
   State<ElectricalScreen> createState() => _ElectricalScreenState();
@@ -817,7 +819,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     }
     return Column(
       children: [
-        Padding(
+        if (!widget.embedded) Padding(
           padding: const EdgeInsets.fromLTRB(10, 8, 10, 4),
           child: Card(
             child: Padding(
@@ -944,6 +946,15 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
             ),
           ),
         ),
+        if (widget.embedded)
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: _heightDefaults,
+              icon: const Icon(Icons.height, size: 16),
+              label: const Text('Высоты'),
+            ),
+          ),
         Expanded(
           child: LayoutBuilder(
             builder: (context, c) {
@@ -966,6 +977,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                     origin: t.origin,
                     selectedPointId: _selectedId,
                     wireStartPointId: _wireStartId,
+                    darkMode: widget.embedded,
                   ),
                   child: const SizedBox.expand(),
                 ),
@@ -973,7 +985,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
             },
           ),
         ),
-        if (widget.floor.electricalPoints.isNotEmpty)
+        if (!widget.embedded && widget.floor.electricalPoints.isNotEmpty)
           Container(
             width: double.infinity,
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
