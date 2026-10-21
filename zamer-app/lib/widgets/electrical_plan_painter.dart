@@ -11,6 +11,7 @@ class ElectricalPlanPainter extends CustomPainter {
     this.selectedPointId,
     this.wireStartPointId,
     this.darkMode = false,
+    this.overlayOnly = false,
   });
 
   final FloorPlan floor;
@@ -19,15 +20,17 @@ class ElectricalPlanPainter extends CustomPainter {
   final String? selectedPointId;
   final String? wireStartPointId;
   final bool darkMode;
+  /// Retain CAD flooring, furniture, walls below electrical layer.
+  final bool overlayOnly;
 
   Offset p(double x, double y) => origin + Offset(x * scale, y * scale);
 
   @override
   void paint(Canvas canvas, Size size) {
-    canvas.drawRect(Offset.zero & size, Paint()
+    if (!overlayOnly) canvas.drawRect(Offset.zero & size, Paint()
       ..color = darkMode ? const Color(0xFF09151B) : const Color(0xFFF7F8FA));
 
-    for (final wall in floor.walls) {
+    if (!overlayOnly) for (final wall in floor.walls) {
       final a = floor.nodeById(wall.startNodeId);
       final b = floor.nodeById(wall.endNodeId);
       if (a == null || b == null) continue;
