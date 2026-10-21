@@ -613,12 +613,34 @@ class CadPlanPainterV2 extends CustomPainter {
     final axis = wallEnd - wallStart;
     final length = axis.distance;
     if (length < 1) return;
-    final invZoom = 1.0 / math.max(.28, zoom);
+    final tangent = axis / length;
+    final invZoom = 1.0 / math.max(0.28, zoom);
+    final beginMm = (jambStart - wallStart).distance / mmToPx;
+    final endMm = (jambEnd - wallStart).distance / mmToPx;
+    final wallLengthMm = length / mmToPx;
+
+    // A long construction wall can contain a T-junction. Measure from
+    // the nearest structural corner/junction, not from a remote endpoint.
+    final junctionsMm = <double>[0.0, wallLengthMm];
+    for (final node in floor.nodes) {
+      if (node.id == wall.startNodeId || node.id == wall.endNodeId ||
+          floor.nodeDegree(node.id) < 2) continue;
+      final point = _p(node) - wallStart;
+      final alongPx = point.dx * tangent.dx + point.dy * tangent.dy;
+      final awayPx = (point.dx * tangent.dy - point.dy * tangent.dx).abs();
+      if (awayPx > math.max(1.5, mmToPx * 15) ||
+          alongPx < 0 || alongPx > length) continue;
+      junctionsMm.add(alongPx / mmToPx);
+    }
+    final previous = junctionsMm
+        .where((at) => at <= beginMm + .01).reduce(math.max);
+    final next = junctionsMm
+        .where((at) => at >= endMm - .01).reduce(math.min);
+    Offset atMm(double value) => wallStart + tangent * (value * mmToPx);
+
     final values = <({Offset from, Offset to, double mm})>[
-      (from: wallStart, to: jambStart,
-       mm: (jambStart - wallStart).distance / mmToPx),
-      (from: jambEnd, to: wallEnd,
-       mm: (wallEnd - jambEnd).distance / mmToPx),
+      (from: atMm(previous), to: jambStart, mm: beginMm - previous),
+      (from: jambEnd, to: atMm(next), mm: next - endMm),
     ];
     final line = Paint()
       ..color = const Color(0xFF9FC5D2).withValues(alpha: .62)
