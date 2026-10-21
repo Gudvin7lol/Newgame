@@ -2920,6 +2920,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                       const SizedBox(width: 5),
                     ],
                     ZMeasureCanvasAction(
+                      compact: widget.nativeKitV2,
+                      subtleActive: widget.nativeKitV2,
                       key: const ValueKey('plan-layers-button'),
                       icon: Icons.layers_outlined,
                       tooltip: 'Слои и коллизии',
@@ -2929,6 +2931,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                     ),
                     const SizedBox(width: 5),
                     ZMeasureCanvasAction(
+                      compact: widget.nativeKitV2,
+                      subtleActive: widget.nativeKitV2,
                       icon: _grid ? Icons.grid_on_outlined : Icons.grid_off_outlined,
                       tooltip: 'Сетка',
                       active: _grid,
@@ -2936,6 +2940,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                     ),
                     const SizedBox(width: 5),
                     ZMeasureCanvasAction(
+                      compact: widget.nativeKitV2,
+                      subtleActive: widget.nativeKitV2,
                       icon: _snapping ? Icons.link : Icons.link_off,
                       tooltip: 'Привязки',
                       active: _snapping,
