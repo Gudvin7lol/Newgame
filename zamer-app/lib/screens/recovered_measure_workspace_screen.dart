@@ -197,10 +197,19 @@ class _RecoveredMeasureWorkspaceScreenState
       _taskActivated = true;
       _selectionKind = null;
       _activeFanCommand = 'select';
-      _planTool = MeasurePlanTool.select;
+      // A tool strip button is an actual action, not a second menu that
+      // requires another tap in the radial dial to begin construction.
+      _planTool = _layer == 0 ? switch (value) {
+        0 => MeasurePlanTool.exterior,
+        1 => MeasurePlanTool.partition,
+        2 => MeasurePlanTool.openings,
+        3 => MeasurePlanTool.demolition,
+        _ => MeasurePlanTool.dimensions,
+      } : MeasurePlanTool.select;
       _preferredOpeningType = null;
       if (_layer == 3) {
-        _electricalMode = ElectricalMode.select;
+        _electricalMode = value == 3
+            ? ElectricalMode.wire : ElectricalMode.add;
         _electricalType = switch (value) {
           1 => ElectricalPointType.switchPoint,
           2 => ElectricalPointType.ceilingLight,
@@ -209,6 +218,7 @@ class _RecoveredMeasureWorkspaceScreenState
         };
       }
     });
+    if (_layer == 2) _openCatalogSheet();
   }
 
   void _fanCommand(String id) {
