@@ -91,6 +91,22 @@ class NodeMoveConstraintService {
           isValid: false, message: 'Стена станет короче 120 мм',
         );
       }
+      // A wall must not silently reverse its start/end direction: openings,
+      // finished-side normals, and frame offsets all use that orientation.
+      if ((oldB.xMm - oldA.xMm) * (b.x - a.x) +
+          (oldB.yMm - oldA.yMm) * (b.y - a.y) <= 0) {
+        return const NodeMoveConstraintResult(
+          isValid: false, message: 'Нельзя переворачивать ось стены',
+        );
+      }
+      for (final opening in wall.openings) {
+        if (opening.offsetFromStartMm < 0 ||
+            opening.offsetFromStartMm + opening.widthMm > distance + .01) {
+          return const NodeMoveConstraintResult(
+            isValid: false, message: 'Проём выйдет за границы стены',
+          );
+        }
+      }
       final axisX = (oldA.xMm - oldB.xMm).abs() <= _epsilon;
       final axisY = (oldA.yMm - oldB.yMm).abs() <= _epsilon;
       if ((axisX && (a.x - b.x).abs() > _epsilon) ||
