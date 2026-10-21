@@ -16,6 +16,7 @@ class CadPlanPainter extends CadPlanPainterV3 {
     super.selectedWallId,
     super.showGrid = true,
     super.showDimensions = true,
+    super.zoom = 1.0,
     super.showOpeningDimensions = false,
     Set<ProjectLayer>? visibleLayers,
     Set<PlanDisplayLayer>? visibleCategories,

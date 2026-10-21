@@ -19,10 +19,25 @@ class OpeningAlignmentService {
     required double openingWidthMm,
     double toleranceMm = 130,
   }) {
+    final options = targets(floor, host,
+      desiredOffsetMm: desiredOffsetMm,
+      openingWidthMm: openingWidthMm,
+      toleranceMm: toleranceMm);
+    return options.isEmpty ? null : options.first;
+  }
+
+  /// All exact axis candidates. The editor uses these for explicit
+  /// "centre" and "opposite door" actions without needing a near miss.
+  static List<OpeningAlignmentTarget> targets(
+    FloorPlan floor, PlanWall host, {
+    required double desiredOffsetMm,
+    required double openingWidthMm,
+    double toleranceMm = 130,
+  }) {
     final a = floor.nodeById(host.startNodeId);
     final b = floor.nodeById(host.endNodeId);
     final hostLen = floor.wallLengthMm(host);
-    if (a == null || b == null || hostLen <= openingWidthMm) return null;
+    if (a == null || b == null || hostLen <= openingWidthMm) return const [];
     final ux = (b.xMm - a.xMm) / hostLen;
     final uy = (b.yMm - a.yMm) / hostLen;
     final requestedCenter = desiredOffsetMm + openingWidthMm / 2;
@@ -81,7 +96,7 @@ class OpeningAlignmentService {
       }
     }
     candidate(hostLen / 2, 'Центр стены');
-    if (options.isEmpty) return null;
+    if (options.isEmpty) return options;
     // Opposite-door axis wins when several construction guides coincide.
     options.sort((a, b) {
       final pa = a.label == 'По оси двери напротив' ? 0 : 1;
@@ -91,6 +106,6 @@ class OpeningAlignmentService {
       return (a.offsetMm - desiredOffsetMm).abs()
           .compareTo((b.offsetMm - desiredOffsetMm).abs());
     });
-    return options.first;
+    return options;
   }
 }
