@@ -13,7 +13,7 @@ import '../services/geometry_service.dart';
 import '../services/project_backup_service.dart';
 import '../services/project_store.dart';
 import '../services/report_service.dart';
-import 'floor_workspace_screen.dart';
+import 'recovered_project_workspace_screen.dart';
 import 'master_profile_screen.dart';
 import 'projects_screen.dart';
 import 'scan_plan_screen.dart';
@@ -177,7 +177,7 @@ class _ProductionHomeScreenState extends State<ProductionHomeScreen> {
     await Navigator.push<void>(
       context,
       MaterialPageRoute<void>(
-        builder: (_) => FloorWorkspaceScreen(
+        builder: (_) => RecoveredProjectWorkspaceScreen(
           project: project,
           floor: project.floors.first,
           onChanged: _save,
