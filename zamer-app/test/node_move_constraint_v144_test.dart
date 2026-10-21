@@ -70,6 +70,30 @@ void main() {
     expect(f.toJson().toString(), initial);
   });
 
+  test('does not invert the endpoint direction when dragged beyond opposite wall', () {
+    final f = rectangle();
+    final result = NodeMoveConstraintService.evaluate(
+      f, nodeId: 'a',
+      destination: const math.Point<double>(4500, 500),
+    );
+    expect(result.isValid, isFalse);
+    expect(result.message, contains('переворачивать'));
+  });
+
+  test('existing door width and frame offset survive corner edits', () {
+    final f = rectangle();
+    f.walls.first.openings.add(WallOpening(
+      id: 'door', type: OpeningType.door,
+      widthMm: 900, heightMm: 2100, offsetFromStartMm: 2700,
+    ));
+    final result = NodeMoveConstraintService.evaluate(
+      f, nodeId: 'a',
+      destination: const math.Point<double>(900, 0),
+    );
+    expect(result.isValid, isFalse);
+    expect(result.message, contains('Проём'));
+  });
+
   test('diagonal and curved wall geometry are protected from node drag', () {
     final f = rectangle();
     f.nodes.add(PlanNode(id: 'e', xMm: 600, yMm: -400));
