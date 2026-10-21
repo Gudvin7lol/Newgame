@@ -69,6 +69,7 @@ class _ZamerKitFanState extends State<ZamerKitFan> {
   double _dragAmount = 0;
   bool _ringWasDragged = false;
   bool _draggingOuter = false;
+  double? _lastOuterAngle;
 
   static const _select = ZamerKitCommand(
     'select', 'Выбрать', Icons.near_me_outlined);
@@ -125,6 +126,13 @@ class _ZamerKitFanState extends State<ZamerKitFan> {
     );
   }
 
+  double _angleFor(Offset local) {
+    final p = _leftHanded
+        ? Offset(_size - local.dx, local.dy) : local;
+    final v = p - const Offset(188, 188);
+    return math.atan2(v.dy, v.dx) * 180 / math.pi;
+  }
+
   int get _lastRingStart => math.max(0, widget.outer.length - 3);
 
   void _stepRing(int direction) {
@@ -155,7 +163,7 @@ class _ZamerKitFanState extends State<ZamerKitFan> {
       }
       return;
     }
-    if (r >= 30 && r <= 103) {
+    if (r >= 34 && r <= 110) {
       final candidates = <(double, ZamerKitCommand)>[
         (180, _select), (225, widget.first), (270, widget.second),
       ];
@@ -166,7 +174,7 @@ class _ZamerKitFanState extends State<ZamerKitFan> {
         }
       }
     }
-    if (r >= 108 && r <= 176) {
+    if (r >= 124 && r <= 172) {
       const angles = [180.0, 220.0, 260.0];
       for (var i = 0; i < 3; i++) {
         if ((angle - angles[i]).abs() <= 19 &&
@@ -249,17 +257,25 @@ class _ZamerKitFanState extends State<ZamerKitFan> {
           final local = details.localPosition;
           final p = _leftHanded
               ? Offset(_size - local.dx, local.dy) : local;
-          _draggingOuter =
-              (p - const Offset(188, 188)).distance >= 108;
+          final distance = (p - const Offset(188, 188)).distance;
+          _draggingOuter = _expanded &&
+              distance >= 108 && distance <= 180;
+          _lastOuterAngle = _draggingOuter
+              ? _angleFor(local) : null;
           _dragAmount = 0;
           _ringWasDragged = false;
         },
         onPanUpdate: (d) {
-          if (!_draggingOuter) return;
-          _dragAmount += d.delta.dx + d.delta.dy;
-          if (_dragAmount.abs() >= 24) {
+          if (!_draggingOuter || _lastOuterAngle == null) return;
+          final angle = _angleFor(d.localPosition);
+          var delta = angle - _lastOuterAngle!;
+          if (delta > 180) delta -= 360;
+          if (delta < -180) delta += 360;
+          _dragAmount += delta;
+          _lastOuterAngle = angle;
+          if (_dragAmount.abs() >= 18) {
             _ringWasDragged = true;
-            _stepRing(_dragAmount > 0 ? 1 : -1);
+            _stepRing(_dragAmount < 0 ? 1 : -1);
             _dragAmount = 0;
           }
         },
@@ -267,6 +283,7 @@ class _ZamerKitFanState extends State<ZamerKitFan> {
           // Flutter's pan recognizer has already defeated the tap recognizer.
           // Clear the gesture guard so the *next* genuine tap still works.
           _draggingOuter = false;
+          _lastOuterAngle = null;
           _ringWasDragged = false;
         },
         child: Stack(
@@ -416,16 +433,16 @@ class _FanShellPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     // The SELECT sector has one permanent hit area whether open or closed.
-    _sector(canvas, 30, 103, 155, 202, selected == 'select');
+    _sector(canvas, 34, 110, 155, 202, selected == 'select');
     if (showMain) {
-      _sector(canvas, 30, 103, 204, 247, selected == firstId);
-      _sector(canvas, 30, 103, 249, 293, selected == secondId);
+      _sector(canvas, 34, 110, 204, 247, selected == firstId);
+      _sector(canvas, 34, 110, 249, 293, selected == secondId);
     }
     final angles = <(double, double)>[
       (158, 199), (201, 240), (242, 282),
     ];
     for (var i = 0; i < showOuter; i++) {
-      _sector(canvas, 113, 173, angles[i].$1, angles[i].$2, false);
+      _sector(canvas, 124, 172, angles[i].$1, angles[i].$2, false);
     }
   }
 
