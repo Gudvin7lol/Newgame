@@ -15,6 +15,9 @@ import 'materials_screen.dart';
 import 'measure_floor_plan_layer_screen.dart';
 import 'plan_editor_production_screen.dart';
 import 'planning_objects_screen.dart';
+import 'measure_plan_tool.dart';
+import '../widgets/zamer_ui_kit_v2.dart';
+import '../widgets/zamer_fan_profiles_v2.dart';
 
 /// Unified Measure preserved from the functional 1.5.7 line, with the
 /// recovered four-destination project navigation.
@@ -64,6 +67,12 @@ class RecoveredMeasureWorkspaceScreen extends StatefulWidget {
 class _RecoveredMeasureWorkspaceScreenState
     extends State<RecoveredMeasureWorkspaceScreen> {
   int _layer = 0;
+  int _categoryIndex = 0;
+  bool _taskActivated = false;
+  String? _selectionKind;
+  String _activeFanCommand = 'select';
+  MeasurePlanTool _planTool = MeasurePlanTool.select;
+  OpeningType? _preferredOpeningType;
   ZMeasureViewMode _view = ZMeasureViewMode.twoD;
 
   static const _layers = <(String, IconData)>[
@@ -93,7 +102,231 @@ class _RecoveredMeasureWorkspaceScreenState
     setState(() {
       _view = ZMeasureViewMode.twoD;
       _layer = value.clamp(0, _layers.length - 1).toInt();
+      _categoryIndex = 0;
+      _taskActivated = false;
+      _selectionKind = null;
+      _activeFanCommand = 'select';
+      // Entry into a section always starts in selection, not construction.
+      _planTool = MeasurePlanTool.select;
     });
+  }
+
+  String get _fanContext {
+    if (_layer == 0) {
+      if (_selectionKind == 'wall') return 'plan.wall.selected';
+      if (_selectionKind == 'node') return 'plan.nodes.edit';
+      if (_selectionKind == 'door') return 'plan.door.selected';
+      if (_selectionKind == 'window') return 'plan.window.selected';
+      if (_selectionKind == 'room') return 'plan.room.selected';
+      if (!_taskActivated) return 'plan.idle';
+      return switch (_categoryIndex) {
+        0 || 1 => 'plan.wall.create',
+        2 => 'plan.opening.create',
+        3 => 'plan.demolition.create',
+        _ => 'plan.dimension.create',
+      };
+    }
+    if (_layer == 1) return switch (_categoryIndex) {
+      1 => 'floor.underlay.create',
+      2 => 'floor.plinth.create',
+      _ => 'floor.idle',
+    };
+    if (_layer == 2) return 'objects.idle';
+    return switch (_categoryIndex) {
+      0 || 1 => 'electrical.point.create',
+      2 => 'electrical.light.create',
+      3 => 'electrical.line.create',
+      5 => 'electrical.group.create',
+      _ => 'electrical.idle',
+    };
+  }
+
+  static const _workingCommands = <String>{
+    'select', 'wall', 'opening', 'straight', 'arc',
+    'move', 'nodes', 'moveNode', 'measure',
+    'door', 'window', 'segment', 'whole',
+    'linearDimension', 'chainDimension',
+    'roomFill', 'add', 'point',
+  };
+
+  void _selectTask(int value) {
+    final options = ZamerKitNavigation.categories(_layer);
+    if (value < 0 || value >= options.length) return;
+    setState(() {
+      _categoryIndex = value;
+      _taskActivated = true;
+      _selectionKind = null;
+      _activeFanCommand = 'select';
+      _planTool = MeasurePlanTool.select;
+      _preferredOpeningType = null;
+    });
+  }
+
+  void _fanCommand(String id) {
+    if (!_workingCommands.contains(id)) return;
+    if (_layer == 0) {
+      final planTool = switch (id) {
+        'select' || 'move' => MeasurePlanTool.select,
+        'wall' => MeasurePlanTool.exterior,
+        'straight' => _categoryIndex == 1
+            ? MeasurePlanTool.partition : MeasurePlanTool.exterior,
+        'arc' => MeasurePlanTool.arc,
+        'opening' || 'door' || 'window' => MeasurePlanTool.openings,
+        'nodes' || 'moveNode' => MeasurePlanTool.nodes,
+        'segment' || 'whole' => MeasurePlanTool.demolition,
+        'measure' || 'linearDimension' || 'chainDimension' =>
+          MeasurePlanTool.dimensions,
+        _ => MeasurePlanTool.select,
+      };
+      setState(() {
+        _planTool = planTool;
+        _activeFanCommand = id;
+        _preferredOpeningType = id == 'door' ? OpeningType.door
+          : id == 'window' ? OpeningType.window : null;
+        if (id == 'wall' || id == 'opening') _taskActivated = true;
+        if (id == 'select') _selectionKind = null;
+      });
+      return;
+    }
+    if (_layer == 2 && id == 'add') {
+      _openCatalogSheet();
+      return;
+    }
+    // Floor and Electrical already contain production tools on their
+    // respective canvas. Exposing the domain itself is the safe native action;
+    // the incomplete subtools remain disabled in the radial menu.
+    if (id == 'select' || id == 'roomFill' || id == 'point') {
+      setState(() => _activeFanCommand = id);
+    }
+  }
+
+  Widget _kitDomains() => Container(
+    color: ZamerKitColors.bg,
+    padding: const EdgeInsets.fromLTRB(8, 9, 8, 8),
+    child: Row(
+      children: [
+        for (var i = 0; i < 4; i++) ...[
+          if (i > 0) const SizedBox(width: 6),
+          Expanded(child: KeyedSubtree(
+            key: ValueKey('kit-v2-domain-$i'),
+            child: ZamerKitSegment(
+              label: ZamerKitNavigation.domains[i],
+              icon: _layers[i].$2,
+              selected: _layer == i,
+              onTap: () => _selectLayer(i),
+            ),
+          )),
+        ],
+      ],
+    ),
+  );
+
+  Widget _kitTasks() {
+    final current = _layer < 4 ? _layer : 0;
+    final categories = ZamerKitNavigation.categories(current);
+    return Container(
+      height: 56,
+      decoration: const BoxDecoration(
+        color: ZamerKitColors.bg,
+        border: Border(bottom: BorderSide(color: ZamerKitColors.line)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: ListView.separated(
+              key: const ValueKey('kit-v2-tasks'),
+              padding: const EdgeInsets.fromLTRB(8, 3, 8, 4),
+              scrollDirection: Axis.horizontal,
+              itemCount: categories.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 6),
+              itemBuilder: (_, index) {
+                final selected = _categoryIndex == index && _taskActivated;
+                final icon = switch (current) {
+                  0 => [Icons.border_outer_rounded, Icons.view_week_outlined,
+                    Icons.door_front_door_outlined, Icons.auto_delete_outlined,
+                    Icons.straighten_outlined][index],
+                  1 => [Icons.grid_on_outlined, Icons.layers_outlined,
+                    Icons.format_color_fill_outlined][index],
+                  2 => Icons.chair_alt_outlined,
+                  _ => [Icons.power_outlined, Icons.toggle_on_outlined,
+                    Icons.lightbulb_outline, Icons.polyline_outlined,
+                    Icons.electrical_services_outlined, Icons.hub_outlined][index],
+                };
+                return KeyedSubtree(
+                  key: ValueKey('kit-v2-task-$index'),
+                  child: ZamerKitSegment(
+                    label: categories[index],
+                    icon: icon,
+                    selected: selected,
+                    onTap: () => _selectTask(index),
+                  ),
+                );
+              },
+            ),
+          ),
+          IconButton(
+            key: const ValueKey('kit-v2-task-overflow'),
+            onPressed: _showMoreTools,
+            icon: const Icon(Icons.more_vert_rounded,
+              color: ZamerKitColors.peach),
+            tooltip: 'Все инструменты и разделы',
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showMoreTools() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: ZamerKitColors.panel,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (ctx) => SafeArea(top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 4, 12, 22),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Инструменты замера',
+                style: TextStyle(fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                  color: ZamerKitColors.text)),
+              const SizedBox(height: 12),
+              // Retain engineering and materials features without crowding
+              // the four approved top-level tabs.
+              ZWorkspaceSubnav(
+                items: _layers,
+                selectedIndex: _layer,
+                onSelected: (value) {
+                  Navigator.pop(ctx);
+                  _selectLayer(value);
+                },
+              ),
+              const SizedBox(height: 12),
+              ZMeasureViewTabs(
+                value: _view,
+                enabledModes: const [
+                  ZMeasureViewMode.twoD,
+                  ZMeasureViewMode.threeD,
+                  ZMeasureViewMode.photo,
+                ],
+                onChanged: (mode) {
+                  Navigator.pop(ctx);
+                  _selectView(mode);
+                },
+              ),
+              const SizedBox(height: 8),
+              ListTile(
+                leading: const Icon(Icons.inventory_2_outlined),
+                title: const Text('Единый каталог мебели'),
+                onTap: () { Navigator.pop(ctx); _openCatalogSheet(); },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _openCatalogSheet() async {
@@ -108,6 +341,7 @@ class _RecoveredMeasureWorkspaceScreenState
         child: MasterEquipmentScreen(
           projectTitle: widget.project.name,
           embedded: true,
+          singleFurnitureView: true,
           onAdd: (item) {
             () async {
               final object = EquipmentPlacementService.addCatalogItem(
@@ -158,6 +392,13 @@ class _RecoveredMeasureWorkspaceScreenState
         floor: widget.floor,
         onChanged: widget.onChanged,
         onOpenObjects: () => _selectLayer(2),
+        planTool: _planTool,
+        preferredOpeningType: _preferredOpeningType,
+        onSelectionChanged: (kind) {
+          if (mounted && kind != _selectionKind) {
+            setState(() => _selectionKind = kind);
+          }
+        },
         onOpenReview: widget.onOpenReview,
         onOpenPlanGeometry: widget.onOpenGeometry,
         onOpen3D: widget.onOpen3D,
@@ -202,67 +443,33 @@ class _RecoveredMeasureWorkspaceScreenState
       ),
       body: Column(
         children: [
-          ZWorkspaceContextStrip(
-            icon: _layers[_layer].$2,
-            title: _layers[_layer].$1,
-            subtitle: switch (_layer) {
-              0 => 'Геометрия, проёмы, размеры и помещения',
-              1 => 'Направление и смещение раскладки прямо на плане',
-              2 => 'Перемещение и вращение объектов на плане',
-              3 => 'Розетки, выключатели, свет и группы',
-              4 => 'Вода, канализация, отопление и трассы',
-              _ => 'Отделка стен, пола и потолка',
-            },
-            metrics: [
-              ZWorkspaceMetric(
-                icon: Icons.square_foot_outlined,
-                value: '${widget.floor.walls.length}',
-                label: 'стен',
+          _kitDomains(),
+          _kitTasks(),
+          // Keep the actual production canvases. Nothing in the UI Kit
+          // redraws or flattens the user's persisted 2D floor plan.
+          Expanded(child: Stack(
+            children: [
+              Positioned.fill(
+                child: IndexedStack(index: _layer, children: pages),
               ),
-              ZWorkspaceMetric(
-                icon: Icons.chair_alt_outlined,
-                value: '${widget.floor.planObjects.length}',
-                label: 'объектов',
-              ),
-              ZWorkspaceMetric(
-                icon: Icons.electrical_services_outlined,
-                value: '${widget.floor.electricalPoints.length}',
-                label: 'точек',
-              ),
-            ],
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
-            child: Row(
-              children: [
-                Expanded(
-                  child: ZMeasureViewTabs(
-                    value: _view,
-                    enabledModes: const [
-                      ZMeasureViewMode.twoD,
-                      ZMeasureViewMode.threeD,
-                      ZMeasureViewMode.photo,
-                    ],
-                    onChanged: _selectView,
+              if (_layer < 4)
+                Positioned(
+                  right: 8, bottom: 18,
+                  child: ZamerKitFan(
+                    key: const ValueKey('zamer-native-v2-fan'),
+                    contextId: '${_fanContext}:${_categoryIndex}',
+                    selectedCommand: _activeFanCommand,
+                    first: ZamerFanProfilesV2.of(_fanContext,
+                      enabledActions: _workingCommands).first,
+                    second: ZamerFanProfilesV2.of(_fanContext,
+                      enabledActions: _workingCommands).second,
+                    outer: ZamerFanProfilesV2.of(_fanContext,
+                      enabledActions: _workingCommands).outer,
+                    onCommand: _fanCommand,
                   ),
                 ),
-                if (_layer == 2) ...[
-                  const SizedBox(width: 8),
-                  FilledButton.tonalIcon(
-                    onPressed: _openCatalogSheet,
-                    icon: const Icon(Icons.add_rounded, size: 18),
-                    label: const Text('Каталог'),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          ZWorkspaceSubnav(
-            items: _layers,
-            selectedIndex: _layer,
-            onSelected: _selectLayer,
-          ),
-          Expanded(child: IndexedStack(index: _layer, children: pages)),
+            ],
+          )),
           ZRecoveredWorkspacePrimaryNav(
             selectedIndex: 0,
             onSelected: widget.onPrimaryMode,
