@@ -14,9 +14,13 @@ class ElectricalScreen extends StatefulWidget {
     super.key,
     required this.floor,
     required this.onChanged,
+    this.requestedMode,
+    this.requestedType,
   });
   final FloorPlan floor;
   final Future<void> Function() onChanged;
+  final ElectricalMode? requestedMode;
+  final ElectricalPointType? requestedType;
 
   @override
   State<ElectricalScreen> createState() => _ElectricalScreenState();
@@ -33,6 +37,27 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
   bool _dragUndoPushed = false;
   final _undo = <String>[];
   final _redo = <String>[];
+
+  @override
+  void initState() {
+    super.initState();
+    _mode = widget.requestedMode ?? _mode;
+    _type = widget.requestedType ?? _type;
+  }
+
+  @override
+  void didUpdateWidget(covariant ElectricalScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.requestedMode != oldWidget.requestedMode &&
+        widget.requestedMode != null) {
+      _mode = widget.requestedMode!;
+      _wireStartId = null;
+    }
+    if (widget.requestedType != oldWidget.requestedType &&
+        widget.requestedType != null) {
+      _type = widget.requestedType!;
+    }
+  }
 
   String _id(String p) => '$p-${DateTime.now().microsecondsSinceEpoch}';
 
