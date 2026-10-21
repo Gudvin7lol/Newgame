@@ -160,6 +160,7 @@ class _RecoveredMeasureWorkspaceScreenState
   void _selectTask(int value) {
     final options = ZamerKitNavigation.categories(_layer);
     if (value < 0 || value >= options.length) return;
+    if (_taskActivated && value == _categoryIndex) return;
     setState(() {
       _categoryIndex = value;
       _taskActivated = true;
