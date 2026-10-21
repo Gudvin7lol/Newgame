@@ -73,6 +73,8 @@ class _RecoveredMeasureWorkspaceScreenState
   String _activeFanCommand = 'select';
   MeasurePlanTool _planTool = MeasurePlanTool.select;
   OpeningType? _preferredOpeningType;
+  ElectricalMode _electricalMode = ElectricalMode.select;
+  ElectricalPointType _electricalType = ElectricalPointType.socket;
   ZMeasureViewMode _view = ZMeasureViewMode.twoD;
 
   static const _layers = <(String, IconData)>[
@@ -108,6 +110,8 @@ class _RecoveredMeasureWorkspaceScreenState
       _activeFanCommand = 'select';
       // Entry into a section always starts in selection, not construction.
       _planTool = MeasurePlanTool.select;
+      _electricalMode = ElectricalMode.select;
+      _electricalType = ElectricalPointType.socket;
     });
   }
 
@@ -146,7 +150,8 @@ class _RecoveredMeasureWorkspaceScreenState
     'move', 'nodes', 'moveNode', 'measure',
     'door', 'window', 'segment', 'whole',
     'linearDimension', 'chainDimension',
-    'roomFill', 'add', 'point',
+    'roomFill', 'add', 'point', 'singlePoint',
+    'light', 'line', 'route',
   };
 
   void _selectTask(int value) {
@@ -159,6 +164,15 @@ class _RecoveredMeasureWorkspaceScreenState
       _activeFanCommand = 'select';
       _planTool = MeasurePlanTool.select;
       _preferredOpeningType = null;
+      if (_layer == 3) {
+        _electricalMode = ElectricalMode.select;
+        _electricalType = switch (value) {
+          1 => ElectricalPointType.switchPoint,
+          2 => ElectricalPointType.ceilingLight,
+          4 => ElectricalPointType.panel,
+          _ => ElectricalPointType.socket,
+        };
+      }
     });
   }
 
@@ -183,7 +197,11 @@ class _RecoveredMeasureWorkspaceScreenState
         _activeFanCommand = id;
         _preferredOpeningType = id == 'door' ? OpeningType.door
           : id == 'window' ? OpeningType.window : null;
-        if (id == 'wall' || id == 'opening') _taskActivated = true;
+        if (id == 'wall' || id == 'opening') {
+          _taskActivated = true;
+          _categoryIndex = id == 'wall' ? 0 : 2;
+        }
+        if (id == 'door' || id == 'window') _categoryIndex = 2;
         if (id == 'select') _selectionKind = null;
       });
       return;
@@ -192,10 +210,19 @@ class _RecoveredMeasureWorkspaceScreenState
       _openCatalogSheet();
       return;
     }
-    // Floor and Electrical already contain production tools on their
-    // respective canvas. Exposing the domain itself is the safe native action;
-    // the incomplete subtools remain disabled in the radial menu.
-    if (id == 'select' || id == 'roomFill' || id == 'point') {
+    if (_layer == 3) {
+      setState(() {
+        _activeFanCommand = id;
+        _electricalMode = switch (id) {
+          'line' || 'route' => ElectricalMode.wire,
+          'point' || 'singlePoint' || 'light' => ElectricalMode.add,
+          _ => ElectricalMode.select,
+        };
+        if (id == 'light') _electricalType = ElectricalPointType.ceilingLight;
+      });
+      return;
+    }
+    if (id == 'select' || id == 'roomFill') {
       setState(() => _activeFanCommand = id);
     }
   }
@@ -419,7 +446,12 @@ class _RecoveredMeasureWorkspaceScreenState
         onChanged: widget.onChanged,
         embedded: true,
       ),
-      ElectricalScreen(floor: widget.floor, onChanged: widget.onChanged),
+      ElectricalScreen(
+        floor: widget.floor,
+        onChanged: widget.onChanged,
+        requestedMode: _electricalMode,
+        requestedType: _electricalType,
+      ),
       EngineeringScreen(floor: widget.floor, onChanged: widget.onChanged),
       MaterialsScreen(
         floor: widget.floor,
