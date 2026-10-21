@@ -787,9 +787,11 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   void _wallPointerDown(PointerDownEvent event) {
     _activeCanvasPointers.add(event.pointer);
     if (_activeCanvasPointers.length > 1) {
-      // Two fingers zoom without committing a phantom wall segment.
+      // Two fingers zoom without committing a phantom wall segment or
+      // dragging any active CAD node by the second finger.
       _pinchInProgress = true;
       _stopEdgePan();
+      if (_dragNodeId != null) _nodeDragCancel();
       return;
     }
     if (_pinchInProgress ||
@@ -1554,7 +1556,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   }
 
   void _nodeDragStart(DragStartDetails details) {
-    if (widget.planTool != MeasurePlanTool.nodes) return;
+    if (widget.planTool != MeasurePlanTool.nodes ||
+        _pinchInProgress || _activeCanvasPointers.length > 1) return;
     final node = _nodeNear(details.localPosition);
     if (node == null) return;
     final finger = _toMm(details.localPosition);
@@ -1573,6 +1576,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   }
 
   void _nodeDragUpdate(DragUpdateDetails details) {
+    if (_pinchInProgress || _activeCanvasPointers.length > 1) return;
     final id = _dragNodeId;
     final base = _nodeDragStartFloor;
     if (widget.planTool != MeasurePlanTool.nodes ||
@@ -2690,8 +2694,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                       _cameraGestureEnabled,
                   // Two-finger pinch is safe during drawing; single-finger pan
                   // remains locked so moving a wall cannot move the camera.
-                  scaleEnabled: widget.planTool != MeasurePlanTool.nodes &&
-                      (_drawingWall || _cameraGestureEnabled),
+                  scaleEnabled: widget.planTool == MeasurePlanTool.nodes ||
+                      _drawingWall || _cameraGestureEnabled,
                   boundaryMargin: const EdgeInsets.all(32000),
                   constrained: false,
                   child: Stack(
@@ -2834,6 +2838,46 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                   ],
                 ),
               ),
+              // Fixed-size feedback above the tool strip: the measured
+              // coordinates and snap kind remain legible at any zoom.
+              if (widget.planTool == MeasurePlanTool.nodes &&
+                  _dragNodeId != null)
+                Positioned(
+                  left: 12,
+                  right: 82,
+                  bottom: 62,
+                  child: IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: const Color(0xE60B2630),
+                        border: Border.all(
+                          color: _nodeDragInvalid == null
+                              ? ZamerColors.accent.withValues(alpha: .34)
+                              : const Color(0xFFF6B35B),
+                        ),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 6),
+                        child: Text(
+                          _nodeDragInvalid ??
+                          'X: ${floor.nodeById(_dragNodeId!)?.xMm.round() ?? 0}  '
+                          'Y: ${floor.nodeById(_dragNodeId!)?.yMm.round() ?? 0} мм'
+                          ' · ${_dragSnap?.kind.label ?? 'Без привязки'}',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            color: _nodeDragInvalid == null
+                                ? ZamerColors.accent
+                                : const Color(0xFFF6B35B),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               if (widget.planTool == MeasurePlanTool.openings &&
                   _openingSnapHint != null)
                 Positioned(
