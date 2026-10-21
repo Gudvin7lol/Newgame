@@ -68,6 +68,7 @@ class _ZamerKitFanState extends State<ZamerKitFan> {
   int _ringOffset = 0;
   double _dragAmount = 0;
   bool _ringWasDragged = false;
+  bool _draggingOuter = false;
 
   static const _select = ZamerKitCommand(
     'select', 'Выбрать', Icons.near_me_outlined);
@@ -244,11 +245,17 @@ class _ZamerKitFanState extends State<ZamerKitFan> {
         behavior: HitTestBehavior.translucent,
         onTapUp: _tap,
         onLongPress: _showAll,
-        onPanStart: (_) {
+        onPanStart: (details) {
+          final local = details.localPosition;
+          final p = _leftHanded
+              ? Offset(_size - local.dx, local.dy) : local;
+          _draggingOuter =
+              (p - const Offset(188, 188)).distance >= 108;
           _dragAmount = 0;
           _ringWasDragged = false;
         },
         onPanUpdate: (d) {
+          if (!_draggingOuter) return;
           _dragAmount += d.delta.dx + d.delta.dy;
           if (_dragAmount.abs() >= 24) {
             _ringWasDragged = true;
@@ -262,21 +269,20 @@ class _ZamerKitFanState extends State<ZamerKitFan> {
         child: Stack(
           clipBehavior: Clip.none,
           children: [
-            AnimatedOpacity(
-              opacity: _expanded ? 1 : 0,
-              duration: const Duration(milliseconds: 240),
-              child: IgnorePointer(
-                ignoring: !_expanded,
-                child: CustomPaint(
-                  size: const Size(_size, _size),
-                  painter: _FanShellPainter(
-                    leftHanded: _leftHanded,
-                    showMain: true,
-                    showOuter: items.length,
-                    selected: widget.selectedCommand,
-                    firstId: widget.first.id,
-                    secondId: widget.second.id,
-                  ),
+            AnimatedSwitcher(
+              duration: Duration(milliseconds: _expanded ? 380 : 240),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeInCubic,
+              child: CustomPaint(
+                key: ValueKey(_expanded),
+                size: const Size(_size, _size),
+                painter: _FanShellPainter(
+                  leftHanded: _leftHanded,
+                  showMain: _expanded,
+                  showOuter: _expanded ? items.length : 0,
+                  selected: widget.selectedCommand,
+                  firstId: widget.first.id,
+                  secondId: widget.second.id,
                 ),
               ),
             ),
@@ -406,8 +412,9 @@ class _FanShellPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    // The SELECT sector has one permanent hit area whether open or closed.
+    _sector(canvas, 30, 103, 155, 202, selected == 'select');
     if (showMain) {
-      _sector(canvas, 30, 103, 155, 202, selected == 'select');
       _sector(canvas, 30, 103, 204, 247, selected == firstId);
       _sector(canvas, 30, 103, 249, 293, selected == secondId);
     }
