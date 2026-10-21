@@ -71,11 +71,19 @@ class _RecoveredMeasureWorkspaceScreenState
   bool _taskActivated = false;
   String? _selectionKind;
   String _activeFanCommand = 'select';
+  final ValueNotifier<String?> _objectFanCommands = ValueNotifier(null);
+  int _objectCommandSerial = 0;
   MeasurePlanTool _planTool = MeasurePlanTool.select;
   OpeningType? _preferredOpeningType;
   ElectricalMode _electricalMode = ElectricalMode.select;
   ElectricalPointType _electricalType = ElectricalPointType.socket;
   ZMeasureViewMode _view = ZMeasureViewMode.twoD;
+
+  @override
+  void dispose() {
+    _objectFanCommands.dispose();
+    super.dispose();
+  }
 
   static const _layers = <(String, IconData)>[
     ('План', Icons.architecture_outlined),
@@ -138,7 +146,8 @@ class _RecoveredMeasureWorkspaceScreenState
       2 => 'floor.plinth.create',
       _ => 'floor.idle',
     };
-    if (_layer == 2) return 'objects.idle';
+    if (_layer == 2) return _selectionKind == 'object'
+        ? 'objects.object.selected' : 'objects.idle';
     return switch (_categoryIndex) {
       0 || 1 => 'electrical.point.create',
       2 => 'electrical.light.create',
@@ -153,9 +162,31 @@ class _RecoveredMeasureWorkspaceScreenState
     'move', 'nodes', 'moveNode', 'measure',
     'door', 'window', 'segment', 'whole',
     'linearDimension', 'chainDimension',
-    'roomFill', 'add', 'point', 'singlePoint',
+    'add', 'point', 'singlePoint',
     'light', 'line', 'route',
+    'rotate', 'duplicate', 'delete',
   };
+
+  Set<String> get _availableFanActions {
+    if (_layer == 2) {
+      return _selectionKind == 'object'
+          ? const {'select', 'move', 'rotate', 'duplicate', 'delete'}
+          : const {'select', 'add'};
+    }
+    if (_layer == 0) {
+      return const {'select', 'wall', 'opening', 'straight',
+        'arc', 'move', 'nodes', 'moveNode', 'measure',
+        'door', 'window', 'segment', 'whole',
+        'linearDimension', 'chainDimension'};
+    }
+    if (_layer == 3) {
+      return const {'select','point','singlePoint',
+        'light','line','route'};
+    }
+    // The floor plan has working editing controls of its own. Future
+    // radial operations remain locked until wired to their actual handler.
+    return const {'select'};
+  }
 
   void _selectTask(int value) {
     final options = ZamerKitNavigation.categories(_layer);
@@ -210,8 +241,16 @@ class _RecoveredMeasureWorkspaceScreenState
       });
       return;
     }
-    if (_layer == 2 && id == 'add') {
-      _openCatalogSheet();
+    if (_layer == 2) {
+      if (id == 'add') {
+        _openCatalogSheet();
+        return;
+      }
+      if (_selectionKind == 'object' ||
+          id == 'select' || id == 'move') {
+        _objectFanCommands.value = '${++_objectCommandSerial}:$id';
+        setState(() => _activeFanCommand = id);
+      }
       return;
     }
     if (_layer == 3) {
@@ -226,7 +265,7 @@ class _RecoveredMeasureWorkspaceScreenState
       });
       return;
     }
-    if (id == 'select' || id == 'roomFill') {
+    if (id == 'select') {
       setState(() => _activeFanCommand = id);
     }
   }
@@ -450,6 +489,17 @@ class _RecoveredMeasureWorkspaceScreenState
         floor: widget.floor,
         onChanged: widget.onChanged,
         embedded: true,
+        fanCommand: _objectFanCommands,
+        onSelectedObjectChanged: (object) {
+          if (!mounted) return;
+          final kind = object == null ? null : 'object';
+          if (kind != _selectionKind) {
+            setState(() {
+              _selectionKind = kind;
+              _activeFanCommand = 'select';
+            });
+          }
+        },
       ),
       ElectricalScreen(
         floor: widget.floor,
@@ -497,11 +547,11 @@ class _RecoveredMeasureWorkspaceScreenState
                     contextId: '${_fanContext}:${_categoryIndex}',
                     selectedCommand: _activeFanCommand,
                     first: ZamerFanProfilesV2.of(_fanContext,
-                      enabledActions: _workingCommands).first,
+                      enabledActions: _availableFanActions).first,
                     second: ZamerFanProfilesV2.of(_fanContext,
-                      enabledActions: _workingCommands).second,
+                      enabledActions: _availableFanActions).second,
                     outer: ZamerFanProfilesV2.of(_fanContext,
-                      enabledActions: _workingCommands).outer,
+                      enabledActions: _availableFanActions).outer,
                     onCommand: _fanCommand,
                   ),
                 ),
