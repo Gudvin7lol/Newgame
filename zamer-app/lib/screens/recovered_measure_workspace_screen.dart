@@ -532,7 +532,18 @@ class _RecoveredMeasureWorkspaceScreenState
       body: Column(
         children: [
           _kitDomains(),
-          _kitTasks(),
+          if (_layer < 4)
+            _kitTasks()
+          else
+            Container(
+              height: 56,
+              alignment: Alignment.centerLeft,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              color: ZamerKitColors.bg,
+              child: Text(_layers[_layer].$1,
+                style: const TextStyle(color: ZamerKitColors.muted,
+                  fontWeight: FontWeight.w600)),
+            ),
           // Keep the actual production canvases. Nothing in the UI Kit
           // redraws or flattens the user's persisted 2D floor plan.
           Expanded(child: Stack(
