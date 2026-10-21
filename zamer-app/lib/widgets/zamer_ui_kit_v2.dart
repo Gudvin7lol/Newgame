@@ -274,6 +274,8 @@ class _ZamerKitFanState extends State<ZamerKitFan> {
                     showMain: true,
                     showOuter: items.length,
                     selected: widget.selectedCommand,
+                    firstId: widget.first.id,
+                    secondId: widget.second.id,
                   ),
                 ),
               ),
@@ -351,10 +353,12 @@ class _FanShellPainter extends CustomPainter {
     required this.showMain,
     required this.showOuter,
     required this.selected,
+    required this.firstId,
+    required this.secondId,
   });
   final bool leftHanded, showMain;
   final int showOuter;
-  final String selected;
+  final String selected, firstId, secondId;
 
   Offset _polar(double radius, double degrees) {
     final a = degrees * math.pi / 180;
@@ -404,8 +408,8 @@ class _FanShellPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (showMain) {
       _sector(canvas, 30, 103, 155, 202, selected == 'select');
-      _sector(canvas, 30, 103, 204, 247, false);
-      _sector(canvas, 30, 103, 249, 293, false);
+      _sector(canvas, 30, 103, 204, 247, selected == firstId);
+      _sector(canvas, 30, 103, 249, 293, selected == secondId);
     }
     final angles = <(double, double)>[
       (158, 199), (201, 240), (242, 282),
@@ -420,7 +424,9 @@ class _FanShellPainter extends CustomPainter {
     leftHanded != old.leftHanded ||
     showMain != old.showMain ||
     showOuter != old.showOuter ||
-    selected != old.selected;
+    selected != old.selected ||
+    firstId != old.firstId ||
+    secondId != old.secondId;
 }
 
 /// The graphite and warm-peach surface system from UI Kit 1.2. Native
@@ -436,51 +442,57 @@ class ZamerKitSegment extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Material(
-    color: Colors.transparent,
-    child: InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 240),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-        constraints: const BoxConstraints(minHeight: 48),
-        decoration: BoxDecoration(
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, limits) {
+      final compact = limits.maxWidth < 108;
+      return Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
           borderRadius: BorderRadius.circular(12),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft, end: Alignment.bottomRight,
-            colors: selected
-              ? const [Color(0xFFFFE4BB), Color(0xFFFFD0A1),
-                  Color(0xFFF4B784)]
-              : const [Color(0xFF69696D), Color(0xFF353B42),
-                  Color(0xFF20272D), Color(0xFF5C4A3B)],
-            stops: const [0, .18, .75, 1],
-          ),
-          border: Border.all(color: selected
-              ? ZamerKitColors.peach : ZamerKitColors.line),
-          boxShadow: selected ? [BoxShadow(
-            color: ZamerKitColors.peach.withValues(alpha:.18),
-            blurRadius: 18)] : null,
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 19, color: selected
-                ? ZamerKitColors.ink : ZamerKitColors.peach),
-            const SizedBox(width: 7),
-            Flexible(
-              child: Text(label, maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: selected
-                  ? ZamerKitColors.ink : ZamerKitColors.text,
-                  fontSize: 12, fontWeight: selected
-                    ? FontWeight.w700 : FontWeight.w600),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 240),
+            padding: EdgeInsets.symmetric(
+              horizontal: compact ? 4 : 12, vertical: 9),
+            constraints: const BoxConstraints(minHeight: 48),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft, end: Alignment.bottomRight,
+                colors: selected
+                  ? const [Color(0xFFFFE4BB), Color(0xFFFFD0A1),
+                      Color(0xFFF4B784)]
+                  : const [Color(0xFF69696D), Color(0xFF353B42),
+                      Color(0xFF20272D), Color(0xFF5C4A3B)],
+                stops: const [0, .18, .75, 1],
               ),
+              border: Border.all(color: selected
+                  ? ZamerKitColors.peach : ZamerKitColors.line),
+              boxShadow: selected ? [BoxShadow(
+                color: ZamerKitColors.peach.withValues(alpha:.18),
+                blurRadius: 18)] : null,
             ),
-          ],
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: compact ? 16 : 19, color: selected
+                    ? ZamerKitColors.ink : ZamerKitColors.peach),
+                SizedBox(width: compact ? 3 : 7),
+                Flexible(
+                  child: Text(label, maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: selected
+                      ? ZamerKitColors.ink : ZamerKitColors.text,
+                      fontSize: compact ? 10 : 12, fontWeight: selected
+                        ? FontWeight.w700 : FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
-      ),
-    ),
+      );
+    },
   );
 }
