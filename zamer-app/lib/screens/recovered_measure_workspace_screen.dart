@@ -424,6 +424,7 @@ class _RecoveredMeasureWorkspaceScreenState
         onChanged: widget.onChanged,
         onOpenObjects: () => _selectLayer(2),
         planTool: _planTool,
+        nativeKitV2: true,
         preferredOpeningType: _preferredOpeningType,
         onSelectionChanged: (kind) {
           if (mounted && kind != _selectionKind) {
@@ -490,7 +491,7 @@ class _RecoveredMeasureWorkspaceScreenState
               ),
               if (_layer < 4)
                 Positioned(
-                  right: 8, bottom: 18,
+                  right: 64, bottom: 18,
                   child: ZamerKitFan(
                     key: const ValueKey('zamer-native-v2-fan'),
                     contextId: '${_fanContext}:${_categoryIndex}',
