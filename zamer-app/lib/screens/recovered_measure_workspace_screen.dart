@@ -283,7 +283,6 @@ class _RecoveredMeasureWorkspaceScreenState
               label: ZamerKitNavigation.domains[i],
               icon: _layers[i].$2,
               selected: _layer == i,
-              compact: MediaQuery.sizeOf(context).width < 440,
               onTap: () => _selectLayer(i),
             ),
           )),
