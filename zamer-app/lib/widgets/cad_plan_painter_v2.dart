@@ -613,6 +613,7 @@ class CadPlanPainterV2 extends CustomPainter {
     final axis = wallEnd - wallStart;
     final length = axis.distance;
     if (length < 1) return;
+    final invZoom = 1.0 / math.max(.28, zoom);
     final values = <({Offset from, Offset to, double mm})>[
       (from: wallStart, to: jambStart,
        mm: (jambStart - wallStart).distance / mmToPx),
@@ -620,26 +621,31 @@ class CadPlanPainterV2 extends CustomPainter {
        mm: (wallEnd - jambEnd).distance / mmToPx),
     ];
     final line = Paint()
-      ..color = const Color(0xFF9FC5D2).withValues(alpha: .72)
-      ..strokeWidth = .60;
+      ..color = const Color(0xFF9FC5D2).withValues(alpha: .62)
+      ..strokeWidth = .65 * invZoom;
     for (final run in values) {
-      if (run.mm < 20 || (run.to - run.from).distance < 28) continue;
-      final a = run.from - normal * (wall.thicknessMm * mmToPx / 2 + 11);
-      final b = run.to - normal * (wall.thicknessMm * mmToPx / 2 + 11);
+      if (run.mm < 20 || (run.to - run.from).distance * zoom < 65) continue;
+      final a = run.from - normal *
+          (wall.thicknessMm * mmToPx / 2 + 11 * invZoom);
+      final b = run.to - normal *
+          (wall.thicknessMm * mmToPx / 2 + 11 * invZoom);
       canvas.drawLine(a, b, line);
-      canvas.drawLine(a - normal * 2, a + normal * 2, line);
-      canvas.drawLine(b - normal * 2, b + normal * 2, line);
+      canvas.drawLine(a - normal * (2 * invZoom),
+          a + normal * (2 * invZoom), line);
+      canvas.drawLine(b - normal * (2 * invZoom),
+          b + normal * (2 * invZoom), line);
       final label = TextPainter(
         text: TextSpan(
           text: '${run.mm.round()}',
-          style: const TextStyle(color: Color(0xFFC0D3D7),
-            fontSize: 8, fontWeight: FontWeight.w500),
+          style: TextStyle(color: const Color(0xFFC0D3D7),
+            fontSize: 9 * invZoom, fontWeight: FontWeight.w500),
         ),
         maxLines: 1,
         textDirection: TextDirection.ltr,
       )..layout();
       final mid = (a + b) / 2;
-      label.paint(canvas, mid - Offset(label.width / 2, label.height + 2));
+      label.paint(canvas, mid -
+          Offset(label.width / 2, label.height + 2 * invZoom));
     }
   }
 
@@ -1034,6 +1040,7 @@ class CadPlanPainterV2 extends CustomPainter {
   }
 
   void _controlDimensions(Canvas canvas) {
+    final invZoom = 1.0 / math.max(.28, zoom);
     for (final measure in floor.measures) {
       // A recorded inner-face size and a structural axis size are different
       // types of measurements. Do not show one under the other's filter.
@@ -1049,23 +1056,23 @@ class CadPlanPainterV2 extends CustomPainter {
       final p2 = measure.interiorEnd ??
           math.Point<double>(endNode.xMm, endNode.yMm);
       final a = _q(p1), b = _q(p2);
-      if ((b - a).distance < 1) continue;
+      if ((b - a).distance * zoom < 58) continue;
       final colour = measure.isInterior
           ? const Color(0xFF247EA0)
           : const Color(0xFFDAAC4B);
       final paint = Paint()
         ..color = colour
-        ..strokeWidth = .8;
+        ..strokeWidth = .8 * invZoom;
       canvas.drawLine(a, b, paint);
-      canvas.drawCircle(a, 2.3, Paint()..color = colour);
-      canvas.drawCircle(b, 2.3, Paint()..color = colour);
+      canvas.drawCircle(a, 2.3 * invZoom, Paint()..color = colour);
+      canvas.drawCircle(b, 2.3 * invZoom, Paint()..color = colour);
       final text = TextPainter(
         text: TextSpan(
           text: 'контр. ${measure.measuredMm.round()}',
-          style: const TextStyle(
-            color: Color(0xFF14252D),
-            fontSize: 7,
-            fontWeight: FontWeight.w600,
+          style: TextStyle(
+            color: const Color(0xFF14252D),
+            fontSize: 9 * invZoom,
+            fontWeight: FontWeight.w500,
           ),
         ),
         textDirection: TextDirection.ltr,
@@ -1073,10 +1080,11 @@ class CadPlanPainterV2 extends CustomPainter {
       )..layout();
       final mid = (a + b) / 2;
       final panel = Rect.fromCenter(
-        center: mid, width: text.width + 8, height: text.height + 4,
+        center: mid, width: text.width + 8 * invZoom,
+        height: text.height + 4 * invZoom,
       );
       canvas.drawRRect(
-        RRect.fromRectAndRadius(panel, const Radius.circular(2)),
+        RRect.fromRectAndRadius(panel, Radius.circular(2 * invZoom)),
         Paint()..color = const Color(0xFFEEF4F5),
       );
       text.paint(
@@ -1087,6 +1095,7 @@ class CadPlanPainterV2 extends CustomPainter {
   }
 
   void _outerDimensions(Canvas canvas) {
+    final invZoom = 1.0 / math.max(.28, zoom);
     for (final wall in floor.walls) {
       if (wall.type != WallType.exterior || wall.isCurved) continue;
       final a = floor.nodeById(wall.startNodeId);
@@ -1095,25 +1104,27 @@ class CadPlanPainterV2 extends CustomPainter {
       final pa = _p(a);
       final pb = _p(b);
       final vector = pb - pa;
-      if (vector.distance < 26) continue;
+      if (vector.distance * zoom < 60) continue;
       final unit = vector / vector.distance;
       final normal = Offset(-unit.dy, unit.dx);
-      final offset = 13.0 + wall.thicknessMm * mmToPx / 2;
+      final offset = 13.0 * invZoom + wall.thicknessMm * mmToPx / 2;
       final p1 = pa - normal * offset;
       final p2 = pb - normal * offset;
       final paint = Paint()
         ..color = const Color(0xFF96AAA9).withValues(alpha: .25)
-        ..strokeWidth = .38;
+        ..strokeWidth = .48 * invZoom;
       canvas.drawLine(p1, p2, paint);
-      canvas.drawLine(p1 - normal * 3.5, p1 + normal * 3.5, paint);
-      canvas.drawLine(p2 - normal * 3.5, p2 + normal * 3.5, paint);
+      canvas.drawLine(p1 - normal * (3.5 * invZoom),
+          p1 + normal * (3.5 * invZoom), paint);
+      canvas.drawLine(p2 - normal * (3.5 * invZoom),
+          p2 + normal * (3.5 * invZoom), paint);
 
       final text = TextPainter(
         text: TextSpan(
           text: '${floor.wallLengthMm(wall).round()}',
-          style: const TextStyle(
-            color: Color(0xFFF0F1ED),
-            fontSize: 7.4,
+          style: TextStyle(
+            color: const Color(0xFFF0F1ED),
+            fontSize: 9 * invZoom,
             fontWeight: FontWeight.w500,
           ),
         ),
@@ -1124,10 +1135,10 @@ class CadPlanPainterV2 extends CustomPainter {
         RRect.fromRectAndRadius(
           Rect.fromCenter(
             center: mid,
-            width: text.width + 7,
-            height: text.height + 3,
+            width: text.width + 7 * invZoom,
+            height: text.height + 3 * invZoom,
           ),
-          const Radius.circular(2),
+          Radius.circular(2 * invZoom),
         ),
         Paint()..color = const Color(0xFF344F56).withValues(alpha: .35),
       );
@@ -1141,6 +1152,7 @@ class CadPlanPainterV2 extends CustomPainter {
       oldDelegate.selectedWallId != selectedWallId ||
       oldDelegate.showGrid != showGrid ||
       oldDelegate.showDimensions != showDimensions ||
+      oldDelegate.zoom != zoom ||
       oldDelegate.visibleLayers != visibleLayers ||
       oldDelegate.visibleCategories != visibleCategories ||
       oldDelegate.collisionKinds != collisionKinds;
