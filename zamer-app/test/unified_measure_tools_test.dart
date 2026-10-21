@@ -51,8 +51,9 @@ void main() {
     expect(master, contains('GeometryService.snapMoveTarget('));
     expect(master, contains('OrthogonalWallEditService.move('));
     expect(master, contains('_toggleDemolition('));
-    expect(master, contains('_addOpening(p,'));
-    expect(master, contains('chooseType: widget.preferredOpeningType == null'));
+    // Flutter formatter can wrap named arguments between lines.
+    expect(master, contains('await _addOpening('));
+    expect(master, contains('widget.preferredOpeningType == null'));
     expect(master, contains("ValueKey('measure-shared-canvas')"));
   });
 
