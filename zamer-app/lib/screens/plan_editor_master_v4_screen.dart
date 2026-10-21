@@ -2972,8 +2972,10 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                 ),
               Positioned(
                 right: 8,
-                bottom: _editingGeometry ? 60 : 8,
+                bottom: widget.nativeKitV2
+                    ? 18 : (_editingGeometry ? 60 : 8),
                 child: _CanvasControls(
+                  vertical: widget.nativeKitV2,
                   floor: floor,
                   onFit: _fit,
                   onZoomIn: () => _zoom(1.18),
@@ -3211,29 +3213,43 @@ class _CanvasControls extends StatelessWidget {
     required this.onFit,
     required this.onZoomIn,
     required this.onZoomOut,
+    this.vertical = false,
   });
   final FloorPlan floor;
   final VoidCallback onFit;
   final VoidCallback onZoomIn;
   final VoidCallback onZoomOut;
+  final bool vertical;
 
   @override
-  Widget build(BuildContext context) => Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _small(Icons.remove_rounded, onZoomOut),
-          const SizedBox(width: 5),
-          _small(Icons.add_rounded, onZoomIn),
-          const SizedBox(width: 5),
-          _small(Icons.center_focus_strong_rounded, onFit),
-        ],
-      );
+  Widget build(BuildContext context) => vertical
+      ? Column(
+          key: const ValueKey('kit-v2-vertical-zoom'),
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _small(Icons.add_rounded, onZoomIn),
+            const SizedBox(height: 8),
+            _small(Icons.remove_rounded, onZoomOut),
+            const SizedBox(height: 8),
+            _small(Icons.center_focus_strong_rounded, onFit),
+          ],
+        )
+      : Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _small(Icons.remove_rounded, onZoomOut),
+            const SizedBox(width: 5),
+            _small(Icons.add_rounded, onZoomIn),
+            const SizedBox(width: 5),
+            _small(Icons.center_focus_strong_rounded, onFit),
+          ],
+        );
 
   Widget _small(IconData icon, VoidCallback tap) => InkWell(
         onTap: tap,
         child: Container(
-          width: 34,
-          height: 34,
+          width: vertical ? 44 : 34,
+          height: vertical ? 44 : 34,
           decoration: BoxDecoration(
             color: const Color(0xFF07171D).withValues(alpha: .96),
             borderRadius: BorderRadius.circular(8),
