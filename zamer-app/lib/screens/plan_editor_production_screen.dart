@@ -10,6 +10,8 @@ class PlanEditorProductionScreen extends StatelessWidget {
     required this.floor,
     required this.onChanged,
     this.planTool = MeasurePlanTool.overview,
+    this.preferredOpeningType,
+    this.onSelectionChanged,
     required this.onOpenObjects,
     required this.onOpenReview,
     required this.onOpenPlanGeometry,
@@ -26,6 +28,8 @@ class PlanEditorProductionScreen extends StatelessWidget {
   final FloorPlan floor;
   final Future<void> Function() onChanged;
   final MeasurePlanTool planTool;
+  final OpeningType? preferredOpeningType;
+  final ValueChanged<String?>? onSelectionChanged;
   final VoidCallback onOpenObjects;
   final VoidCallback onOpenReview;
   final VoidCallback onOpenPlanGeometry;
@@ -44,6 +48,8 @@ class PlanEditorProductionScreen extends StatelessWidget {
       floor: floor,
       onChanged: onChanged,
       planTool: planTool,
+      preferredOpeningType: preferredOpeningType,
+      onSelectionChanged: onSelectionChanged,
       onOpenObjects: onOpenObjects,
       onOpenReview: onOpenReview,
       onOpenGeometry: onOpenPlanGeometry,
