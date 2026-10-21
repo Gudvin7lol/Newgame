@@ -56,8 +56,8 @@ void main() {
   test('rejects new cross-wall intersections, no partial mutation', () {
     final f = rectangle();
     f.nodes.addAll([
-      PlanNode(id: 'e', xMm: 5000, yMm: 1000),
-      PlanNode(id: 'g', xMm: 5000, yMm: 2700),
+      PlanNode(id: 'e', xMm: 4300, yMm: 1000),
+      PlanNode(id: 'g', xMm: 6000, yMm: 1000),
     ]);
     f.walls.add(PlanWall(id: 'eg',
       startNodeId: 'e', endNodeId: 'g'));
