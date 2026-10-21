@@ -509,6 +509,7 @@ class _RecoveredMeasureWorkspaceScreenState
         },
       ),
       ElectricalScreen(
+        embedded: true,
         floor: widget.floor,
         onChanged: widget.onChanged,
         requestedMode: _electricalMode,
@@ -559,7 +560,7 @@ class _RecoveredMeasureWorkspaceScreenState
               ),
               if (_layer < 4)
                 Positioned(
-                  right: 64, bottom: 18,
+                  right: 12, bottom: 70,
                   child: ZamerKitFan(
                     key: const ValueKey('zamer-native-v2-fan'),
                     contextId: '${_fanContext}:${_categoryIndex}',
