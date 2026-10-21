@@ -135,10 +135,13 @@ class _ZamerKitFanState extends State<ZamerKitFan> {
     return math.atan2(v.dy, v.dx) * 180 / math.pi;
   }
 
-  int get _lastRingStart => math.max(0, widget.outer.length - 3);
+  List<ZamerKitCommand> get _visibleRingCommands =>
+      widget.outer.where((command) => command.enabled).toList(growable: false);
+
+  int get _lastRingStart => math.max(0, _visibleRingCommands.length - 3);
 
   void _stepRing(int direction) {
-    if (widget.outer.length <= 3) return;
+    if (_visibleRingCommands.length <= 3) return;
     setState(() {
       _ringOffset = (_ringOffset + direction).clamp(0, _lastRingStart);
     });
@@ -180,8 +183,8 @@ class _ZamerKitFanState extends State<ZamerKitFan> {
       const angles = [155.0, 205.0, 255.0];
       for (var i = 0; i < 3; i++) {
         if ((angle - angles[i]).abs() <= 18 &&
-            _ringOffset + i < widget.outer.length) {
-          final cmd = widget.outer[_ringOffset + i];
+            _ringOffset + i < _visibleRingCommands.length) {
+          final cmd = _visibleRingCommands[_ringOffset + i];
           if (cmd.enabled) widget.onCommand(cmd.id);
           return;
         }
@@ -246,8 +249,8 @@ class _ZamerKitFanState extends State<ZamerKitFan> {
   Widget build(BuildContext context) {
     final items = <ZamerKitCommand>[];
     for (var i = _ringOffset;
-        i < math.min(_ringOffset + 3, widget.outer.length); i++) {
-      items.add(widget.outer[i]);
+        i < math.min(_ringOffset + 3, _visibleRingCommands.length); i++) {
+      items.add(_visibleRingCommands[i]);
     }
     if (!_expanded) {
       return SizedBox(
@@ -392,7 +395,7 @@ class _ZamerKitFanState extends State<ZamerKitFan> {
             Positioned(
               top: 1,
               left: _leftHanded ? 145 : 8,
-              child: _expanded && widget.outer.length > 3
+              child: _expanded && _visibleRingCommands.length > 3
                 ? GestureDetector(
                   onTap: _showAll,
                   child: DecoratedBox(
@@ -405,7 +408,7 @@ class _ZamerKitFanState extends State<ZamerKitFan> {
                         horizontal: 7, vertical: 3),
                       child: Text(
                         '${_ringOffset + 1}–${math.min(_ringOffset + 3,
-                          widget.outer.length)}/${widget.outer.length}',
+                          _visibleRingCommands.length)}/${_visibleRingCommands.length}',
                         style: const TextStyle(color: ZamerKitColors.muted,
                           fontSize: 10),
                       ),
