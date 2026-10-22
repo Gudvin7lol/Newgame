@@ -2977,10 +2977,13 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       final left = (screenX - width / 2)
           .clamp(8.0, math.max(8.0, _viewport.width - width - 8))
           .toDouble();
-      final proposed = screenY + 150 > _viewport.height
-          ? screenY - 150 : screenY + 22;
+      // Place the 176px inspector on the side with space. Never force
+      // a bottom sheet or reposition the camera when selecting a door.
+      const cardHeight = 176.0;
+      final proposed = screenY + cardHeight + 24 > _viewport.height
+          ? screenY - cardHeight - 16 : screenY + 22;
       final top = proposed
-          .clamp(55.0, math.max(55.0, _viewport.height - 170))
+          .clamp(52.0, math.max(52.0, _viewport.height - cardHeight - 8))
           .toDouble();
       final isDoor = opening.type == OpeningType.door;
       final leftHinge = opening.doorSwing == DoorSwing.leftIn ||
@@ -3033,6 +3036,32 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                   icon: const Icon(Icons.height_rounded, size: 14),
                   label: Text('${opening.heightMm.round()} мм',
                     style: const TextStyle(fontSize: 11)),
+                )),
+              ]),
+              // Distances are measured along the host wall from the door's
+              // edges, not from the phone screen's left/right directions.
+              Row(children: [
+                Expanded(child: TextButton(
+                  key: const ValueKey('opening-offset-from-start'),
+                  onPressed: () => _editOpening(wall, opening),
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size(0, 30),
+                    padding: EdgeInsets.zero),
+                  child: Text('← ${opening.offsetFromStartMm.round()} мм',
+                    maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 10)),
+                )),
+                const SizedBox(width: 7),
+                Expanded(child: TextButton(
+                  key: const ValueKey('opening-offset-to-end'),
+                  onPressed: () => _editOpening(wall, opening),
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size(0, 30),
+                    padding: EdgeInsets.zero),
+                  child: Text('${math.max(0.0, length -
+                    opening.offsetFromStartMm - opening.widthMm).round()} мм →',
+                    maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 10)),
                 )),
               ]),
               if (isDoor) Row(children: [
