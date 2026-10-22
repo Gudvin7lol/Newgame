@@ -8,7 +8,6 @@ import '../design_system/zamer_components.dart';
 import '../design_system/zamer_master_page_header.dart';
 import '../design_system/zamer_tokens.dart';
 import '../models/models.dart';
-import '../services/angle_snap_service.dart';
 import '../services/object_catalog.dart';
 import '../services/geometry_service.dart';
 import '../services/imported_top_view_assets.dart';
@@ -48,7 +47,6 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
   ProjectLayer _layer = ProjectLayer.proposed;
   String? _selectedId;
   String? _gestureObjectId;
-  double _gestureBaseRotation = 0;
   double? _gestureSnapAngleDeg;
   Offset _gestureGrabOffset = Offset.zero;
   bool _gestureDirty = false;
@@ -467,7 +465,6 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
     setState(() {
       _gestureObjectId = o?.id;
       _selectedId = o?.id;
-      _gestureBaseRotation = o?.rotationDeg ?? 0;
       _gestureSnapAngleDeg = null;
       _gestureGrabOffset = o == null
           ? Offset.zero
@@ -1524,29 +1521,10 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
                     ),
                   ),
                 if (spaceIssues.isNotEmpty)
-                  Positioned(left: 8, top: 8, child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: const Color(0xEF391C26),
-                      borderRadius: BorderRadius.circular(9),
-                      border: Border.all(color: ZamerColors.danger)),
+                  Positioned(
+                    left: 8, top: 8,
+                    width: math.min(234.0, size.width - 16),
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 9, vertical: 5),
-                      child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        const Icon(Icons.warning_amber_rounded,
-                          color: ZamerColors.danger, size: 17),
-                        const SizedBox(width: 5),
-                        Text('Коллизии: ${spaceIssues.length}',
-                          style: const TextStyle(fontSize: 11)),
-                      ]),
-                    ),
-                  )),
-              ]);
-            },
-          ),
-        ),
-        if (widget.floor.planObjects.isNotEmpty)
-          Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: OutlinedButton.icon(
               onPressed: () => showModalBottomSheet<void>(
@@ -1587,9 +1565,14 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
                     ? Icons.check_circle_outline
                     : Icons.warning_amber_outlined,
               ),
-              label: Text('Проходы и пересечения: ${spaceIssues.length}'),
+              label: Text('Коллизии: ${spaceIssues.length}'),
             ),
           ),
+                  ),
+              ]);
+            },
+          ),
+        ),
 
       ],
     );
