@@ -1465,6 +1465,7 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
                       origin: tx.origin,
                       selectedId: _selectedId,
                       snapAngleDeg: _gestureSnapAngleDeg,
+                      collisionIssues: spaceIssues,
                     ),
                     child: const SizedBox.expand(),
                   ),
@@ -1618,6 +1619,7 @@ class _PlanningPainter extends CustomPainter {
     this.selectedId,
     this.snapAngleDeg,
     this.darkPreview = false,
+    this.collisionIssues = const <SpaceIssue>[],
   }) : super(repaint: ImportedTopViewAssets.instance);
 
   final FloorPlan floor;
@@ -1626,6 +1628,137 @@ class _PlanningPainter extends CustomPainter {
   final String? selectedId;
   final double? snapAngleDeg;
   final bool darkPreview;
+  final List<SpaceIssue> collisionIssues;
+
+  Path _objectFootprint(PlanObject object) {
+    final cx = origin.dx + object.xMm * scale;
+    final cy = origin.dy + object.yMm * scale;
+    final w = object.widthMm * scale / 2;
+    final h = object.depthMm * scale / 2;
+    final angle = object.rotationDeg * math.pi / 180;
+    final cosAngle = math.cos(angle);
+    final sinAngle = math.sin(angle);
+    final corners = <Offset>[
+      Offset(-w, -h), Offset(w, -h),
+      Offset(w, h), Offset(-w, h),
+    ].map((p) => Offset(
+      cx + p.dx * cosAngle - p.dy * sinAngle,
+      cy + p.dx * sinAngle + p.dy * cosAngle,
+    )).toList(growable: false);
+    return Path()
+      ..moveTo(corners[0].dx, corners[0].dy)
+      ..lineTo(corners[1].dx, corners[1].dy)
+      ..lineTo(corners[2].dx, corners[2].dy)
+      ..lineTo(corners[3].dx, corners[3].dy)
+      ..close();
+  }
+
+  Path? _wallFootprint(PlanWall wall) {
+    final a = floor.nodeById(wall.startNodeId);
+    final b = floor.nodeById(wall.endNodeId);
+    if (a == null || b == null) return null;
+    final dx = b.xMm - a.xMm;
+    final dy = b.yMm - a.yMm;
+    final length = math.sqrt(dx * dx + dy * dy);
+    if (length < 1) return null;
+    final normalX = -dy * wall.thicknessMm / (2 * length);
+    final normalY = dx * wall.thicknessMm / (2 * length);
+    Offset point(double x, double y) =>
+      origin + Offset(x * scale, y * scale);
+    final points = <Offset>[
+      point(a.xMm + normalX, a.yMm + normalY),
+      point(b.xMm + normalX, b.yMm + normalY),
+      point(b.xMm - normalX, b.yMm - normalY),
+      point(a.xMm - normalX, a.yMm - normalY),
+    ];
+    return Path()
+      ..moveTo(points[0].dx, points[0].dy)
+      ..lineTo(points[1].dx, points[1].dy)
+      ..lineTo(points[2].dx, points[2].dy)
+      ..lineTo(points[3].dx, points[3].dy)
+      ..close();
+  }
+
+  void _drawCollisionContours(Canvas canvas) {
+    if (collisionIssues.isEmpty) return;
+    final byId = <String, PlanObject>{
+      for (final object in floor.planObjects) object.id: object,
+    };
+    final critical = <String>{};
+    final doorClearances = <String>{};
+    final overlapPaint = Paint()
+      ..color = const Color(0xFFFF435B).withValues(alpha: .40);
+    for (final issue in collisionIssues) {
+      if (issue.kind == SpaceIssueKind.doorClearance) {
+        doorClearances.addAll(issue.objectIds);
+      } else {
+        critical.addAll(issue.objectIds);
+      }
+      // True polygon intersection, not a red bounding box or a guessed
+      // warning coordinate. This area remains bound to real CAD geometry.
+      if (issue.kind == SpaceIssueKind.objectObject &&
+          issue.objectIds.length == 2) {
+        final a = byId[issue.objectIds[0]];
+        final b = byId[issue.objectIds[1]];
+        if (a == null || b == null) continue;
+        try {
+          final crossing = Path.combine(PathOperation.intersect,
+              _objectFootprint(a), _objectFootprint(b));
+          canvas.drawPath(crossing, overlapPaint);
+        } catch (_) { /* An invalid imported polygon must not crash CAD. */ }
+      }
+      if (issue.kind == SpaceIssueKind.objectWall &&
+          issue.objectIds.isNotEmpty) {
+        final object = byId[issue.objectIds.first];
+        if (object == null) continue;
+        final objectPath = _objectFootprint(object);
+        for (final wall in floor.walls) {
+          if (wall.demolition || wall.projectLayer == ProjectLayer.demolition) {
+            continue;
+          }
+          final wallPath = _wallFootprint(wall);
+          if (wallPath == null ||
+              !objectPath.getBounds().overlaps(wallPath.getBounds())) continue;
+          try {
+            canvas.drawPath(
+              Path.combine(PathOperation.intersect, objectPath, wallPath),
+              overlapPaint);
+          } catch (_) { /* Imported wall curves may be incomplete. */ }
+        }
+      }
+    }
+    for (final entry in <(Set<String>, Color)>[
+      (critical, const Color(0xFFFF435B)),
+      (doorClearances.difference(critical), const Color(0xFFF6B35B)),
+    ]) {
+      for (final id in entry.$1) {
+        final object = byId[id];
+        if (object == null) continue;
+        final path = _objectFootprint(object);
+        canvas.drawPath(path, Paint()
+          ..color = entry.$2.withValues(alpha: .30)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 7
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5));
+        canvas.drawPath(path, Paint()
+          ..color = entry.$2
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.4);
+        final bounds = path.getBounds();
+        final mark = Offset(bounds.right, bounds.top);
+        canvas.drawCircle(mark, 9, Paint()
+          ..color = const Color(0xFF101820));
+        canvas.drawCircle(mark, 7.5, Paint()..color = entry.$2);
+        final text = TextPainter(
+          text: const TextSpan(text: '!',
+            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800,
+              color: Colors.white)),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        text.paint(canvas, mark - Offset(text.width / 2, text.height / 2));
+      }
+    }
+  }
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1641,6 +1774,7 @@ class _PlanningPainter extends CustomPainter {
       showDimensions: !darkPreview,
     ).paint(canvas, size);
 
+    _drawCollisionContours(canvas);
     if (selectedId == null) return;
     PlanObject? selected;
     for (final object in floor.planObjects) {
@@ -1665,6 +1799,9 @@ class _PlanningPainter extends CustomPainter {
 
     // The highlight is intentionally separate from the model. Selection
     // never changes its physical footprint, rotation or raster appearance.
+    final colliding = collisionIssues.any((issue) =>
+      issue.objectIds.contains(selected.id) &&
+      issue.kind != SpaceIssueKind.doorClearance);
     canvas.save();
     canvas.translate(center.dx, center.dy);
     canvas.rotate(selected.rotationDeg * math.pi / 180);
@@ -1674,7 +1811,7 @@ class _PlanningPainter extends CustomPainter {
         const Radius.circular(4),
       ),
       Paint()
-        ..color = ZamerColors.accent
+        ..color = colliding ? const Color(0xFFFF435B) : ZamerColors.accent
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2,
     );
