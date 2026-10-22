@@ -1486,8 +1486,19 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
                 ])),
                 if (_objectById(_selectedId) case final selected?)
                   Positioned(
-                    left: 10, bottom: 9,
-                    width: math.max(95.0, math.min(195.0, size.width - 146)),
+                    // Follow the selected furniture, not a fixed footer.
+                    left: (tx.origin.dx + selected.xMm * tx.scale - 95)
+                      .clamp(8.0, math.max(8.0, size.width - 206))
+                      .toDouble(),
+                    top: (tx.origin.dy + selected.yMm * tx.scale +
+                      selected.depthMm * tx.scale / 2 + 14 + 55 < size.height
+                      ? tx.origin.dy + selected.yMm * tx.scale +
+                          selected.depthMm * tx.scale / 2 + 14
+                      : tx.origin.dy + selected.yMm * tx.scale -
+                          selected.depthMm * tx.scale / 2 - 52)
+                      .clamp(54.0, math.max(54.0, size.height - 56))
+                      .toDouble(),
+                    width: math.max(110.0, math.min(195.0, size.width - 16)),
                     child: Material(
                       key: const ValueKey('floating-object-inspector'),
                       color: const Color(0xF00D2028),
@@ -1771,7 +1782,8 @@ class _PlanningPainter extends CustomPainter {
       mmToPx: scale,
       origin: origin,
       showGrid: !darkPreview,
-      showDimensions: !darkPreview,
+      // Furniture editing should not re-enable exterior dimension chains.
+      showDimensions: false,
     ).paint(canvas, size);
 
     _drawCollisionContours(canvas);
