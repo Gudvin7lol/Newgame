@@ -702,6 +702,8 @@ class RoomMaterialSettings {
     this.laminateOffsetXMm = 0,
     this.laminateOffsetYMm = 0,
     this.floorDirectionDeg = 0,
+    this.floorLayoutStartXMm,
+    this.floorLayoutStartYMm,
     this.underlayMode = 'roll',
     this.underlayRollWidthMm = 1000,
     this.underlaySheetWidthMm = 500,
@@ -773,6 +775,10 @@ class RoomMaterialSettings {
   double laminateOffsetXMm;
   double laminateOffsetYMm;
   double floorDirectionDeg;
+  // Absolute starting point chosen on the measured plan, not just a material
+  // phase. Nullable for backwards compatibility with existing projects.
+  double? floorLayoutStartXMm;
+  double? floorLayoutStartYMm;
   String underlayMode;
   double underlayRollWidthMm;
   double underlaySheetWidthMm;
@@ -837,6 +843,8 @@ class RoomMaterialSettings {
     underlaySheetWidthMm = valid(underlaySheetWidthMm, 20, 500);
     underlaySheetHeightMm = valid(underlaySheetHeightMm, 20, 1000);
     floorDirectionDeg = wrap(floorDirectionDeg, 360);
+    if (floorLayoutStartXMm?.isFinite == false) floorLayoutStartXMm = null;
+    if (floorLayoutStartYMm?.isFinite == false) floorLayoutStartYMm = null;
     final herringbone = laminatePattern == 'herringbone';
     final laminateXModule = herringbone
         ? laminatePlankLengthMm / math.sqrt2
@@ -895,6 +903,8 @@ class RoomMaterialSettings {
     'laminateOffsetXMm': laminateOffsetXMm,
     'laminateOffsetYMm': laminateOffsetYMm,
     'floorDirectionDeg': floorDirectionDeg,
+    'floorLayoutStartXMm': floorLayoutStartXMm,
+    'floorLayoutStartYMm': floorLayoutStartYMm,
     'underlayMode': underlayMode,
     'underlayRollWidthMm': underlayRollWidthMm,
     'underlaySheetWidthMm': underlaySheetWidthMm,
@@ -967,6 +977,8 @@ class RoomMaterialSettings {
     laminateOffsetXMm: (json['laminateOffsetXMm'] as num?)?.toDouble() ?? 0,
     laminateOffsetYMm: (json['laminateOffsetYMm'] as num?)?.toDouble() ?? 0,
     floorDirectionDeg: (json['floorDirectionDeg'] as num?)?.toDouble() ?? 0,
+    floorLayoutStartXMm: (json['floorLayoutStartXMm'] as num?)?.toDouble(),
+    floorLayoutStartYMm: (json['floorLayoutStartYMm'] as num?)?.toDouble(),
     underlayMode: json['underlayMode'] as String? ?? 'roll',
     underlayRollWidthMm:
         (json['underlayRollWidthMm'] as num?)?.toDouble() ?? 1000,
