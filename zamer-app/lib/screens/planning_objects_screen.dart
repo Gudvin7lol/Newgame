@@ -1298,7 +1298,6 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
     );
   }
 
-  @override
   Widget _viewportButton(IconData icon, VoidCallback onTap) => Material(
     color: const Color(0xF00D2028),
     borderRadius: BorderRadius.circular(9),
@@ -1310,6 +1309,7 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
     ),
   );
 
+  @override
   Widget build(BuildContext context) {
     final groupItems = ObjectCatalog.inGroup(_group);
     final spaceIssues = SpaceCheckService.inspect(widget.floor);
