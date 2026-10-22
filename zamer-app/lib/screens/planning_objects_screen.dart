@@ -1535,10 +1535,18 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
                 if (spaceIssues.isNotEmpty)
                   Positioned(
                     left: 8, top: 8,
-                    width: math.min(234.0, size.width - 16),
+                    width: math.min(155.0, size.width - 16),
                     child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
+            padding: EdgeInsets.zero,
             child: OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(0, 34),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                backgroundColor: const Color(0xFF351C25),
+                foregroundColor: const Color(0xFFFF8793),
+                side: const BorderSide(color: Color(0xFFA64D61)),
+                textStyle: const TextStyle(fontSize: 11),
+              ),
               onPressed: () => showModalBottomSheet<void>(
                 context: context,
                 isScrollControlled: true,
