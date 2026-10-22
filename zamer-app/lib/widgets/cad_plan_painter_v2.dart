@@ -498,7 +498,7 @@ class CadPlanPainterV2 extends CustomPainter {
       visibleLayers: visibleLayers,
     );
     const colors = <ProjectLayer, Color>{
-      ProjectLayer.existing: Color(0xFFF0F1ED),
+      ProjectLayer.existing: Color(0xFF353B3C),
       ProjectLayer.demolition: ZamerColors.danger,
       ProjectLayer.proposed: Color(0xFF5FD189),
     };
@@ -513,7 +513,7 @@ class CadPlanPainterV2 extends CustomPainter {
       canvas.drawPath(
         bodies[layer]!,
         Paint()
-          ..color = const Color(0xFF626B6D)
+          ..color = const Color(0xFF8C9390)
           ..style = PaintingStyle.stroke
           ..strokeWidth = .65
           ..strokeJoin = StrokeJoin.miter,
@@ -704,27 +704,42 @@ class CadPlanPainterV2 extends CustomPainter {
         final frameHalf = math.max(1.0, wallWidth / 2 - 1.0);
         _doorwayQuad(
           canvas, p1, p2, normal, -frameHalf, frameHalf,
-          const Color(0xFFDDE7E9),
+          const Color(0xFFE4E7E1),
         );
+        // A slim architectural frame and two panes replace the oversized
+        // blue strokes. All profiles remain inside the physical wall cut.
+        final profileHalf = math.min(frameHalf, 45 * mmToPx);
         final frame = Paint()
-          ..color = const Color(0xFF4CB9F8)
-          ..strokeWidth = math.max(1.2, wallWidth * .18)
+          ..color = const Color(0xFF687675)
+          ..strokeWidth = math.max(.8, 18 * mmToPx)
           ..strokeCap = StrokeCap.butt;
+        _doorwayQuad(
+          canvas, p1, p2, normal, -profileHalf, profileHalf,
+          const Color(0xFFC8DAD8),
+        );
         canvas.drawLine(
-          p1 + normal * wallWidth * .22,
-          p2 + normal * wallWidth * .22,
+          p1 + normal * profileHalf,
+          p2 + normal * profileHalf,
           frame,
         );
         canvas.drawLine(
-          p1 - normal * wallWidth * .22,
-          p2 - normal * wallWidth * .22,
+          p1 - normal * profileHalf,
+          p2 - normal * profileHalf,
           frame,
         );
+        for (final t in [0.0, .5, 1.0]) {
+          final at = Offset.lerp(p1, p2, t)!;
+          canvas.drawLine(
+            at - normal * profileHalf,
+            at + normal * profileHalf,
+            frame,
+          );
+        }
         canvas.drawLine(
           p1, p2,
           Paint()
-            ..color = const Color(0xFFB8E4FA).withValues(alpha: .72)
-            ..strokeWidth = 1.0,
+            ..color = const Color(0xFFF3F6F1)
+            ..strokeWidth = .7,
         );
         continue;
       }
@@ -779,11 +794,58 @@ class CadPlanPainterV2 extends CustomPainter {
       ) ? 1.0 : -1.0;
       final widthPx = (p2 - p1).distance;
       final leaf = hinge + normal * widthPx * side;
+      // Door casing and leaf have physical thickness, independent of the
+      // swing arc. Previously a single white line disappeared on pale floors.
+      final casing = math.max(1.2, 52 * mmToPx);
+      for (final jamb in [p1, p2]) {
+        canvas.drawLine(
+          jamb - normal * wallWidth / 2,
+          jamb + normal * wallWidth / 2,
+          Paint()
+            ..color = const Color(0xFF71736D)
+            ..strokeWidth = casing + .8,
+        );
+        canvas.drawLine(
+          jamb - normal * wallWidth / 2,
+          jamb + normal * wallWidth / 2,
+          Paint()
+            ..color = const Color(0xFFE8E3D8)
+            ..strokeWidth = casing,
+        );
+      }
+      final halfLeaf = math.max(.6, 36 * mmToPx / 2);
+      final leafBody = Path()
+        ..moveTo((hinge - unit * halfLeaf).dx,
+            (hinge - unit * halfLeaf).dy)
+        ..lineTo((leaf - unit * halfLeaf).dx,
+            (leaf - unit * halfLeaf).dy)
+        ..lineTo((leaf + unit * halfLeaf).dx,
+            (leaf + unit * halfLeaf).dy)
+        ..lineTo((hinge + unit * halfLeaf).dx,
+            (hinge + unit * halfLeaf).dy)
+        ..close();
+      canvas.drawPath(leafBody, Paint()..color = const Color(0xFFDDD3BF));
+      canvas.drawPath(
+        leafBody,
+        Paint()
+          ..color = const Color(0xFF77776D)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = .7,
+      );
+      if (widthPx > 35) {
+        final handle = hinge + normal * widthPx * side * .88;
+        canvas.drawLine(
+          handle, handle + closed * math.max(2, 65 * mmToPx),
+          Paint()
+            ..color = const Color(0xFF5D6866)
+            ..strokeWidth = math.max(.8, 12 * mmToPx)
+            ..strokeCap = StrokeCap.round,
+        );
+      }
       final paint = Paint()
-        ..color = const Color(0xFFE6E4DE)
+        ..color = const Color(0xFF747A72).withValues(alpha: .62)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.0;
-      canvas.drawLine(hinge, leaf, paint);
+        ..strokeWidth = .65;
       final closedAngle = math.atan2(closed.dy, closed.dx);
       final openAngle = math.atan2(normal.dy * side, normal.dx * side);
       var sweep = openAngle - closedAngle;

@@ -45,7 +45,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Zamer-2D-walls-furniture-preview
-          path: zamer-app/docs/previews/neutral-2d-pass1.png
+          path: zamer-app/docs/previews/*.png
           if-no-files-found: warn
           retention-days: 14
       - name: Analyze changed renderer

@@ -128,7 +128,7 @@ FloorPlan previewFloor() {
         faceKey: face.key,
         name: '',
         // A neutral existing preset isolates the wall/furniture review.
-        materials: RoomMaterialSettings(floorMaterialId: 'paint-greige'),
+        materials: RoomMaterialSettings(floorMaterialId: 'paint-warm-white'),
       ),
     );
   }
@@ -137,8 +137,10 @@ FloorPlan previewFloor() {
     object('coffee', 'coffee-table-oval', 1650, 2050, 1100, 650),
     object('chair', 'armchair', 3350, 2050, 920, 900, rotation: 90),
     object('table', 'dining-table-1800', 3000, 4200, 1800, 900),
-    object('dining1', 'chair', 3000, 3400, 480, 520),
-    object('dining2', 'chair', 3000, 5000, 480, 520, rotation: 180),
+    object('dining1', 'chair', 2550, 3400, 480, 520),
+    object('dining2', 'chair', 3450, 3400, 480, 520),
+    object('dining3', 'chair', 2550, 5000, 480, 520, rotation: 180),
+    object('dining4', 'chair', 3450, 5000, 480, 520, rotation: 180),
     object('storage', 'wardrobe-3', 450, 4200, 1500, 600, rotation: 90),
     object('bed', 'bed-180', 6400, 1450, 1800, 2200),
     object('nightstand1', 'nightstand', 5150, 650, 430, 430),
@@ -149,6 +151,35 @@ FloorPlan previewFloor() {
     // Intentionally added last to exercise the floor-object stacking rule.
     object('rug', 'rug-gray', 1900, 2000, 3000, 2200),
   ]);
+  return floor;
+}
+
+FloorPlan livingRoomPreview() {
+  final source = previewFloor();
+  const nodes = {'a', 'b', 'f', 'g'};
+  const walls = {'ab', 'fg', 'ga'};
+  final floor = FloorPlan(
+    id: 'living-room-review',
+    name: 'Гостиная — проверка деталей',
+    nodes: source.nodes.where((node) => nodes.contains(node.id)).toList(),
+    walls: [
+      ...source.walls.where((wall) => walls.contains(wall.id)),
+      PlanWall(
+        id: 'right', startNodeId: 'b', endNodeId: 'f', thicknessMm: 160,
+        openings: [WallOpening(
+          id: 'right-door', type: OpeningType.door, widthMm: 900,
+          heightMm: 2100, offsetFromStartMm: 2950,
+        )],
+      ),
+    ],
+    planObjects: source.planObjects.where((object) => object.xMm < 4800).toList(),
+  );
+  for (final face in GeometryService.roomFaces(floor)) {
+    floor.roomMetas.add(RoomMeta(
+      id: face.key, faceKey: face.key, name: '',
+      materials: RoomMaterialSettings(floorMaterialId: 'paint-warm-white'),
+    ));
+  }
   return floor;
 }
 
@@ -253,7 +284,7 @@ void main() {
         200,
       );
       final pixels = (await image.toByteData())!;
-      expect(pixel(pixels, 300, 100, 100), 0xF0F1EDFF);
+      expect(pixel(pixels, 300, 100, 100), 0x353B3CFF);
       expect(pixel(pixels, 300, 100, 70), 0xF44336FF);
       final bg = ZamerColors.background.toARGB32();
       expect(pixel(pixels, 300, 200, 111), ((bg & 0xffffff) << 8) | 0xff);
@@ -288,6 +319,8 @@ void main() {
       'dining-table-1800',
       'coffee-table-oval',
       'wardrobe-3',
+      'chair',
+      'rug-gray',
     ]) {
       final item = ObjectCatalog.byId(id);
       for (final angle in [0.0, 90.0]) {
@@ -346,6 +379,8 @@ void main() {
       'dining-table-1800',
       'coffee-table-oval',
       'wardrobe-3',
+      'chair',
+      'rug-gray',
     ]) {
       expect(ImportedTopViewAssets.hasNeutralTopView(id), isTrue);
       final sprite = assets.neutralForCatalog(id);
@@ -354,11 +389,11 @@ void main() {
         isNotNull,
         reason: '$id must not silently use the old atlas',
       );
-      expect(sprite!.sourceRect.width, greaterThan(650));
+      expect(sprite!.sourceRect.width, greaterThan(id == 'chair' ? 400 : 650));
       expect(sprite.sourceRect.right, lessThanOrEqualTo(sprite.image.width));
       decodedBytes += sprite.image.width * sprite.image.height * 4;
     }
-    expect(decodedBytes, lessThan(12 * 1024 * 1024));
+    expect(decodedBytes, lessThan(16 * 1024 * 1024));
     final floor = previewFloor();
     final before = floor.toJson().toString();
     final image = await render(
@@ -384,6 +419,29 @@ void main() {
       await file.writeAsBytes(
         png.buffer.asUint8List(png.offsetInBytes, png.lengthInBytes),
       );
+      final detail = await render(
+        (canvas) {
+          CadPlanPainterV3(
+            floor: livingRoomPreview(),
+            mmToPx: .21,
+            origin: const Offset(96, 100),
+            showGrid: false,
+            showDimensions: false,
+            visibleCategories: PlanDisplayLayer.values.toSet()
+              ..remove(PlanDisplayLayer.roomLabels),
+          ).paint(canvas, const Size(1200, 1420));
+        },
+        1200,
+        1420,
+      );
+      final detailPng =
+          (await detail.toByteData(format: ui.ImageByteFormat.png))!;
+      await File('docs/previews/living-room-review.png').writeAsBytes(
+        detailPng.buffer.asUint8List(
+          detailPng.offsetInBytes, detailPng.lengthInBytes,
+        ),
+      );
+      detail.dispose();
     }
     image.dispose();
   });

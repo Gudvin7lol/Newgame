@@ -21,7 +21,7 @@ class ImportedTopViewAssets extends ChangeNotifier {
   static final ImportedTopViewAssets instance = ImportedTopViewAssets._();
 
   static const _root = 'assets/topview/imported_2026_10_02';
-  // First neutral 2D artwork pass. These are plan illustrations, not new GLBs.
+  // Neutral 2D artwork. These are plan illustrations, not new GLBs.
   // Source bounds exclude export padding so the silhouette fills the object's
   // existing millimetre footprint at every rotation and zoom.
   static const _neutralSpecs = {
@@ -54,6 +54,16 @@ class ImportedTopViewAssets extends ChangeNotifier {
       file: 'neutral_wardrobe_3_v1.png',
       decodeWidth: 768,
       bounds: ui.Rect.fromLTRB(76 / 1983, 95 / 793, 1912 / 1983, 697 / 793),
+    ),
+    'chair': (
+      file: 'neutral_dining_chair_v2.png',
+      decodeWidth: 768,
+      bounds: ui.Rect.fromLTRB(219 / 1349, 83 / 1166, 1130 / 1349, 1110 / 1166),
+    ),
+    'rug-gray': (
+      file: 'neutral_rug_gray_v2.png',
+      decodeWidth: 1024,
+      bounds: ui.Rect.fromLTRB(65 / 1448, 70 / 1086, 1383 / 1448, 1015 / 1086),
     ),
   };
 
@@ -164,7 +174,7 @@ class ImportedTopViewAssets extends ChangeNotifier {
   Future<void> _load() async {
     var loadedAny = false;
 
-    // Bound the six decoded textures to less than 12 MiB in total. Original PNGs
+    // Bound the eight decoded textures to less than 16 MiB total. Original PNGs
     // remain available for future exports, without retaining full-size copies
     // in GPU memory during ordinary plan editing.
     for (final entry in _neutralSpecs.entries) {
