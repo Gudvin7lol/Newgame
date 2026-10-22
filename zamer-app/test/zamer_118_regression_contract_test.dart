@@ -69,7 +69,10 @@ void main() {
     expect(source, contains('if (widget.embedded) {'));
     expect(source, contains('setState(() => _selectedId = null)'));
     expect(source, contains('_notifySelection();'));
-    expect(source, contains('d.rotation * 180 / math.pi'));
+    // Version +148 uses two fingers for canvas navigation, not object rotation.
+    expect(source, contains('if (d.pointerCount >= 2 || _pinchingCamera)'));
+    expect(source, contains('_viewZoom = nextZoom'));
+    expect(source, contains('onPressed: () => _rotateSelected(15)'));
     expect(source, contains('onScaleUpdate: (d) => _objectScaleUpdate'));
   });
 }
