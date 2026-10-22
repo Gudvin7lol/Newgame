@@ -20,10 +20,14 @@ class ZamerCatalogArtwork extends StatefulWidget {
     super.key,
     required this.catalogId,
     required this.fallback,
+    this.loadingFallback,
   });
 
   final String catalogId;
   final Widget fallback;
+  /// Lightweight CAD silhouette shown immediately while the atlas loads.
+  /// This does not enqueue one GPU scene renderer per visible catalogue cell.
+  final Widget? loadingFallback;
 
   @override
   State<ZamerCatalogArtwork> createState() => _ZamerCatalogArtworkState();
@@ -76,13 +80,7 @@ class _ZamerCatalogArtworkState extends State<ZamerCatalogArtwork> {
         // While the shared atlas decodes, don't queue costly GLB render jobs.
         return _resolved
             ? widget.fallback
-            : const ColoredBox(
-                color: ZamerColors.surfaceHigh,
-                child: Center(
-                  child: Icon(Icons.chair_alt_outlined,
-                    color: ZamerColors.textMuted, size: 27),
-                ),
-              );
+            : (widget.loadingFallback ?? widget.fallback);
       },
     );
   }
