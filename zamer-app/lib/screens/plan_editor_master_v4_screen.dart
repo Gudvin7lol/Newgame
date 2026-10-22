@@ -3308,7 +3308,33 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                     ),
                   ),
                 ),
-              if (_editingGeometry)
+              // Opening placement only needs a small contextual hint,
+              // not another full-width toolbar over the apartment.
+              if (widget.planTool == MeasurePlanTool.openings &&
+                  _selectedOpening == null && !_moveCameraInsteadOfDrawing)
+                Positioned(
+                  key: const ValueKey('compact-opening-hint'),
+                  left: 8,
+                  top: widget.nativeKitV2 ? 55 : 8,
+                  child: IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: const Color(0xE80C1B20),
+                        border: Border.all(color: ZamerColors.outlineSoft),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 9, vertical: 6),
+                        child: Text('Коснитесь стены, чтобы добавить проём',
+                          style: TextStyle(
+                            fontSize: 10, color: ZamerColors.textSecondary)),
+                      ),
+                    ),
+                  ),
+                ),
+              if (_editingGeometry &&
+                  widget.planTool != MeasurePlanTool.openings)
                 Positioned(
                   left: 8,
                   right: 8,
