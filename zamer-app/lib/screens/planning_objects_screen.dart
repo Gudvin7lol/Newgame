@@ -8,7 +8,6 @@ import '../design_system/zamer_components.dart';
 import '../design_system/zamer_master_page_header.dart';
 import '../design_system/zamer_tokens.dart';
 import '../models/models.dart';
-import '../services/angle_snap_service.dart';
 import '../services/object_catalog.dart';
 import '../services/geometry_service.dart';
 import '../services/imported_top_view_assets.dart';
@@ -48,10 +47,17 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
   ProjectLayer _layer = ProjectLayer.proposed;
   String? _selectedId;
   String? _gestureObjectId;
-  double _gestureBaseRotation = 0;
   double? _gestureSnapAngleDeg;
   Offset _gestureGrabOffset = Offset.zero;
   bool _gestureDirty = false;
+  // Viewport transform is independent of object geometry.
+  double _viewZoom = 1;
+  Offset _viewPan = Offset.zero;
+  bool _pinchingCamera = false;
+  double _pinchStartZoom = 1;
+  double _pinchStartScale = 1;
+  Offset _pinchStartPan = Offset.zero;
+  Offset _pinchStartFocal = Offset.zero;
 
   String _group = 'Мягкая мебель';
   String _catalogId = 'sofa-3';
@@ -296,8 +302,8 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
     // dragged object's position rescales the plan on every touch update.
     if (pts.isEmpty)
       return _ObjTx(
-        scale: 0.08,
-        origin: Offset(size.width / 2, size.height / 2),
+        scale: 0.08 * _viewZoom,
+        origin: Offset(size.width / 2, size.height / 2) + _viewPan,
       );
     var minX = pts.first.x,
         maxX = pts.first.x,
@@ -312,12 +318,14 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
     final w = math.max(1800.0, maxX - minX + 1200);
     final h = math.max(1800.0, maxY - minY + 1200);
     final scale = math.min(size.width / w, size.height / h);
+    final center = Offset(size.width / 2, size.height / 2);
+    final fittedOrigin = Offset(
+      center.dx - (minX + maxX) / 2 * scale,
+      center.dy - (minY + maxY) / 2 * scale,
+    );
     return _ObjTx(
-      scale: scale,
-      origin: Offset(
-        size.width / 2 - (minX + maxX) / 2 * scale,
-        size.height / 2 - (minY + maxY) / 2 * scale,
-      ),
+      scale: scale * _viewZoom,
+      origin: center + (fittedOrigin - center) * _viewZoom + _viewPan,
     );
   }
 
@@ -451,12 +459,12 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
   }
 
   void _objectScaleStart(ScaleStartDetails d, Size size) {
+    _pinchingCamera = false;
     final o = _near(_screenToMm(d.localFocalPoint, size));
     final tx = _tx(size);
     setState(() {
       _gestureObjectId = o?.id;
       _selectedId = o?.id;
-      _gestureBaseRotation = o?.rotationDeg ?? 0;
       _gestureSnapAngleDeg = null;
       _gestureGrabOffset = o == null
           ? Offset.zero
@@ -467,6 +475,29 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
   }
 
   void _objectScaleUpdate(ScaleUpdateDetails d, Size size) {
+    // Two fingers always navigate the plan; rotation has its own controls.
+    if (d.pointerCount >= 2 || _pinchingCamera) {
+      if (!_pinchingCamera) {
+        _pinchingCamera = true;
+        _pinchStartZoom = _viewZoom;
+        _pinchStartPan = _viewPan;
+        _pinchStartFocal = d.localFocalPoint;
+        _pinchStartScale = d.scale;
+      }
+      final nextZoom = (_pinchStartZoom *
+          d.scale / math.max(.0001, _pinchStartScale))
+          .clamp(.5, 6.0).toDouble();
+      final ratio = nextZoom / _pinchStartZoom;
+      final center = Offset(size.width / 2, size.height / 2);
+      final nextPan = _pinchStartPan +
+          (d.localFocalPoint - _pinchStartFocal) +
+          (_pinchStartFocal - center - _pinchStartPan) * (1 - ratio);
+      setState(() {
+        _viewZoom = nextZoom;
+        _viewPan = nextPan;
+      });
+      return;
+    }
     final o = _objectById(_gestureObjectId);
     if (o == null) return;
     final previousX = o.xMm, previousY = o.yMm;
@@ -474,20 +505,10 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
     final target = _screenToMm(d.localFocalPoint - _gestureGrabOffset, size);
     o.xMm = target.x;
     o.yMm = target.y;
-    if (d.pointerCount >= 2) {
-      final rawRotation = _gestureBaseRotation + d.rotation * 180 / math.pi;
-      final snap = AngleSnapService.snapQuarterTurnWithLock(
-        rawRotation,
-        lockedAngleDeg: _gestureSnapAngleDeg,
-      );
-      o.rotationDeg = snap.angleDeg;
-      _gestureSnapAngleDeg = snap.lockedAngleDeg;
-    } else {
-      _gestureSnapAngleDeg = null;
-      _snapObjectGuides(o);
-      _snapRadiatorToWall(o);
-      _snapCatalogMount(o);
-    }
+    _gestureSnapAngleDeg = null;
+    _snapObjectGuides(o);
+    _snapRadiatorToWall(o);
+    _snapCatalogMount(o);
     final mount = o.catalogId.isEmpty
         ? CatalogMount.floor
         : ObjectCatalog.byId(o.catalogId).mount;
@@ -546,6 +567,7 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
   }
 
   Future<void> _objectScaleEnd(ScaleEndDetails d) async {
+    _pinchingCamera = false;
     if (_gestureObjectId == null) return;
     final object = _objectById(_gestureObjectId);
     if (object != null && object.catalogId.startsWith('kitchen-')) {
@@ -1276,6 +1298,17 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
     );
   }
 
+  Widget _viewportButton(IconData icon, VoidCallback onTap) => Material(
+    color: const Color(0xF00D2028),
+    borderRadius: BorderRadius.circular(9),
+    child: IconButton(
+      icon: Icon(icon, size: 18),
+      onPressed: onTap,
+      constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+      padding: EdgeInsets.zero,
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
     final groupItems = ObjectCatalog.inGroup(_group);
@@ -1417,65 +1450,81 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
             builder: (context, c) {
               final size = Size(c.maxWidth, c.maxHeight);
               final tx = _tx(size);
-              return GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTapUp: (d) => _tap(d, size),
-                onScaleStart: (d) => _objectScaleStart(d, size),
-                onScaleUpdate: (d) => _objectScaleUpdate(d, size),
-                onScaleEnd: _objectScaleEnd,
-                child: CustomPaint(
-                  painter: _PlanningPainter(
-                    floor: widget.floor,
-                    scale: tx.scale,
-                    origin: tx.origin,
-                    selectedId: _selectedId,
-                    snapAngleDeg: _gestureSnapAngleDeg,
+
+              return Stack(children: [
+                Positioned.fill(child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTapUp: (d) => _tap(d, size),
+                  onScaleStart: (d) => _objectScaleStart(d, size),
+                  onScaleUpdate: (d) => _objectScaleUpdate(d, size),
+                  onScaleEnd: _objectScaleEnd,
+                  child: CustomPaint(
+                    painter: _PlanningPainter(
+                      floor: widget.floor,
+                      scale: tx.scale,
+                      origin: tx.origin,
+                      selectedId: _selectedId,
+                      snapAngleDeg: _gestureSnapAngleDeg,
+                    ),
+                    child: const SizedBox.expand(),
                   ),
-                  child: const SizedBox.expand(),
-                ),
-              );
-            },
-          ),
-        ),
-        if (_objectById(_selectedId) case final selected?)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    selected.label.trim().isEmpty
-                        ? selected.type.label
-                        : selected.label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: ZamerTypography.bodySmall.copyWith(
-                      color: ZamerColors.textPrimary,
-                      fontWeight: FontWeight.w800,
+                )),
+                Positioned(right: 9, bottom: 10, child: Row(children: [
+                  _viewportButton(Icons.remove_rounded,
+                    () => setState(() => _viewZoom =
+                      (_viewZoom / 1.2).clamp(.5, 6.0).toDouble())),
+                  const SizedBox(width: 5),
+                  _viewportButton(Icons.add_rounded,
+                    () => setState(() => _viewZoom =
+                      (_viewZoom * 1.2).clamp(.5, 6.0).toDouble())),
+                  const SizedBox(width: 5),
+                  _viewportButton(Icons.center_focus_strong_rounded,
+                    () => setState(() {
+                      _viewZoom = 1; _viewPan = Offset.zero;
+                    })),
+                ])),
+                if (_objectById(_selectedId) case final selected?)
+                  Positioned(
+                    left: 10, bottom: 9,
+                    width: math.max(95.0, math.min(195.0, size.width - 146)),
+                    child: Material(
+                      key: const ValueKey('floating-object-inspector'),
+                      color: const Color(0xF00D2028),
+                      elevation: 7,
+                      borderRadius: BorderRadius.circular(11),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 7, vertical: 4),
+                        child: Row(children: [
+                          Expanded(child: Text(
+                            selected.label.trim().isEmpty
+                              ? selected.type.label : selected.label,
+                            maxLines: 1, overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 11,
+                              fontWeight: FontWeight.w700))),
+                          IconButton(
+                            tooltip: 'Повернуть −15°',
+                            constraints: const BoxConstraints.tightFor(
+                              width: 33, height: 35),
+                            padding: EdgeInsets.zero,
+                            onPressed: () => _rotateSelected(-15),
+                            icon: const Icon(Icons.rotate_left_rounded, size: 19)),
+                          IconButton(
+                            tooltip: 'Повернуть +15°',
+                            constraints: const BoxConstraints.tightFor(
+                              width: 33, height: 35),
+                            padding: EdgeInsets.zero,
+                            onPressed: () => _rotateSelected(15),
+                            icon: const Icon(Icons.rotate_right_rounded, size: 19)),
+                        ]),
+                      ),
                     ),
                   ),
-                ),
-                IconButton.filledTonal(
-                  tooltip: 'Повернуть −15°',
-                  onPressed: () => _rotateSelected(-15),
-                  icon: const Icon(Icons.rotate_left_rounded, size: 19),
-                ),
-                const SizedBox(width: 6),
-                IconButton.filledTonal(
-                  tooltip: 'Повернуть +15°',
-                  onPressed: () => _rotateSelected(15),
-                  icon: const Icon(Icons.rotate_right_rounded, size: 19),
-                ),
-                const SizedBox(width: 6),
-                FilledButton.tonal(
-                  onPressed: () => _rotateSelected(90),
-                  child: Text('${selected.rotationDeg.round()}° → +90°'),
-                ),
-              ],
-            ),
-          ),
-        if (widget.floor.planObjects.isNotEmpty)
-          Padding(
+                if (spaceIssues.isNotEmpty)
+                  Positioned(
+                    left: 8, top: 8,
+                    width: math.min(234.0, size.width - 16),
+                    child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: OutlinedButton.icon(
               onPressed: () => showModalBottomSheet<void>(
@@ -1516,19 +1565,15 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
                     ? Icons.check_circle_outline
                     : Icons.warning_amber_outlined,
               ),
-              label: Text('Проходы и пересечения: ${spaceIssues.length}'),
+              label: Text('Коллизии: ${spaceIssues.length}'),
             ),
           ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
-          child: Text(
-            widget.embedded
-                ? 'Потяни объект одним пальцем; двумя — поверни. Нажми на объект для точных параметров.'
-                : 'Нажми на свободное место для установки. Потяни объект одним пальцем; двумя — поверни. Возле 0/90/180/270° включается магнитная привязка.',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodySmall,
+                  ),
+              ]);
+            },
           ),
         ),
+
       ],
     );
   }
