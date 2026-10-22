@@ -247,6 +247,8 @@ class _ZamerKitFanState extends State<ZamerKitFan> {
 
   @override
   Widget build(BuildContext context) {
+    final collapsedCenter = _leftHanded
+        ? Offset(_size - _center.dx, _center.dy) : _center;
     final items = <ZamerKitCommand>[];
     for (var i = _ringOffset;
         i < math.min(_ringOffset + 3, _visibleRingCommands.length); i++) {
@@ -260,7 +262,8 @@ class _ZamerKitFanState extends State<ZamerKitFan> {
         width: _size, height: _size,
         child: Stack(children: [
           Positioned(
-            left: _center.dx - 128, top: _center.dy - 25,
+            left: _leftHanded ? collapsedCenter.dx + 32 : collapsedCenter.dx - 128,
+            top: collapsedCenter.dy - 25,
             child: Material(
               color: ZamerKitColors.panel,
               elevation: 4,
@@ -284,7 +287,7 @@ class _ZamerKitFanState extends State<ZamerKitFan> {
             ),
           ),
           Positioned(
-            left: _center.dx - 26, top: _center.dy - 26,
+            left: collapsedCenter.dx - 26, top: collapsedCenter.dy - 26,
             child: InkWell(
               key: const ValueKey('fan-expand'),
               onTap: () => setState(() => _expanded = true),
