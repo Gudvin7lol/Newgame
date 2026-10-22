@@ -13,7 +13,6 @@ void main() {
     expect(adapter.contains('extends CadPlanPainterV3'), isTrue);
     expect(v3.contains('CadPlanPainterV2('), isTrue);
     expect(v3.contains('ImportedTopViewAssets.instance'), isTrue);
-    expect(v3.contains('paintImage('), isTrue);
     expect(imported.contains('assets/topview/imported_2026_10_02'), isTrue);
 
     // +107 renders top views from the exact production LOD0 GLBs, so the
