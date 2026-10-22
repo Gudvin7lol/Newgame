@@ -300,14 +300,14 @@ class _ZamerKitFanState extends State<ZamerKitFan> {
     return SizedBox(
       width: _size, height: _size,
       child: GestureDetector(
-        behavior: HitTestBehavior.deferToChild;
+        behavior: HitTestBehavior.deferToChild,
         onTapUp: _tap,
         onLongPress: _showAll,
         onPanStart: (details) {
           final local = details.localPosition;
           final p = _leftHanded
               ? Offset(_size - local.dx, local.dy) : local;
-          final distance = (p - const Offset(188, 188)).distance;
+          final distance = (p - _center).distance;
           _draggingOuter = _expanded &&
               distance >= 92 && distance <= 145;
           _lastOuterAngle = _draggingOuter
