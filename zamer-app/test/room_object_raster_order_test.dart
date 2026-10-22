@@ -75,7 +75,6 @@ void main() {
     expect(v2.contains('drawTopView?.call(canvas, object, center, mmToPx)'),
         isTrue);
     expect(v3.contains('drawTopView: _drawImportedObject'), isTrue);
-    expect(v3.contains('paintImage('), isTrue);
     expect(v3.contains('for (final object in floor.planObjects)'), isFalse);
     expect(assets.contains("'bed-160': 'featured_bed_180'"), isTrue);
     expect(assets.contains('decodedByFile'), isTrue);

@@ -37,7 +37,9 @@ class TopViewContactShadow {
       source, sourceRect,
       ui.Rect.fromLTWH(0, 0, width.toDouble(), depth.toDouble()),
       ui.Paint()
-        ..filterQuality = ui.FilterQuality.medium
+        // Nearest sampling cannot pull alpha from outside the source crop.
+        // The cached mask is smoothed by the two blur passes below.
+        ..filterQuality = ui.FilterQuality.none
         ..colorFilter = const ui.ColorFilter.mode(
           ui.Color(0xFF1C211E), ui.BlendMode.srcIn,
         ),
