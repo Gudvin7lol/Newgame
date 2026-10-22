@@ -3,12 +3,16 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import 'object_catalog.dart';
+import 'top_view_contact_shadow.dart';
+
 /// A raster with an explicit physical silhouette, excluding transparent padding.
 class CatalogTopViewRaster {
-  const CatalogTopViewRaster(this.image, this.sourceRect);
+  const CatalogTopViewRaster(this.image, this.sourceRect, {this.quarterTurn = false});
 
   final ui.Image image;
   final ui.Rect sourceRect;
+  final bool quarterTurn;
 }
 
 /// Lazy cache for top-view artwork and legacy production-geometry previews.
@@ -71,6 +75,33 @@ class ImportedTopViewAssets extends ChangeNotifier {
   final _neutralImages = <String, CatalogTopViewRaster>{};
 
   CatalogTopViewRaster? neutralForCatalog(String id) => _neutralImages[id];
+
+  final _contactShadows = <String, TopViewContactShadow>{};
+  TopViewContactShadow? contactShadowForCatalog(String id) => _contactShadows[id];
+  int get contactShadowBytes => _contactShadows.values.fold(
+    0, (total, shadow) => total + shadow.decodedBytes,
+  );
+
+  CatalogTopViewRaster? planRasterForCatalog(String id) {
+    final neutral = neutralForCatalog(id);
+    if (neutral != null) return neutral;
+    final curated = curated131RectForCatalog(id);
+    if (_curated131Atlas != null && curated != null) {
+      return CatalogTopViewRaster(
+        _curated131Atlas!, curated,
+        quarterTurn: id == 'bath' || id == 'bathtub-freestanding',
+      );
+    }
+    final approved = approvedRectForCatalog(id);
+    if (_approvedAtlas != null && approved != null) {
+      return CatalogTopViewRaster(_approvedAtlas!, approved);
+    }
+    final image = imageForCatalog(id);
+    if (image == null) return null;
+    return CatalogTopViewRaster(
+      image, ui.Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
+    );
+  }
 
   static const _assetByCatalogId = <String, String>{
     // +107: these views are rendered from the same LOD0 GLBs used in 3D.
@@ -272,5 +303,32 @@ class ImportedTopViewAssets extends ChangeNotifier {
       }
     }
     if (loadedAny) notifyListeners();
+    // Filter once at asset load, never during pan/zoom. Prioritize the detailed
+    // artwork and keep the optional contact-mask cache within 8 MiB.
+    final ids = <String>{
+      ..._neutralSpecs.keys, ...curated131Rects.keys,
+      ...approvedRects.keys, ..._assetByCatalogId.keys,
+    };
+    for (final id in ids) {
+      final item = ObjectCatalog.byId(id);
+      final raster = planRasterForCatalog(id);
+      if (raster == null || item.mount != CatalogMount.floor) continue;
+      try {
+        final shadow = await TopViewContactShadow.create(
+          source: raster.image, sourceRect: raster.sourceRect,
+          widthMm: raster.quarterTurn ? item.depthMm : item.widthMm,
+          depthMm: raster.quarterTurn ? item.widthMm : item.depthMm,
+          isRug: id.startsWith('rug-'),
+        );
+        if (contactShadowBytes + shadow.decodedBytes > 8 * 1024 * 1024) {
+          shadow.image.dispose();
+          break;
+        }
+        _contactShadows[id] = shadow;
+      } catch (_) {
+        // Optional depth must never hide otherwise valid foreground artwork.
+      }
+    }
+    if (_contactShadows.isNotEmpty) notifyListeners();
   }
 }

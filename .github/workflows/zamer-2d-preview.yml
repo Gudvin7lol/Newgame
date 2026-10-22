@@ -52,6 +52,7 @@ jobs:
         run: >-
           flutter analyze --no-fatal-infos
           lib/services/imported_top_view_assets.dart
+          lib/services/top_view_contact_shadow.dart
           lib/widgets/cad_plan_painter_v2.dart
           lib/widgets/cad_plan_painter_v3.dart
           lib/widgets/cad_wall_join_geometry.dart

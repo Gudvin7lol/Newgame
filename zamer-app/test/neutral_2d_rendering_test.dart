@@ -10,6 +10,7 @@ import 'package:zamer_app/services/geometry_service.dart';
 import 'package:zamer_app/services/imported_top_view_assets.dart';
 import 'package:zamer_app/services/object_catalog.dart';
 import 'package:zamer_app/services/plan_visibility_service.dart';
+import 'package:zamer_app/services/top_view_contact_shadow.dart';
 import 'package:zamer_app/widgets/cad_plan_painter_v2.dart';
 import 'package:zamer_app/widgets/cad_plan_painter_v3.dart';
 import 'package:zamer_app/widgets/cad_wall_join_geometry.dart';
@@ -249,7 +250,7 @@ void main() {
   });
 
   test(
-    'solid walls remain above intersecting furniture and cast no shadow',
+    'solid walls remain above furniture without an exterior scene shadow',
     () async {
       final floor = FloorPlan(
         id: 'f',
@@ -291,6 +292,87 @@ void main() {
       image.dispose();
     },
   );
+
+  test('contact masks follow alpha and keep rugs close to the floor', () async {
+    final atlas = await render((canvas) {
+      canvas.drawOval(const Rect.fromLTWH(16, 8, 64, 80),
+          Paint()..color = Colors.white);
+      // An opaque neighboring sprite must not leak into this mask.
+      canvas.drawRect(const Rect.fromLTWH(96, 0, 96, 96),
+          Paint()..color = Colors.red);
+    }, 192, 96);
+    final shadows = <TopViewContactShadow>[];
+    final samples = <ByteData>[];
+    for (final rug in [false, true]) {
+      final shadow = await TopViewContactShadow.create(
+        source: atlas, sourceRect: const Rect.fromLTWH(0, 0, 96, 96),
+        widthMm: 960, depthMm: 960, isRug: rug,
+      );
+      shadows.add(shadow);
+      final image = await render((canvas) {
+        shadow.paint(canvas, const Rect.fromLTWH(48, 48, 96, 96));
+      }, 192, 192);
+      samples.add((await image.toByteData())!);
+      image.dispose();
+    }
+    int alpha(int layer, int x, int y) => pixel(samples[layer], 192, x, y) & 255;
+    expect(alpha(0, 96, 96), greaterThan(80));
+    expect(alpha(0, 127, 96), greaterThan(15));
+    expect(alpha(0, 49, 49), lessThanOrEqualTo(1));
+    expect(alpha(0, 144, 96), lessThanOrEqualTo(1));
+    expect(alpha(1, 96, 96), lessThan(alpha(0, 96, 96)));
+    expect(alpha(1, 131, 96), lessThan(alpha(0, 131, 96)));
+    for (final shadow in shadows) {
+      shadow.image.dispose();
+    }
+    atlas.dispose();
+  });
+
+  test('wall depth stays inside rooms and leaves doorways clear', () async {
+    final floor = FloorPlan(id: 'depth', name: 'Depth', nodes: [
+      PlanNode(id: 'a', xMm: 0, yMm: 0),
+      PlanNode(id: 'b', xMm: 2000, yMm: 0),
+      PlanNode(id: 'c', xMm: 2000, yMm: 2000),
+      PlanNode(id: 'd', xMm: 0, yMm: 2000),
+    ], walls: [
+      PlanWall(id: 'ab', startNodeId: 'a', endNodeId: 'b', thicknessMm: 200,
+        openings: [WallOpening(id: 'door', type: OpeningType.door,
+          widthMm: 800, heightMm: 2100, offsetFromStartMm: 600)]),
+      PlanWall(id: 'bc', startNodeId: 'b', endNodeId: 'c', thicknessMm: 200),
+      PlanWall(id: 'cd', startNodeId: 'c', endNodeId: 'd', thicknessMm: 200),
+      PlanWall(id: 'da', startNodeId: 'd', endNodeId: 'a', thicknessMm: 200),
+    ]);
+    for (final face in GeometryService.roomFaces(floor)) {
+      floor.roomMetas.add(RoomMeta(id: face.key, faceKey: face.key, name: '',
+        materials: RoomMaterialSettings(floorMaterialId: 'paint-warm-white')));
+    }
+    Future<ByteData> pixels(bool depth, {bool walls = true}) async {
+      final categories = PlanDisplayLayer.values.toSet()
+        ..remove(PlanDisplayLayer.roomLabels);
+      if (!walls) categories.remove(PlanDisplayLayer.walls);
+      final image = await render((canvas) {
+        CadPlanPainterV3(floor: floor, mmToPx: .1,
+          origin: const Offset(30, 30), showGrid: false, showDimensions: false,
+          showDepth: depth, visibleCategories: categories,
+        ).paint(canvas, const Size(260, 260));
+      }, 260, 260);
+      final bytes = (await image.toByteData())!;
+      image.dispose();
+      return bytes;
+    }
+    final flat = await pixels(false);
+    final depth = await pixels(true);
+    expect(pixel(depth, 260, 43, 130) >> 24,
+        lessThan(pixel(flat, 260, 43, 130) >> 24));
+    for (final point in [const Offset(130, 42), const Offset(130, 130),
+      const Offset(12, 130)]) {
+      expect(pixel(depth, 260, point.dx.toInt(), point.dy.toInt()),
+          pixel(flat, 260, point.dx.toInt(), point.dy.toInt()));
+    }
+    final hiddenFlat = await pixels(false, walls: false);
+    final hiddenDepth = await pixels(true, walls: false);
+    expect(hiddenDepth.buffer.asUint8List(), hiddenFlat.buffer.asUint8List());
+  });
 
   test('vector fallback adds no shadow outside its footprint', () async {
     final image = await render(
@@ -392,8 +474,11 @@ void main() {
       expect(sprite!.sourceRect.width, greaterThan(id == 'chair' ? 400 : 650));
       expect(sprite.sourceRect.right, lessThanOrEqualTo(sprite.image.width));
       decodedBytes += sprite.image.width * sprite.image.height * 4;
+      expect(assets.contactShadowForCatalog(id), isNotNull,
+          reason: '$id must have a cached contact mask');
     }
     expect(decodedBytes, lessThan(16 * 1024 * 1024));
+    expect(assets.contactShadowBytes, lessThanOrEqualTo(8 * 1024 * 1024));
     final floor = previewFloor();
     final before = floor.toJson().toString();
     final image = await render(

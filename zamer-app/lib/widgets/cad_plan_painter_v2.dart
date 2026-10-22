@@ -39,6 +39,7 @@ class CadPlanPainterV2 extends CustomPainter {
     this.showDimensions = true,
     this.zoom = 1.0,
     this.showOpeningDimensions = false,
+    this.showDepth = true,
     this.drawTopView,
     Set<ProjectLayer>? visibleLayers,
     Set<PlanDisplayLayer>? visibleCategories,
@@ -56,6 +57,7 @@ class CadPlanPainterV2 extends CustomPainter {
   final bool showDimensions;
   final double zoom;
   final bool showOpeningDimensions;
+  final bool showDepth;
   final ObjectTopViewPainter? drawTopView;
   final Set<ProjectLayer> visibleLayers;
   final Set<PlanDisplayLayer> visibleCategories;
@@ -68,13 +70,22 @@ class CadPlanPainterV2 extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     _background(canvas, size);
     final faces = GeometryService.roomFaces(floor);
+    final wallBodies = visibleCategories.contains(PlanDisplayLayer.walls)
+        ? CadWallJoinGeometry.bodies(
+            floor: floor, mmToPx: mmToPx, origin: origin,
+            visibleLayers: visibleLayers,
+          )
+        : null;
     if (visibleCategories.contains(PlanDisplayLayer.floorFinishes)) {
       _rooms(canvas, faces);
+    }
+    if (showDepth && wallBodies != null) {
+      _wallContacts(canvas, faces, wallBodies);
     }
     _objects(canvas);
     // Keep walls and opening symbols legible above intersecting furniture.
     // Collision overlays still paint last, above the solid wall body.
-    if (visibleCategories.contains(PlanDisplayLayer.walls)) _walls(canvas, faces);
+    if (wallBodies != null) _walls(canvas, faces, wallBodies);
     if (visibleCategories.contains(PlanDisplayLayer.engineering)) {
       _services(canvas);
     }
@@ -490,13 +501,71 @@ class CadPlanPainterV2 extends CustomPainter {
     }
   }
 
-  void _walls(Canvas canvas, List<RoomFace> faces) {
-    final bodies = CadWallJoinGeometry.bodies(
-      floor: floor,
-      mmToPx: mmToPx,
-      origin: origin,
-      visibleLayers: visibleLayers,
+  void _wallContacts(
+    Canvas canvas, List<RoomFace> faces, Map<ProjectLayer, Path> bodies,
+  ) {
+    if (faces.isEmpty) return;
+    var body = Path();
+    for (final path in bodies.values) {
+      body = Path.combine(PathOperation.union, body, path);
+    }
+    // Cut openings before filtering so no dark stripe crosses a doorway.
+    if (visibleCategories.contains(PlanDisplayLayer.openings)) {
+      final cuts = Path();
+      for (final wall in floor.walls) {
+        final layer = wall.demolition ? ProjectLayer.demolition : wall.projectLayer;
+        if (!visibleLayers.contains(layer) || wall.isCurved) continue;
+        final a = floor.nodeById(wall.startNodeId);
+        final b = floor.nodeById(wall.endNodeId);
+        if (a == null || b == null) continue;
+        final vector = _p(b) - _p(a);
+        final length = vector.distance;
+        if (length < .01) continue;
+        final unit = vector / length;
+        final normal = Offset(-unit.dy, unit.dx);
+        final half = wall.thicknessMm * mmToPx / 2 + 2;
+        for (final opening in wall.openings) {
+          final start = _p(a) + unit *
+              (opening.offsetFromStartMm * mmToPx).clamp(0.0, length).toDouble();
+          final end = _p(a) + unit *
+              ((opening.offsetFromStartMm + opening.widthMm) * mmToPx)
+                  .clamp(0.0, length).toDouble();
+          cuts.addPolygon([
+            start - normal * half, end - normal * half,
+            end + normal * half, start + normal * half,
+          ], true);
+        }
+      }
+      body = Path.combine(PathOperation.difference, body, cuts);
+    }
+    final rooms = Path();
+    for (final face in faces) {
+      rooms.addPath(_roomPath(face), Offset.zero);
+    }
+    canvas.save();
+    canvas.clipPath(rooms);
+    canvas.drawPath(
+      body,
+      Paint()
+        ..color = const Color(0xFF17201B).withValues(alpha: .30)
+        ..maskFilter = MaskFilter.blur(
+          BlurStyle.normal, math.max(.6, 34 * mmToPx),
+        ),
     );
+    canvas.drawPath(
+      body,
+      Paint()
+        ..color = const Color(0xFF17201B).withValues(alpha: .14)
+        ..maskFilter = MaskFilter.blur(
+          BlurStyle.normal, math.max(.4, 8 * mmToPx),
+        ),
+    );
+    canvas.restore();
+  }
+
+  void _walls(
+    Canvas canvas, List<RoomFace> faces, Map<ProjectLayer, Path> bodies,
+  ) {
     const colors = <ProjectLayer, Color>{
       ProjectLayer.existing: Color(0xFF353B3C),
       ProjectLayer.demolition: ZamerColors.danger,
@@ -508,8 +577,23 @@ class CadPlanPainterV2 extends CustomPainter {
         bodies[layer]!,
         Paint()..color = colors[layer]!,
       );
+      if (showDepth) {
+        // Fixed plan-space bevel: its light direction cannot turn with furniture.
+        final edge = (10 * mmToPx).clamp(.55, 2.8).toDouble();
+        final body = bodies[layer]!;
+        canvas.drawPath(
+          Path.combine(PathOperation.difference, body,
+              body.shift(Offset(edge, edge))),
+          Paint()..color = Colors.white.withValues(alpha: .20),
+        );
+        canvas.drawPath(
+          Path.combine(PathOperation.difference, body,
+              body.shift(Offset(-edge, -edge))),
+          Paint()..color = Colors.black.withValues(alpha: .22),
+        );
+      }
       // A neutral silhouette edge separates the cut wall from pale finishes.
-      // The merged body has no internal seams and casts no scene shadow.
+      // The merged body has no internal seams or exterior scene shadow.
       canvas.drawPath(
         bodies[layer]!,
         Paint()
