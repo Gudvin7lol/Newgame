@@ -19,6 +19,7 @@ import '../services/opening_alignment_service.dart';
 import '../services/plan_visibility_service.dart';
 import 'measure_plan_tool.dart';
 import '../services/space_check_service.dart';
+import '../services/plan_viewport_link.dart';
 import '../widgets/cad_plan_painter.dart';
 import '../widgets/wall_draft_guide_painter.dart';
 
@@ -33,6 +34,8 @@ class PlanEditorMasterV4Screen extends StatefulWidget {
     this.preferredOpeningType,
     this.onSelectionChanged,
     this.nativeKitV2 = false,
+    this.sharedViewport,
+    this.viewportActive = true,
     required this.onOpenObjects,
     required this.onOpenReview,
     required this.onOpenGeometry,
@@ -52,6 +55,8 @@ class PlanEditorMasterV4Screen extends StatefulWidget {
   final OpeningType? preferredOpeningType;
   final ValueChanged<String?>? onSelectionChanged;
   final bool nativeKitV2;
+  final ValueNotifier<PlanViewportSnapshot?>? sharedViewport;
+  final bool viewportActive;
   final VoidCallback onOpenObjects;
   final VoidCallback onOpenReview;
   final VoidCallback onOpenGeometry;
@@ -184,6 +189,10 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   @override
   void didUpdateWidget(covariant PlanEditorMasterV4Screen oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (widget.viewportActive && (!oldWidget.viewportActive ||
+        oldWidget.sharedViewport != widget.sharedViewport)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _adoptViewport());
+    }
     if (oldWidget.planTool != widget.planTool) {
       // Switching tools must not continue an unfinished wall/arc, dimension,
       // or vertex drag on the same shared canvas.
@@ -557,6 +566,33 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     );
   }
 
+
+  void _publishViewport() {
+    if (!widget.viewportActive) return;
+    final link = widget.sharedViewport;
+    if (link == null) return;
+    final snapshot = PlanViewportSnapshot.capture(
+      viewport: _viewport, origin: _origin,
+      mmToPx: _mmToPx, transform: _transform.value);
+    if (snapshot == null) return;
+    if (link.value case final existing?) {
+      if (snapshot.nearlyEquals(existing)) return;
+    }
+    link.value = snapshot;
+  }
+
+  void _adoptViewport() {
+    if (!mounted || !widget.viewportActive || _viewport.isEmpty) return;
+    final saved = widget.sharedViewport?.value;
+    if (saved == null) return;
+    final matrix = saved.toCanvasTransform(
+      viewport: _viewport, origin: _origin,
+      mmToPx: _mmToPx, minScale: .28, maxScale: 6);
+    if (matrix == null) return;
+    _transform.value = matrix;
+    setState(() => _centered = true);
+  }
+
   void _fit() {
     if (_viewport.isEmpty) return;
     if (floor.nodes.isEmpty) {
@@ -565,6 +601,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
         ..translate(center.dx - _origin.dx,
             center.dy - _origin.dy);
       if (mounted) setState(() {});
+      _publishViewport();
       return;
     }
     const left = 70.0;
@@ -590,6 +627,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       ..translate(target.dx - center.dx * scale, target.dy - center.dy * scale)
       ..scale(scale);
     if (mounted) setState(() {});
+    _publishViewport();
   }
 
   void _zoom(double factor) {
@@ -602,6 +640,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       ..translate(center.dx - scene.dx * next, center.dy - scene.dy * next)
       ..scale(next);
     setState(() {});
+    _publishViewport();
   }
 
   // In Select mode a one-finger drag starting on an eligible straight wall
@@ -3029,7 +3068,14 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
           _viewport = Size(constraints.maxWidth, constraints.maxHeight);
           if (!_centered) {
             _centered = true;
-            WidgetsBinding.instance.addPostFrameCallback((_) => _fit());
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              if (widget.viewportActive && widget.sharedViewport?.value != null) {
+                _adoptViewport();
+              } else {
+                _fit();
+              }
+            });
           }
           return Stack(
             children: [
@@ -3040,7 +3086,10 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                   maxScale: 6,
                   onInteractionStart: _wallDragStart,
                   onInteractionUpdate: _wallDragUpdate,
-                  onInteractionEnd: (_) => unawaited(_wallDragFinish()),
+                  onInteractionEnd: (_) {
+                    unawaited(_wallDragFinish());
+                    _publishViewport();
+                  },
                   // The user's finger draws walls; it must not drag or zoom
                   // the camera until the dedicated hand mode is activated.
                   panEnabled: widget.planTool != MeasurePlanTool.nodes &&
