@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../design_system/zamer_tokens.dart';
 import '../models/models.dart';
 import '../services/geometry_service.dart';
+import '../services/plan_viewport_link.dart';
 import '../widgets/cad_plan_painter.dart';
 import '../widgets/floor_finish_plan_overlay.dart';
 import 'layouts_screen.dart';
@@ -15,10 +16,14 @@ class MeasureFloorPlanLayerScreen extends StatefulWidget {
     super.key,
     required this.floor,
     required this.onChanged,
+    this.sharedViewport,
+    this.viewportActive = true,
   });
 
   final FloorPlan floor;
   final Future<void> Function() onChanged;
+  final ValueNotifier<PlanViewportSnapshot?>? sharedViewport;
+  final bool viewportActive;
 
   @override
   State<MeasureFloorPlanLayerScreen> createState() =>
@@ -56,7 +61,23 @@ class _MeasureFloorPlanLayerScreenState
     super.initState();
     GeometryService.syncRoomMetadata(widget.floor);
     if (_faces.isNotEmpty) _selectedFaceKey = _faces.first.key;
-    WidgetsBinding.instance.addPostFrameCallback((_) => _fit());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (widget.viewportActive && widget.sharedViewport?.value != null) {
+        _adoptViewport();
+      } else {
+        _fit();
+      }
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant MeasureFloorPlanLayerScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.viewportActive && (!oldWidget.viewportActive ||
+        oldWidget.sharedViewport != widget.sharedViewport)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _adoptViewport());
+    }
   }
 
   @override
@@ -100,6 +121,33 @@ class _MeasureFloorPlanLayerScreenState
     }
   }
 
+
+  void _publishViewport() {
+    if (!widget.viewportActive) return;
+    final link = widget.sharedViewport;
+    if (link == null) return;
+    final snapshot = PlanViewportSnapshot.capture(
+      viewport: _viewport, origin: _origin,
+      mmToPx: _mmToPx, transform: _transform.value);
+    if (snapshot == null) return;
+    if (link.value case final previous?) {
+      if (previous.nearlyEquals(snapshot)) return;
+    }
+    link.value = snapshot;
+  }
+
+  void _adoptViewport() {
+    if (!mounted || !widget.viewportActive || _viewport.isEmpty) return;
+    final saved = widget.sharedViewport?.value;
+    if (saved == null) return;
+    final matrix = saved.toCanvasTransform(
+      viewport: _viewport, origin: _origin,
+      mmToPx: _mmToPx, minScale: .22, maxScale: 6);
+    if (matrix == null) return;
+    _transform.value = matrix;
+    setState(() => _centered = true);
+  }
+
   void _fit() {
     if (_viewport.isEmpty || widget.floor.nodes.isEmpty) return;
     final minX = widget.floor.nodes.map((n) => n.xMm).reduce(math.min);
@@ -124,6 +172,7 @@ class _MeasureFloorPlanLayerScreenState
       ..translate(target.dx - center.dx * scale, target.dy - center.dy * scale)
       ..scale(scale);
     if (mounted) setState(() => _centered = true);
+    _publishViewport();
   }
 
   Future<void> _mutate(void Function(RoomMaterialSettings settings) change) async {
@@ -265,11 +314,19 @@ class _MeasureFloorPlanLayerScreenState
               builder: (context, constraints) {
                 _viewport = constraints.biggest;
                 if (!_centered && widget.floor.nodes.isNotEmpty) {
-                  WidgetsBinding.instance.addPostFrameCallback((_) => _fit());
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (!mounted) return;
+                    if (widget.viewportActive && widget.sharedViewport?.value != null) {
+                      _adoptViewport();
+                    } else {
+                      _fit();
+                    }
+                  });
                 }
                 return ClipRect(
                   child: InteractiveViewer(
                     transformationController: _transform,
+                    onInteractionEnd: (_) => _publishViewport(),
                     minScale: .22,
                     maxScale: 6,
                     boundaryMargin: const EdgeInsets.all(2400),
