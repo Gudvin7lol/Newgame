@@ -197,10 +197,19 @@ class _RecoveredMeasureWorkspaceScreenState
       _taskActivated = true;
       _selectionKind = null;
       _activeFanCommand = 'select';
-      _planTool = MeasurePlanTool.select;
+      // A tool strip button is an actual action, not a second menu that
+      // requires another tap in the radial dial to begin construction.
+      _planTool = _layer == 0 ? switch (value) {
+        0 => MeasurePlanTool.exterior,
+        1 => MeasurePlanTool.partition,
+        2 => MeasurePlanTool.openings,
+        3 => MeasurePlanTool.demolition,
+        _ => MeasurePlanTool.dimensions,
+      } : MeasurePlanTool.select;
       _preferredOpeningType = null;
       if (_layer == 3) {
-        _electricalMode = ElectricalMode.select;
+        _electricalMode = value == 3
+            ? ElectricalMode.wire : ElectricalMode.add;
         _electricalType = switch (value) {
           1 => ElectricalPointType.switchPoint,
           2 => ElectricalPointType.ceilingLight,
@@ -209,6 +218,7 @@ class _RecoveredMeasureWorkspaceScreenState
         };
       }
     });
+    if (_layer == 2) _openCatalogSheet();
   }
 
   void _fanCommand(String id) {
@@ -272,7 +282,7 @@ class _RecoveredMeasureWorkspaceScreenState
 
   Widget _kitDomains() => Container(
     color: ZamerKitColors.bg,
-    padding: const EdgeInsets.fromLTRB(8, 9, 8, 8),
+    padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
     child: Row(
       children: [
         for (var i = 0; i < 4; i++) ...[
@@ -295,7 +305,7 @@ class _RecoveredMeasureWorkspaceScreenState
     final current = _layer < 4 ? _layer : 0;
     final categories = ZamerKitNavigation.categories(current);
     return Container(
-      height: 56,
+      height: 52,
       decoration: const BoxDecoration(
         color: ZamerKitColors.bg,
         border: Border(bottom: BorderSide(color: ZamerKitColors.line)),
@@ -329,7 +339,7 @@ class _RecoveredMeasureWorkspaceScreenState
                   // and Flexible label valid on small Android screens.
                   child: SizedBox(
                     width: categories[index].length > 10
-                        ? 156 : categories[index].length > 7 ? 140 : 116,
+                        ? 136 : categories[index].length > 7 ? 120 : 104,
                     child: ZamerKitSegment(
                       label: categories[index],
                       icon: icon,
@@ -509,6 +519,7 @@ class _RecoveredMeasureWorkspaceScreenState
         },
       ),
       ElectricalScreen(
+        embedded: true,
         floor: widget.floor,
         onChanged: widget.onChanged,
         requestedMode: _electricalMode,
@@ -559,7 +570,7 @@ class _RecoveredMeasureWorkspaceScreenState
               ),
               if (_layer < 4)
                 Positioned(
-                  right: 64, bottom: 18,
+                  right: 12, bottom: 70,
                   child: ZamerKitFan(
                     key: const ValueKey('zamer-native-v2-fan'),
                     contextId: '${_fanContext}:${_categoryIndex}',

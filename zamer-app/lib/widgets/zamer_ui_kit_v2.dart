@@ -63,7 +63,8 @@ class ZamerKitFan extends StatefulWidget {
 }
 
 class _ZamerKitFanState extends State<ZamerKitFan> {
-  bool _expanded = true;
+  // Keep construction canvas accessible until the dial is explicitly opened.
+  bool _expanded = false;
   bool _leftHanded = false;
   int _ringOffset = 0;
   double _dragAmount = 0;
@@ -74,6 +75,7 @@ class _ZamerKitFanState extends State<ZamerKitFan> {
   static const _select = ZamerKitCommand(
     'select', 'Выбрать', Icons.near_me_outlined);
   static const _size = 244.0;
+  static const _center = Offset(188, 188);
 
   @override
   void didUpdateWidget(covariant ZamerKitFan oldWidget) {
@@ -83,9 +85,9 @@ class _ZamerKitFanState extends State<ZamerKitFan> {
 
   Offset _point(double radius, double angle) {
     final rad = angle * math.pi / 180;
-    final x = 188 + radius * math.cos(rad);
+    final x = _center.dx + radius * math.cos(rad);
     return Offset(_leftHanded ? _size - x : x,
-        188 + radius * math.sin(rad));
+        _center.dy + radius * math.sin(rad));
   }
 
   Widget _label(ZamerKitCommand command, Offset pos, {
@@ -129,14 +131,17 @@ class _ZamerKitFanState extends State<ZamerKitFan> {
   double _angleFor(Offset local) {
     final p = _leftHanded
         ? Offset(_size - local.dx, local.dy) : local;
-    final v = p - const Offset(188, 188);
+    final v = p - _center;
     return math.atan2(v.dy, v.dx) * 180 / math.pi;
   }
 
-  int get _lastRingStart => math.max(0, widget.outer.length - 3);
+  List<ZamerKitCommand> get _visibleRingCommands =>
+      widget.outer.where((command) => command.enabled).toList(growable: false);
+
+  int get _lastRingStart => math.max(0, _visibleRingCommands.length - 3);
 
   void _stepRing(int direction) {
-    if (widget.outer.length <= 3) return;
+    if (_visibleRingCommands.length <= 3) return;
     setState(() {
       _ringOffset = (_ringOffset + direction).clamp(0, _lastRingStart);
     });
@@ -145,7 +150,7 @@ class _ZamerKitFanState extends State<ZamerKitFan> {
   void _tap(TapUpDetails e) {
     final raw = e.localPosition;
     final p = _leftHanded ? Offset(_size - raw.dx, raw.dy) : raw;
-    final v = p - const Offset(188, 188);
+    final v = p - _center;
     final r = v.distance;
     final angle = (math.atan2(v.dy, v.dx) * 180 / math.pi + 360) % 360;
 
@@ -178,8 +183,8 @@ class _ZamerKitFanState extends State<ZamerKitFan> {
       const angles = [180.0, 220.0, 260.0];
       for (var i = 0; i < 3; i++) {
         if ((angle - angles[i]).abs() <= 19 &&
-            _ringOffset + i < widget.outer.length) {
-          final cmd = widget.outer[_ringOffset + i];
+            _ringOffset + i < _visibleRingCommands.length) {
+          final cmd = _visibleRingCommands[_ringOffset + i];
           if (cmd.enabled) widget.onCommand(cmd.id);
           return;
         }
@@ -242,24 +247,83 @@ class _ZamerKitFanState extends State<ZamerKitFan> {
 
   @override
   Widget build(BuildContext context) {
+    final collapsedCenter = _leftHanded
+        ? Offset(_size - _center.dx, _center.dy) : _center;
     final items = <ZamerKitCommand>[];
     for (var i = _ringOffset;
-        i < math.min(_ringOffset + 3, widget.outer.length); i++) {
-      items.add(widget.outer[i]);
+        i < math.min(_ringOffset + 3, _visibleRingCommands.length); i++) {
+      items.add(_visibleRingCommands[i]);
     }
+    if (!_expanded) {
+      // Fixed 208x208 coordinate space for both states. The peach centre
+      // never jumps when opened; only the two actual child hit rectangles
+      // receive gestures, leaving the rest of this area to the CAD canvas.
+      return SizedBox(
+        width: _size, height: _size,
+        child: Stack(children: [
+          Positioned(
+            left: _leftHanded ? collapsedCenter.dx + 32 : collapsedCenter.dx - 128,
+            top: collapsedCenter.dy - 25,
+            child: Material(
+              color: ZamerKitColors.panel,
+              elevation: 4,
+              borderRadius: BorderRadius.circular(14),
+              child: InkWell(
+                key: const ValueKey('fan-quick-select'),
+                onTap: () => widget.onCommand('select'),
+                borderRadius: BorderRadius.circular(14),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 10, vertical: 14),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.near_me_outlined, size: 17,
+                      color: ZamerKitColors.peach),
+                    SizedBox(width: 5),
+                    Text('Выбрать', style: TextStyle(
+                      color: ZamerKitColors.text, fontSize: 11,
+                      fontWeight: FontWeight.w600)),
+                  ]),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            left: collapsedCenter.dx - 28, top: collapsedCenter.dy - 28,
+            child: InkWell(
+              key: const ValueKey('fan-expand'),
+              onTap: () => setState(() => _expanded = true),
+              onLongPress: _showAll,
+              customBorder: const CircleBorder(),
+              child: Container(
+                width: 56, height: 56,
+                decoration: BoxDecoration(
+                  color: ZamerKitColors.peach,
+                  shape: BoxShape.circle,
+                  boxShadow: [BoxShadow(
+                    color: ZamerKitColors.peach.withValues(alpha: .22),
+                    blurRadius: 18)],
+                ),
+                child: const Icon(Icons.tune_rounded,
+                  color: ZamerKitColors.ink, size: 24),
+              ),
+            ),
+          ),
+        ]),
+      );
+    }
+
     return SizedBox(
       width: _size, height: _size,
       child: GestureDetector(
-        behavior: HitTestBehavior.translucent,
+        behavior: HitTestBehavior.deferToChild,
         onTapUp: _tap,
         onLongPress: _showAll,
         onPanStart: (details) {
           final local = details.localPosition;
           final p = _leftHanded
               ? Offset(_size - local.dx, local.dy) : local;
-          final distance = (p - const Offset(188, 188)).distance;
+          final distance = (p - _center).distance;
           _draggingOuter = _expanded &&
-              distance >= 108 && distance <= 180;
+              distance >= 124 && distance <= 172;
           _lastOuterAngle = _draggingOuter
               ? _angleFor(local) : null;
           _dragAmount = 0;
@@ -307,21 +371,21 @@ class _ZamerKitFanState extends State<ZamerKitFan> {
               ),
             ),
             if (_expanded) ...[
-              _label(_select, _point(69, 180), outer: false),
-              _label(widget.first, _point(69, 225), outer: false),
-              _label(widget.second, _point(69, 270), outer: false),
+              _label(_select, _point(76, 180), outer: false),
+              _label(widget.first, _point(76, 225), outer: false),
+              _label(widget.second, _point(76, 270), outer: false),
               for (var i = 0; i < items.length; i++)
                 _label(items[i],
                   _point(146, [180.0, 220.0, 260.0][i]), outer: true),
             ] else
-              _label(_select, _point(69, 180), outer: false),
+              _label(_select, _point(76, 180), outer: false),
             Positioned(
-              left: _point(0, 0).dx - 29,
-              top: 159,
+              left: _point(0, 0).dx - 28,
+              top: 160,
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 360),
                 curve: Curves.easeOutCubic,
-                width: 58, height: 58,
+                width: 56, height: 56,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: const LinearGradient(
@@ -345,7 +409,7 @@ class _ZamerKitFanState extends State<ZamerKitFan> {
             Positioned(
               top: 1,
               left: _leftHanded ? 165 : 8,
-              child: _expanded && widget.outer.length > 3
+              child: _expanded && _visibleRingCommands.length > 3
                 ? GestureDetector(
                   onTap: _showAll,
                   child: DecoratedBox(
@@ -358,7 +422,7 @@ class _ZamerKitFanState extends State<ZamerKitFan> {
                         horizontal: 7, vertical: 3),
                       child: Text(
                         '${_ringOffset + 1}–${math.min(_ringOffset + 3,
-                          widget.outer.length)}/${widget.outer.length}',
+                          _visibleRingCommands.length)}/${_visibleRingCommands.length}',
                         style: const TextStyle(color: ZamerKitColors.muted,
                           fontSize: 10),
                       ),
@@ -444,6 +508,24 @@ class _FanShellPainter extends CustomPainter {
     for (var i = 0; i < showOuter; i++) {
       _sector(canvas, 124, 172, angles[i].$1, angles[i].$2, false);
     }
+  }
+
+  @override
+  bool? hitTest(Offset position) {
+    // A transparent section of the dial must never block a CAD wall tap.
+    final p = leftHanded
+        ? Offset(244 - position.dx, position.dy) : position;
+    final d = p - const Offset(188, 188);
+    final r = d.distance;
+    final a = (math.atan2(d.dy, d.dx) * 180 / math.pi + 360) % 360;
+    if (r < 34) return true;
+    if (r <= 110) return a >= 155 && a <= (showMain ? 293 : 202);
+    if (!showMain || r < 124 || r > 172) return false;
+    const wedges = <(double, double)>[
+      (137, 174), (187, 224), (237, 274)
+    ];
+    return wedges.take(showOuter).any(
+      (w) => a >= w.$1 && a <= w.$2);
   }
 
   @override

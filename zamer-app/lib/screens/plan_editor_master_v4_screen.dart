@@ -784,6 +784,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     nodeCaptureMm: 14 / (_mmToPx * _scale),
     wallCaptureMm: 12 / (_mmToPx * _scale),
     allowWallFaces: _captureWallFace,
+    previousSnap: _liveWallSnap,
   );
 
   // Listener is passive: it never claims a gesture. Navigation is only
@@ -949,6 +950,47 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       _liveWallSnap = snap;
       _lastWallSnapLabel = snap.label;
     });
+  }
+
+  /// Compact drafting HUD: feedback comes from the exact same captured
+  /// point that will be committed, not from a decorative cursor overlay.
+  Widget _liveSnapHud() {
+    final start = floor.nodeById(_wallStartNodeId ?? '');
+    final snap = _liveWallSnap;
+    if (start == null || snap == null) return const SizedBox.shrink();
+    final dx = snap.point.x - start.xMm;
+    final dy = snap.point.y - start.yMm;
+    final lengthMm = math.sqrt(dx * dx + dy * dy);
+    final angle = math.atan2(dy, dx) * 180 / math.pi;
+    final kind = !_snapping ? 'Без привязки' : snap.label;
+    final target = snap.targetNodeId != null
+        ? ' · Узел' : snap.targetWallId != null ? ' · Стена' : '';
+    final kindLabel = '$kind$target';
+    return IgnorePointer(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: const Color(0xED10171D),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: ZamerColors.accent.withValues(alpha: .38)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(kindLabel,
+                style: const TextStyle(
+                  color: ZamerColors.accent, fontSize: 11,
+                  fontWeight: FontWeight.w700)),
+              Text('${lengthMm.round()} мм  ·  ${angle.round()}°',
+                style: const TextStyle(
+                  color: ZamerColors.textPrimary, fontSize: 11)),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   WallDraftGuidePainter? _wallPreviewPainter() {
@@ -2878,6 +2920,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                       const SizedBox(width: 5),
                     ],
                     ZMeasureCanvasAction(
+                      compact: widget.nativeKitV2,
+                      subtleActive: widget.nativeKitV2,
                       key: const ValueKey('plan-layers-button'),
                       icon: Icons.layers_outlined,
                       tooltip: 'Слои и коллизии',
@@ -2887,6 +2931,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                     ),
                     const SizedBox(width: 5),
                     ZMeasureCanvasAction(
+                      compact: widget.nativeKitV2,
+                      subtleActive: widget.nativeKitV2,
                       icon: _grid ? Icons.grid_on_outlined : Icons.grid_off_outlined,
                       tooltip: 'Сетка',
                       active: _grid,
@@ -2894,6 +2940,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                     ),
                     const SizedBox(width: 5),
                     ZMeasureCanvasAction(
+                      compact: widget.nativeKitV2,
+                      subtleActive: widget.nativeKitV2,
                       icon: _snapping ? Icons.link : Icons.link_off,
                       tooltip: 'Привязки',
                       active: _snapping,
@@ -2902,6 +2950,13 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                   ],
                 ),
               ),
+              if (_drawingWall && _wallStartNodeId != null &&
+                  _liveWallSnap != null && !_moveCameraInsteadOfDrawing)
+                Positioned(
+                  key: const ValueKey('measure-live-snap-hud'),
+                  left: 12, top: 10,
+                  child: _liveSnapHud(),
+                ),
               // Fixed-size feedback above the tool strip: the measured
               // coordinates and snap kind remain legible at any zoom.
               if (widget.planTool == MeasurePlanTool.nodes &&

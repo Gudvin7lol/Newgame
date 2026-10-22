@@ -10,6 +10,8 @@ class ElectricalPlanPainter extends CustomPainter {
     required this.origin,
     this.selectedPointId,
     this.wireStartPointId,
+    this.darkMode = false,
+    this.overlayOnly = false,
   });
 
   final FloorPlan floor;
@@ -17,19 +19,24 @@ class ElectricalPlanPainter extends CustomPainter {
   final Offset origin;
   final String? selectedPointId;
   final String? wireStartPointId;
+  final bool darkMode;
+  /// Retain CAD flooring, furniture, walls below electrical layer.
+  final bool overlayOnly;
 
   Offset p(double x, double y) => origin + Offset(x * scale, y * scale);
 
   @override
   void paint(Canvas canvas, Size size) {
-    canvas.drawRect(Offset.zero & size, Paint()..color = const Color(0xFFF7F8FA));
+    if (!overlayOnly) canvas.drawRect(Offset.zero & size, Paint()
+      ..color = darkMode ? const Color(0xFF09151B) : const Color(0xFFF7F8FA));
 
-    for (final wall in floor.walls) {
+    if (!overlayOnly) for (final wall in floor.walls) {
       final a = floor.nodeById(wall.startNodeId);
       final b = floor.nodeById(wall.endNodeId);
       if (a == null || b == null) continue;
       final paint = Paint()
-        ..color = wall.demolition ? const Color(0xFFE89AA1) : const Color(0xFF31363C)
+        ..color = wall.demolition ? const Color(0xFFE89AA1) :
+            (darkMode ? const Color(0xFFCFDBD8) : const Color(0xFF31363C))
         ..strokeWidth = math.max(2, wall.thicknessMm * scale)
         ..strokeCap = StrokeCap.square;
       canvas.drawLine(p(a.xMm, a.yMm), p(b.xMm, b.yMm), paint);
@@ -43,7 +50,7 @@ class ElectricalPlanPainter extends CustomPainter {
       final pa = p(a.xMm, a.yMm);
       final pb = p(b.xMm, b.yMm);
       final paint = Paint()
-        ..color = const Color(0xFF3867A8)
+        ..color = darkMode ? const Color(0xFF6BBDED) : const Color(0xFF3867A8)
         ..strokeWidth = 2
         ..style = PaintingStyle.stroke;
       final path = Path()..moveTo(pa.dx, pa.dy);
@@ -65,7 +72,9 @@ class ElectricalPlanPainter extends CustomPainter {
       _symbol(canvas, pos, point, selected, angle: angle);
       if (point.label.isNotEmpty) {
         final tp = TextPainter(
-          text: TextSpan(text: point.label, style: const TextStyle(fontSize: 10, color: Color(0xFF1E2329), fontWeight: FontWeight.w600)),
+          text: TextSpan(text: point.label, style: TextStyle(fontSize: 10,
+            color: darkMode ? const Color(0xFFF0E6D8) : const Color(0xFF1E2329),
+            fontWeight: FontWeight.w600)),
           textDirection: TextDirection.ltr,
         )..layout(maxWidth: 120);
         tp.paint(canvas, pos + const Offset(9, -18));

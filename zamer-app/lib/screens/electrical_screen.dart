@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import '../models/models.dart';
 import '../services/geometry_service.dart';
 import '../widgets/electrical_plan_painter.dart';
+import '../widgets/cad_plan_painter.dart';
+import '../services/plan_visibility_service.dart';
 
 enum ElectricalMode { add, wire, select }
 
@@ -16,11 +18,13 @@ class ElectricalScreen extends StatefulWidget {
     required this.onChanged,
     this.requestedMode,
     this.requestedType,
+    this.embedded = false,
   });
   final FloorPlan floor;
   final Future<void> Function() onChanged;
   final ElectricalMode? requestedMode;
   final ElectricalPointType? requestedType;
+  final bool embedded;
 
   @override
   State<ElectricalScreen> createState() => _ElectricalScreenState();
@@ -817,7 +821,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     }
     return Column(
       children: [
-        Padding(
+        if (!widget.embedded) Padding(
           padding: const EdgeInsets.fromLTRB(10, 8, 10, 4),
           child: Card(
             child: Padding(
@@ -944,6 +948,15 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
             ),
           ),
         ),
+        if (widget.embedded)
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: _heightDefaults,
+              icon: const Icon(Icons.height, size: 16),
+              label: const Text('Высоты'),
+            ),
+          ),
         Expanded(
           child: LayoutBuilder(
             builder: (context, c) {
@@ -960,20 +973,38 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                     : null,
                 onPanEnd: _mode == ElectricalMode.select ? _dragEnd : null,
                 child: CustomPaint(
-                  painter: ElectricalPlanPainter(
+                  painter: widget.embedded ? CadPlanPainter(
+                    floor: widget.floor,
+                    mmToPx: t.scale,
+                    origin: t.origin,
+                    showDimensions: false,
+                    showGrid: true,
+                    visibleCategories: PlanDisplayLayer.values.toSet()
+                      ..remove(PlanDisplayLayer.electrical),
+                  ) : ElectricalPlanPainter(
                     floor: widget.floor,
                     scale: t.scale,
                     origin: t.origin,
                     selectedPointId: _selectedId,
                     wireStartPointId: _wireStartId,
                   ),
+                  foregroundPainter: widget.embedded
+                      ? ElectricalPlanPainter(
+                          floor: widget.floor,
+                          scale: t.scale,
+                          origin: t.origin,
+                          selectedPointId: _selectedId,
+                          wireStartPointId: _wireStartId,
+                          darkMode: true,
+                          overlayOnly: true,
+                        ) : null,
                   child: const SizedBox.expand(),
                 ),
               );
             },
           ),
         ),
-        if (widget.floor.electricalPoints.isNotEmpty)
+        if (!widget.embedded && widget.floor.electricalPoints.isNotEmpty)
           Container(
             width: double.infinity,
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),

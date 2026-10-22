@@ -224,24 +224,30 @@ class ZMeasureCanvasAction extends StatelessWidget {
     required this.tooltip,
     required this.onPressed,
     this.active = false,
+    this.subtleActive = false,
+    this.compact = false,
   });
 
   final IconData icon;
   final String tooltip;
   final VoidCallback? onPressed;
   final bool active;
+  final bool subtleActive;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
-    final foreground =
-        active ? ZamerColors.accentInk : ZamerColors.textSecondary;
+    final foreground = subtleActive && active
+        ? ZamerColors.accent
+        : active ? ZamerColors.accentInk : ZamerColors.textSecondary;
     return Tooltip(
       message: tooltip,
       child: ZPressEffect(
         enabled: onPressed != null,
         scale: .92,
         child: Material(
-          color: active ? ZamerColors.accent : ZamerColors.surfaceLow,
+          color: active && !subtleActive
+              ? ZamerColors.accent : ZamerColors.surfaceLow,
           borderRadius: BorderRadius.circular(ZamerRadius.sm),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
@@ -249,14 +255,15 @@ class ZMeasureCanvasAction extends StatelessWidget {
             child: Opacity(
               opacity: onPressed == null ? .4 : 1,
               child: Container(
-                width: 48,
-                height: 48,
+                width: compact ? 40 : 48,
+                height: compact ? 40 : 48,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(ZamerRadius.sm),
                   border: Border.all(
                     color: active
-                        ? ZamerColors.accent
+                        ? (subtleActive ? ZamerColors.accent.withValues(alpha: .40)
+                            : ZamerColors.accent)
                         : ZamerColors.outlineSoft,
                   ),
                 ),

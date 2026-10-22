@@ -15,7 +15,8 @@ class ZamerFanProfileV2 {
 
 abstract final class ZamerFanProfilesV2 {
   static const _profiles = <String, List<String>>{
-    'plan.idle': ['wall', 'opening', 'measure', 'frame'],
+    // Context dial = fast modes; structural creation lives in top strip.
+    'plan.idle': ['nodes', 'arc', 'measure', 'frame'],
     'plan.wall.create': ['straight', 'arc', 'ortho', 'parallel', 'closeContour', 'measure'],
     'plan.wall.selected': ['move', 'nodes', 'split', 'extend', 'join', 'duplicate', 'measure', 'delete'],
     'plan.arc.selected': ['move', 'nodes', 'split', 'extend', 'duplicate', 'measure', 'delete'],

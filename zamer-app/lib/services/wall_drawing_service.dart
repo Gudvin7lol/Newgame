@@ -100,6 +100,7 @@ class WallDrawingService {
     double nodeCaptureMm = 100,
     double wallCaptureMm = 70,
     bool allowWallFaces = true,
+    WallDrawingTarget? previousSnap,
   }) {
     final start = floor.nodeById(startNodeId);
     if (start == null) {
@@ -140,6 +141,23 @@ class WallDrawingService {
       final along = dx * ux + dy * uy;
       final lateral = (dx * uy - dy * ux).abs();
       return along > 0 && lateral <= .5;
+    }
+
+    // Hold a captured endpoint until the finger leaves a larger release
+    // radius. Otherwise touch jitter makes walls bounce between junctions.
+    final heldId = previousSnap?.targetNodeId;
+    if (heldId != null && heldId != startNodeId) {
+      final heldNode = floor.nodeById(heldId);
+      if (heldNode != null) {
+        final held = math.Point<double>(heldNode.xMm, heldNode.yMm);
+        if (distance(candidate, held) <= nodeCaptureMm * 1.45 &&
+            onLockedRay(held)) {
+          return WallDrawingTarget(
+            point: held, kind: NodeSnapKind.node,
+            targetNodeId: heldId,
+          );
+        }
+      }
     }
 
     // Prefer an actual shared node instead of generating nearly duplicate
