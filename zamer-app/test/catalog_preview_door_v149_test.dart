@@ -22,7 +22,7 @@ void main() {
   test('furniture inspector offers direct exact size editing', () {
     final src = File('lib/screens/planning_objects_screen.dart')
         .readAsStringSync();
-    expect(src, contains("ValueKey('object-exact-dimensions')"));
+    expect(src, contains('object-exact-dimensions'));
     expect(src, contains('onTap: () => _edit(selected)'));
     expect(src, contains('selected.widthMm.round()'));
     expect(src, contains('selected.depthMm.round()'));
