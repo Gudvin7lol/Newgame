@@ -8,6 +8,7 @@ import 'package:zamer_app/design_system/zamer_tokens.dart';
 import 'package:zamer_app/models/models.dart';
 import 'package:zamer_app/services/geometry_service.dart';
 import 'package:zamer_app/services/imported_top_view_assets.dart';
+import 'package:zamer_app/services/object_catalog.dart';
 import 'package:zamer_app/services/plan_visibility_service.dart';
 import 'package:zamer_app/widgets/cad_plan_painter_v2.dart';
 import 'package:zamer_app/widgets/cad_plan_painter_v3.dart';
@@ -133,9 +134,9 @@ FloorPlan previewFloor() {
   }
   floor.planObjects.addAll([
     object('sofa', 'sofa-3', 1650, 900, 2200, 950),
-    object('coffee', 'coffee-table-oval', 1650, 2050, 1050, 600),
+    object('coffee', 'coffee-table-oval', 1650, 2050, 1100, 650),
     object('chair', 'armchair', 3350, 2050, 920, 900, rotation: 90),
-    object('table', 'table-round', 3000, 4200, 1100, 1100),
+    object('table', 'dining-table-1800', 3000, 4200, 1800, 900),
     object('dining1', 'chair', 3000, 3400, 480, 520),
     object('dining2', 'chair', 3000, 5000, 480, 520, rotation: 180),
     object('storage', 'wardrobe-3', 450, 4200, 1500, 600, rotation: 90),
@@ -278,45 +279,59 @@ void main() {
     image.dispose();
   });
 
-  test('neutral sofa keeps its physical footprint when rotated', () async {
+  test('neutral furniture keeps its physical footprint when rotated', () async {
     await ImportedTopViewAssets.instance.ensureLoaded();
-    for (final angle in [0.0, 90.0]) {
-      final floor = FloorPlan(
-        id: 'f',
-        name: 'Rotation',
-        planObjects: [object('s', 'sofa-3', 0, 0, 2200, 950, rotation: angle)],
-      );
-      final image = await render(
-        (canvas) {
-          CadPlanPainterV3(
-            floor: floor,
-            mmToPx: .1,
-            origin: const Offset(160, 160),
-            showGrid: false,
-            showDimensions: false,
-          ).paint(canvas, const Size(320, 320));
-        },
-        320,
-        320,
-      );
-      final bytes = (await image.toByteData())!;
-      var left = 320, right = 0, top = 320, bottom = 0;
-      for (var y = 0; y < 320; y++) {
-        for (var x = 0; x < 320; x++) {
-          final offset = (y * 320 + x) * 4;
-          // Furniture is neutral and light; ignore almost-transparent fringe.
-          if (bytes.getUint8(offset) < 65) continue;
-          if (x < left) left = x;
-          if (x > right) right = x;
-          if (y < top) top = y;
-          if (y > bottom) bottom = y;
+    for (final id in [
+      'sofa-3',
+      'bed-180',
+      'armchair',
+      'dining-table-1800',
+      'coffee-table-oval',
+      'wardrobe-3',
+    ]) {
+      final item = ObjectCatalog.byId(id);
+      for (final angle in [0.0, 90.0]) {
+        final floor = FloorPlan(
+          id: 'f',
+          name: 'Rotation',
+          planObjects: [
+            object('s', id, 0, 0, item.widthMm, item.depthMm, rotation: angle),
+          ],
+        );
+        final image = await render(
+          (canvas) {
+            CadPlanPainterV3(
+              floor: floor,
+              mmToPx: .1,
+              origin: const Offset(160, 160),
+              showGrid: false,
+              showDimensions: false,
+            ).paint(canvas, const Size(320, 320));
+          },
+          320,
+          320,
+        );
+        final bytes = (await image.toByteData())!;
+        var left = 320, right = 0, top = 320, bottom = 0;
+        for (var y = 0; y < 320; y++) {
+          for (var x = 0; x < 320; x++) {
+            final offset = (y * 320 + x) * 4;
+            // Furniture is neutral and light; ignore almost-transparent fringe.
+            if (bytes.getUint8(offset) < 65) continue;
+            if (x < left) left = x;
+            if (x > right) right = x;
+            if (y < top) top = y;
+            if (y > bottom) bottom = y;
+          }
         }
+        final width = (angle == 0 ? item.widthMm : item.depthMm) * .1;
+        final depth = (angle == 0 ? item.depthMm : item.widthMm) * .1;
+        expect(right - left + 1, closeTo(width, 4), reason: '$id at $angle');
+        expect(bottom - top + 1, closeTo(depth, 4), reason: '$id at $angle');
+        expect((left + right) / 2, closeTo(159.5, 2));
+        expect((top + bottom) / 2, closeTo(159.5, 2));
+        image.dispose();
       }
-      expect(right - left + 1, closeTo(angle == 0 ? 220 : 95, 4));
-      expect(bottom - top + 1, closeTo(angle == 0 ? 95 : 220, 4));
-      expect((left + right) / 2, closeTo(159.5, 2));
-      expect((top + bottom) / 2, closeTo(159.5, 2));
-      image.dispose();
     }
   });
 
@@ -324,18 +339,26 @@ void main() {
     final assets = ImportedTopViewAssets.instance;
     await assets.ensureLoaded();
     var decodedBytes = 0;
-    for (final id in ['sofa-3', 'bed-180']) {
+    for (final id in [
+      'sofa-3',
+      'bed-180',
+      'armchair',
+      'dining-table-1800',
+      'coffee-table-oval',
+      'wardrobe-3',
+    ]) {
+      expect(ImportedTopViewAssets.hasNeutralTopView(id), isTrue);
       final sprite = assets.neutralForCatalog(id);
       expect(
         sprite,
         isNotNull,
         reason: '$id must not silently use the old atlas',
       );
-      expect(sprite!.sourceRect.width, greaterThan(700));
+      expect(sprite!.sourceRect.width, greaterThan(650));
       expect(sprite.sourceRect.right, lessThanOrEqualTo(sprite.image.width));
       decodedBytes += sprite.image.width * sprite.image.height * 4;
     }
-    expect(decodedBytes, lessThan(5 * 1024 * 1024));
+    expect(decodedBytes, lessThan(12 * 1024 * 1024));
     final floor = previewFloor();
     final before = floor.toJson().toString();
     final image = await render(

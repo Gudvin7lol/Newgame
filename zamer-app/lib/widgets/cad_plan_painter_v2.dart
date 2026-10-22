@@ -107,7 +107,6 @@ class CadPlanPainterV2 extends CustomPainter {
     if (!showGrid) return;
 
     final minor = 250 * mmToPx;
-    final major = 1000 * mmToPx;
     if (minor < 8) return;
 
     final minorPaint = Paint()

@@ -35,7 +35,29 @@ class ImportedTopViewAssets extends ChangeNotifier {
       decodeWidth: 768,
       bounds: ui.Rect.fromLTRB(24 / 1134, 37 / 1387, 1112 / 1134, 1349 / 1387),
     ),
+    'armchair': (
+      file: 'neutral_armchair_v1.png',
+      decodeWidth: 768,
+      bounds: ui.Rect.fromLTRB(26 / 1272, 66 / 1236, 1249 / 1272, 1171 / 1236),
+    ),
+    'dining-table-1800': (
+      file: 'neutral_dining_table_1800_v1.png',
+      decodeWidth: 768,
+      bounds: ui.Rect.fromLTRB(65 / 1774, 115 / 887, 1709 / 1774, 771 / 887),
+    ),
+    'coffee-table-oval': (
+      file: 'neutral_coffee_table_oval_v1.png',
+      decodeWidth: 768,
+      bounds: ui.Rect.fromLTRB(78 / 1698, 70 / 926, 1620 / 1698, 855 / 926),
+    ),
+    'wardrobe-3': (
+      file: 'neutral_wardrobe_3_v1.png',
+      decodeWidth: 768,
+      bounds: ui.Rect.fromLTRB(76 / 1983, 95 / 793, 1912 / 1983, 697 / 793),
+    ),
   };
+
+  static bool hasNeutralTopView(String id) => _neutralSpecs.containsKey(id);
   final _neutralImages = <String, CatalogTopViewRaster>{};
 
   CatalogTopViewRaster? neutralForCatalog(String id) => _neutralImages[id];
@@ -142,7 +164,7 @@ class ImportedTopViewAssets extends ChangeNotifier {
   Future<void> _load() async {
     var loadedAny = false;
 
-    // Bound the two decoded textures to about 4.5 MiB in total. Original PNGs
+    // Bound the six decoded textures to less than 12 MiB in total. Original PNGs
     // remain available for future exports, without retaining full-size copies
     // in GPU memory during ordinary plan editing.
     for (final entry in _neutralSpecs.entries) {
