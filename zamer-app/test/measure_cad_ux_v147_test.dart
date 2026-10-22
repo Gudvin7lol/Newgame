@@ -70,15 +70,15 @@ void main() {
     // The hit areas are compact; the layout coordinate system remains
     // fixed so the central control never jumps when expanding.
     final folded = tester.getSize(find.byType(ZamerKitFan));
-    expect(folded, const Size(208, 208));
+    expect(folded, const Size(244, 244));
     final foldedCenter = tester.getCenter(
         find.byKey(const ValueKey('fan-expand')));
     await tester.tap(find.byKey(const ValueKey('fan-expand')));
     await tester.pumpAndSettle();
     final full = tester.getSize(find.byType(ZamerKitFan));
-    expect(full.width, 208);
+    expect(full.width, 244);
     final expandedCenter = tester.getTopLeft(find.byType(ZamerKitFan))
-        + const Offset(158, 158);
+        + const Offset(188, 188);
     expect((expandedCenter - foldedCenter).distance, lessThan(1.5));
     final top = tester.getTopLeft(find.byType(ZamerKitFan));
     await tester.tapAt(top + const Offset(18, 18));
