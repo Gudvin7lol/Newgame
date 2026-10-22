@@ -110,6 +110,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   bool _wallPointerDragging = false;
   String? _dragOpeningWallId;
   String? _dragOpeningId;
+  String? _selectedOpeningWallId;
+  String? _selectedOpeningId;
   double _openingGrabOffsetMm = 0;
   bool _openingDragDirty = false;
   String? _openingSnapHint;
@@ -204,6 +206,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       _dragWallId = null;
       _dragOpeningWallId = null;
       _dragOpeningId = null;
+      _selectedOpeningWallId = null;
+      _selectedOpeningId = null;
       _dragWallStartMm = null;
       _dragWallBaseTransform = null;
       _dragWallRejected = null;
@@ -717,10 +721,23 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
         case MeasurePlanTool.openings:
           final hit = _openingNear(p);
           if (hit != null) {
+            final alreadySelected =
+                _selectedOpeningWallId == hit.wall.id &&
+                _selectedOpeningId == hit.opening.id;
+            setState(() {
+              _selectedOpeningWallId = hit.wall.id;
+              _selectedOpeningId = hit.opening.id;
+            });
             widget.onSelectionChanged?.call(
               hit.opening.type == OpeningType.door ? 'door' : 'window');
-            await _editOpening(hit.wall, hit.opening);
+            // Second tap opens the full numeric editor. The first tap shows
+            // only the compact, anchored inspector.
+            if (alreadySelected) await _editOpening(hit.wall, hit.opening);
           } else {
+            setState(() {
+              _selectedOpeningWallId = null;
+              _selectedOpeningId = null;
+            });
             widget.onSelectionChanged?.call(null);
             await _addOpening(p,
               chooseType: widget.preferredOpeningType == null);
@@ -1300,7 +1317,11 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
         ? 0 : hit.opening.offsetFromStartMm - hit.positionMm;
     _openingDragDirty = false;
     _openingSnapHint = null;
-    if (hit != null) setState(() => _selectedWallId = hit.wall.id);
+    if (hit != null) setState(() {
+      _selectedWallId = hit.wall.id;
+      _selectedOpeningWallId = hit.wall.id;
+      _selectedOpeningId = hit.opening.id;
+    });
   }
 
   void _openingDragUpdate(DragUpdateDetails details) {
@@ -1580,7 +1601,11 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       return;
     }
     wall.openings.add(candidate);
-    setState(() => _selectedWallId = wall.id);
+    setState(() {
+      _selectedWallId = wall.id;
+      _selectedOpeningWallId = wall.id;
+      _selectedOpeningId = candidate.id;
+    });
     await _changed();
   }
 
@@ -2850,6 +2875,155 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     },
   );
 
+
+  ({PlanWall wall, WallOpening opening})? get _selectedOpening {
+    final wallId = _selectedOpeningWallId;
+    final openingId = _selectedOpeningId;
+    if (wallId == null || openingId == null) return null;
+    final wall = floor.wallById(wallId);
+    if (wall == null) return null;
+    for (final opening in wall.openings) {
+      if (opening.id == openingId) {
+        return (wall: wall, opening: opening);
+      }
+    }
+    return null;
+  }
+
+  Future<void> _changeDoorHinge() async {
+    final selected = _selectedOpening;
+    if (selected == null || selected.opening.type != OpeningType.door) return;
+    final door = selected.opening;
+    door.doorSwing = switch (door.doorSwing) {
+      DoorSwing.leftIn => DoorSwing.rightIn,
+      DoorSwing.rightIn => DoorSwing.leftIn,
+      DoorSwing.leftOut => DoorSwing.rightOut,
+      DoorSwing.rightOut => DoorSwing.leftOut,
+    };
+    await _changed();
+  }
+
+  Future<void> _changeDoorSide() async {
+    final selected = _selectedOpening;
+    if (selected == null || selected.opening.type != OpeningType.door) return;
+    final door = selected.opening;
+    door.doorSwing = switch (door.doorSwing) {
+      DoorSwing.leftIn => DoorSwing.leftOut,
+      DoorSwing.rightIn => DoorSwing.rightOut,
+      DoorSwing.leftOut => DoorSwing.leftIn,
+      DoorSwing.rightOut => DoorSwing.rightIn,
+    };
+    await _changed();
+  }
+
+  Widget _openingContextInspector() => AnimatedBuilder(
+    animation: _transform,
+    builder: (context, _) {
+      final selected = _selectedOpening;
+      if (selected == null) return const SizedBox.shrink();
+      final wall = selected.wall;
+      final opening = selected.opening;
+      final a = floor.nodeById(wall.startNodeId);
+      final b = floor.nodeById(wall.endNodeId);
+      if (a == null || b == null) return const SizedBox.shrink();
+      final length = floor.wallLengthMm(wall);
+      if (length <= 0) return const SizedBox.shrink();
+      final t = (opening.offsetFromStartMm + opening.widthMm / 2) / length;
+      final center = _toCanvas(a) + (_toCanvas(b) - _toCanvas(a)) * t;
+      final screenX = center.dx * _transform.value.storage[0] +
+          _transform.value.storage[12];
+      final screenY = center.dy * _transform.value.storage[5] +
+          _transform.value.storage[13];
+      final width = math.min(248.0, math.max(180.0, _viewport.width - 16));
+      final left = (screenX - width / 2)
+          .clamp(8.0, math.max(8.0, _viewport.width - width - 8))
+          .toDouble();
+      final proposed = screenY + 150 > _viewport.height
+          ? screenY - 150 : screenY + 22;
+      final top = proposed
+          .clamp(55.0, math.max(55.0, _viewport.height - 170))
+          .toDouble();
+      final isDoor = opening.type == OpeningType.door;
+      final leftHinge = opening.doorSwing == DoorSwing.leftIn ||
+          opening.doorSwing == DoorSwing.leftOut;
+      final inward = opening.doorSwing == DoorSwing.leftIn ||
+          opening.doorSwing == DoorSwing.rightIn;
+      return Positioned(
+        key: const ValueKey('floating-opening-inspector'),
+        left: left, top: top, width: width,
+        child: Material(
+          elevation: 10,
+          color: const Color(0xF40A1A21),
+          borderRadius: BorderRadius.circular(13),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(10, 6, 6, 8),
+            decoration: BoxDecoration(
+              border: Border.all(color: ZamerColors.outlineSoft),
+              borderRadius: BorderRadius.circular(13)),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Row(children: [
+                Icon(isDoor ? Icons.door_front_door_outlined
+                    : Icons.window_outlined,
+                    size: 17, color: ZamerColors.accent),
+                const SizedBox(width: 6),
+                Expanded(child: Text(isDoor ? 'Дверь' : 'Окно',
+                  style: const TextStyle(fontSize: 12,
+                    fontWeight: FontWeight.w700))),
+                IconButton(
+                  tooltip: 'Точные параметры',
+                  icon: const Icon(Icons.tune_rounded, size: 18),
+                  onPressed: () => _editOpening(wall, opening)),
+                IconButton(
+                  tooltip: 'Скрыть параметры',
+                  icon: const Icon(Icons.close_rounded, size: 18),
+                  onPressed: () => setState(() {
+                    _selectedOpeningWallId = null;
+                    _selectedOpeningId = null;
+                  })),
+              ]),
+              Row(children: [
+                Expanded(child: TextButton.icon(
+                  key: const ValueKey('selected-opening-width'),
+                  onPressed: () => _editOpening(wall, opening),
+                  icon: const Icon(Icons.straighten_outlined, size: 14),
+                  label: Text('${opening.widthMm.round()} мм',
+                    style: const TextStyle(fontSize: 11)),
+                )),
+                Expanded(child: TextButton.icon(
+                  onPressed: () => _editOpening(wall, opening),
+                  icon: const Icon(Icons.height_rounded, size: 14),
+                  label: Text('${opening.heightMm.round()} мм',
+                    style: const TextStyle(fontSize: 11)),
+                )),
+              ]),
+              if (isDoor) Row(children: [
+                Expanded(child: OutlinedButton(
+                  key: const ValueKey('door-flip-hinges'),
+                  onPressed: _changeDoorHinge,
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, 34),
+                    padding: EdgeInsets.zero),
+                  child: Text(leftHinge ? 'Петли слева' : 'Петли справа',
+                    style: const TextStyle(fontSize: 10)),
+                )),
+                const SizedBox(width: 7),
+                Expanded(child: OutlinedButton(
+                  key: const ValueKey('door-flip-swing'),
+                  onPressed: _changeDoorSide,
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, 34),
+                    padding: EdgeInsets.zero),
+                  child: Text(inward ? 'Внутрь' : 'Наружу',
+                    style: const TextStyle(fontSize: 10)),
+                )),
+              ]),
+            ]),
+          ),
+        ),
+      );
+    },
+  );
+
   Widget _canvas() => LayoutBuilder(
         builder: (context, constraints) {
           _viewport = Size(constraints.maxWidth, constraints.maxHeight);
@@ -2979,6 +3153,9 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                   (widget.planTool == MeasurePlanTool.select ||
                    widget.planTool == MeasurePlanTool.overview))
                 _wallContextInspector(),
+              if (widget.planTool == MeasurePlanTool.openings &&
+                  _selectedOpening != null && _dragOpeningId == null)
+                _openingContextInspector(),
               // A single compact control opens the full material picker.
               if (widget.planTool == MeasurePlanTool.overview) ...[
                 if (_materialsExpanded)
