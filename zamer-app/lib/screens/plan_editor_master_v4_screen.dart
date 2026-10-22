@@ -3319,13 +3319,41 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                   ],
                 ),
               ),
+              // Keep snap feedback by the exact intended wall endpoint,
+              // not pinned in the header where it hides editing controls.
               if (_drawingWall && _wallStartNodeId != null &&
                   _liveWallSnap != null && !_moveCameraInsteadOfDrawing)
-                Positioned(
-                  key: const ValueKey('measure-live-snap-hud'),
-                  left: 12, top: 10,
-                  child: _liveSnapHud(),
-                ),
+                if (_liveWallSnap case final snap?)
+                  Builder(builder: (context) {
+                    const tooltipWidth = 210.0;
+                    const tooltipHeight = 56.0;
+                    final world = _origin + Offset(
+                      snap.point.x * _mmToPx,
+                      snap.point.y * _mmToPx,
+                    );
+                    final tip = MatrixUtils.transformPoint(
+                      _transform.value, world);
+                    final preferLeft = tip.dx + tooltipWidth + 18 >
+                        _viewport.width;
+                    final proposedLeft = preferLeft
+                        ? tip.dx - tooltipWidth - 18 : tip.dx + 18;
+                    final proposedTop = tip.dy + tooltipHeight + 14 >
+                            _viewport.height
+                        ? tip.dy - tooltipHeight - 14 : tip.dy + 12;
+                    return Positioned(
+                      key: const ValueKey('measure-live-snap-hud'),
+                      left: proposedLeft.clamp(8.0,
+                        math.max(8.0, _viewport.width - tooltipWidth - 8))
+                          .toDouble(),
+                      top: proposedTop.clamp(112.0,
+                        math.max(112.0, _viewport.height - tooltipHeight - 8))
+                          .toDouble(),
+                      width: math.min(tooltipWidth,
+                        math.max(1.0, _viewport.width - 16)),
+                      child: _liveSnapHud(),
+                    );
+                  }),
+
               // Fixed-size feedback above the tool strip: the measured
               // coordinates and snap kind remain legible at any zoom.
               if (widget.planTool == MeasurePlanTool.nodes &&
@@ -3414,8 +3442,9 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
               if (_editingGeometry &&
                   widget.planTool != MeasurePlanTool.openings)
                 Positioned(
+                  key: const ValueKey('compact-wall-tools'),
                   left: 8,
-                  right: 8,
+                  width: math.min(282.0, math.max(1.0, _viewport.width - 16)),
                   top: widget.nativeKitV2 ? 65 : null,
                   bottom: widget.nativeKitV2 ? null : 8,
                   child: _compactEditingBar(),
