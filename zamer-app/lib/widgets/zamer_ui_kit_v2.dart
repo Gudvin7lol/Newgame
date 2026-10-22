@@ -253,50 +253,61 @@ class _ZamerKitFanState extends State<ZamerKitFan> {
       items.add(_visibleRingCommands[i]);
     }
     if (!_expanded) {
+      // Fixed 208x208 coordinate space for both states. The peach centre
+      // never jumps when opened; only the two actual child hit rectangles
+      // receive gestures, leaving the rest of this area to the CAD canvas.
       return SizedBox(
-        width: 145, height: 54,
-        child: Row(children: [
-          Material(
-            color: ZamerKitColors.panel,
-            elevation: 4,
-            borderRadius: BorderRadius.circular(14),
-            child: InkWell(
-              key: const ValueKey('fan-quick-select'),
-              onTap: () => widget.onCommand('select'),
+        width: _size, height: _size,
+        child: Stack(children: [
+          Positioned(
+            left: _center.dx - 128, top: _center.dy - 25,
+            child: Material(
+              color: ZamerKitColors.panel,
+              elevation: 4,
               borderRadius: BorderRadius.circular(14),
-              child: const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 10, vertical: 14),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.near_me_outlined, size: 17,
-                    color: ZamerKitColors.peach),
-                  SizedBox(width: 5),
-                  Text('Выбрать', style: TextStyle(
-                    color: ZamerKitColors.text, fontSize: 11,
-                    fontWeight: FontWeight.w600)),
-                ]),
+              child: InkWell(
+                key: const ValueKey('fan-quick-select'),
+                onTap: () => widget.onCommand('select'),
+                borderRadius: BorderRadius.circular(14),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 10, vertical: 14),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.near_me_outlined, size: 17,
+                      color: ZamerKitColors.peach),
+                    SizedBox(width: 5),
+                    Text('Выбрать', style: TextStyle(
+                      color: ZamerKitColors.text, fontSize: 11,
+                      fontWeight: FontWeight.w600)),
+                  ]),
+                ),
               ),
             ),
           ),
-          const SizedBox(width: 6),
-          InkWell(
-            key: const ValueKey('fan-expand'),
-            onTap: () => setState(() => _expanded = true),
-            onLongPress: _showAll,
-            customBorder: const CircleBorder(),
-            child: Container(
-              width: 49, height: 49,
-              decoration: BoxDecoration(
-                color: ZamerKitColors.peach, shape: BoxShape.circle,
-                boxShadow: [BoxShadow(
-                  color: ZamerKitColors.peach.withValues(alpha: .22),
-                  blurRadius: 18)]),
-              child: const Icon(Icons.tune_rounded,
-                color: ZamerKitColors.ink, size: 24),
+          Positioned(
+            left: _center.dx - 26, top: _center.dy - 26,
+            child: InkWell(
+              key: const ValueKey('fan-expand'),
+              onTap: () => setState(() => _expanded = true),
+              onLongPress: _showAll,
+              customBorder: const CircleBorder(),
+              child: Container(
+                width: 52, height: 52,
+                decoration: BoxDecoration(
+                  color: ZamerKitColors.peach,
+                  shape: BoxShape.circle,
+                  boxShadow: [BoxShadow(
+                    color: ZamerKitColors.peach.withValues(alpha: .22),
+                    blurRadius: 18)],
+                ),
+                child: const Icon(Icons.tune_rounded,
+                  color: ZamerKitColors.ink, size: 24),
+              ),
             ),
           ),
         ]),
       );
     }
+
     return SizedBox(
       width: _size, height: _size,
       child: GestureDetector(
