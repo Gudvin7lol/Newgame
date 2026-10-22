@@ -18,6 +18,8 @@ void main() {
     expect(card, contains('ZamerCatalogArtwork('));
     expect(card, contains('fallback: ZamerModelThumbnail('));
     expect(card, contains('ZamerCatalogVectorFallback(item: item)'));
+    expect(card, contains('loadingFallback: ZamerCatalogVectorFallback('));
+    expect(source, contains('widget.loadingFallback ?? widget.fallback'));
     expect(source, contains('class ZamerCatalogVectorFallback'));
     expect(source, contains('TopViewObjectRenderer.draw('));
   });
