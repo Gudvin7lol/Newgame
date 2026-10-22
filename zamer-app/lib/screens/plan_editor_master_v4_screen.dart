@@ -2736,46 +2736,119 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     );
   }
 
+
+  // Selection never changes the available CAD viewport height.
   @override
-  Widget build(BuildContext context) {
-    final room = _selectedRoomMeta;
-    return ColoredBox(
-      color: ZamerColors.background,
-      child: Column(
-        children: [
-          Expanded(child: _canvas()),
-          // Keep the viewport height stable through the gesture; opening
-          // an inspector half-way through a finger drag changes the mapping.
-          if (_selectedWall != null && !_drawingWall &&
-              _dragWallId == null &&
-              (widget.planTool == MeasurePlanTool.select ||
-               widget.planTool == MeasurePlanTool.overview))
-            _WallInspector(
-              wall: _selectedWall!,
-              floor: floor,
-              onEdit: _editWall,
-              onResize: _resizeSelectedWall,
-              onShift: _shiftSelectedWall,
-              onDelete: _deleteWall,
+  Widget build(BuildContext context) => ColoredBox(
+    color: ZamerColors.background,
+    child: _canvas(),
+  );
+
+  // Anchored overlay rather than a permanently reserved bottom panel.
+  Widget _wallContextInspector() => AnimatedBuilder(
+    animation: _transform,
+    builder: (context, _) {
+      final wall = _selectedWall;
+      if (wall == null) return const SizedBox.shrink();
+      final a = floor.nodeById(wall.startNodeId);
+      final b = floor.nodeById(wall.endNodeId);
+      if (a == null || b == null) return const SizedBox.shrink();
+      final anchor = (_toCanvas(a) + _toCanvas(b)) / 2;
+      final screenX = anchor.dx * _transform.value.storage[0] +
+          _transform.value.storage[12];
+      final screenY = anchor.dy * _transform.value.storage[5] +
+          _transform.value.storage[13];
+      final width = math.min(270.0, math.max(180.0, _viewport.width - 16));
+      final left = (screenX - width / 2)
+          .clamp(8.0, math.max(8.0, _viewport.width - width - 8))
+          .toDouble();
+      final desiredTop = screenY + 134 > _viewport.height
+          ? screenY - 118 : screenY + 18;
+      final top = desiredTop
+          .clamp(54.0, math.max(54.0, _viewport.height - 126))
+          .toDouble();
+      return Positioned(
+        key: const ValueKey('floating-wall-inspector'),
+        left: left,
+        top: top,
+        width: width,
+        child: Material(
+          elevation: 9,
+          color: const Color(0xF30A1A21),
+          borderRadius: BorderRadius.circular(13),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(10, 5, 6, 8),
+            decoration: BoxDecoration(
+              border: Border.all(color: ZamerColors.outlineSoft),
+              borderRadius: BorderRadius.circular(13),
             ),
-          if (widget.planTool == MeasurePlanTool.overview)
-            _MaterialPanel(
-              category: _materialCategory,
-              selectedRoomName: room?.name,
-              selectedMaterialId: _selectedMaterialId,
-              selectionMode: _materialPickMode,
-              expanded: _materialsExpanded,
-              onToggle: () => setState(
-                () => _materialsExpanded = !_materialsExpanded,
-              ),
-              onCategory: _selectMaterialCategory,
-              onApply: _applyMaterial,
-              onOpenMaterials: widget.onOpenMaterials,
-            ),
-        ],
-      ),
-    );
-  }
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Row(children: [
+                const Icon(Icons.architecture_outlined,
+                    size: 17, color: ZamerColors.accent),
+                const SizedBox(width: 6),
+                const Expanded(child: Text('Параметры стены',
+                    style: TextStyle(fontSize: 12, color: Colors.white,
+                        fontWeight: FontWeight.w700))),
+                PopupMenuButton<String>(
+                  tooltip: 'Действия со стеной',
+                  icon: const Icon(Icons.more_vert_rounded, size: 18),
+                  onSelected: (action) {
+                    switch (action) {
+                      case 'edit': _editWall();
+                      case 'resize': _resizeSelectedWall();
+                      case 'shift': _shiftSelectedWall();
+                      case 'delete': _deleteWall();
+                    }
+                  },
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(value: 'edit',
+                        child: Text('Толщина и высота')),
+                    PopupMenuItem(value: 'resize',
+                        child: Text('Изменить длину')),
+                    PopupMenuItem(value: 'shift',
+                        child: Text('Сдвинуть стену')),
+                    PopupMenuItem(value: 'delete',
+                        child: Text('Удалить стену')),
+                  ],
+                ),
+                IconButton(
+                  tooltip: 'Скрыть параметры',
+                  icon: const Icon(Icons.close_rounded, size: 17),
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () => setState(() => _selectedWallId = null),
+                ),
+              ]),
+              Row(children: [
+                Expanded(child: OutlinedButton.icon(
+                  key: const ValueKey('selected-wall-length'),
+                  onPressed: _resizeSelectedWall,
+                  icon: const Icon(Icons.straighten_rounded, size: 14),
+                  label: Text('${floor.wallLengthMm(wall).round()} мм',
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, 36),
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    textStyle: const TextStyle(fontSize: 11)),
+                )),
+                const SizedBox(width: 7),
+                Expanded(child: OutlinedButton.icon(
+                  onPressed: _editWall,
+                  icon: const Icon(Icons.tune_rounded, size: 14),
+                  label: Text('${wall.thicknessMm.round()} мм',
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, 36),
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    textStyle: const TextStyle(fontSize: 11)),
+                )),
+              ]),
+            ]),
+          ),
+        ),
+      );
+    },
+  );
 
   Widget _canvas() => LayoutBuilder(
         builder: (context, constraints) {
@@ -2899,6 +2972,47 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                   ),
                 ),
               ),
+
+              if (_selectedWall != null &&
+                  !_drawingWall &&
+                  _dragWallId == null &&
+                  (widget.planTool == MeasurePlanTool.select ||
+                   widget.planTool == MeasurePlanTool.overview))
+                _wallContextInspector(),
+              // A single compact control opens the full material picker.
+              if (widget.planTool == MeasurePlanTool.overview) ...[
+                if (_materialsExpanded)
+                  Positioned(
+                    left: 8,
+                    bottom: 51,
+                    width: math.min(274.0, _viewport.width - 16),
+                    child: _MaterialPanel(
+                      category: _materialCategory,
+                      selectedRoomName: _selectedRoomMeta?.name,
+                      selectedMaterialId: _selectedMaterialId,
+                      selectionMode: _materialPickMode,
+                      expanded: true,
+                      onToggle: () => setState(() => _materialsExpanded = false),
+                      onCategory: _selectMaterialCategory,
+                      onApply: _applyMaterial,
+                      onOpenMaterials: widget.onOpenMaterials,
+                    ),
+                  ),
+                Positioned(
+                  left: 10,
+                  bottom: 10,
+                  child: ZMeasureCanvasAction(
+                    key: const ValueKey('floating-materials-toggle'),
+                    icon: _materialsExpanded
+                        ? Icons.close_rounded : Icons.palette_outlined,
+                    tooltip: _materialsExpanded
+                        ? 'Скрыть материалы' : 'Материалы и покрытия',
+                    active: _materialsExpanded,
+                    onPressed: () => setState(
+                      () => _materialsExpanded = !_materialsExpanded),
+                  ),
+                ),
+              ],
               Positioned(
                 right: 8,
                 top: 8,
