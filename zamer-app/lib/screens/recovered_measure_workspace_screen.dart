@@ -570,8 +570,12 @@ class _RecoveredMeasureWorkspaceScreenState
               ),
               if (_layer < 4)
                 Positioned(
-                  right: 12, bottom: 70,
-                  child: ZamerKitFan(
+                  // Keep the dial thumb-reachable without obscuring the drawing.
+                  right: 4, bottom: 8,
+                  child: Transform.scale(
+                    scale: .82,
+                    alignment: Alignment.bottomRight,
+                    child: ZamerKitFan(
                     key: const ValueKey('zamer-native-v2-fan'),
                     contextId: '${_fanContext}:${_categoryIndex}',
                     selectedCommand: _activeFanCommand,
@@ -582,6 +586,7 @@ class _RecoveredMeasureWorkspaceScreenState
                     outer: ZamerFanProfilesV2.of(_fanContext,
                       enabledActions: _availableFanActions).outer,
                     onCommand: _fanCommand,
+                    ),
                   ),
                 ),
             ],
