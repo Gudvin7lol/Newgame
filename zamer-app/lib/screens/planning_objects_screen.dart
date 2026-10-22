@@ -12,6 +12,7 @@ import '../services/object_catalog.dart';
 import '../services/geometry_service.dart';
 import '../services/imported_top_view_assets.dart';
 import '../services/space_check_service.dart';
+import '../services/plan_viewport_link.dart';
 import '../widgets/model_thumbnail.dart';
 import '../widgets/cad_plan_painter.dart';
 
@@ -25,6 +26,8 @@ class PlanningObjectsScreen extends StatefulWidget {
     required this.floor,
     required this.onChanged,
     this.embedded = false,
+    this.sharedViewport,
+    this.viewportActive = true,
     this.onSelectedObjectChanged,
     this.fanCommand,
   });
@@ -34,6 +37,8 @@ class PlanningObjectsScreen extends StatefulWidget {
   /// In Measure the catalog lives in the parent workspace. Embedded mode keeps
   /// this screen focused on direct placement, movement and rotation only.
   final bool embedded;
+  final ValueNotifier<PlanViewportSnapshot?>? sharedViewport;
+  final bool viewportActive;
   final ValueChanged<PlanObject?>? onSelectedObjectChanged;
   final ValueListenable<String?>? fanCommand;
 
@@ -53,6 +58,7 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
   // Viewport transform is independent of object geometry.
   double _viewZoom = 1;
   Offset _viewPan = Offset.zero;
+  Size _viewportSize = Size.zero;
   bool _pinchingCamera = false;
   double _pinchStartZoom = 1;
   double _pinchStartScale = 1;
@@ -96,6 +102,10 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
     if (oldWidget.fanCommand != widget.fanCommand) {
       oldWidget.fanCommand?.removeListener(_handleFanCommand);
       widget.fanCommand?.addListener(_handleFanCommand);
+    }
+    if (widget.viewportActive && (!oldWidget.viewportActive ||
+        oldWidget.sharedViewport != widget.sharedViewport)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _adoptViewport());
     }
   }
 
@@ -293,6 +303,59 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
     );
     assign(point.wallSide != wallSide, () => point!.wallSide = wallSide);
     return changed;
+  }
+
+
+  void _publishViewport() {
+    if (!widget.viewportActive || _viewportSize.isEmpty) return;
+    final link = widget.sharedViewport;
+    if (link == null) return;
+    final tx = _tx(_viewportSize);
+    if (!tx.scale.isFinite || tx.scale <= 0) return;
+    final center = Offset(_viewportSize.width / 2,
+        _viewportSize.height / 2);
+    final snapshot = PlanViewportSnapshot(
+      centerXMm: (center.dx - tx.origin.dx) / tx.scale,
+      centerYMm: (center.dy - tx.origin.dy) / tx.scale,
+      pixelsPerMm: tx.scale,
+    );
+    if (!snapshot.valid) return;
+    if (link.value case final previous?) {
+      if (previous.nearlyEquals(snapshot)) return;
+    }
+    link.value = snapshot;
+  }
+
+  void _adoptViewport() {
+    if (!mounted || !widget.viewportActive || _viewportSize.isEmpty) return;
+    final saved = widget.sharedViewport?.value;
+    if (saved == null || !saved.valid) return;
+    final oldTx = _tx(_viewportSize);
+    if (oldTx.scale <= 0) return;
+    // Keep zoom bounded for objects while centering the same world point.
+    final newZoom = (_viewZoom * saved.pixelsPerMm / oldTx.scale)
+        .clamp(.5, 6.0).toDouble();
+    setState(() => _viewZoom = newZoom);
+    final newTx = _tx(_viewportSize);
+    final center = Offset(_viewportSize.width / 2,
+        _viewportSize.height / 2);
+    final focus = newTx.origin + Offset(saved.centerXMm * newTx.scale,
+        saved.centerYMm * newTx.scale);
+    setState(() => _viewPan += center - focus);
+  }
+
+  void _changeViewportZoom(double factor) {
+    if (_viewportSize.isEmpty) return;
+    setState(() => _viewZoom = (_viewZoom * factor).clamp(.5, 6.0).toDouble());
+    _publishViewport();
+  }
+
+  void _resetViewport() {
+    setState(() {
+      _viewZoom = 1;
+      _viewPan = Offset.zero;
+    });
+    _publishViewport();
   }
 
   _ObjTx _tx(Size size) {
@@ -567,6 +630,7 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
   }
 
   Future<void> _objectScaleEnd(ScaleEndDetails d) async {
+    if (_pinchingCamera) _publishViewport();
     _pinchingCamera = false;
     if (_gestureObjectId == null) return;
     final object = _objectById(_gestureObjectId);
@@ -1449,6 +1513,7 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
           child: LayoutBuilder(
             builder: (context, c) {
               final size = Size(c.maxWidth, c.maxHeight);
+              _viewportSize = size;
               final tx = _tx(size);
 
               return Stack(children: [
@@ -1472,17 +1537,13 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
                 )),
                 Positioned(right: 9, bottom: 10, child: Row(children: [
                   _viewportButton(Icons.remove_rounded,
-                    () => setState(() => _viewZoom =
-                      (_viewZoom / 1.2).clamp(.5, 6.0).toDouble())),
+                    () => _changeViewportZoom(1 / 1.2)),
                   const SizedBox(width: 5),
                   _viewportButton(Icons.add_rounded,
-                    () => setState(() => _viewZoom =
-                      (_viewZoom * 1.2).clamp(.5, 6.0).toDouble())),
+                    () => _changeViewportZoom(1.2)),
                   const SizedBox(width: 5),
                   _viewportButton(Icons.center_focus_strong_rounded,
-                    () => setState(() {
-                      _viewZoom = 1; _viewPan = Offset.zero;
-                    })),
+                    _resetViewport),
                 ])),
                 if (_objectById(_selectedId) case final selected?)
                   Positioned(
