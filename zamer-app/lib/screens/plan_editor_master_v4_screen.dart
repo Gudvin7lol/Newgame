@@ -971,6 +971,9 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     final target = endViewport == null ? null :
         _transform.toScene(endViewport);
     _stopEdgePan();
+    // Edge auto-pan moves the CAD camera outside InteractiveViewer gestures.
+    // Publish its final position, otherwise switching to Floor resets zoom.
+    _publishViewport();
     if (shouldCommit && target != null) {
       unawaited(_createWall(
         target,
