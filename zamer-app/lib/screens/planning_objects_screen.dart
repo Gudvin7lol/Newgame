@@ -1819,8 +1819,9 @@ class _PlanningPainter extends CustomPainter {
 
     // The highlight is intentionally separate from the model. Selection
     // never changes its physical footprint, rotation or raster appearance.
+    final selectedObjectId = selected.id;
     final colliding = collisionIssues.any((issue) =>
-      issue.objectIds.contains(selected.id) &&
+      issue.objectIds.contains(selectedObjectId) &&
       issue.kind != SpaceIssueKind.doorClearance);
     canvas.save();
     canvas.translate(center.dx, center.dy);
