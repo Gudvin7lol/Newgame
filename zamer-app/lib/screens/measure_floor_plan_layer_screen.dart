@@ -38,6 +38,8 @@ class _MeasureFloorPlanLayerScreenState
 
   final TransformationController _transform = TransformationController();
   String? _selectedFaceKey;
+  bool _placingLayoutStart = false;
+  math.Point<double>? _layoutStartMm;
   bool _centered = false;
   Size _viewport = Size.zero;
 
@@ -111,13 +113,39 @@ class _MeasureFloorPlanLayerScreenState
     return inside;
   }
 
-  void _selectAt(Offset canvasPoint) {
+  double _phase(double v, double step) {
+    final unit = math.max(1.0, step);
+    return (v % unit + unit) % unit;
+  }
+
+  Future<void> _selectAt(Offset canvasPoint) async {
     final mm = _toMm(canvasPoint);
     for (final face in _faces) {
-      if (_pointInPolygon(mm, face.innerPolygon)) {
-        setState(() => _selectedFaceKey = face.key);
-        return;
+      if (!_pointInPolygon(mm, face.innerPolygon)) continue;
+      if (_placingLayoutStart) {
+        final settings = widget.floor.roomMetaByKey(face.key)?.materials;
+        if (settings != null) {
+          final minX = face.innerPolygon.map((p) => p.x).reduce(math.min);
+          final minY = face.innerPolygon.map((p) => p.y).reduce(math.min);
+          settings.laminateOffsetXMm =
+              _phase(mm.x - minX, settings.laminatePlankLengthMm);
+          settings.laminateOffsetYMm =
+              _phase(mm.y - minY, settings.laminatePlankWidthMm);
+          settings.tileOffsetXMm =
+              _phase(mm.x - minX, settings.tileWidthMm);
+          settings.tileOffsetYMm =
+              _phase(mm.y - minY, settings.tileHeightMm);
+          setState(() {
+            _selectedFaceKey = face.key;
+            _layoutStartMm = mm;
+            _placingLayoutStart = false;
+          });
+          await widget.onChanged();
+          return;
+        }
       }
+      setState(() => _selectedFaceKey = face.key);
+      return;
     }
   }
 
@@ -226,7 +254,7 @@ class _MeasureFloorPlanLayerScreenState
       child: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(10, 8, 10, 6),
+            padding: const EdgeInsets.fromLTRB(8, 4, 8, 2),
             child: Row(
               children: [
                 Expanded(
@@ -241,6 +269,16 @@ class _MeasureFloorPlanLayerScreenState
                       fontWeight: FontWeight.w800,
                     ),
                   ),
+                ),
+                IconButton.filledTonal(
+                  tooltip: _placingLayoutStart
+                      ? 'Отменить выбор начальной точки'
+                      : 'Указать начало укладки',
+                  onPressed: () => setState(
+                    () => _placingLayoutStart = !_placingLayoutStart),
+                  icon: Icon(Icons.my_location_rounded,
+                    color: _placingLayoutStart
+                        ? ZamerColors.accent : null, size: 19),
                 ),
                 IconButton.filledTonal(
                   tooltip: 'Вписать план',
@@ -346,7 +384,7 @@ class _MeasureFloorPlanLayerScreenState
                                 mmToPx: _mmToPx,
                                 origin: _origin,
                                 showGrid: true,
-                                showDimensions: true,
+                                showDimensions: false,
                               ),
                             ),
                             IgnorePointer(
@@ -356,6 +394,7 @@ class _MeasureFloorPlanLayerScreenState
                                   mmToPx: _mmToPx,
                                   origin: _origin,
                                   selectedFaceKey: _selectedFaceKey,
+                                  layoutStartMm: _layoutStartMm,
                                 ),
                               ),
                             ),
@@ -368,22 +407,7 @@ class _MeasureFloorPlanLayerScreenState
               },
             ),
           ),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
-            decoration: const BoxDecoration(
-              color: ZamerColors.surfaceLow,
-              border: Border(top: BorderSide(color: ZamerColors.outlineSoft)),
-            ),
-            child: Text(
-              meta == null
-                  ? 'Выбери помещение прямо на плане.'
-                  : 'Направление ${settings!.floorDirectionDeg.round()}° • '
-                      '${settings.floorMode == 'tile' ? '${settings.tileWidthMm.round()}×${settings.tileHeightMm.round()} мм' : '${settings.laminatePlankLengthMm.round()}×${settings.laminatePlankWidthMm.round()} мм'}',
-              textAlign: TextAlign.center,
-              style: ZamerTypography.caption,
-            ),
-          ),
+
         ],
       ),
     );
