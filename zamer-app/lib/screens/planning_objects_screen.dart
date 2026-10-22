@@ -1569,12 +1569,35 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
                         padding: const EdgeInsets.symmetric(
                           horizontal: 7, vertical: 4),
                         child: Row(children: [
-                          Expanded(child: Text(
-                            selected.label.trim().isEmpty
-                              ? selected.type.label : selected.label,
-                            maxLines: 1, overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 11,
-                              fontWeight: FontWeight.w700))),
+                          Expanded(child: InkWell(
+                            key: const ValueKey('object-exact-dimensions'),
+                            borderRadius: BorderRadius.circular(7),
+                            onTap: () => _edit(selected),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 3),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    selected.label.trim().isEmpty
+                                      ? selected.type.label : selected.label,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 11, fontWeight: FontWeight.w700)),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    '${selected.widthMm.round()} × '
+                                    '${selected.depthMm.round()} мм',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: ZamerColors.accent, fontSize: 9.5)),
+                                ],
+                              ),
+                            ),
+                          )),
                           IconButton(
                             tooltip: 'Повернуть −15°',
                             constraints: const BoxConstraints.tightFor(
