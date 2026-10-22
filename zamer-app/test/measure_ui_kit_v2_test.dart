@@ -60,10 +60,10 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Стена'), findsOneWidget);
     final top = tester.getTopLeft(find.byType(ZamerKitFan));
-    await tester.tapAt(top + const Offset(112, 112));
+    await tester.tapAt(top + const Offset(134, 134));
     await tester.pump();
     expect(picked, ['wall']);
-    await tester.tapAt(top + const Offset(158, 158));
+    await tester.tapAt(top + const Offset(188, 188));
     await tester.pumpAndSettle();
     expect(find.text('Стена'), findsNothing);
     expect(find.byKey(const ValueKey('fan-quick-select')), findsOneWidget);
