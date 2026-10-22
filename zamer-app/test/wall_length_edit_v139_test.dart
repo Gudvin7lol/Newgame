@@ -142,7 +142,10 @@ void main() {
     expect(src, contains("ValueKey('existing-wall-length-mm')"));
     expect(src, contains("ValueKey('existing-wall-length-apply')"));
     expect(src, contains('WallLengthEditService.resize('));
-    expect(src, contains('onResize: _resizeSelectedWall'));
+    expect(src, contains("ValueKey('floating-wall-inspector')"));
+    expect(src, contains('onPressed: _resizeSelectedWall'));
+    expect(src, contains('child: _canvas()'));
+    expect(src, isNot(contains('onResize: _resizeSelectedWall')));
     expect(src, contains('SingleChildScrollView('));
   });
 }
