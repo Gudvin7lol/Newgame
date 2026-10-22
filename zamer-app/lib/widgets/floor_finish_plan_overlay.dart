@@ -18,12 +18,14 @@ class FloorFinishPlanOverlayPainter extends CustomPainter {
     required this.mmToPx,
     required this.origin,
     this.selectedFaceKey,
+    this.layoutStartMm,
   });
 
   final FloorPlan floor;
   final double mmToPx;
   final Offset origin;
   final String? selectedFaceKey;
+  final math.Point<double>? layoutStartMm;
 
   Offset _toCanvas(math.Point<double> p) =>
       origin + Offset(p.x * mmToPx, p.y * mmToPx);
@@ -71,6 +73,18 @@ class FloorFinishPlanOverlayPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2.2,
     );
+
+    // Show the point the installer actually touched, not a hard-coded
+    // room-centre dot. Stored phase offsets are updated by the floor editor.
+    if (layoutStartMm case final startMm?) {
+      final marker = _toCanvas(startMm);
+      canvas.drawCircle(marker, 11, Paint()
+        ..color = ZamerColors.accent.withValues(alpha: .18));
+      canvas.drawCircle(marker, 5.5, Paint()
+        ..color = ZamerColors.accent);
+      canvas.drawCircle(marker, 2.3, Paint()
+        ..color = ZamerColors.background);
+    }
 
     final angle = settings.floorDirectionDeg * math.pi / 180;
     final center = bounds.center;
