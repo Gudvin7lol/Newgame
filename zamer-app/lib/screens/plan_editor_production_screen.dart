@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/models.dart';
+import '../services/plan_viewport_link.dart';
 import 'plan_editor_master_v4_screen.dart';
 import 'measure_plan_tool.dart';
 
@@ -13,6 +14,8 @@ class PlanEditorProductionScreen extends StatelessWidget {
     this.preferredOpeningType,
     this.onSelectionChanged,
     this.nativeKitV2 = false,
+    this.sharedViewport,
+    this.viewportActive = true,
     required this.onOpenObjects,
     required this.onOpenReview,
     required this.onOpenPlanGeometry,
@@ -32,6 +35,8 @@ class PlanEditorProductionScreen extends StatelessWidget {
   final OpeningType? preferredOpeningType;
   final ValueChanged<String?>? onSelectionChanged;
   final bool nativeKitV2;
+  final ValueNotifier<PlanViewportSnapshot?>? sharedViewport;
+  final bool viewportActive;
   final VoidCallback onOpenObjects;
   final VoidCallback onOpenReview;
   final VoidCallback onOpenPlanGeometry;
@@ -53,6 +58,8 @@ class PlanEditorProductionScreen extends StatelessWidget {
       preferredOpeningType: preferredOpeningType,
       onSelectionChanged: onSelectionChanged,
       nativeKitV2: nativeKitV2,
+      sharedViewport: sharedViewport,
+      viewportActive: viewportActive,
       onOpenObjects: onOpenObjects,
       onOpenReview: onOpenReview,
       onOpenGeometry: onOpenPlanGeometry,
