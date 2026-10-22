@@ -71,8 +71,10 @@ class CadPlanPainterV2 extends CustomPainter {
     if (visibleCategories.contains(PlanDisplayLayer.floorFinishes)) {
       _rooms(canvas, faces);
     }
-    if (visibleCategories.contains(PlanDisplayLayer.walls)) _walls(canvas, faces);
     _objects(canvas);
+    // Keep walls and opening symbols legible above intersecting furniture.
+    // Collision overlays still paint last, above the solid wall body.
+    if (visibleCategories.contains(PlanDisplayLayer.walls)) _walls(canvas, faces);
     if (visibleCategories.contains(PlanDisplayLayer.engineering)) {
       _services(canvas);
     }
@@ -496,20 +498,6 @@ class CadPlanPainterV2 extends CustomPainter {
       origin: origin,
       visibleLayers: visibleLayers,
     );
-    final all = Path();
-    for (final layer in ProjectLayer.values) {
-      all.addPath(bodies[layer]!, Offset.zero);
-    }
-    // One shadow for the union of the bodies. Independent square-ended
-    // strokes used to produce black strips and bright bulges at T joints.
-    canvas.save();
-    canvas.translate(1.1, 1.2);
-    canvas.drawPath(
-      all,
-      Paint()..color = Colors.black.withValues(alpha: .26),
-    );
-    canvas.restore();
-
     const colors = <ProjectLayer, Color>{
       ProjectLayer.existing: Color(0xFFF0F1ED),
       ProjectLayer.demolition: ZamerColors.danger,
@@ -520,6 +508,16 @@ class CadPlanPainterV2 extends CustomPainter {
       canvas.drawPath(
         bodies[layer]!,
         Paint()..color = colors[layer]!,
+      );
+      // A neutral silhouette edge separates the cut wall from pale finishes.
+      // The merged body has no internal seams and casts no scene shadow.
+      canvas.drawPath(
+        bodies[layer]!,
+        Paint()
+          ..color = const Color(0xFF626B6D)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = .65
+          ..strokeJoin = StrokeJoin.miter,
       );
     }
 
@@ -800,7 +798,17 @@ class CadPlanPainterV2 extends CustomPainter {
   }
 
   void _objects(Canvas canvas) {
-    for (final object in floor.planObjects) {
+    // Stable partition: a rug added after a sofa must still lie underneath.
+    // Preserve user insertion order within each group and the saved model.
+    final ordered = [
+      ...floor.planObjects.where(
+        (object) => object.catalogId.startsWith('rug-'),
+      ),
+      ...floor.planObjects.where(
+        (object) => !object.catalogId.startsWith('rug-'),
+      ),
+    ];
+    for (final object in ordered) {
       final category = switch (object.type) {
         PlanObjectType.furniture => PlanDisplayLayer.furniture,
         PlanObjectType.sanitary ||

@@ -3,7 +3,15 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-/// Lazy cache for raster top-view assets generated from production geometry.
+/// A raster with an explicit physical silhouette, excluding transparent padding.
+class CatalogTopViewRaster {
+  const CatalogTopViewRaster(this.image, this.sourceRect);
+
+  final ui.Image image;
+  final ui.Rect sourceRect;
+}
+
+/// Lazy cache for top-view artwork and legacy production-geometry previews.
 ///
 /// The CAD renderer keeps deterministic vector symbols underneath these
 /// images, so a missing optional preview never makes an object disappear.
@@ -13,6 +21,25 @@ class ImportedTopViewAssets extends ChangeNotifier {
   static final ImportedTopViewAssets instance = ImportedTopViewAssets._();
 
   static const _root = 'assets/topview/imported_2026_10_02';
+  // First neutral 2D artwork pass. These are plan illustrations, not new GLBs.
+  // Source bounds exclude export padding so the silhouette fills the object's
+  // existing millimetre footprint at every rotation and zoom.
+  static const _neutralSpecs = {
+    'sofa-3': (
+      file: 'neutral_sofa_3_v1.png',
+      decodeWidth: 1024,
+      bounds: ui.Rect.fromLTRB(27 / 1994, 47 / 789, 1968 / 1994, 735 / 789),
+    ),
+    'bed-180': (
+      file: 'neutral_bed_180_v1.png',
+      decodeWidth: 768,
+      bounds: ui.Rect.fromLTRB(24 / 1134, 37 / 1387, 1112 / 1134, 1349 / 1387),
+    ),
+  };
+  final _neutralImages = <String, CatalogTopViewRaster>{};
+
+  CatalogTopViewRaster? neutralForCatalog(String id) => _neutralImages[id];
+
   static const _assetByCatalogId = <String, String>{
     // +107: these views are rendered from the same LOD0 GLBs used in 3D.
     'sofa-3': 'featured_sofa_3',
@@ -70,7 +97,12 @@ class ImportedTopViewAssets extends ChangeNotifier {
     'coffee-table-dark': ui.Rect.fromLTRB(221, 126, 308, 216),
     'table-rect': ui.Rect.fromLTRB(318, 126, 450, 203),
     'table-round': ui.Rect.fromLTRB(460, 126, 547, 214),
-    'dining-table-1800': ui.Rect.fromLTRB(318, 126, 450, 203), // Tabletop only: no unapproved chairs.
+    'dining-table-1800': ui.Rect.fromLTRB(
+      318,
+      126,
+      450,
+      203,
+    ), // Tabletop only: no unapproved chairs.
     'bed-160': ui.Rect.fromLTRB(669, 126, 815, 320),
     'bed-180': ui.Rect.fromLTRB(825, 126, 953, 321),
     'bed-child': ui.Rect.fromLTRB(963, 126, 1063, 321),
@@ -109,6 +141,40 @@ class ImportedTopViewAssets extends ChangeNotifier {
 
   Future<void> _load() async {
     var loadedAny = false;
+
+    // Bound the two decoded textures to about 4.5 MiB in total. Original PNGs
+    // remain available for future exports, without retaining full-size copies
+    // in GPU memory during ordinary plan editing.
+    for (final entry in _neutralSpecs.entries) {
+      try {
+        final spec = entry.value;
+        final data = await rootBundle.load('$_root/${spec.file}');
+        final codec = await ui.instantiateImageCodec(
+          data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
+          targetWidth: spec.decodeWidth,
+          allowUpscaling: false,
+        );
+        try {
+          final image = (await codec.getNextFrame()).image;
+          final rect = spec.bounds;
+          _neutralImages[entry.key] = CatalogTopViewRaster(
+            image,
+            ui.Rect.fromLTRB(
+              rect.left * image.width,
+              rect.top * image.height,
+              rect.right * image.width,
+              rect.bottom * image.height,
+            ),
+          );
+          loadedAny = true;
+          notifyListeners();
+        } finally {
+          codec.dispose();
+        }
+      } catch (_) {
+        // The approved atlas and vector symbols remain usable if decoding fails.
+      }
+    }
 
     // Load approved 2D art once. Failure never hides an object: the +130
     // atlas, production previews and vector fallbacks remain available.

@@ -30,8 +30,6 @@ class TopViewObjectRenderer {
     canvas.translate(center.dx, center.dy);
     canvas.rotate(object.rotationDeg * math.pi / 180);
 
-    _shadow(canvas, rect);
-
     final id = object.catalogId;
     final item = ObjectCatalog.byId(id);
 
@@ -124,16 +122,6 @@ class TopViewObjectRenderer {
     ..color = _outlineSoft.withValues(alpha: .78)
     ..style = PaintingStyle.stroke
     ..strokeWidth = .65;
-
-  static void _shadow(Canvas canvas, Rect rect) {
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        rect.shift(const Offset(1.6, 2.1)),
-        Radius.circular(math.max(2, math.min(rect.width, rect.height) * .08)),
-      ),
-      Paint()..color = Colors.black.withValues(alpha: .20),
-    );
-  }
 
   static void _bed(Canvas canvas, Rect r) {
     final radius = Radius.circular(math.max(2, r.shortestSide * .05));

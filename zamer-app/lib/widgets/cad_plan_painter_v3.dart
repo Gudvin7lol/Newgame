@@ -74,6 +74,21 @@ class CadPlanPainterV3 extends CustomPainter {
     final depth = object.depthMm * mmToPx;
     if (width < 8 || depth < 8) return false;
 
+    final neutral = assets.neutralForCatalog(object.catalogId);
+    if (neutral != null) {
+      canvas.save();
+      canvas.translate(center.dx, center.dy);
+      canvas.rotate(object.rotationDeg * 3.141592653589793 / 180);
+      canvas.drawImageRect(
+        neutral.image,
+        neutral.sourceRect,
+        Rect.fromCenter(center: Offset.zero, width: width, height: depth),
+        Paint()..filterQuality = FilterQuality.high,
+      );
+      canvas.restore();
+      return true;
+    }
+
     // +131 curated top views take precedence over the legacy +130 set.
     // A single atlas is used in Plan, Equipment, and Catalog.
     final curatedAtlas = assets.curated131Atlas;

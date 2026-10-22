@@ -29,7 +29,7 @@ class CadWallJoinGeometry {
       if (a == null || b == null) continue;
       final polygon = wallPolygon(a, b, wall.thicknessMm, mmToPx, origin);
       if (polygon.isEmpty) continue;
-      paths[stage]!.addPolygon(polygon, true);
+      _unionPolygon(paths, stage, polygon);
       attached.putIfAbsent(a.id, () => []).add(wall);
       attached.putIfAbsent(b.id, () => []).add(wall);
     }
@@ -65,9 +65,24 @@ class CadWallJoinGeometry {
       final fillStage = wallA.thicknessMm >= wallB.thicknessMm
           ? (wallA.demolition ? ProjectLayer.demolition : wallA.projectLayer)
           : (wallB.demolition ? ProjectLayer.demolition : wallB.projectLayer);
-      paths[fillStage]!.addPolygon(patch, true);
+      _unionPolygon(paths, fillStage, patch);
     }
     return paths;
+  }
+
+  // Boolean union removes internal edges and is independent of polygon
+  // winding. Appending contours alone can cancel the fill at a reversed
+  // corner, and stroking those contours exposes seams through a solid wall.
+  static void _unionPolygon(
+    Map<ProjectLayer, Path> paths,
+    ProjectLayer layer,
+    List<Offset> polygon,
+  ) {
+    paths[layer] = Path.combine(
+      PathOperation.union,
+      paths[layer]!,
+      Path()..addPolygon(polygon, true),
+    );
   }
 
   static List<Offset> wallPolygon(
