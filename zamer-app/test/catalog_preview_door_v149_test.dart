@@ -17,6 +17,9 @@ void main() {
         .readAsStringSync();
     expect(card, contains('ZamerCatalogArtwork('));
     expect(card, contains('fallback: ZamerModelThumbnail('));
+    expect(card, contains('ZamerCatalogVectorFallback(item: item)'));
+    expect(source, contains('class ZamerCatalogVectorFallback'));
+    expect(source, contains('TopViewObjectRenderer.draw('));
   });
 
   test('furniture inspector offers direct exact size editing', () {
