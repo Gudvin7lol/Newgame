@@ -573,7 +573,7 @@ class _RecoveredMeasureWorkspaceScreenState
                   // Keep the dial thumb-reachable without obscuring the drawing.
                   right: 4, bottom: 8,
                   child: Transform.scale(
-                    scale: .82,
+                    scale: .78,
                     alignment: Alignment.bottomRight,
                     child: ZamerKitFan(
                     key: const ValueKey('zamer-native-v2-fan'),
