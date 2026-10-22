@@ -39,7 +39,6 @@ class _MeasureFloorPlanLayerScreenState
   final TransformationController _transform = TransformationController();
   String? _selectedFaceKey;
   bool _placingLayoutStart = false;
-  math.Point<double>? _layoutStartMm;
   bool _centered = false;
   Size _viewport = Size.zero;
 
@@ -135,9 +134,12 @@ class _MeasureFloorPlanLayerScreenState
               _phase(mm.x - minX, settings.tileWidthMm);
           settings.tileOffsetYMm =
               _phase(mm.y - minY, settings.tileHeightMm);
+          // Persist the actual chosen point, not just the repeated
+          // grid phase. Reopening the project must restore the marker.
+          settings.floorLayoutStartXMm = mm.x;
+          settings.floorLayoutStartYMm = mm.y;
           setState(() {
             _selectedFaceKey = face.key;
-            _layoutStartMm = mm;
             _placingLayoutStart = false;
           });
           await widget.onChanged();
@@ -394,7 +396,12 @@ class _MeasureFloorPlanLayerScreenState
                                   mmToPx: _mmToPx,
                                   origin: _origin,
                                   selectedFaceKey: _selectedFaceKey,
-                                  layoutStartMm: _layoutStartMm,
+                                  layoutStartMm: settings?.floorLayoutStartXMm != null &&
+                                      settings?.floorLayoutStartYMm != null
+                                      ? math.Point<double>(
+                                          settings!.floorLayoutStartXMm!,
+                                          settings.floorLayoutStartYMm!)
+                                      : null,
                                 ),
                               ),
                             ),
