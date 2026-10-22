@@ -116,7 +116,7 @@ FloorPlan previewFloor() {
   wall('cd', 'c', 'd');
   wall('de', 'd', 'e');
   wall('ef', 'e', 'f');
-  wall('fg', 'f', 'g', opening: OpeningType.door, offset: 600);
+  wall('fg', 'f', 'g', opening: OpeningType.door, offset: 2600);
   wall('ga', 'g', 'a');
   wall('bh', 'b', 'h', width: 120, opening: OpeningType.door, offset: 2250);
   wall('hf', 'h', 'f', width: 120, opening: OpeningType.door, offset: 250);
