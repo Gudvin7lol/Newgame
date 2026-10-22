@@ -374,7 +374,7 @@ class _EquipmentCard extends StatelessWidget {
                         fallback: ZamerModelThumbnail(
                           catalogId: item.id,
                           size: 180,
-                          fallback: _FallbackPreview(item: item),
+                          fallback: ZamerCatalogVectorFallback(item: item),
                         ),
                       )
                     else
