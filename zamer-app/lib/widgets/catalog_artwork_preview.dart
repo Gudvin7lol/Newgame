@@ -5,6 +5,9 @@ import 'package:flutter/material.dart';
 
 import '../design_system/zamer_tokens.dart';
 import '../services/imported_top_view_assets.dart';
+import '../services/object_catalog.dart';
+import '../models/models.dart';
+import 'top_view_object_renderer.dart';
 
 /// One production 2D artwork preview, used by the equipment catalogue.
 ///
@@ -120,4 +123,54 @@ class _CatalogArtworkPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _CatalogArtworkPainter oldDelegate) =>
       oldDelegate.image != image || oldDelegate.crop != crop;
+}
+
+/// Deterministic 2D preview whenever optional GLB/atlas artwork is missing.
+/// Unlike a generic chair icon, the preview retains the real model footprint,
+/// catalogue identity and recognisable top-view shape.
+class ZamerCatalogVectorFallback extends StatelessWidget {
+  const ZamerCatalogVectorFallback({super.key, required this.item});
+
+  final ObjectCatalogItem item;
+
+  @override
+  Widget build(BuildContext context) => CustomPaint(
+    painter: _CatalogVectorPainter(item),
+    child: const SizedBox.expand(),
+  );
+}
+
+class _CatalogVectorPainter extends CustomPainter {
+  const _CatalogVectorPainter(this.item);
+  final ObjectCatalogItem item;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.isEmpty) return;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(Offset.zero & size,
+        const Radius.circular(9)),
+      Paint()..color = ZamerColors.surfaceHigh,
+    );
+    final usableSide = math.max(1.0, math.min(size.width, size.height) - 18);
+    final object = PlanObject(
+      id: 'catalog-preview',
+      catalogId: item.id,
+      type: item.type,
+      xMm: 0, yMm: 0,
+      widthMm: item.widthMm,
+      depthMm: item.depthMm,
+      heightMm: item.heightMm,
+    );
+    final mmToPx = usableSide /
+      math.max(1.0, math.max(item.widthMm, item.depthMm));
+    TopViewObjectRenderer.draw(
+      canvas, object, center: size.center(Offset.zero), mmToPx: mmToPx);
+  }
+
+  @override
+  bool shouldRepaint(covariant _CatalogVectorPainter old) =>
+      old.item.id != item.id ||
+      old.item.widthMm != item.widthMm ||
+      old.item.depthMm != item.depthMm;
 }
