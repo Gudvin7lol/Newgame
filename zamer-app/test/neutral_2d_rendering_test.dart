@@ -472,6 +472,7 @@ void main() {
         reason: '$id must not silently use the old atlas',
       );
       expect(sprite!.sourceRect.width, greaterThan(id == 'chair' ? 400 : 650));
+      expect(assets.planRasterForCatalog(id), same(sprite));
       expect(sprite.sourceRect.right, lessThanOrEqualTo(sprite.image.width));
       decodedBytes += sprite.image.width * sprite.image.height * 4;
       expect(assets.contactShadowForCatalog(id), isNotNull,
@@ -479,6 +480,18 @@ void main() {
     }
     expect(decodedBytes, lessThan(16 * 1024 * 1024));
     expect(assets.contactShadowBytes, lessThanOrEqualTo(8 * 1024 * 1024));
+    // Exercise asset selection instead of asserting private renderer text.
+    final bath = assets.planRasterForCatalog('bath')!;
+    expect(bath.image, same(assets.curated131Atlas));
+    expect(bath.sourceRect, assets.curated131RectForCatalog('bath'));
+    expect(bath.quarterTurn, isTrue);
+    final nightstand = assets.planRasterForCatalog('nightstand')!;
+    expect(nightstand.image, same(assets.approvedAtlas));
+    expect(nightstand.sourceRect, assets.approvedRectForCatalog('nightstand'));
+    expect(nightstand.quarterTurn, isFalse);
+    final washer = assets.planRasterForCatalog('washer')!;
+    expect(washer.image, same(assets.imageForCatalog('washer')));
+    expect(assets.planRasterForCatalog('missing-artwork'), isNull);
     final floor = previewFloor();
     final before = floor.toJson().toString();
     final image = await render(

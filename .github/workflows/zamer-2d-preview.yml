@@ -40,6 +40,10 @@ jobs:
           test/room_object_raster_order_test.dart
           test/cad_visual_quality_test.dart
           test/cad_precision_v143_test.dart
+          test/curated_131_topview_contract_test.dart
+          test/approved_top_view_130_test.dart
+          test/measure_ui_kit_02_contract_test.dart
+          test/measure_page_production_contract_test.dart
       - name: Upload actual painter preview
         if: always()
         uses: actions/upload-artifact@v4
