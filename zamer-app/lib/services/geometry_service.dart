@@ -1057,7 +1057,19 @@ class GeometryService {
     return floor.nodeById(moving.id) ?? moving;
   }
 
+  /// Normalize crossing walls as one edit. If a cut is prohibited by an
+  /// opening, restore the entire source topology, not only the last wall.
   static void normalizeIntersections(FloorPlan floor) {
+    final before = FloorPlan.fromJson(floor.toJson());
+    try {
+      _normalizeIntersectionsUnchecked(floor);
+    } catch (_) {
+      floor.restoreFrom(before);
+      rethrow;
+    }
+  }
+
+  static void _normalizeIntersectionsUnchecked(FloorPlan floor) {
     for (var guard = 0; guard < 200; guard++) {
       final walls = List<PlanWall>.from(floor.walls);
       var changed = false;
