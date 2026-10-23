@@ -59,6 +59,8 @@ void main() {
     expect(electrical, contains('_touchDown'));
     expect(electrical, contains('_touchMove'));
     expect(electrical, contains('_publishCamera'));
+    expect(electrical, contains('widget.floor.restoreFrom('));
+    expect(electrical, contains('_dragUndoPushed = false;'));
     expect(electrical, contains("ValueKey('electrical-load-inventory')"));
   });
 
