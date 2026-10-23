@@ -121,6 +121,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   bool _openingDragDirty = false;
   String? _openingSnapHint;
   String? _dragWallId;
+  FloorPlan? _dragWallStartFloor;
   double _dragWallOffsetMm = 0;
   bool _dragWallModified = false;
   String? _dragWallRejected;
@@ -216,6 +217,12 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       _nodeDragChanged = false;
       _selectedNodeId = null;
       _selectedWallId = null;
+      // Switching tools in the middle of a wall gesture is cancellation,
+      // not approval of its last intermediate position.
+      if (_dragWallStartFloor != null) {
+        floor.restoreFrom(_dragWallStartFloor!);
+      }
+      _dragWallStartFloor = null;
       _dragWallId = null;
       _dragOpeningWallId = null;
       _dragOpeningId = null;
@@ -224,6 +231,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       _dragWallStartMm = null;
       _dragWallBaseTransform = null;
       _dragWallRejected = null;
+      _dragWallModified = false;
+      _dragWallOffsetMm = 0;
       _materialPickMode = widget.planTool == MeasurePlanTool.overview;
       _materialsExpanded = false;
     }
@@ -665,6 +674,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     setState(() {
       _selectedWallId = wall.id;
       _dragWallId = wall.id;
+      _dragWallStartFloor = FloorPlan.fromJson(floor.toJson());
       _dragWallStartMm = _toMm(point);
       _dragWallBaseTransform = Matrix4.copy(_transform.value);
       _dragWallOffsetMm = 0;
@@ -679,7 +689,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     final base = _dragWallBaseTransform;
     if (id == null || originMm == null || base == null) return;
     if (details.pointerCount != 1) {
-      unawaited(_wallDragFinish());
+      // Pinch/navigation should not commit a half-finished wall move.
+      unawaited(_wallDragFinish(cancel: true));
       return;
     }
     // InteractiveViewer updates its matrix as part of the same gesture.
@@ -707,7 +718,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       floor, wallId: id, offsetMm: change,
     );
     if (!result.isValid) {
-      _dragWallRejected = result.message;
+      setState(() => _dragWallRejected = result.message);
       return;
     }
     _dragWallOffsetMm = wanted;
@@ -716,24 +727,36 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     setState(() {});
   }
 
-  Future<void> _wallDragFinish() async {
+  Future<void> _wallDragFinish({bool cancel = false}) async {
     if (_dragWallId == null) return;
     final changed = _dragWallModified;
     final rejected = _dragWallRejected;
+    final beforeDrag = _dragWallStartFloor;
+    final mustRollback = cancel || rejected != null;
+    // One transaction for the entire drag: an invalid final position or
+    // interrupted multitouch gesture never saves the last valid intermediate.
+    if (mustRollback && beforeDrag != null) {
+      floor.restoreFrom(beforeDrag);
+    }
     setState(() {
       _dragWallId = null;
+      _dragWallStartFloor = null;
       _dragWallBaseTransform = null;
       _dragWallStartMm = null;
       _dragWallModified = false;
       _dragWallRejected = null;
       _dragWallOffsetMm = 0;
     });
-    if (changed) await _changed(); // single undo/history snapshot per drag
-    if (!changed && rejected != null && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(rejected)),
-      );
+    if (mustRollback) {
+      if (!cancel && rejected != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          duration: const Duration(milliseconds: 2200),
+          content: Text('Сдвиг стены отменён: $rejected'),
+        ));
+      }
+      return;
     }
+    if (changed) await _changed(); // exactly one undo entry per valid drag
   }
 
   Future<void> _tapCanvas(TapUpDetails details) async {
