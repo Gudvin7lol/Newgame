@@ -30,7 +30,7 @@ abstract final class CadContactShadowPainter {
     final baseAlpha = isRug ? .08 : .25;
     final heightBoost = (object.heightMm / 2000).clamp(0.0, .35);
     final offset = isRug ? .35 :
-        (2.1 + heightBoost * 4.5).clamp(2.1, 4.5);
+        (2.1 + heightBoost * 4.5).clamp(2.1, 4.5).toDouble();
     final shortest = math.min(width, depth);
     final blurRadius = isRug
         ? (shortest * .045).clamp(1.4, 4.5).toDouble()
@@ -47,7 +47,7 @@ abstract final class CadContactShadowPainter {
       height: depth,
     );
     final rounded = RRect.fromRectAndRadius(
-      rect, Radius.circular((shortest * .075).clamp(2.0, 16.0)),
+      rect, Radius.circular((shortest * .075).clamp(2.0, 16.0).toDouble()),
     );
     canvas.drawRRect(rounded,
       Paint()
@@ -67,23 +67,4 @@ abstract final class CadContactShadowPainter {
     canvas.restore();
   }
 
-  static void drawWallUnion(Canvas canvas, Path wallBodies) {
-    // Shadow is calculated once from the joined wall silhouette so inside
-    // and T junctions do not generate doubled black seams.
-    canvas.save();
-    canvas.translate(2.4, 3.0);
-    canvas.drawPath(wallBodies,
-      Paint()
-        ..color = Colors.black.withValues(alpha: .24)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6.5));
-    canvas.restore();
-
-    canvas.save();
-    canvas.translate(.8, 1.0);
-    canvas.drawPath(wallBodies,
-      Paint()
-        ..color = Colors.black.withValues(alpha: .19)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.0));
-    canvas.restore();
-  }
 }
