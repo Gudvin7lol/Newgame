@@ -1809,9 +1809,28 @@ class _PlanningPainter extends CustomPainter {
         final b = byId[issue.objectIds[1]];
         if (a == null || b == null) continue;
         try {
-          final crossing = Path.combine(PathOperation.intersect,
-              _objectFootprint(a), _objectFootprint(b));
-          canvas.drawPath(crossing, overlapPaint);
+          // Render ONLY the footprint where the colliding pieces share a
+          // vertical height. A chair's low seat under a raised table must
+          // not get the same red fill as a collision with its high backrest.
+          Path projectVolume(List<math.Point<double>> corners) {
+            final ordered = [corners[0], corners[2],
+                             corners[3], corners[1]];
+            final start = ordered.first;
+            final path = Path()..moveTo(
+              origin.dx + start.x * scale, origin.dy + start.y * scale);
+            for (final p in ordered.skip(1)) {
+              path.lineTo(origin.dx + p.x * scale,
+                          origin.dy + p.y * scale);
+            }
+            return path..close();
+          }
+          for (final (volumeA, volumeB) in
+              SpaceCheckService.overlappingVolumePairs(a, b)) {
+            final crossing = Path.combine(
+              PathOperation.intersect,
+              projectVolume(volumeA), projectVolume(volumeB));
+            canvas.drawPath(crossing, overlapPaint);
+          }
         } catch (_) { /* An invalid imported polygon must not crash CAD. */ }
       }
       if (issue.kind == SpaceIssueKind.objectWall &&
