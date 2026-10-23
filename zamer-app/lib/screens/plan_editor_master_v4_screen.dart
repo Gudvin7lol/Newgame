@@ -20,8 +20,11 @@ import '../services/plan_visibility_service.dart';
 import 'measure_plan_tool.dart';
 import '../services/space_check_service.dart';
 import '../services/plan_viewport_link.dart';
+import '../services/wall_topology_diagnostics.dart';
+import '../services/wall_drag_touch_policy.dart';
 import '../widgets/cad_plan_painter.dart';
 import '../widgets/wall_draft_guide_painter.dart';
+import '../widgets/wall_topology_gap_painter.dart';
 
 /// UI KIT 02 production editor rebuilt around the approved portrait concept.
 /// +80 adds direct room selection and one-tap material application.
@@ -122,6 +125,9 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   String? _openingSnapHint;
   String? _dragWallId;
   FloorPlan? _dragWallStartFloor;
+  Offset? _dragWallStartFocalPx;
+  bool _dragWallActivated = false;
+  List<WallTopologyGap> _topologyGaps = const [];
   double _dragWallOffsetMm = 0;
   bool _dragWallModified = false;
   String? _dragWallRejected;
@@ -186,12 +192,16 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   void initState() {
     super.initState();
     GeometryService.syncRoomMetadata(floor);
+    _topologyGaps = WallTopologyDiagnostics.findGaps(floor);
     _materialPickMode = widget.planTool == MeasurePlanTool.overview;
   }
 
   @override
   void didUpdateWidget(covariant PlanEditorMasterV4Screen oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (!identical(widget.floor, oldWidget.floor)) {
+      _topologyGaps = WallTopologyDiagnostics.findGaps(floor);
+    }
     if (widget.viewportActive && (!oldWidget.viewportActive ||
         oldWidget.sharedViewport != widget.sharedViewport)) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _adoptViewport());
@@ -223,6 +233,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
         floor.restoreFrom(_dragWallStartFloor!);
       }
       _dragWallStartFloor = null;
+      _dragWallStartFocalPx = null;
+      _dragWallActivated = false;
       _dragWallId = null;
       _dragOpeningWallId = null;
       _dragOpeningId = null;
@@ -247,6 +259,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
 
   Future<void> _changed() async {
     GeometryService.syncRoomMetadata(floor);
+    _topologyGaps = WallTopologyDiagnostics.findGaps(floor);
     if (_selectedRoomFaceKey != null && _selectedRoomFace == null) {
       _selectedRoomFaceKey = null;
     }
@@ -675,6 +688,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       _selectedWallId = wall.id;
       _dragWallId = wall.id;
       _dragWallStartFloor = FloorPlan.fromJson(floor.toJson());
+      _dragWallStartFocalPx = details.localFocalPoint;
+      _dragWallActivated = false;
       _dragWallStartMm = _toMm(point);
       _dragWallBaseTransform = Matrix4.copy(_transform.value);
       _dragWallOffsetMm = 0;
@@ -705,6 +720,14 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     final vertical = (a.xMm - b.xMm).abs() < .5;
     final horizontal = (a.yMm - b.yMm).abs() < .5;
     if (!vertical && !horizontal) return;
+    final originalTouch = _dragWallStartFocalPx;
+    if (!_dragWallActivated) {
+      if (originalTouch == null || !WallDragTouchPolicy.shouldStart(
+        originalTouch, details.localFocalPoint,
+        verticalWall: vertical,
+      )) return;
+      _dragWallActivated = true;
+    }
 
     // Only the normal direction moves the wall; length and right angles
     // remain constrained by OrthogonalWallEditService.
@@ -738,7 +761,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     if (_dragWallId == null) return;
     // Returning exactly to the original wall location is a no-op, not a
     // separate undo/history event.
-    final changed = _dragWallModified && _dragWallOffsetMm.abs() >= .01;
+    final changed = _dragWallActivated &&
+        _dragWallModified && _dragWallOffsetMm.abs() >= .01;
     final rejected = _dragWallRejected;
     final beforeDrag = _dragWallStartFloor;
     final mustRollback = cancel || rejected != null;
@@ -750,6 +774,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     setState(() {
       _dragWallId = null;
       _dragWallStartFloor = null;
+      _dragWallStartFocalPx = null;
+      _dragWallActivated = false;
       _dragWallBaseTransform = null;
       _dragWallStartMm = null;
       _dragWallModified = false;
@@ -766,6 +792,20 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       return;
     }
     if (changed) await _changed(); // exactly one undo entry per valid drag
+  }
+
+  void _focusFirstTopologyGap() {
+    if (_topologyGaps.isEmpty || _viewport.isEmpty) return;
+    final node = floor.nodeById(_topologyGaps.first.sourceNodeId);
+    if (node == null) return;
+    final focus = _toCanvas(node);
+    final scale = _scale;
+    _transform.value = Matrix4.identity()
+      ..translate(_viewport.width / 2 - focus.dx * scale,
+          _viewport.height / 2 - focus.dy * scale)
+      ..scale(scale);
+    _publishViewport();
+    setState(() {});
   }
 
   Future<void> _tapCanvas(TapUpDetails details) async {
@@ -3273,6 +3313,28 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                         ),
                       ),
                       ),
+                      // Overlay only diagnostics, never infer or auto-create
+                      // junctions. The markers remain in the CAD world and
+                      // follow the same zoom/translation as actual wall cuts.
+                      if (_topologyGaps.isNotEmpty &&
+                          (widget.planTool == MeasurePlanTool.select ||
+                           widget.planTool == MeasurePlanTool.nodes ||
+                           widget.planTool == MeasurePlanTool.exterior ||
+                           widget.planTool == MeasurePlanTool.partition))
+                        Positioned.fill(
+                          child: IgnorePointer(
+                            child: CustomPaint(
+                              key: const ValueKey('wall-gap-contours'),
+                              painter: WallTopologyGapPainter(
+                                floor: floor,
+                                gaps: _topologyGaps,
+                                origin: _origin,
+                                mmToPx: _mmToPx,
+                                zoom: _scale,
+                              ),
+                            ),
+                          ),
+                        ),
                       // Always reveal the chained wall's real CAD start node
                       // without stealing touch events or covering furniture.
                       if (_drawingWall && _wallStartNodeId != null)
@@ -3342,6 +3404,27 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                 ),
               ),
 
+              if (_topologyGaps.isNotEmpty &&
+                  _dragWallId == null &&
+                  (widget.planTool == MeasurePlanTool.select ||
+                   widget.planTool == MeasurePlanTool.nodes ||
+                   widget.planTool == MeasurePlanTool.exterior ||
+                   widget.planTool == MeasurePlanTool.partition))
+                Positioned(
+                  right: 8,
+                  top: 62,
+                  child: ActionChip(
+                    key: const ValueKey('wall-near-gap-indicator'),
+                    tooltip: 'Точки рядом, но соединение стен отсутствует',
+                    onPressed: _focusFirstTopologyGap,
+                    avatar: const Icon(Icons.warning_amber_rounded,
+                      color: ZamerColors.danger, size: 16),
+                    label: Text('Разрывы: ${_topologyGaps.length}',
+                      style: const TextStyle(fontSize: 11)),
+                    backgroundColor: ZamerColors.surface,
+                    side: const BorderSide(color: ZamerColors.danger),
+                  ),
+                ),
               // Only a compact status chip while dragging. No floating
               // inspector covers the wall or requires a second mode.
               if (_dragWallId != null &&
