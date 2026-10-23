@@ -8,6 +8,8 @@ import '../services/geometry_service.dart';
 import '../widgets/electrical_plan_painter.dart';
 import '../widgets/cad_plan_painter.dart';
 import '../services/plan_visibility_service.dart';
+import '../services/plan_viewport_link.dart';
+import '../services/electrical_load_service.dart';
 
 enum ElectricalMode { add, wire, select }
 
@@ -19,12 +21,16 @@ class ElectricalScreen extends StatefulWidget {
     this.requestedMode,
     this.requestedType,
     this.embedded = false,
+    this.sharedViewport,
+    this.viewportActive = true,
   });
   final FloorPlan floor;
   final Future<void> Function() onChanged;
   final ElectricalMode? requestedMode;
   final ElectricalPointType? requestedType;
   final bool embedded;
+  final ValueNotifier<PlanViewportSnapshot?>? sharedViewport;
+  final bool viewportActive;
 
   @override
   State<ElectricalScreen> createState() => _ElectricalScreenState();
@@ -41,17 +47,29 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
   bool _dragUndoPushed = false;
   final _undo = <String>[];
   final _redo = <String>[];
+  PlanViewportSnapshot? _camera;
+  Size _viewportSize = Size.zero;
+  final Map<int, Offset> _touches = <int, Offset>{};
+  math.Point<double>? _pinchWorldAnchor;
+  double _pinchStartDistance = 1;
+  double _pinchStartScale = .1;
+  bool _pinchingCamera = false;
 
   @override
   void initState() {
     super.initState();
     _mode = widget.requestedMode ?? _mode;
     _type = widget.requestedType ?? _type;
+    if (widget.embedded && widget.viewportActive) _camera = widget.sharedViewport?.value;
   }
 
   @override
   void didUpdateWidget(covariant ElectricalScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (widget.embedded && widget.viewportActive &&
+        (!oldWidget.viewportActive || widget.sharedViewport != oldWidget.sharedViewport)) {
+      _camera = widget.sharedViewport?.value;
+    }
     if (widget.requestedMode != oldWidget.requestedMode &&
         widget.requestedMode != null) {
       _mode = widget.requestedMode!;
@@ -60,6 +78,77 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     if (widget.requestedType != oldWidget.requestedType &&
         widget.requestedType != null) {
       _type = widget.requestedType!;
+    }
+  }
+
+  void _publishCamera() {
+    if (!widget.embedded || !widget.viewportActive) return;
+    final camera = _camera;
+    final link = widget.sharedViewport;
+    if (camera == null || !camera.valid || link == null) return;
+    if (link.value case final old?) {
+      if (old.nearlyEquals(camera)) return;
+    }
+    link.value = camera;
+  }
+
+  void _touchDown(PointerDownEvent e) {
+    _touches[e.pointer] = e.localPosition;
+    if (_touches.length != 2 || _viewportSize.isEmpty) return;
+    final points = _touches.values.toList();
+    final midpoint = (points[0] + points[1]) / 2;
+    final tx = _tx(_viewportSize);
+    _pinchWorldAnchor = math.Point<double>(
+      (midpoint.dx - tx.origin.dx) / tx.scale,
+      (midpoint.dy - tx.origin.dy) / tx.scale,
+    );
+    _pinchStartScale = tx.scale;
+    _pinchStartDistance = math.max(1, (points[1] - points[0]).distance);
+    _pinchingCamera = true;
+    // If a second finger arrives during electrical-point dragging, restore
+    // the point's previous geometry before turning this into camera pinch.
+    // Otherwise a half-dragged socket can survive without an undo/save.
+    if (_dragPointId != null && _dragUndoPushed && _undo.isNotEmpty) {
+      final before = jsonDecode(_undo.removeLast()) as Map;
+      widget.floor.restoreFrom(
+        FloorPlan.fromJson(Map<String, dynamic>.from(before)));
+    }
+    _dragPointId = null;
+    _dragUndoPushed = false;
+    _wireStartId = null;
+  }
+
+  void _touchMove(PointerMoveEvent e) {
+    if (!_touches.containsKey(e.pointer)) return;
+    _touches[e.pointer] = e.localPosition;
+    if (!_pinchingCamera || _touches.length != 2 ||
+        _pinchWorldAnchor == null || _viewportSize.isEmpty) return;
+    final points = _touches.values.toList();
+    final midpoint = (points[0] + points[1]) / 2;
+    final spread = math.max(1, (points[1] - points[0]).distance);
+    final scale = (_pinchStartScale * spread / _pinchStartDistance)
+        .clamp(.004, .8).toDouble();
+    final origin = Offset(
+      midpoint.dx - _pinchWorldAnchor!.x * scale,
+      midpoint.dy - _pinchWorldAnchor!.y * scale,
+    );
+    final center = Offset(_viewportSize.width / 2, _viewportSize.height / 2);
+    final camera = PlanViewportSnapshot(
+      centerXMm: (center.dx - origin.dx) / scale,
+      centerYMm: (center.dy - origin.dy) / scale,
+      pixelsPerMm: scale,
+    );
+    if (!camera.valid) return;
+    setState(() => _camera = camera);
+    _publishCamera();
+  }
+
+  void _touchEnd(PointerEvent e) {
+    _touches.remove(e.pointer);
+    if (_touches.isEmpty) {
+      _pinchingCamera = false;
+      _pinchWorldAnchor = null;
+      _publishCamera();
     }
   }
 
@@ -100,6 +189,14 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
   }
 
   _Tx _tx(Size size) {
+    final linked = widget.embedded ? (_camera ?? widget.sharedViewport?.value) : null;
+    if (linked != null && linked.valid) {
+      final scale = linked.pixelsPerMm;
+      return _Tx(scale: scale, origin: Offset(
+        size.width / 2 - linked.centerXMm * scale,
+        size.height / 2 - linked.centerYMm * scale,
+      ));
+    }
     final pts = <math.Point<double>>[];
     for (final n in widget.floor.nodes) pts.add(math.Point(n.xMm, n.yMm));
     for (final e in widget.floor.electricalPoints)
@@ -312,6 +409,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
   }
 
   void _dragStart(DragStartDetails d, Size size) {
+    if (_pinchingCamera || _touches.length > 1) return;
     if (_mode != ElectricalMode.select) return;
     final mm = _screenToMm(d.localPosition, size);
     final t = _tx(size);
@@ -324,6 +422,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
   }
 
   void _dragUpdate(DragUpdateDetails d, Size size) {
+    if (_pinchingCamera) return;
     if (_mode != ElectricalMode.select || _dragPointId == null) return;
     ElectricalPoint? point;
     for (final p in widget.floor.electricalPoints) {
@@ -415,6 +514,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
   }
 
   Future<void> _tap(TapUpDetails d, Size size) async {
+    if (_pinchingCamera) return;
     final t = _tx(size);
     final mm = math.Point<double>(
       (d.localPosition.dx - t.origin.dx) / t.scale,
@@ -800,6 +900,69 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     if (mounted) setState(() {});
   }
 
+  Future<void> _showLoadInventory() async {
+    final circuits = ElectricalLoadService.summarize(widget.floor);
+    final total = circuits.fold<double>(0, (sum, group) =>
+        sum + group.connectedWatts);
+    final unrated = circuits.fold<int>(0, (sum, group) =>
+        sum + group.unratedCount);
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheet) => SafeArea(
+        child: FractionallySizedBox(
+          heightFactor: .75,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+            children: [
+              Text('Нагрузки и распределительный щит',
+                style: Theme.of(sheet).textTheme.titleLarge),
+              const SizedBox(height: 8),
+              Text('Сумма заданных мощностей: ${total.toStringAsFixed(0)} Вт'
+                   ' · групп: ${circuits.length}'),
+              if (unrated > 0) Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  'Не указана нагрузка у ${unrated} точек. '
+                  'Расчёт неполный: розетка без мощности не означает 0 Вт.',
+                  style: TextStyle(color: Theme.of(sheet).colorScheme.error),
+                ),
+              ),
+              const SizedBox(height: 12),
+              if (circuits.isEmpty)
+                const Text('Добавь электроточки и присвой им группы '
+                    'и расчётную мощность в карточках точек.'),
+              for (final group in circuits)
+                Card(
+                  child: ListTile(
+                    title: Text(group.name),
+                    subtitle: Text(
+                      '${group.loadCount} точек · '
+                      '${group.connectedWatts.toStringAsFixed(0)} Вт'
+                      ' · ≈${group.estimatedAmps.toStringAsFixed(1)} А '
+                      '(230 В, cosφ = 1)'),
+                    trailing: group.unratedCount > 0
+                      ? const Icon(Icons.warning_amber_rounded) : null,
+                  ),
+                ),
+              const SizedBox(height: 12),
+              Text('Подбор автоматов и схема сборки щита',
+                style: Theme.of(sheet).textTheme.titleMedium),
+              const SizedBox(height: 6),
+              const Text('Это предварительная ведомость, не готовая '
+                'спецификация защитных аппаратов. Для подбора нужны '
+                'сечение и материал жил, способ прокладки, длина линии, '
+                'допустимый ток кабеля, ток короткого замыкания, '
+                'система заземления, УЗО/дифзащита и действующие нормы. '
+                'Номинал автомата только по сумме ватт выбирать нельзя.'),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   double _runLength(ElectricalRun r) {
     ElectricalPoint? a, b;
     for (final p in widget.floor.electricalPoints) {
@@ -951,18 +1114,32 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
         if (widget.embedded)
           Align(
             alignment: Alignment.centerRight,
-            child: TextButton.icon(
-              onPressed: _heightDefaults,
-              icon: const Icon(Icons.height, size: 16),
-              label: const Text('Высоты'),
-            ),
+            child: Wrap(spacing: 2, children: [
+              TextButton.icon(
+                key: const ValueKey('electrical-load-inventory'),
+                onPressed: _showLoadInventory,
+                icon: const Icon(Icons.electric_bolt_outlined, size: 16),
+                label: const Text('Нагрузки / щит'),
+              ),
+              TextButton.icon(
+                onPressed: _heightDefaults,
+                icon: const Icon(Icons.height, size: 16),
+                label: const Text('Высоты'),
+              ),
+            ]),
           ),
         Expanded(
           child: LayoutBuilder(
             builder: (context, c) {
               final size = Size(c.maxWidth, c.maxHeight);
+              _viewportSize = size;
               final t = _tx(size);
-              return GestureDetector(
+              return Listener(
+                onPointerDown: _touchDown,
+                onPointerMove: _touchMove,
+                onPointerUp: _touchEnd,
+                onPointerCancel: _touchEnd,
+                child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTapUp: (d) => _tap(d, size),
                 onPanStart: _mode == ElectricalMode.select
@@ -999,6 +1176,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                           overlayOnly: true,
                         ) : null,
                   child: const SizedBox.expand(),
+                ),
                 ),
               );
             },

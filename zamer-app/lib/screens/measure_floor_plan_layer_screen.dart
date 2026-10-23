@@ -124,16 +124,17 @@ class _MeasureFloorPlanLayerScreenState
       if (_placingLayoutStart) {
         final settings = widget.floor.roomMetaByKey(face.key)?.materials;
         if (settings != null) {
-          final minX = face.innerPolygon.map((p) => p.x).reduce(math.min);
-          final minY = face.innerPolygon.map((p) => p.y).reduce(math.min);
+          // A room-local minimum changes when the plan geometry is edited.
+          // Save the phase against world zero so the same board/tile remains
+          // under the user's chosen start marker in every screen.
           settings.laminateOffsetXMm =
-              _phase(mm.x - minX, settings.laminatePlankLengthMm);
+              _phase(mm.x, settings.laminatePlankLengthMm);
           settings.laminateOffsetYMm =
-              _phase(mm.y - minY, settings.laminatePlankWidthMm);
+              _phase(mm.y, settings.laminatePlankWidthMm);
           settings.tileOffsetXMm =
-              _phase(mm.x - minX, settings.tileWidthMm);
+              _phase(mm.x, settings.tileWidthMm);
           settings.tileOffsetYMm =
-              _phase(mm.y - minY, settings.tileHeightMm);
+              _phase(mm.y, settings.tileHeightMm);
           // Persist the actual chosen point, not just the repeated
           // grid phase. Reopening the project must restore the marker.
           settings.floorLayoutStartXMm = mm.x;

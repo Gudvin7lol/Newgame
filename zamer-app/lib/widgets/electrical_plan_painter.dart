@@ -84,35 +84,58 @@ class ElectricalPlanPainter extends CustomPainter {
 
   void _symbol(Canvas canvas, Offset c, ElectricalPoint point, bool selected, {double angle = 0}) {
     final stroke = Paint()
-      ..color = selected ? const Color(0xFF0D5BD7) : const Color(0xFFB24D2B)
+      ..color = selected ? const Color(0xFF0D5BD7) :
+        switch (point.type) {
+          ElectricalPointType.ceilingLight ||
+          ElectricalPointType.wallLight => const Color(0xFF317C9A),
+          ElectricalPointType.panel => const Color(0xFF7567AB),
+          ElectricalPointType.switchPoint => const Color(0xFF90622A),
+          _ => const Color(0xFFB24D2B),
+        }
       ..strokeWidth = selected ? 2.8 : 2
       ..style = PaintingStyle.stroke;
     final fill = Paint()..color = const Color(0xFFFDFDFD);
     final type = point.type;
 
     if (type == ElectricalPointType.frame || point.modules.length > 1) {
-      final count = point.modules.length.clamp(1, 5);
-      final moduleW = 15.0;
-      final rect = Rect.fromCenter(center: Offset.zero, width: count * moduleW + 6, height: 18);
+      final count = point.modules.length.clamp(1, 5).toInt();
+      const moduleStep = 15.0;
+      final vertical = point.frameVertical;
+      final rect = Rect.fromCenter(
+        center: Offset.zero,
+        width: vertical ? 18 : count * moduleStep + 6,
+        height: vertical ? count * moduleStep + 6 : 18,
+      );
       canvas.save();
       canvas.translate(c.dx, c.dy);
       canvas.rotate(angle);
-      final rr = RRect.fromRectAndRadius(rect, const Radius.circular(6));
-      canvas.drawRRect(rr, fill);
-      canvas.drawRRect(rr, stroke);
+      final housing = RRect.fromRectAndRadius(
+        rect, const Radius.circular(5));
+      canvas.drawRRect(housing, Paint()..color = const Color(0xFFF9F9F5));
+      canvas.drawRRect(housing, stroke);
       for (var i = 1; i < count; i++) {
-        final x = rect.left + 3 + moduleW * i;
-        canvas.drawLine(Offset(x, rect.top + 2), Offset(x, rect.bottom - 2), stroke);
+        if (vertical) {
+          final y = rect.top + 3 + moduleStep * i;
+          canvas.drawLine(Offset(rect.left + 2, y),
+              Offset(rect.right - 2, y), stroke);
+        } else {
+          final x = rect.left + 3 + moduleStep * i;
+          canvas.drawLine(Offset(x, rect.top + 2),
+              Offset(x, rect.bottom - 2), stroke);
+        }
       }
       for (var i = 0; i < count; i++) {
         final module = point.modules[i];
-        final mc = Offset(rect.left + 3 + moduleW * (i + 0.5), 0);
+        final mc = vertical
+            ? Offset(0, rect.top + 3 + moduleStep * (i + .5))
+            : Offset(rect.left + 3 + moduleStep * (i + .5), 0);
         switch (module) {
           case ElectricalModuleType.socket220:
             _socket(canvas, mc, stroke);
             break;
           case ElectricalModuleType.switch1:
-            canvas.drawLine(mc + const Offset(-3, 3), mc + const Offset(4, -4), stroke);
+            canvas.drawLine(mc + const Offset(-3, 3),
+                mc + const Offset(4, -4), stroke);
             break;
           case ElectricalModuleType.switch2:
             _text(canvas, 'S2', mc, 6.5);

@@ -11,6 +11,7 @@ import '../services/material_catalog.dart';
 import '../services/plan_visibility_service.dart';
 import '../services/room_interior_dimensions_service.dart';
 import '../services/space_check_service.dart';
+import '../services/plan_object_paint_order.dart';
 import 'cad_wall_join_geometry.dart';
 import 'cad_contact_shadow_painter.dart';
 import 'top_view_object_renderer.dart';
@@ -256,8 +257,15 @@ class CadPlanPainterV2 extends CustomPainter {
   ) {
     final plankW = math.max(8.0, settings.laminatePlankWidthMm * mmToPx);
     final plankL = math.max(28.0, settings.laminatePlankLengthMm * mmToPx);
-    final offsetX = settings.laminateOffsetXMm * mmToPx;
-    final offsetY = settings.laminateOffsetYMm * mmToPx;
+    // Tiles and board COLOR must use one persistent world grid. Previously
+    // the first row was bounds.top, so changing the painter's clipping/fitted
+    // viewport shifted the random shades even while the joints stayed put.
+    // Projects with a picked start point use its exact world coordinate,
+    // including older files where the saved phase was room-relative.
+    final startX = origin.dx +
+        (settings.floorLayoutStartXMm ?? settings.laminateOffsetXMm) * mmToPx;
+    final startY = origin.dy +
+        (settings.floorLayoutStartYMm ?? settings.laminateOffsetYMm) * mmToPx;
     final joint = Paint()
       ..color = Color.lerp(base, Colors.black, .56)!.withValues(alpha: .42)
       ..strokeWidth = math.max(.07, .45 * mmToPx);
@@ -265,37 +273,37 @@ class CadPlanPainterV2 extends CustomPainter {
       ..color = Color.lerp(base, Colors.white, .42)!.withValues(alpha: .13)
       ..strokeWidth = math.max(.07, .3 * mmToPx);
 
-    var row = 0;
-    for (double y = bounds.top - plankW + offsetY;
-        y <= bounds.bottom + plankW;
-        y += plankW) {
-      canvas.drawLine(Offset(bounds.left, y), Offset(bounds.right, y), joint);
+    final minRow = ((bounds.top - startY) / plankW).floor() - 1;
+    final maxRow = ((bounds.bottom - startY) / plankW).ceil() + 1;
+    for (var row = minRow; row <= maxRow; row++) {
+      final y = startY + row * plankW;
       final halfShift = settings.laminateOffsetMode == 'half' && row.isOdd
-          ? plankL / 2
-          : 0.0;
-      for (double x = bounds.left - plankL + offsetX + halfShift;
-          x <= bounds.right + plankL;
-          x += plankL) {
-        final variation = ((x * .017 + y * .031).round().abs() % 7);
+          ? plankL / 2 : 0.0;
+      final xAnchor = startX + halfShift;
+      final minColumn = ((bounds.left - xAnchor) / plankL).floor() - 1;
+      final maxColumn = ((bounds.right - xAnchor) / plankL).ceil() + 1;
+      canvas.drawLine(Offset(bounds.left, y),
+          Offset(bounds.right, y), joint);
+      for (var column = minColumn; column <= maxColumn; column++) {
+        final x = xAnchor + column * plankL;
+        // Stable board identity from integer floor-world row/column indices,
+        // independent of camera scale, pan, viewport and clip bounds.
+        final hash = ((column * 73856093) ^ (row * 19349663)) & 0x7fffffff;
+        final variation = hash % 7;
         canvas.drawRect(
           Rect.fromLTWH(x, y, plankL, plankW),
           Paint()..color = variation.isEven
               ? Colors.white.withValues(alpha: .035)
               : Colors.black.withValues(alpha: .024),
         );
-        // Joints and bevels are sub-mm features, not thick screen borders.
         canvas.drawLine(Offset(x, y), Offset(x, y + plankW), joint);
-        final seed = ((x * .07 + y * .11).round().abs() % 5) / 5;
+        final seed = (hash % 5) / 5;
         final gy = y + plankW * (.28 + seed * .42);
         canvas.drawLine(
           Offset(x + plankL * .08, gy),
-          Offset(x + plankL * .88, gy + plankW * .04),
-          grain,
+          Offset(x + plankL * .88, gy + plankW * .04), grain,
         );
       }
-      canvas.drawLine(
-          Offset(bounds.left, y), Offset(bounds.right, y), joint);
-      row++;
     }
   }
 
@@ -321,8 +329,10 @@ class CadPlanPainterV2 extends CustomPainter {
       maxY: bounds.bottom + padding,
       plankLength: plankLength,
       plankWidth: plankWidth,
-      offsetX: settings.laminateOffsetXMm * mmToPx,
-      offsetY: settings.laminateOffsetYMm * mmToPx,
+      offsetX: origin.dx +
+          (settings.floorLayoutStartXMm ?? settings.laminateOffsetXMm) * mmToPx,
+      offsetY: origin.dy +
+          (settings.floorLayoutStartYMm ?? settings.laminateOffsetYMm) * mmToPx,
     );
     final joint = Paint()
       ..color = Color.lerp(base, Colors.black, .60)!.withValues(alpha: .44)
@@ -334,7 +344,16 @@ class CadPlanPainterV2 extends CustomPainter {
       Paint()..color = base,
     ];
 
-    var index = 0;
+    // Stable board shade by world motif index, not the order the list was
+    // clipped/generated. Zooming must never repaint the same physical board
+    // with an unrelated color.
+    final r = plankLength / math.sqrt2;
+    final q = plankWidth / math.sqrt2;
+    final stepX = 2 * r, stepY = 2 * q;
+    final phaseX = origin.dx +
+        (settings.floorLayoutStartXMm ?? settings.laminateOffsetXMm) * mmToPx;
+    final phaseY = origin.dy +
+        (settings.floorLayoutStartYMm ?? settings.laminateOffsetYMm) * mmToPx;
     for (final board in boards) {
       if (board.points.length != 4) continue;
       final path = Path()
@@ -343,9 +362,15 @@ class CadPlanPainterV2 extends CustomPainter {
         ..lineTo(board.points[2].x, board.points[2].y)
         ..lineTo(board.points[3].x, board.points[3].y)
         ..close();
-      canvas.drawPath(path, shades[index % shades.length]);
+      final correction = board.variant == 1 ? r - q : 0.0;
+      final column = ((board.points[0].x - correction - phaseX) / stepX)
+          .round();
+      final row = ((board.points[0].y - correction - phaseY) / stepY)
+          .round();
+      final shade = (((column * 73856093) ^ (row * 19349663) ^
+          board.variant) & 0x7fffffff) % shades.length;
+      canvas.drawPath(path, shades[shade]);
       canvas.drawPath(path, joint);
-      index++;
     }
   }
 
@@ -357,24 +382,25 @@ class CadPlanPainterV2 extends CustomPainter {
   ) {
     final tileW = math.max(16.0, settings.tileWidthMm * mmToPx);
     final tileH = math.max(16.0, settings.tileHeightMm * mmToPx);
-    final offsetX = settings.tileOffsetXMm * mmToPx;
-    final offsetY = settings.tileOffsetYMm * mmToPx;
-    // Grout is a material measurement in millimetres, not a UI stroke.
-    // The old minimum .45 px inflated a 2 mm joint to 4.5 mm at plan scale.
+    final startX = origin.dx +
+        (settings.floorLayoutStartXMm ?? settings.tileOffsetXMm) * mmToPx;
+    final startY = origin.dy +
+        (settings.floorLayoutStartYMm ?? settings.tileOffsetYMm) * mmToPx;
     final grout = math.max(.07, settings.floorTileGroutMm * mmToPx);
     final line = Paint()
       ..color = const Color(0xFF777B7C).withValues(alpha: .54)
       ..strokeWidth = grout;
 
-    // Slight board-to-board variation prevents the old perfectly flat
-    // material look, without fabricating high-contrast baked grout.
-    for (double x = bounds.left - tileW + offsetX;
-        x <= bounds.right + tileW;
-        x += tileW) {
-      for (double y = bounds.top - tileH + offsetY;
-          y <= bounds.bottom + tileH;
-          y += tileH) {
-        final variant = ((x * .01 + y * .017).round().abs() % 5);
+    final minCol = ((bounds.left - startX) / tileW).floor() - 1;
+    final maxCol = ((bounds.right - startX) / tileW).ceil() + 1;
+    final minRow = ((bounds.top - startY) / tileH).floor() - 1;
+    final maxRow = ((bounds.bottom - startY) / tileH).ceil() + 1;
+    for (var column = minCol; column <= maxCol; column++) {
+      final x = startX + column * tileW;
+      for (var row = minRow; row <= maxRow; row++) {
+        final y = startY + row * tileH;
+        final variant = (((column * 73856093) ^ (row * 19349663))
+            & 0x7fffffff) % 5;
         canvas.drawRect(
           Rect.fromLTWH(x, y, tileW, tileH),
           Paint()..color = variant.isEven
@@ -382,14 +408,14 @@ class CadPlanPainterV2 extends CustomPainter {
               : Colors.black.withValues(alpha: .018),
         );
       }
-      canvas.drawLine(Offset(x, bounds.top), Offset(x, bounds.bottom), line);
+      canvas.drawLine(Offset(x, bounds.top),
+          Offset(x, bounds.bottom), line);
     }
-    for (double y = bounds.top - tileH + offsetY;
-        y <= bounds.bottom + tileH;
-        y += tileH) {
-      canvas.drawLine(Offset(bounds.left, y), Offset(bounds.right, y), line);
+    for (var row = minRow; row <= maxRow; row++) {
+      final y = startY + row * tileH;
+      canvas.drawLine(Offset(bounds.left, y),
+          Offset(bounds.right, y), line);
     }
-
     if (preset.id.contains('marble')) {
       _marbleVeins(canvas, bounds, preset.color);
     } else if (preset.id.contains('terrazzo')) {
@@ -812,7 +838,12 @@ class CadPlanPainterV2 extends CustomPainter {
           p2 - normal * profileHalf,
           frame,
         );
-        for (final t in [0.0, .5, 1.0]) {
+        // A fixed centre mullion on every opening made even narrow 500-mm
+        // windows look like two tiny panes. Match the sash layout to real
+        // opening width: single up to 900 mm, multiple on wider openings.
+        final sashCount = (opening.widthMm / 900).ceil().clamp(1, 4);
+        for (var i = 0; i <= sashCount; i++) {
+          final t = i / sashCount;
           final at = Offset.lerp(p1, p2, t)!;
           canvas.drawLine(
             at - normal * profileHalf,
@@ -944,16 +975,10 @@ class CadPlanPainterV2 extends CustomPainter {
   }
 
   void _objects(Canvas canvas) {
-    // Stable partition: a rug added after a sofa must still lie underneath.
-    // Preserve user insertion order within each group and the saved model.
-    final ordered = [
-      ...floor.planObjects.where(
-        (object) => object.catalogId.startsWith('rug-'),
-      ),
-      ...floor.planObjects.where(
-        (object) => !object.catalogId.startsWith('rug-'),
-      ),
-    ];
+    // Physical top-view layering: rugs behind everything, seats and
+    // chair legs below raised tabletops, and tables/counters in front.
+    // Stable user order is preserved within each layer, with no JSON changes.
+    final ordered = PlanObjectPaintOrder.ordered(floor.planObjects);
     for (final object in ordered) {
       final category = switch (object.type) {
         PlanObjectType.furniture => PlanDisplayLayer.furniture,
