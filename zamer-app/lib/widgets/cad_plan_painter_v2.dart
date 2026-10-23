@@ -256,8 +256,11 @@ class CadPlanPainterV2 extends CustomPainter {
   ) {
     final plankW = math.max(8.0, settings.laminatePlankWidthMm * mmToPx);
     final plankL = math.max(28.0, settings.laminatePlankLengthMm * mmToPx);
-    final offsetX = settings.laminateOffsetXMm * mmToPx;
-    final offsetY = settings.laminateOffsetYMm * mmToPx;
+    // Tiles and board COLOR must use one persistent world grid. Previously
+    // the first row was bounds.top, so changing the painter's clipping/fitted
+    // viewport shifted the random shades even while the joints stayed put.
+    final startX = origin.dx + settings.laminateOffsetXMm * mmToPx;
+    final startY = origin.dy + settings.laminateOffsetYMm * mmToPx;
     final joint = Paint()
       ..color = Color.lerp(base, Colors.black, .56)!.withValues(alpha: .42)
       ..strokeWidth = math.max(.07, .45 * mmToPx);
@@ -265,37 +268,37 @@ class CadPlanPainterV2 extends CustomPainter {
       ..color = Color.lerp(base, Colors.white, .42)!.withValues(alpha: .13)
       ..strokeWidth = math.max(.07, .3 * mmToPx);
 
-    var row = 0;
-    for (double y = bounds.top - plankW + offsetY;
-        y <= bounds.bottom + plankW;
-        y += plankW) {
-      canvas.drawLine(Offset(bounds.left, y), Offset(bounds.right, y), joint);
+    final minRow = ((bounds.top - startY) / plankW).floor() - 1;
+    final maxRow = ((bounds.bottom - startY) / plankW).ceil() + 1;
+    for (var row = minRow; row <= maxRow; row++) {
+      final y = startY + row * plankW;
       final halfShift = settings.laminateOffsetMode == 'half' && row.isOdd
-          ? plankL / 2
-          : 0.0;
-      for (double x = bounds.left - plankL + offsetX + halfShift;
-          x <= bounds.right + plankL;
-          x += plankL) {
-        final variation = ((x * .017 + y * .031).round().abs() % 7);
+          ? plankL / 2 : 0.0;
+      final xAnchor = startX + halfShift;
+      final minColumn = ((bounds.left - xAnchor) / plankL).floor() - 1;
+      final maxColumn = ((bounds.right - xAnchor) / plankL).ceil() + 1;
+      canvas.drawLine(Offset(bounds.left, y),
+          Offset(bounds.right, y), joint);
+      for (var column = minColumn; column <= maxColumn; column++) {
+        final x = xAnchor + column * plankL;
+        // Stable board identity from integer floor-world row/column indices,
+        // independent of camera scale, pan, viewport and clip bounds.
+        final hash = ((column * 73856093) ^ (row * 19349663)) & 0x7fffffff;
+        final variation = hash % 7;
         canvas.drawRect(
           Rect.fromLTWH(x, y, plankL, plankW),
           Paint()..color = variation.isEven
               ? Colors.white.withValues(alpha: .035)
               : Colors.black.withValues(alpha: .024),
         );
-        // Joints and bevels are sub-mm features, not thick screen borders.
         canvas.drawLine(Offset(x, y), Offset(x, y + plankW), joint);
-        final seed = ((x * .07 + y * .11).round().abs() % 5) / 5;
+        final seed = (hash % 5) / 5;
         final gy = y + plankW * (.28 + seed * .42);
         canvas.drawLine(
           Offset(x + plankL * .08, gy),
-          Offset(x + plankL * .88, gy + plankW * .04),
-          grain,
+          Offset(x + plankL * .88, gy + plankW * .04), grain,
         );
       }
-      canvas.drawLine(
-          Offset(bounds.left, y), Offset(bounds.right, y), joint);
-      row++;
     }
   }
 
@@ -357,24 +360,23 @@ class CadPlanPainterV2 extends CustomPainter {
   ) {
     final tileW = math.max(16.0, settings.tileWidthMm * mmToPx);
     final tileH = math.max(16.0, settings.tileHeightMm * mmToPx);
-    final offsetX = settings.tileOffsetXMm * mmToPx;
-    final offsetY = settings.tileOffsetYMm * mmToPx;
-    // Grout is a material measurement in millimetres, not a UI stroke.
-    // The old minimum .45 px inflated a 2 mm joint to 4.5 mm at plan scale.
+    final startX = origin.dx + settings.tileOffsetXMm * mmToPx;
+    final startY = origin.dy + settings.tileOffsetYMm * mmToPx;
     final grout = math.max(.07, settings.floorTileGroutMm * mmToPx);
     final line = Paint()
       ..color = const Color(0xFF777B7C).withValues(alpha: .54)
       ..strokeWidth = grout;
 
-    // Slight board-to-board variation prevents the old perfectly flat
-    // material look, without fabricating high-contrast baked grout.
-    for (double x = bounds.left - tileW + offsetX;
-        x <= bounds.right + tileW;
-        x += tileW) {
-      for (double y = bounds.top - tileH + offsetY;
-          y <= bounds.bottom + tileH;
-          y += tileH) {
-        final variant = ((x * .01 + y * .017).round().abs() % 5);
+    final minCol = ((bounds.left - startX) / tileW).floor() - 1;
+    final maxCol = ((bounds.right - startX) / tileW).ceil() + 1;
+    final minRow = ((bounds.top - startY) / tileH).floor() - 1;
+    final maxRow = ((bounds.bottom - startY) / tileH).ceil() + 1;
+    for (var column = minCol; column <= maxCol; column++) {
+      final x = startX + column * tileW;
+      for (var row = minRow; row <= maxRow; row++) {
+        final y = startY + row * tileH;
+        final variant = (((column * 73856093) ^ (row * 19349663))
+            & 0x7fffffff) % 5;
         canvas.drawRect(
           Rect.fromLTWH(x, y, tileW, tileH),
           Paint()..color = variant.isEven
@@ -382,14 +384,14 @@ class CadPlanPainterV2 extends CustomPainter {
               : Colors.black.withValues(alpha: .018),
         );
       }
-      canvas.drawLine(Offset(x, bounds.top), Offset(x, bounds.bottom), line);
+      canvas.drawLine(Offset(x, bounds.top),
+          Offset(x, bounds.bottom), line);
     }
-    for (double y = bounds.top - tileH + offsetY;
-        y <= bounds.bottom + tileH;
-        y += tileH) {
-      canvas.drawLine(Offset(bounds.left, y), Offset(bounds.right, y), line);
+    for (var row = minRow; row <= maxRow; row++) {
+      final y = startY + row * tileH;
+      canvas.drawLine(Offset(bounds.left, y),
+          Offset(bounds.right, y), line);
     }
-
     if (preset.id.contains('marble')) {
       _marbleVeins(canvas, bounds, preset.color);
     } else if (preset.id.contains('terrazzo')) {
