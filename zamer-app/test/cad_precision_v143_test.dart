@@ -53,12 +53,12 @@ void main() {
   test('chairs slide under the table while backs above the tabletop collide', () {
     final floor = FloorPlan(id: 'f', name: 'Furniture', planObjects: [
       furniture('table', 'table-rect', 0, 0, 1400, 800, 750),
-      furniture('chair', 'chair', 0, 330, 480, 520, 850),
+      furniture('chair', 'chair', 0, -330, 480, 520, 850),
     ]);
     expect(SpaceCheckService.inspect(floor)
       .where((i) => i.kind == SpaceIssueKind.objectObject), isEmpty,
-      reason: 'seat and front chair legs fit under the table top; rear '
-        'backrest remains outside the tabletop');
+      reason: 'chair enters under the tabletop from the side opposite its raised '
+        'backrest, which is correctly drawn at negative local Y');
     floor.planObjects.last.yMm = 0;
     expect(SpaceCheckService.inspect(floor)
       .where((i) => i.kind == SpaceIssueKind.objectObject), isNotEmpty,
