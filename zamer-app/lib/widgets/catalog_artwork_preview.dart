@@ -81,6 +81,30 @@ class _ZamerCatalogArtworkState extends State<ZamerCatalogArtwork> {
   }
 }
 
+/// Physical footprint fitted inside a catalogue tile. The returned rect
+/// uses the same width/depth ratio as an unrotated model on the CAD plan.
+@visibleForTesting
+Rect catalogArtworkFootprintRect(Size viewport, Size footprintMm) {
+  if (viewport.isEmpty ||
+      !footprintMm.width.isFinite ||
+      !footprintMm.height.isFinite ||
+      footprintMm.width <= 0 ||
+      footprintMm.height <= 0) return Rect.zero;
+  final available = Size(
+    math.max(1.0, viewport.width - 14),
+    math.max(1.0, viewport.height - 14),
+  );
+  final ratio = math.min(
+    available.width / footprintMm.width,
+    available.height / footprintMm.height,
+  );
+  return Rect.fromCenter(
+    center: Offset(viewport.width / 2, viewport.height / 2),
+    width: footprintMm.width * ratio,
+    height: footprintMm.height * ratio,
+  );
+}
+
 class _CatalogArtworkPainter extends CustomPainter {
   const _CatalogArtworkPainter({
     required this.image,
@@ -100,17 +124,9 @@ class _CatalogArtworkPainter extends CustomPainter {
     final source = crop ??
         ui.Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble());
     if (source.width <= 0 || source.height <= 0) return;
-    final available = Size(math.max(1, size.width - 14),
-        math.max(1, size.height - 14));
-    // Match the CAD physical footprint, not the source PNG crop's aspect
-    // ratio. In particular, neutral sofa/wardrobe textures are authored
-    // with a different source aspect and are stretched only within their
-    // canonical measured rectangle in the real plan.
-    final widthMm = math.max(1, footprintMm.width);
-    final depthMm = math.max(1, footprintMm.height);
-    final ratio = math.min(available.width / widthMm,
-        available.height / depthMm);
-    final output = Size(widthMm * ratio, depthMm * ratio);
+    // Match the CAD physical footprint, not the source crop's aspect ratio.
+    final fitted = catalogArtworkFootprintRect(size, footprintMm);
+    final output = fitted.size;
     canvas.drawRRect(
       RRect.fromRectAndRadius(
         Offset.zero & size, const Radius.circular(9)),
