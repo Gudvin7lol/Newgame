@@ -105,7 +105,16 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     _pinchStartScale = tx.scale;
     _pinchStartDistance = math.max(1, (points[1] - points[0]).distance);
     _pinchingCamera = true;
+    // If a second finger arrives during electrical-point dragging, restore
+    // the point's previous geometry before turning this into camera pinch.
+    // Otherwise a half-dragged socket can survive without an undo/save.
+    if (_dragPointId != null && _dragUndoPushed && _undo.isNotEmpty) {
+      final before = jsonDecode(_undo.removeLast()) as Map;
+      widget.floor.restoreFrom(
+        FloorPlan.fromJson(Map<String, dynamic>.from(before)));
+    }
     _dragPointId = null;
+    _dragUndoPushed = false;
     _wireStartId = null;
   }
 
