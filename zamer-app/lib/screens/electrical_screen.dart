@@ -10,6 +10,7 @@ import '../widgets/cad_plan_painter.dart';
 import '../services/plan_visibility_service.dart';
 import '../services/plan_viewport_link.dart';
 import '../services/electrical_load_service.dart';
+import '../services/electrical_board_draft_service.dart';
 
 enum ElectricalMode { add, wire, select }
 
@@ -901,11 +902,10 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
   }
 
   Future<void> _showLoadInventory() async {
-    final circuits = ElectricalLoadService.summarize(widget.floor);
-    final total = circuits.fold<double>(0, (sum, group) =>
-        sum + group.connectedWatts);
-    final unrated = circuits.fold<int>(0, (sum, group) =>
-        sum + group.unratedCount);
+    final board = ElectricalBoardDraftService.create(widget.floor);
+    final circuits = board.circuits;
+    final total = board.knownConnectedWatts;
+    final unrated = board.unratedLoads;
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -919,8 +919,15 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
               Text('Нагрузки и распределительный щит',
                 style: Theme.of(sheet).textTheme.titleLarge),
               const SizedBox(height: 8),
-              Text('Сумма заданных мощностей: ${total.toStringAsFixed(0)} Вт'
+              Text('Известная подключённая мощность: ${total.toStringAsFixed(0)} Вт'
                    ' · групп: ${circuits.length}'),
+              const SizedBox(height: 5),
+              Text('Оценка по известным мощностям: '
+                   '${board.knownLoadAmps.toStringAsFixed(1)} А '
+                   'при ${board.voltageV.toStringAsFixed(0)} В / '
+                   'cosφ ${board.powerFactor.toStringAsFixed(2)}. '
+                   'Не является расчётным током щита.',
+                   style: Theme.of(sheet).textTheme.bodySmall),
               if (unrated > 0) Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: Text(
@@ -933,17 +940,90 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
               if (circuits.isEmpty)
                 const Text('Добавь электроточки и присвой им группы '
                     'и расчётную мощность в карточках точек.'),
-              for (final group in circuits)
+              for (final circuit in circuits)
                 Card(
                   child: ListTile(
-                    title: Text(group.name),
+                    title: Text(circuit.load.name),
                     subtitle: Text(
-                      '${group.loadCount} точек · '
-                      '${group.connectedWatts.toStringAsFixed(0)} Вт'
-                      ' · ≈${group.estimatedAmps.toStringAsFixed(1)} А '
-                      '(230 В, cosφ = 1)'),
-                    trailing: group.unratedCount > 0
+                      '${circuit.load.loadCount} точек · '
+                      '${circuit.load.connectedWatts.toStringAsFixed(0)} Вт'
+                      ' · ≈${circuit.load.estimatedAmps.toStringAsFixed(1)} А '
+                      '(известные нагрузки)\n'
+                      '${circuit.runCount} трасс · '
+                      '${circuit.routedCableMeters.toStringAsFixed(1)} м · '
+                      '${circuit.cableTypes.isEmpty ? 'кабель не указан' : circuit.cableTypes.join(', ')}\n'
+                      '${circuit.protectiveDeviceStatus}'),
+                    isThreeLine: true,
+                    trailing: circuit.incomplete || circuit.hasUnassignedCircuit
                       ? const Icon(Icons.warning_amber_rounded) : null,
+                  ),
+                ),
+              if (board.crossCircuitRuns > 0)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Text(
+                    'Ошибка группировки: ${board.crossCircuitRuns} '
+                    'кабельных линий связывают точки разных групп.',
+                    style: TextStyle(color: Theme.of(sheet).colorScheme.error),
+                  ),
+                ),
+              const SizedBox(height: 12),
+              Text('Эскиз секций щита', style: Theme.of(sheet).textTheme.titleMedium),
+              const SizedBox(height: 4),
+              Text('Условная последовательность функций, без привязки '
+                   'к DIN-модулям, номиналам и клеммам.',
+                   style: Theme.of(sheet).textTheme.bodySmall),
+              const SizedBox(height: 9),
+              SizedBox(
+                key: const ValueKey('electrical-board-section-draft'),
+                height: 84,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  children: [
+                    for (final section in board.sections)
+                      Container(
+                        width: 103,
+                        margin: const EdgeInsets.only(right: 6),
+                        padding: const EdgeInsets.all(7),
+                        decoration: BoxDecoration(
+                          color: Theme.of(sheet).colorScheme.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(9),
+                          border: Border.all(
+                            color: Theme.of(sheet).colorScheme.outlineVariant),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(section.label, maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800, fontSize: 12)),
+                            const SizedBox(height: 5),
+                            Text(section.role, maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 9.5)),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 13),
+              Text('Данные, необходимые для проекта щита',
+                style: Theme.of(sheet).textTheme.titleMedium),
+              for (final item in board.requiredChecks)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.check_box_outline_blank_rounded,
+                        size: 17, color: Theme.of(sheet).colorScheme.outline),
+                      const SizedBox(width: 7),
+                      Expanded(child: Text(item,
+                        style: Theme.of(sheet).textTheme.bodySmall)),
+                    ],
                   ),
                 ),
               const SizedBox(height: 12),
