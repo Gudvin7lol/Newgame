@@ -155,6 +155,23 @@ class SpaceCheckService {
     return parts;
   }
 
+  /// Actual top-view outlines of intersecting *vertical* volumes, not
+  /// the full furniture rectangles. Used for precise red collision shading:
+  /// a chair seat under a tabletop is not a conflict, while its backrest can
+  /// physically intersect the table at a higher elevation.
+  static List<(List<math.Point<double>>, List<math.Point<double>>)>
+      overlappingVolumePairs(PlanObject a, PlanObject b) {
+    final results = <(List<math.Point<double>>, List<math.Point<double>>)>[];
+    for (final partA in _collisionParts(a)) {
+      for (final partB in _collisionParts(b)) {
+        if (_volumesOverlap(partA, partB)) {
+          results.add((partA.outline, partB.outline));
+        }
+      }
+    }
+    return results;
+  }
+
   static bool _volumesOverlap(_CollisionVolume a, _CollisionVolume b) =>
       a.bottomMm < b.topMm - 3 && b.bottomMm < a.topMm - 3 &&
       _overlap(a.outline, b.outline);
