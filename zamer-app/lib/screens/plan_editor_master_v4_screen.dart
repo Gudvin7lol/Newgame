@@ -736,7 +736,9 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
 
   Future<void> _wallDragFinish({bool cancel = false}) async {
     if (_dragWallId == null) return;
-    final changed = _dragWallModified;
+    // Returning exactly to the original wall location is a no-op, not a
+    // separate undo/history event.
+    final changed = _dragWallModified && _dragWallOffsetMm.abs() >= .01;
     final rejected = _dragWallRejected;
     final beforeDrag = _dragWallStartFloor;
     final mustRollback = cancel || rejected != null;
