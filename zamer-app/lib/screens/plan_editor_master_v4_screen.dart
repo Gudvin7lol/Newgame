@@ -1820,6 +1820,9 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     final snap = _dragSnap;
     final affected = Set<String>.of(_nodeDragAffected);
     final rejected = _nodeDragInvalid;
+    // Preserve the *original* topology for rollback if a target host wall
+    // rejects splitting (for example when it would bisect a door opening).
+    final beforeDrag = _nodeDragStartFloor;
     setState(() {
       _dragNodeId = null;
       _nodeDragStartFloor = null;
@@ -1840,10 +1843,25 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     // A constrained grid shift has already moved all linked wall axes and
     // must not additionally perform destructive merge operations.
     if (affected.length <= 1 && snap != null) {
-      final moved = GeometryService.finalizeNodeMove(
-        floor, movingNodeId: id, snap: snap,
-      );
-      _selectedNodeId = moved?.id;
+      try {
+        final moved = GeometryService.finalizeNodeMove(
+          floor, movingNodeId: id, snap: snap,
+        );
+        _selectedNodeId = moved?.id;
+      } on StateError catch (error) {
+        // A failed join must never leave a moved free endpoint in front of an
+        // unsplit wall. Otherwise it looks closed while topology stays open.
+        if (beforeDrag != null) floor.restoreFrom(beforeDrag);
+        _selectedNodeId = id;
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            duration: const Duration(milliseconds: 2500),
+            content: Text('Стык отменён: ${error.message}'),
+          ));
+          setState(() {});
+        }
+        return;
+      }
     } else {
       _selectedNodeId = id;
     }
