@@ -838,7 +838,12 @@ class CadPlanPainterV2 extends CustomPainter {
           p2 - normal * profileHalf,
           frame,
         );
-        for (final t in [0.0, .5, 1.0]) {
+        // A fixed centre mullion on every opening made even narrow 500-mm
+        // windows look like two tiny panes. Match the sash layout to real
+        // opening width: single up to 900 mm, multiple on wider openings.
+        final sashCount = (opening.widthMm / 900).ceil().clamp(1, 4);
+        for (var i = 0; i <= sashCount; i++) {
+          final t = i / sashCount;
           final at = Offset.lerp(p1, p2, t)!;
           canvas.drawLine(
             at - normal * profileHalf,
