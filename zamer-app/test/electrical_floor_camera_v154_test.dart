@@ -65,14 +65,23 @@ void main() {
   test('floor shades use world-anchored row and column, not pixel bounds', () {
     final src = File('lib/widgets/cad_plan_painter_v2.dart')
         .readAsStringSync();
-    expect(src, contains('origin.dx + settings.laminateOffsetXMm'));
-    expect(src, contains('origin.dy + settings.laminateOffsetYMm'));
-    expect(src, contains('origin.dx + settings.tileOffsetXMm'));
-    expect(src, contains('origin.dy + settings.tileOffsetYMm'));
+    expect(src, contains('settings.floorLayoutStartXMm ?? settings.laminateOffsetXMm'));
+    expect(src, contains('settings.floorLayoutStartYMm ?? settings.laminateOffsetYMm'));
+    expect(src, contains('settings.floorLayoutStartXMm ?? settings.tileOffsetXMm'));
+    expect(src, contains('settings.floorLayoutStartYMm ?? settings.tileOffsetYMm'));
     expect(src, contains('column * 73856093'));
     expect(src, contains('row * 19349663'));
     expect(src, isNot(contains('((x * .017 + y * .031)')));
     expect(src, isNot(contains('((x * .01 + y * .017)')));
+  });
+
+  test('start of floor installation is in world coordinates', () {
+    final src = File('lib/screens/measure_floor_plan_layer_screen.dart')
+        .readAsStringSync();
+    expect(src, contains('_phase(mm.x, settings.laminatePlankLengthMm)'));
+    expect(src, contains('_phase(mm.y, settings.laminatePlankWidthMm)'));
+    expect(src, contains('settings.floorLayoutStartXMm = mm.x'));
+    expect(src, contains('settings.floorLayoutStartYMm = mm.y'));
   });
 
   test('objects canvas is clipped beneath fixed mode task toolbar', () {
