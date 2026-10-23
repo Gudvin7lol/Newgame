@@ -11,6 +11,7 @@ import '../services/material_catalog.dart';
 import '../services/plan_visibility_service.dart';
 import '../services/room_interior_dimensions_service.dart';
 import '../services/space_check_service.dart';
+import '../services/plan_object_paint_order.dart';
 import 'cad_wall_join_geometry.dart';
 import 'cad_contact_shadow_painter.dart';
 import 'top_view_object_renderer.dart';
@@ -946,16 +947,10 @@ class CadPlanPainterV2 extends CustomPainter {
   }
 
   void _objects(Canvas canvas) {
-    // Stable partition: a rug added after a sofa must still lie underneath.
-    // Preserve user insertion order within each group and the saved model.
-    final ordered = [
-      ...floor.planObjects.where(
-        (object) => object.catalogId.startsWith('rug-'),
-      ),
-      ...floor.planObjects.where(
-        (object) => !object.catalogId.startsWith('rug-'),
-      ),
-    ];
+    // Physical top-view layering: rugs behind everything, seats and
+    // chair legs below raised tabletops, and tables/counters in front.
+    // Stable user order is preserved within each layer, with no JSON changes.
+    final ordered = PlanObjectPaintOrder.ordered(floor.planObjects);
     for (final object in ordered) {
       final category = switch (object.type) {
         PlanObjectType.furniture => PlanDisplayLayer.furniture,
