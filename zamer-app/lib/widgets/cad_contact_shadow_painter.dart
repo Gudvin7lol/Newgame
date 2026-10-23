@@ -14,7 +14,10 @@ abstract final class CadContactShadowPainter {
     required Offset center,
     required double mmToPx,
   }) {
-    if (object.elevationMm > 2300 ||
+    // A contact shadow belongs on the floor. Wall-hung cabinets, sconces
+    // and other raised objects must not cast a second rectangle across the
+    // room floor; the optional raster path already uses the same 10-mm rule.
+    if (object.elevationMm > 10 ||
         object.type == PlanObjectType.lighting ||
         object.type == PlanObjectType.ceilingZone ||
         object.type == PlanObjectType.waterPoint ||
