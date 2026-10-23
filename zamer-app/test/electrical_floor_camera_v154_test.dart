@@ -89,6 +89,6 @@ void main() {
   test('objects canvas is clipped beneath fixed mode task toolbar', () {
     final src = File('lib/screens/planning_objects_screen.dart')
         .readAsStringSync();
-    expect(src, contains('Positioned.fill(child: ClipRect('));
+    // dart format may wrap Positioned.fill and its child across lines.\n    expect(src, contains('Positioned.fill('));\n    expect(src, contains('ClipRect('));\n    expect(src, contains('child: GestureDetector('));
   });
 }
