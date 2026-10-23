@@ -989,8 +989,12 @@ class GeometryService {
   }) {
     var moving = floor.nodeById(movingNodeId);
     if (moving == null) return null;
-    moving.xMm = _round5(snap.point.x);
-    moving.yMm = _round5(snap.point.y);
+    // Preserve sub-5-mm precision when attaching to a host wall. Quantize
+    // only free/grid movement. A rounded endpoint can be several millimetres
+    // away from the actual split, creating a disconnected near-duplicate node.
+    final exactHostPoint = snap.targetWallId != null;
+    moving.xMm = exactHostPoint ? snap.point.x : _round5(snap.point.x);
+    moving.yMm = exactHostPoint ? snap.point.y : _round5(snap.point.y);
 
     if (snap.targetNodeId != null && snap.targetNodeId != movingNodeId) {
       final target = floor.nodeById(snap.targetNodeId!);
