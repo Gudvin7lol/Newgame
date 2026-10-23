@@ -208,6 +208,9 @@ class ImportedTopViewAssets extends ChangeNotifier {
     // Bound the eight decoded textures to less than 16 MiB total. Original PNGs
     // remain available for future exports, without retaining full-size copies
     // in GPU memory during ordinary plan editing.
+    // Publish at most once per four decoded sprites: otherwise opening the
+    // catalogue triggers eight expensive full-plan repaint notifications.
+    var neutralSincePublish = 0;
     for (final entry in _neutralSpecs.entries) {
       try {
         final spec = entry.value;
@@ -230,7 +233,11 @@ class ImportedTopViewAssets extends ChangeNotifier {
             ),
           );
           loadedAny = true;
-          notifyListeners();
+          neutralSincePublish++;
+          if (neutralSincePublish >= 4) {
+            neutralSincePublish = 0;
+            notifyListeners();
+          }
         } finally {
           codec.dispose();
         }
@@ -238,6 +245,7 @@ class ImportedTopViewAssets extends ChangeNotifier {
         // The approved atlas and vector symbols remain usable if decoding fails.
       }
     }
+    if (neutralSincePublish > 0) notifyListeners();
 
     // Load approved 2D art once. Failure never hides an object: the +130
     // atlas, production previews and vector fallbacks remain available.
