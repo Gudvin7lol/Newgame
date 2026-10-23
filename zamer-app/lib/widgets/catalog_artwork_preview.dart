@@ -60,9 +60,15 @@ class _ZamerCatalogArtworkState extends State<ZamerCatalogArtwork> {
         final ui.Image? image = raster?.image;
         final ui.Rect? source = raster?.sourceRect;
         if (image != null) {
+          final item = ObjectCatalog.byId(widget.catalogId);
           return CustomPaint(
             key: ValueKey('catalog-artwork-${widget.catalogId}'),
-            painter: _CatalogArtworkPainter(image: image, crop: source),
+            painter: _CatalogArtworkPainter(
+              image: image,
+              crop: source,
+              footprintMm: Size(item.widthMm, item.depthMm),
+              quarterTurn: raster?.quarterTurn ?? false,
+            ),
             child: const SizedBox.expand(),
           );
         }
@@ -76,10 +82,17 @@ class _ZamerCatalogArtworkState extends State<ZamerCatalogArtwork> {
 }
 
 class _CatalogArtworkPainter extends CustomPainter {
-  const _CatalogArtworkPainter({required this.image, this.crop});
+  const _CatalogArtworkPainter({
+    required this.image,
+    required this.footprintMm,
+    this.crop,
+    this.quarterTurn = false,
+  });
 
   final ui.Image image;
   final ui.Rect? crop;
+  final Size footprintMm;
+  final bool quarterTurn;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -89,27 +102,41 @@ class _CatalogArtworkPainter extends CustomPainter {
     if (source.width <= 0 || source.height <= 0) return;
     final available = Size(math.max(1, size.width - 14),
         math.max(1, size.height - 14));
-    final ratio = math.min(available.width / source.width,
-        available.height / source.height);
-    final output = Size(source.width * ratio, source.height * ratio);
-    final target = Rect.fromCenter(
-      center: Offset(size.width / 2, size.height / 2),
-      width: output.width,
-      height: output.height,
-    );
+    // Match the CAD physical footprint, not the source PNG crop's aspect
+    // ratio. In particular, neutral sofa/wardrobe textures are authored
+    // with a different source aspect and are stretched only within their
+    // canonical measured rectangle in the real plan.
+    final widthMm = math.max(1, footprintMm.width);
+    final depthMm = math.max(1, footprintMm.height);
+    final ratio = math.min(available.width / widthMm,
+        available.height / depthMm);
+    final output = Size(widthMm * ratio, depthMm * ratio);
     canvas.drawRRect(
       RRect.fromRectAndRadius(
         Offset.zero & size, const Radius.circular(9)),
       Paint()..color = ZamerColors.surfaceHigh,
     );
+    final center = Offset(size.width / 2, size.height / 2);
+    canvas.save();
+    canvas.translate(center.dx, center.dy);
+    if (quarterTurn) canvas.rotate(math.pi / 2);
+    final target = Rect.fromCenter(
+      center: Offset.zero,
+      width: quarterTurn ? output.height : output.width,
+      height: quarterTurn ? output.width : output.height,
+    );
     canvas.drawImageRect(image, source, target,
       Paint()..filterQuality = FilterQuality.high
              ..isAntiAlias = true);
+    canvas.restore();
   }
 
   @override
   bool shouldRepaint(covariant _CatalogArtworkPainter oldDelegate) =>
-      oldDelegate.image != image || oldDelegate.crop != crop;
+      oldDelegate.image != image ||
+      oldDelegate.crop != crop ||
+      oldDelegate.footprintMm != footprintMm ||
+      oldDelegate.quarterTurn != quarterTurn;
 }
 
 /// Deterministic 2D preview whenever optional GLB/atlas artwork is missing.
