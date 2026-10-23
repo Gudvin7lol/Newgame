@@ -11,7 +11,8 @@ void main() {
     expect(source, contains('snap.point.x * _mmToPx'));
     expect(source, contains('snap.point.y * _mmToPx'));
     expect(source, contains('preferLeft'));
-    expect(source, contains('proposedTop.clamp('));
+    expect(source, contains('top: proposedTop'));
+    expect(source, contains('tooltipHeight - 8'));
     expect(source, contains('snap.label'));
     expect(source, contains('WallDrawingService.snap('));
   });
