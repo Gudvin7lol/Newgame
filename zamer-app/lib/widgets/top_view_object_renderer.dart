@@ -17,6 +17,7 @@ class TopViewObjectRenderer {
     PlanObject object, {
     required Offset center,
     required double mmToPx,
+    bool paintShadow = true,
   }) {
     final width = math.max(8.0, object.widthMm * mmToPx);
     final depth = math.max(8.0, object.depthMm * mmToPx);
@@ -30,7 +31,7 @@ class TopViewObjectRenderer {
     canvas.translate(center.dx, center.dy);
     canvas.rotate(object.rotationDeg * math.pi / 180);
 
-    _shadow(canvas, rect);
+    if (paintShadow) _shadow(canvas, rect);
 
     final id = object.catalogId;
     final item = ObjectCatalog.byId(id);
