@@ -12,6 +12,7 @@ import '../services/plan_visibility_service.dart';
 import '../services/room_interior_dimensions_service.dart';
 import '../services/space_check_service.dart';
 import 'cad_wall_join_geometry.dart';
+import 'cad_contact_shadow_painter.dart';
 import 'top_view_object_renderer.dart';
 
 /// UI KIT 02 CAD renderer for +78.
@@ -972,6 +973,12 @@ class CadPlanPainterV2 extends CustomPainter {
       // Room names and dimension chains must remain above furniture artwork.
       if (drawTopView?.call(canvas, object, center, mmToPx) == true) {
         continue;
+      }
+      // Raster silhouettes get their cached alpha shadow in V3. Draw the
+      // lighter geometric fallback only when no raster was available.
+      if (showDepth) {
+        CadContactShadowPainter.drawObject(
+          canvas, object, center: center, mmToPx: mmToPx);
       }
       TopViewObjectRenderer.draw(
         canvas,
