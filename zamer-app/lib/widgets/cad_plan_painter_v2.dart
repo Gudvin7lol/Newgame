@@ -12,6 +12,7 @@ import '../services/plan_visibility_service.dart';
 import '../services/room_interior_dimensions_service.dart';
 import '../services/space_check_service.dart';
 import 'cad_wall_join_geometry.dart';
+import 'cad_contact_shadow_painter.dart';
 import 'top_view_object_renderer.dart';
 
 /// UI KIT 02 CAD renderer for +78.
@@ -500,15 +501,9 @@ class CadPlanPainterV2 extends CustomPainter {
     for (final layer in ProjectLayer.values) {
       all.addPath(bodies[layer]!, Offset.zero);
     }
-    // One shadow for the union of the bodies. Independent square-ended
-    // strokes used to produce black strips and bright bulges at T joints.
-    canvas.save();
-    canvas.translate(1.1, 1.2);
-    canvas.drawPath(
-      all,
-      Paint()..color = Colors.black.withValues(alpha: .26),
-    );
-    canvas.restore();
+    // Joined walls cast two soft gradients rather than hard duplicated
+    // black strips at T-joints. The silhouette follows live geometry.
+    CadContactShadowPainter.drawWallUnion(canvas, all);
 
     const colors = <ProjectLayer, Color>{
       ProjectLayer.existing: Color(0xFFF0F1ED),
@@ -815,6 +810,10 @@ class CadPlanPainterV2 extends CustomPainter {
         continue;
       }
       final center = origin + Offset(object.xMm * mmToPx, object.yMm * mmToPx);
+      // All approved raster models and vector fallbacks share the same
+      // footprint-derived contact shadow. Draw it once, under the artwork.
+      CadContactShadowPainter.drawObject(
+        canvas, object, center: center, mmToPx: mmToPx);
       // Paint only one representation per object, in the same draw pass.
       // Room names and dimension chains must remain above furniture artwork.
       if (drawTopView?.call(canvas, object, center, mmToPx) == true) {
@@ -825,6 +824,7 @@ class CadPlanPainterV2 extends CustomPainter {
         object,
         center: center,
         mmToPx: mmToPx,
+        paintShadow: false,
       );
     }
   }
