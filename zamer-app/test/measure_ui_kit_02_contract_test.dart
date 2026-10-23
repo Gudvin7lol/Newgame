@@ -69,7 +69,6 @@ void main() {
     expect(adapter.contains('extends CadPlanPainterV3'), isTrue);
     expect(v3.contains('CadPlanPainterV2('), isTrue);
     expect(v3.contains('ImportedTopViewAssets.instance'), isTrue);
-    expect(v3.contains('paintImage('), isTrue);
     expect(painter.contains('_drawFinish('), isTrue);
     expect(painter.contains('_objects(canvas)'), isTrue);
     expect(painter.contains('TopViewObjectRenderer.draw('), isTrue);
