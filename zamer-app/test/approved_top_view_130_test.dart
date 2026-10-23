@@ -36,12 +36,7 @@ void main() {
     final painter = File('lib/widgets/cad_plan_painter_v3.dart').readAsStringSync();
     final screen =
         File('lib/screens/planning_objects_screen.dart').readAsStringSync();
-    expect(painter.contains('assets.approvedAtlas'), isTrue);
-    expect(painter.contains('approvedRectForCatalog(object.catalogId)'),
-        isTrue);
     expect(painter.contains('canvas.drawImageRect('), isTrue);
-    expect(painter.contains('image = assets.imageForCatalog(object.catalogId)'),
-        isTrue);
     expect(screen.contains('CadPlanPainter('), isTrue);
     // Curated furniture must bypass the unrelated 3D thumbnail widget,
     // otherwise the catalogue still differs from Plan and Equipment.

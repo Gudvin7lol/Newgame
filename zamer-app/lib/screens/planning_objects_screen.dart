@@ -12,6 +12,7 @@ import '../services/object_catalog.dart';
 import '../services/geometry_service.dart';
 import '../services/imported_top_view_assets.dart';
 import '../services/space_check_service.dart';
+import '../services/plan_viewport_link.dart';
 import '../widgets/model_thumbnail.dart';
 import '../widgets/cad_plan_painter.dart';
 
@@ -25,6 +26,8 @@ class PlanningObjectsScreen extends StatefulWidget {
     required this.floor,
     required this.onChanged,
     this.embedded = false,
+    this.sharedViewport,
+    this.viewportActive = true,
     this.onSelectedObjectChanged,
     this.fanCommand,
   });
@@ -34,6 +37,8 @@ class PlanningObjectsScreen extends StatefulWidget {
   /// In Measure the catalog lives in the parent workspace. Embedded mode keeps
   /// this screen focused on direct placement, movement and rotation only.
   final bool embedded;
+  final ValueNotifier<PlanViewportSnapshot?>? sharedViewport;
+  final bool viewportActive;
   final ValueChanged<PlanObject?>? onSelectedObjectChanged;
   final ValueListenable<String?>? fanCommand;
 
@@ -53,6 +58,7 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
   // Viewport transform is independent of object geometry.
   double _viewZoom = 1;
   Offset _viewPan = Offset.zero;
+  Size _viewportSize = Size.zero;
   bool _pinchingCamera = false;
   double _pinchStartZoom = 1;
   double _pinchStartScale = 1;
@@ -96,6 +102,10 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
     if (oldWidget.fanCommand != widget.fanCommand) {
       oldWidget.fanCommand?.removeListener(_handleFanCommand);
       widget.fanCommand?.addListener(_handleFanCommand);
+    }
+    if (widget.viewportActive && (!oldWidget.viewportActive ||
+        oldWidget.sharedViewport != widget.sharedViewport)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _adoptViewport());
     }
   }
 
@@ -293,6 +303,59 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
     );
     assign(point.wallSide != wallSide, () => point!.wallSide = wallSide);
     return changed;
+  }
+
+
+  void _publishViewport() {
+    if (!widget.viewportActive || _viewportSize.isEmpty) return;
+    final link = widget.sharedViewport;
+    if (link == null) return;
+    final tx = _tx(_viewportSize);
+    if (!tx.scale.isFinite || tx.scale <= 0) return;
+    final center = Offset(_viewportSize.width / 2,
+        _viewportSize.height / 2);
+    final snapshot = PlanViewportSnapshot(
+      centerXMm: (center.dx - tx.origin.dx) / tx.scale,
+      centerYMm: (center.dy - tx.origin.dy) / tx.scale,
+      pixelsPerMm: tx.scale,
+    );
+    if (!snapshot.valid) return;
+    if (link.value case final previous?) {
+      if (previous.nearlyEquals(snapshot)) return;
+    }
+    link.value = snapshot;
+  }
+
+  void _adoptViewport() {
+    if (!mounted || !widget.viewportActive || _viewportSize.isEmpty) return;
+    final saved = widget.sharedViewport?.value;
+    if (saved == null || !saved.valid) return;
+    final oldTx = _tx(_viewportSize);
+    if (oldTx.scale <= 0) return;
+    // Keep zoom bounded for objects while centering the same world point.
+    final newZoom = (_viewZoom * saved.pixelsPerMm / oldTx.scale)
+        .clamp(.5, 6.0).toDouble();
+    setState(() => _viewZoom = newZoom);
+    final newTx = _tx(_viewportSize);
+    final center = Offset(_viewportSize.width / 2,
+        _viewportSize.height / 2);
+    final focus = newTx.origin + Offset(saved.centerXMm * newTx.scale,
+        saved.centerYMm * newTx.scale);
+    setState(() => _viewPan += center - focus);
+  }
+
+  void _changeViewportZoom(double factor) {
+    if (_viewportSize.isEmpty) return;
+    setState(() => _viewZoom = (_viewZoom * factor).clamp(.5, 6.0).toDouble());
+    _publishViewport();
+  }
+
+  void _resetViewport() {
+    setState(() {
+      _viewZoom = 1;
+      _viewPan = Offset.zero;
+    });
+    _publishViewport();
   }
 
   _ObjTx _tx(Size size) {
@@ -567,6 +630,7 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
   }
 
   Future<void> _objectScaleEnd(ScaleEndDetails d) async {
+    if (_pinchingCamera) _publishViewport();
     _pinchingCamera = false;
     if (_gestureObjectId == null) return;
     final object = _objectById(_gestureObjectId);
@@ -957,7 +1021,8 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
     );
     // Curated +130 objects must be identical in the catalogue and CAD canvas.
     // The separate 3D-camera thumbnail uses a different look and angle.
-    if (ImportedTopViewAssets.curated131Rects.containsKey(item.id) ||
+    if (ImportedTopViewAssets.hasNeutralTopView(item.id) ||
+        ImportedTopViewAssets.curated131Rects.containsKey(item.id) ||
         ImportedTopViewAssets.approvedRects.containsKey(item.id)) {
       return fallback;
     }
@@ -1449,6 +1514,7 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
           child: LayoutBuilder(
             builder: (context, c) {
               final size = Size(c.maxWidth, c.maxHeight);
+              _viewportSize = size;
               final tx = _tx(size);
 
               return Stack(children: [
@@ -1465,28 +1531,36 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
                       origin: tx.origin,
                       selectedId: _selectedId,
                       snapAngleDeg: _gestureSnapAngleDeg,
+                      collisionIssues: spaceIssues,
                     ),
                     child: const SizedBox.expand(),
                   ),
                 )),
                 Positioned(right: 9, bottom: 10, child: Row(children: [
                   _viewportButton(Icons.remove_rounded,
-                    () => setState(() => _viewZoom =
-                      (_viewZoom / 1.2).clamp(.5, 6.0).toDouble())),
+                    () => _changeViewportZoom(1 / 1.2)),
                   const SizedBox(width: 5),
                   _viewportButton(Icons.add_rounded,
-                    () => setState(() => _viewZoom =
-                      (_viewZoom * 1.2).clamp(.5, 6.0).toDouble())),
+                    () => _changeViewportZoom(1.2)),
                   const SizedBox(width: 5),
                   _viewportButton(Icons.center_focus_strong_rounded,
-                    () => setState(() {
-                      _viewZoom = 1; _viewPan = Offset.zero;
-                    })),
+                    _resetViewport),
                 ])),
                 if (_objectById(_selectedId) case final selected?)
                   Positioned(
-                    left: 10, bottom: 9,
-                    width: math.max(95.0, math.min(195.0, size.width - 146)),
+                    // Follow the selected furniture, not a fixed footer.
+                    left: (tx.origin.dx + selected.xMm * tx.scale - 95)
+                      .clamp(8.0, math.max(8.0, size.width - 206))
+                      .toDouble(),
+                    top: (tx.origin.dy + selected.yMm * tx.scale +
+                      selected.depthMm * tx.scale / 2 + 14 + 55 < size.height
+                      ? tx.origin.dy + selected.yMm * tx.scale +
+                          selected.depthMm * tx.scale / 2 + 14
+                      : tx.origin.dy + selected.yMm * tx.scale -
+                          selected.depthMm * tx.scale / 2 - 52)
+                      .clamp(54.0, math.max(54.0, size.height - 56))
+                      .toDouble(),
+                    width: math.max(110.0, math.min(195.0, size.width - 16)),
                     child: Material(
                       key: const ValueKey('floating-object-inspector'),
                       color: const Color(0xF00D2028),
@@ -1496,12 +1570,35 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
                         padding: const EdgeInsets.symmetric(
                           horizontal: 7, vertical: 4),
                         child: Row(children: [
-                          Expanded(child: Text(
-                            selected.label.trim().isEmpty
-                              ? selected.type.label : selected.label,
-                            maxLines: 1, overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 11,
-                              fontWeight: FontWeight.w700))),
+                          Expanded(child: InkWell(
+                            key: const ValueKey('object-exact-dimensions'),
+                            borderRadius: BorderRadius.circular(7),
+                            onTap: () => _edit(selected),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 3),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    selected.label.trim().isEmpty
+                                      ? selected.type.label : selected.label,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 11, fontWeight: FontWeight.w700)),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    '${selected.widthMm.round()} × '
+                                    '${selected.depthMm.round()} мм',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: ZamerColors.accent, fontSize: 9.5)),
+                                ],
+                              ),
+                            ),
+                          )),
                           IconButton(
                             tooltip: 'Повернуть −15°',
                             constraints: const BoxConstraints.tightFor(
@@ -1523,10 +1620,18 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
                 if (spaceIssues.isNotEmpty)
                   Positioned(
                     left: 8, top: 8,
-                    width: math.min(234.0, size.width - 16),
+                    width: math.min(155.0, size.width - 16),
                     child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
+            padding: EdgeInsets.zero,
             child: OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(0, 34),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                backgroundColor: const Color(0xFF351C25),
+                foregroundColor: const Color(0xFFFF8793),
+                side: const BorderSide(color: Color(0xFFA64D61)),
+                textStyle: const TextStyle(fontSize: 11),
+              ),
               onPressed: () => showModalBottomSheet<void>(
                 context: context,
                 isScrollControlled: true,
@@ -1618,6 +1723,7 @@ class _PlanningPainter extends CustomPainter {
     this.selectedId,
     this.snapAngleDeg,
     this.darkPreview = false,
+    this.collisionIssues = const <SpaceIssue>[],
   }) : super(repaint: ImportedTopViewAssets.instance);
 
   final FloorPlan floor;
@@ -1626,6 +1732,137 @@ class _PlanningPainter extends CustomPainter {
   final String? selectedId;
   final double? snapAngleDeg;
   final bool darkPreview;
+  final List<SpaceIssue> collisionIssues;
+
+  Path _objectFootprint(PlanObject object) {
+    final cx = origin.dx + object.xMm * scale;
+    final cy = origin.dy + object.yMm * scale;
+    final w = object.widthMm * scale / 2;
+    final h = object.depthMm * scale / 2;
+    final angle = object.rotationDeg * math.pi / 180;
+    final cosAngle = math.cos(angle);
+    final sinAngle = math.sin(angle);
+    final corners = <Offset>[
+      Offset(-w, -h), Offset(w, -h),
+      Offset(w, h), Offset(-w, h),
+    ].map((p) => Offset(
+      cx + p.dx * cosAngle - p.dy * sinAngle,
+      cy + p.dx * sinAngle + p.dy * cosAngle,
+    )).toList(growable: false);
+    return Path()
+      ..moveTo(corners[0].dx, corners[0].dy)
+      ..lineTo(corners[1].dx, corners[1].dy)
+      ..lineTo(corners[2].dx, corners[2].dy)
+      ..lineTo(corners[3].dx, corners[3].dy)
+      ..close();
+  }
+
+  Path? _wallFootprint(PlanWall wall) {
+    final a = floor.nodeById(wall.startNodeId);
+    final b = floor.nodeById(wall.endNodeId);
+    if (a == null || b == null) return null;
+    final dx = b.xMm - a.xMm;
+    final dy = b.yMm - a.yMm;
+    final length = math.sqrt(dx * dx + dy * dy);
+    if (length < 1) return null;
+    final normalX = -dy * wall.thicknessMm / (2 * length);
+    final normalY = dx * wall.thicknessMm / (2 * length);
+    Offset point(double x, double y) =>
+      origin + Offset(x * scale, y * scale);
+    final points = <Offset>[
+      point(a.xMm + normalX, a.yMm + normalY),
+      point(b.xMm + normalX, b.yMm + normalY),
+      point(b.xMm - normalX, b.yMm - normalY),
+      point(a.xMm - normalX, a.yMm - normalY),
+    ];
+    return Path()
+      ..moveTo(points[0].dx, points[0].dy)
+      ..lineTo(points[1].dx, points[1].dy)
+      ..lineTo(points[2].dx, points[2].dy)
+      ..lineTo(points[3].dx, points[3].dy)
+      ..close();
+  }
+
+  void _drawCollisionContours(Canvas canvas) {
+    if (collisionIssues.isEmpty) return;
+    final byId = <String, PlanObject>{
+      for (final object in floor.planObjects) object.id: object,
+    };
+    final critical = <String>{};
+    final doorClearances = <String>{};
+    final overlapPaint = Paint()
+      ..color = const Color(0xFFFF435B).withValues(alpha: .40);
+    for (final issue in collisionIssues) {
+      if (issue.kind == SpaceIssueKind.doorClearance) {
+        doorClearances.addAll(issue.objectIds);
+      } else {
+        critical.addAll(issue.objectIds);
+      }
+      // True polygon intersection, not a red bounding box or a guessed
+      // warning coordinate. This area remains bound to real CAD geometry.
+      if (issue.kind == SpaceIssueKind.objectObject &&
+          issue.objectIds.length == 2) {
+        final a = byId[issue.objectIds[0]];
+        final b = byId[issue.objectIds[1]];
+        if (a == null || b == null) continue;
+        try {
+          final crossing = Path.combine(PathOperation.intersect,
+              _objectFootprint(a), _objectFootprint(b));
+          canvas.drawPath(crossing, overlapPaint);
+        } catch (_) { /* An invalid imported polygon must not crash CAD. */ }
+      }
+      if (issue.kind == SpaceIssueKind.objectWall &&
+          issue.objectIds.isNotEmpty) {
+        final object = byId[issue.objectIds.first];
+        if (object == null) continue;
+        final objectPath = _objectFootprint(object);
+        for (final wall in floor.walls) {
+          if (wall.demolition || wall.projectLayer == ProjectLayer.demolition) {
+            continue;
+          }
+          final wallPath = _wallFootprint(wall);
+          if (wallPath == null ||
+              !objectPath.getBounds().overlaps(wallPath.getBounds())) continue;
+          try {
+            canvas.drawPath(
+              Path.combine(PathOperation.intersect, objectPath, wallPath),
+              overlapPaint);
+          } catch (_) { /* Imported wall curves may be incomplete. */ }
+        }
+      }
+    }
+    for (final entry in <(Set<String>, Color)>[
+      (critical, const Color(0xFFFF435B)),
+      (doorClearances.difference(critical), const Color(0xFFF6B35B)),
+    ]) {
+      for (final id in entry.$1) {
+        final object = byId[id];
+        if (object == null) continue;
+        final path = _objectFootprint(object);
+        canvas.drawPath(path, Paint()
+          ..color = entry.$2.withValues(alpha: .30)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 7
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5));
+        canvas.drawPath(path, Paint()
+          ..color = entry.$2
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.4);
+        final bounds = path.getBounds();
+        final mark = Offset(bounds.right, bounds.top);
+        canvas.drawCircle(mark, 9, Paint()
+          ..color = const Color(0xFF101820));
+        canvas.drawCircle(mark, 7.5, Paint()..color = entry.$2);
+        final text = TextPainter(
+          text: const TextSpan(text: '!',
+            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800,
+              color: Colors.white)),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        text.paint(canvas, mark - Offset(text.width / 2, text.height / 2));
+      }
+    }
+  }
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1638,9 +1875,11 @@ class _PlanningPainter extends CustomPainter {
       mmToPx: scale,
       origin: origin,
       showGrid: !darkPreview,
-      showDimensions: !darkPreview,
+      // Furniture editing should not re-enable exterior dimension chains.
+      showDimensions: false,
     ).paint(canvas, size);
 
+    _drawCollisionContours(canvas);
     if (selectedId == null) return;
     PlanObject? selected;
     for (final object in floor.planObjects) {
@@ -1665,6 +1904,10 @@ class _PlanningPainter extends CustomPainter {
 
     // The highlight is intentionally separate from the model. Selection
     // never changes its physical footprint, rotation or raster appearance.
+    final selectedObjectId = selected.id;
+    final colliding = collisionIssues.any((issue) =>
+      issue.objectIds.contains(selectedObjectId) &&
+      issue.kind != SpaceIssueKind.doorClearance);
     canvas.save();
     canvas.translate(center.dx, center.dy);
     canvas.rotate(selected.rotationDeg * math.pi / 180);
@@ -1674,7 +1917,7 @@ class _PlanningPainter extends CustomPainter {
         const Radius.circular(4),
       ),
       Paint()
-        ..color = ZamerColors.accent
+        ..color = colliding ? const Color(0xFFFF435B) : ZamerColors.accent
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2,
     );

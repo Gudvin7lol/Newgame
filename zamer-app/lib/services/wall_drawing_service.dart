@@ -33,6 +33,19 @@ class WallDrawingService {
   static const double minimumLengthMm = 120;
   static const double maximumLengthMm = 100000;
 
+  /// A complete outline needs at least three committed segments. Touching
+  /// its first node must not terminate a two-point drawing prematurely.
+  static bool closesChain({
+    required String? firstNodeId,
+    required String endNodeId,
+    required int completedSegments,
+    required bool changed,
+  }) =>
+      changed &&
+      completedSegments >= 2 &&
+      firstNodeId != null &&
+      firstNodeId == endNodeId;
+
   static double distance(math.Point<double> a, math.Point<double> b) =>
       math.sqrt(math.pow(a.x - b.x, 2) + math.pow(a.y - b.y, 2));
 
@@ -101,6 +114,7 @@ class WallDrawingService {
     double wallCaptureMm = 70,
     bool allowWallFaces = true,
     WallDrawingTarget? previousSnap,
+    String? priorityNodeId,
   }) {
     final start = floor.nodeById(startNodeId);
     if (start == null) {
@@ -155,6 +169,25 @@ class WallDrawingService {
           return WallDrawingTarget(
             point: held, kind: NodeSnapKind.node,
             targetNodeId: heldId,
+          );
+        }
+      }
+    }
+
+    // Give the initial contour node a narrow closure magnet, but only if it
+    // lies on the locked construction ray. A nearby unrelated junction must
+    // still win when the finger is outside this small closure radius.
+    if (priorityNodeId != null &&
+        priorityNodeId != startNodeId) {
+      final first = floor.nodeById(priorityNodeId);
+      if (first != null) {
+        final point = math.Point<double>(first.xMm, first.yMm);
+        if (distance(candidate, point) <= nodeCaptureMm * .7 &&
+            onLockedRay(point)) {
+          return WallDrawingTarget(
+            point: point,
+            kind: NodeSnapKind.node,
+            targetNodeId: first.id,
           );
         }
       }

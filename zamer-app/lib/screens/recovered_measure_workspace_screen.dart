@@ -4,6 +4,7 @@ import '../design_system/zamer_measure_chrome.dart';
 import '../design_system/zamer_tokens.dart';
 import '../models/models.dart';
 import '../services/equipment_placement_service.dart';
+import '../services/plan_viewport_link.dart';
 import '../widgets/recovered_workspace_navigation.dart';
 import '../widgets/workspace_master_header.dart';
 import '../widgets/workspace_mode_context.dart';
@@ -72,6 +73,8 @@ class _RecoveredMeasureWorkspaceScreenState
   String? _selectionKind;
   String _activeFanCommand = 'select';
   final ValueNotifier<String?> _objectFanCommands = ValueNotifier(null);
+  final ValueNotifier<PlanViewportSnapshot?> _sharedViewport =
+      ValueNotifier<PlanViewportSnapshot?>(null);
   int _objectCommandSerial = 0;
   MeasurePlanTool _planTool = MeasurePlanTool.select;
   OpeningType? _preferredOpeningType;
@@ -82,6 +85,7 @@ class _RecoveredMeasureWorkspaceScreenState
   @override
   void dispose() {
     _objectFanCommands.dispose();
+    _sharedViewport.dispose();
     super.dispose();
   }
 
@@ -481,6 +485,8 @@ class _RecoveredMeasureWorkspaceScreenState
         onOpenObjects: () => _selectLayer(2),
         planTool: _planTool,
         nativeKitV2: true,
+        sharedViewport: _sharedViewport,
+        viewportActive: _layer == 0,
         preferredOpeningType: _preferredOpeningType,
         onSelectionChanged: (kind) {
           if (mounted && kind != _selectionKind) {
@@ -501,11 +507,15 @@ class _RecoveredMeasureWorkspaceScreenState
       MeasureFloorPlanLayerScreen(
         floor: widget.floor,
         onChanged: widget.onChanged,
+        sharedViewport: _sharedViewport,
+        viewportActive: _layer == 1,
       ),
       PlanningObjectsScreen(
         floor: widget.floor,
         onChanged: widget.onChanged,
         embedded: true,
+        sharedViewport: _sharedViewport,
+        viewportActive: _layer == 2,
         fanCommand: _objectFanCommands,
         onSelectedObjectChanged: (object) {
           if (!mounted) return;
@@ -573,7 +583,7 @@ class _RecoveredMeasureWorkspaceScreenState
                   // Keep the dial thumb-reachable without obscuring the drawing.
                   right: 4, bottom: 8,
                   child: Transform.scale(
-                    scale: .82,
+                    scale: .78,
                     alignment: Alignment.bottomRight,
                     child: ZamerKitFan(
                     key: const ValueKey('zamer-native-v2-fan'),

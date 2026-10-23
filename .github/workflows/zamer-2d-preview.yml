@@ -1,0 +1,64 @@
+name: Zamer 2D walls and furniture preview
+
+on:
+  push:
+    branches: [codex/zamer-2d-walls-furniture-pass1]
+    paths:
+      - zamer-app/**
+      - .github/workflows/zamer-2d-preview.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: zamer-2d-preview-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: zamer-app
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore imported visual pack
+        run: bash tool/imported_2026_10_02/restore_pack.sh
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.5
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - name: Check rendering and geometry
+        run: >-
+          flutter test --dart-define=ZAMER_WRITE_PREVIEW=true
+          test/neutral_2d_rendering_test.dart
+          test/wall_geometry_controls_v138_test.dart
+          test/room_object_raster_order_test.dart
+          test/cad_visual_quality_test.dart
+          test/cad_precision_v143_test.dart
+          test/curated_131_topview_contract_test.dart
+          test/approved_top_view_130_test.dart
+          test/measure_ui_kit_02_contract_test.dart
+          test/measure_page_production_contract_test.dart
+      - name: Upload actual painter preview
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Zamer-2D-walls-furniture-preview
+          path: zamer-app/docs/previews/*.png
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Analyze changed renderer
+        run: >-
+          flutter analyze --no-fatal-infos
+          lib/services/imported_top_view_assets.dart
+          lib/services/top_view_contact_shadow.dart
+          lib/widgets/cad_plan_painter_v2.dart
+          lib/widgets/cad_plan_painter_v3.dart
+          lib/widgets/cad_wall_join_geometry.dart
+          lib/widgets/top_view_object_renderer.dart
+          test/neutral_2d_rendering_test.dart

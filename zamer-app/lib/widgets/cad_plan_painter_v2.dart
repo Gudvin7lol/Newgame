@@ -12,6 +12,7 @@ import '../services/plan_visibility_service.dart';
 import '../services/room_interior_dimensions_service.dart';
 import '../services/space_check_service.dart';
 import 'cad_wall_join_geometry.dart';
+import 'cad_contact_shadow_painter.dart';
 import 'top_view_object_renderer.dart';
 
 /// UI KIT 02 CAD renderer for +78.
@@ -39,6 +40,7 @@ class CadPlanPainterV2 extends CustomPainter {
     this.showDimensions = true,
     this.zoom = 1.0,
     this.showOpeningDimensions = false,
+    this.showDepth = true,
     this.drawTopView,
     Set<ProjectLayer>? visibleLayers,
     Set<PlanDisplayLayer>? visibleCategories,
@@ -56,6 +58,7 @@ class CadPlanPainterV2 extends CustomPainter {
   final bool showDimensions;
   final double zoom;
   final bool showOpeningDimensions;
+  final bool showDepth;
   final ObjectTopViewPainter? drawTopView;
   final Set<ProjectLayer> visibleLayers;
   final Set<PlanDisplayLayer> visibleCategories;
@@ -68,11 +71,22 @@ class CadPlanPainterV2 extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     _background(canvas, size);
     final faces = GeometryService.roomFaces(floor);
+    final wallBodies = visibleCategories.contains(PlanDisplayLayer.walls)
+        ? CadWallJoinGeometry.bodies(
+            floor: floor, mmToPx: mmToPx, origin: origin,
+            visibleLayers: visibleLayers,
+          )
+        : null;
     if (visibleCategories.contains(PlanDisplayLayer.floorFinishes)) {
       _rooms(canvas, faces);
     }
-    if (visibleCategories.contains(PlanDisplayLayer.walls)) _walls(canvas, faces);
+    if (showDepth && wallBodies != null) {
+      _wallContacts(canvas, faces, wallBodies);
+    }
     _objects(canvas);
+    // Keep walls and opening symbols legible above intersecting furniture.
+    // Collision overlays still paint last, above the solid wall body.
+    if (wallBodies != null) _walls(canvas, faces, wallBodies);
     if (visibleCategories.contains(PlanDisplayLayer.engineering)) {
       _services(canvas);
     }
@@ -105,7 +119,6 @@ class CadPlanPainterV2 extends CustomPainter {
     if (!showGrid) return;
 
     final minor = 250 * mmToPx;
-    final major = 1000 * mmToPx;
     if (minor < 8) return;
 
     final minorPaint = Paint()
@@ -489,29 +502,73 @@ class CadPlanPainterV2 extends CustomPainter {
     }
   }
 
-  void _walls(Canvas canvas, List<RoomFace> faces) {
-    final bodies = CadWallJoinGeometry.bodies(
-      floor: floor,
-      mmToPx: mmToPx,
-      origin: origin,
-      visibleLayers: visibleLayers,
-    );
-    final all = Path();
-    for (final layer in ProjectLayer.values) {
-      all.addPath(bodies[layer]!, Offset.zero);
+  void _wallContacts(
+    Canvas canvas, List<RoomFace> faces, Map<ProjectLayer, Path> bodies,
+  ) {
+    if (faces.isEmpty) return;
+    var body = Path();
+    for (final path in bodies.values) {
+      body = Path.combine(PathOperation.union, body, path);
     }
-    // One shadow for the union of the bodies. Independent square-ended
-    // strokes used to produce black strips and bright bulges at T joints.
+    // Cut openings before filtering so no dark stripe crosses a doorway.
+    if (visibleCategories.contains(PlanDisplayLayer.openings)) {
+      final cuts = Path();
+      for (final wall in floor.walls) {
+        final layer = wall.demolition ? ProjectLayer.demolition : wall.projectLayer;
+        if (!visibleLayers.contains(layer) || wall.isCurved) continue;
+        final a = floor.nodeById(wall.startNodeId);
+        final b = floor.nodeById(wall.endNodeId);
+        if (a == null || b == null) continue;
+        final vector = _p(b) - _p(a);
+        final length = vector.distance;
+        if (length < .01) continue;
+        final unit = vector / length;
+        final normal = Offset(-unit.dy, unit.dx);
+        final half = wall.thicknessMm * mmToPx / 2 + 2;
+        for (final opening in wall.openings) {
+          final start = _p(a) + unit *
+              (opening.offsetFromStartMm * mmToPx).clamp(0.0, length).toDouble();
+          final end = _p(a) + unit *
+              ((opening.offsetFromStartMm + opening.widthMm) * mmToPx)
+                  .clamp(0.0, length).toDouble();
+          cuts.addPolygon([
+            start - normal * half, end - normal * half,
+            end + normal * half, start + normal * half,
+          ], true);
+        }
+      }
+      body = Path.combine(PathOperation.difference, body, cuts);
+    }
+    final rooms = Path();
+    for (final face in faces) {
+      rooms.addPath(_roomPath(face), Offset.zero);
+    }
     canvas.save();
-    canvas.translate(1.1, 1.2);
+    canvas.clipPath(rooms);
     canvas.drawPath(
-      all,
-      Paint()..color = Colors.black.withValues(alpha: .26),
+      body,
+      Paint()
+        ..color = const Color(0xFF17201B).withValues(alpha: .30)
+        ..maskFilter = MaskFilter.blur(
+          BlurStyle.normal, math.max(.6, 34 * mmToPx),
+        ),
+    );
+    canvas.drawPath(
+      body,
+      Paint()
+        ..color = const Color(0xFF17201B).withValues(alpha: .14)
+        ..maskFilter = MaskFilter.blur(
+          BlurStyle.normal, math.max(.4, 8 * mmToPx),
+        ),
     );
     canvas.restore();
+  }
 
+  void _walls(
+    Canvas canvas, List<RoomFace> faces, Map<ProjectLayer, Path> bodies,
+  ) {
     const colors = <ProjectLayer, Color>{
-      ProjectLayer.existing: Color(0xFFF0F1ED),
+      ProjectLayer.existing: Color(0xFF353B3C),
       ProjectLayer.demolition: ZamerColors.danger,
       ProjectLayer.proposed: Color(0xFF5FD189),
     };
@@ -520,6 +577,31 @@ class CadPlanPainterV2 extends CustomPainter {
       canvas.drawPath(
         bodies[layer]!,
         Paint()..color = colors[layer]!,
+      );
+      if (showDepth) {
+        // Fixed plan-space bevel: its light direction cannot turn with furniture.
+        final edge = (10 * mmToPx).clamp(.55, 2.8).toDouble();
+        final body = bodies[layer]!;
+        canvas.drawPath(
+          Path.combine(PathOperation.difference, body,
+              body.shift(Offset(edge, edge))),
+          Paint()..color = Colors.white.withValues(alpha: .20),
+        );
+        canvas.drawPath(
+          Path.combine(PathOperation.difference, body,
+              body.shift(Offset(-edge, -edge))),
+          Paint()..color = Colors.black.withValues(alpha: .22),
+        );
+      }
+      // A neutral silhouette edge separates the cut wall from pale finishes.
+      // The merged body has no internal seams or exterior scene shadow.
+      canvas.drawPath(
+        bodies[layer]!,
+        Paint()
+          ..color = const Color(0xFF8C9390)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = .65
+          ..strokeJoin = StrokeJoin.miter,
       );
     }
 
@@ -707,27 +789,42 @@ class CadPlanPainterV2 extends CustomPainter {
         final frameHalf = math.max(1.0, wallWidth / 2 - 1.0);
         _doorwayQuad(
           canvas, p1, p2, normal, -frameHalf, frameHalf,
-          const Color(0xFFDDE7E9),
+          const Color(0xFFE4E7E1),
         );
+        // A slim architectural frame and two panes replace the oversized
+        // blue strokes. All profiles remain inside the physical wall cut.
+        final profileHalf = math.min(frameHalf, 45 * mmToPx);
         final frame = Paint()
-          ..color = const Color(0xFF4CB9F8)
-          ..strokeWidth = math.max(1.2, wallWidth * .18)
+          ..color = const Color(0xFF687675)
+          ..strokeWidth = math.max(.8, 18 * mmToPx)
           ..strokeCap = StrokeCap.butt;
+        _doorwayQuad(
+          canvas, p1, p2, normal, -profileHalf, profileHalf,
+          const Color(0xFFC8DAD8),
+        );
         canvas.drawLine(
-          p1 + normal * wallWidth * .22,
-          p2 + normal * wallWidth * .22,
+          p1 + normal * profileHalf,
+          p2 + normal * profileHalf,
           frame,
         );
         canvas.drawLine(
-          p1 - normal * wallWidth * .22,
-          p2 - normal * wallWidth * .22,
+          p1 - normal * profileHalf,
+          p2 - normal * profileHalf,
           frame,
         );
+        for (final t in [0.0, .5, 1.0]) {
+          final at = Offset.lerp(p1, p2, t)!;
+          canvas.drawLine(
+            at - normal * profileHalf,
+            at + normal * profileHalf,
+            frame,
+          );
+        }
         canvas.drawLine(
           p1, p2,
           Paint()
-            ..color = const Color(0xFFB8E4FA).withValues(alpha: .72)
-            ..strokeWidth = 1.0,
+            ..color = const Color(0xFFF3F6F1)
+            ..strokeWidth = .7,
         );
         continue;
       }
@@ -782,11 +879,58 @@ class CadPlanPainterV2 extends CustomPainter {
       ) ? 1.0 : -1.0;
       final widthPx = (p2 - p1).distance;
       final leaf = hinge + normal * widthPx * side;
+      // Door casing and leaf have physical thickness, independent of the
+      // swing arc. Previously a single white line disappeared on pale floors.
+      final casing = math.max(1.2, 52 * mmToPx);
+      for (final jamb in [p1, p2]) {
+        canvas.drawLine(
+          jamb - normal * wallWidth / 2,
+          jamb + normal * wallWidth / 2,
+          Paint()
+            ..color = const Color(0xFF71736D)
+            ..strokeWidth = casing + .8,
+        );
+        canvas.drawLine(
+          jamb - normal * wallWidth / 2,
+          jamb + normal * wallWidth / 2,
+          Paint()
+            ..color = const Color(0xFFE8E3D8)
+            ..strokeWidth = casing,
+        );
+      }
+      final halfLeaf = math.max(.6, 36 * mmToPx / 2);
+      final leafBody = Path()
+        ..moveTo((hinge - unit * halfLeaf).dx,
+            (hinge - unit * halfLeaf).dy)
+        ..lineTo((leaf - unit * halfLeaf).dx,
+            (leaf - unit * halfLeaf).dy)
+        ..lineTo((leaf + unit * halfLeaf).dx,
+            (leaf + unit * halfLeaf).dy)
+        ..lineTo((hinge + unit * halfLeaf).dx,
+            (hinge + unit * halfLeaf).dy)
+        ..close();
+      canvas.drawPath(leafBody, Paint()..color = const Color(0xFFDDD3BF));
+      canvas.drawPath(
+        leafBody,
+        Paint()
+          ..color = const Color(0xFF77776D)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = .7,
+      );
+      if (widthPx > 35) {
+        final handle = hinge + normal * widthPx * side * .88;
+        canvas.drawLine(
+          handle, handle + closed * math.max(2, 65 * mmToPx),
+          Paint()
+            ..color = const Color(0xFF5D6866)
+            ..strokeWidth = math.max(.8, 12 * mmToPx)
+            ..strokeCap = StrokeCap.round,
+        );
+      }
       final paint = Paint()
-        ..color = const Color(0xFFE6E4DE)
+        ..color = const Color(0xFF747A72).withValues(alpha: .62)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.0;
-      canvas.drawLine(hinge, leaf, paint);
+        ..strokeWidth = .65;
       final closedAngle = math.atan2(closed.dy, closed.dx);
       final openAngle = math.atan2(normal.dy * side, normal.dx * side);
       var sweep = openAngle - closedAngle;
@@ -800,7 +944,17 @@ class CadPlanPainterV2 extends CustomPainter {
   }
 
   void _objects(Canvas canvas) {
-    for (final object in floor.planObjects) {
+    // Stable partition: a rug added after a sofa must still lie underneath.
+    // Preserve user insertion order within each group and the saved model.
+    final ordered = [
+      ...floor.planObjects.where(
+        (object) => object.catalogId.startsWith('rug-'),
+      ),
+      ...floor.planObjects.where(
+        (object) => !object.catalogId.startsWith('rug-'),
+      ),
+    ];
+    for (final object in ordered) {
       final category = switch (object.type) {
         PlanObjectType.furniture => PlanDisplayLayer.furniture,
         PlanObjectType.sanitary ||
@@ -819,6 +973,12 @@ class CadPlanPainterV2 extends CustomPainter {
       // Room names and dimension chains must remain above furniture artwork.
       if (drawTopView?.call(canvas, object, center, mmToPx) == true) {
         continue;
+      }
+      // Raster silhouettes get their cached alpha shadow in V3. Draw the
+      // lighter geometric fallback only when no raster was available.
+      if (showDepth) {
+        CadContactShadowPainter.drawObject(
+          canvas, object, center: center, mmToPx: mmToPx);
       }
       TopViewObjectRenderer.draw(
         canvas,

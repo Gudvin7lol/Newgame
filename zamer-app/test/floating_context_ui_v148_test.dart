@@ -37,7 +37,7 @@ void main() {
   test('radial dial stays compact in the live recovery shell', () {
     final src = File('lib/screens/recovered_measure_workspace_screen.dart')
         .readAsStringSync();
-    expect(src, contains('scale: .82'));
+    expect(src, contains('scale: .78'));
     expect(src, contains("ValueKey('zamer-native-v2-fan')"));
     expect(src, contains('bottom: 8'));
   });

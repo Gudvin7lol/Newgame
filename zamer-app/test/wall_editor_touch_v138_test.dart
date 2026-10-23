@@ -27,7 +27,9 @@ void main() {
     for (final method in <String>[
       'onInteractionStart: _wallDragStart',
       'onInteractionUpdate: _wallDragUpdate',
-      'onInteractionEnd: (_) => unawaited(_wallDragFinish())',
+      'onInteractionEnd: (_) {',
+      'unawaited(_wallDragFinish());',
+      '_publishViewport();',
       'OrthogonalWallEditService.move(',
       'WallDrawingService.snap(',
       'wall-build-exact-length',

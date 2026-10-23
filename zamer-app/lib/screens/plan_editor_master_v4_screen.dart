@@ -19,6 +19,7 @@ import '../services/opening_alignment_service.dart';
 import '../services/plan_visibility_service.dart';
 import 'measure_plan_tool.dart';
 import '../services/space_check_service.dart';
+import '../services/plan_viewport_link.dart';
 import '../widgets/cad_plan_painter.dart';
 import '../widgets/wall_draft_guide_painter.dart';
 
@@ -33,6 +34,8 @@ class PlanEditorMasterV4Screen extends StatefulWidget {
     this.preferredOpeningType,
     this.onSelectionChanged,
     this.nativeKitV2 = false,
+    this.sharedViewport,
+    this.viewportActive = true,
     required this.onOpenObjects,
     required this.onOpenReview,
     required this.onOpenGeometry,
@@ -52,6 +55,8 @@ class PlanEditorMasterV4Screen extends StatefulWidget {
   final OpeningType? preferredOpeningType;
   final ValueChanged<String?>? onSelectionChanged;
   final bool nativeKitV2;
+  final ValueNotifier<PlanViewportSnapshot?>? sharedViewport;
+  final bool viewportActive;
   final VoidCallback onOpenObjects;
   final VoidCallback onOpenReview;
   final VoidCallback onOpenGeometry;
@@ -124,6 +129,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   ProjectLayer _drawingLayer = ProjectLayer.existing;
   String? _selectedRoomFaceKey;
   String? _wallStartNodeId;
+  String? _wallChainFirstNodeId;
+  int _wallChainSegments = 0;
   String? _dimensionStartNodeId;
   math.Point<double>? _dimensionStartInterior;
   String? _dimensionStartInteriorNodeId;
@@ -184,10 +191,16 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   @override
   void didUpdateWidget(covariant PlanEditorMasterV4Screen oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (widget.viewportActive && (!oldWidget.viewportActive ||
+        oldWidget.sharedViewport != widget.sharedViewport)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _adoptViewport());
+    }
     if (oldWidget.planTool != widget.planTool) {
       // Switching tools must not continue an unfinished wall/arc, dimension,
       // or vertex drag on the same shared canvas.
       _wallStartNodeId = null;
+      _wallChainFirstNodeId = null;
+      _wallChainSegments = 0;
       _lastWallSnapLabel = null;
       _liveWallSnap = null;
       _moveCameraInsteadOfDrawing = false;
@@ -276,6 +289,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     setState(() {
       _materialPickMode = true;
       _wallStartNodeId = null;
+      _wallChainFirstNodeId = null;
+      _wallChainSegments = 0;
       _dimensionStartNodeId = null;
       _selectedWallId = null;
     });
@@ -290,6 +305,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       _materialCategory = category;
       _materialPickMode = true;
       _wallStartNodeId = null;
+      _wallChainFirstNodeId = null;
+      _wallChainSegments = 0;
       _dimensionStartNodeId = null;
       _selectedWallId = null;
     });
@@ -557,6 +574,33 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     );
   }
 
+
+  void _publishViewport() {
+    if (!widget.viewportActive) return;
+    final link = widget.sharedViewport;
+    if (link == null) return;
+    final snapshot = PlanViewportSnapshot.capture(
+      viewport: _viewport, origin: _origin,
+      mmToPx: _mmToPx, transform: _transform.value);
+    if (snapshot == null) return;
+    if (link.value case final existing?) {
+      if (snapshot.nearlyEquals(existing)) return;
+    }
+    link.value = snapshot;
+  }
+
+  void _adoptViewport() {
+    if (!mounted || !widget.viewportActive || _viewport.isEmpty) return;
+    final saved = widget.sharedViewport?.value;
+    if (saved == null) return;
+    final matrix = saved.toCanvasTransform(
+      viewport: _viewport, origin: _origin,
+      mmToPx: _mmToPx, minScale: .28, maxScale: 6);
+    if (matrix == null) return;
+    _transform.value = matrix;
+    setState(() => _centered = true);
+  }
+
   void _fit() {
     if (_viewport.isEmpty) return;
     if (floor.nodes.isEmpty) {
@@ -565,6 +609,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
         ..translate(center.dx - _origin.dx,
             center.dy - _origin.dy);
       if (mounted) setState(() {});
+      _publishViewport();
       return;
     }
     const left = 70.0;
@@ -590,6 +635,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       ..translate(target.dx - center.dx * scale, target.dy - center.dy * scale)
       ..scale(scale);
     if (mounted) setState(() {});
+    _publishViewport();
   }
 
   void _zoom(double factor) {
@@ -602,6 +648,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       ..translate(center.dx - scene.dx * next, center.dy - scene.dy * next)
       ..scale(next);
     setState(() {});
+    _publishViewport();
   }
 
   // In Select mode a one-finger drag starting on an eligible straight wall
@@ -802,6 +849,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     wallCaptureMm: 12 / (_mmToPx * _scale),
     allowWallFaces: _captureWallFace,
     previousSnap: _liveWallSnap,
+    priorityNodeId: _wallChainSegments >= 2
+        ? _wallChainFirstNodeId : null,
   );
 
   // Listener is passive: it never claims a gesture. Navigation is only
@@ -932,6 +981,9 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     final target = endViewport == null ? null :
         _transform.toScene(endViewport);
     _stopEdgePan();
+    // Edge auto-pan moves the CAD camera outside InteractiveViewer gestures.
+    // Publish its final position, otherwise switching to Floor resets zoom.
+    _publishViewport();
     if (shouldCommit && target != null) {
       unawaited(_createWall(
         target,
@@ -979,7 +1031,11 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     final dy = snap.point.y - start.yMm;
     final lengthMm = math.sqrt(dx * dx + dy * dy);
     final angle = math.atan2(dy, dx) * 180 / math.pi;
-    final kind = !_snapping ? 'Без привязки' : snap.label;
+    final closesOutline = _wallChainSegments >= 2 &&
+        snap.targetNodeId == _wallChainFirstNodeId &&
+        snap.targetNodeId != null;
+    final kind = closesOutline
+        ? 'Замкнуть контур' : !_snapping ? 'Без привязки' : snap.label;
     final target = snap.targetNodeId != null
         ? ' · Узел' : snap.targetWallId != null ? ' · Стена' : '';
     final kindLabel = '$kind$target';
@@ -1065,6 +1121,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       }
       setState(() {
         _wallStartNodeId = node.id;
+        _wallChainFirstNodeId = node.id;
+        _wallChainSegments = 0;
         _lastWallSnapLabel = 'Начало стены';
         _liveWallSnap = null;
         _selectedWallId = null;
@@ -1138,8 +1196,17 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     }
     _lastWallAngleDegrees =
         math.atan2(end.yMm - start.yMm, end.xMm - start.xMm) * 180 / math.pi;
+    final closed = WallDrawingService.closesChain(
+      firstNodeId: _wallChainFirstNodeId,
+      endNodeId: end.id,
+      completedSegments: _wallChainSegments,
+      changed: changed,
+    );
     setState(() {
-      _wallStartNodeId = end.id;
+      _wallStartNodeId = closed ? null : end.id;
+      _wallChainSegments = closed ? 0 : _wallChainSegments + (changed ? 1 : 0);
+      if (closed) _wallChainFirstNodeId = null;
+      _lastWallSnapLabel = closed ? 'Контур замкнут' : _lastWallSnapLabel;
       _liveWallSnap = null;
       if (drawn.isNotEmpty) _selectedWallId = drawn.last.id;
     });
@@ -2521,6 +2588,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       _materialPickMode = false;
       _tool = tool;
       _wallStartNodeId = null;
+      _wallChainFirstNodeId = null;
+      _wallChainSegments = 0;
       _dimensionStartNodeId = null;
     });
   }
@@ -2750,6 +2819,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
             TextButton.icon(
               onPressed: () => setState(() {
                 _wallStartNodeId = null;
+                _wallChainFirstNodeId = null;
+                _wallChainSegments = 0;
                 _lastWallSnapLabel = null;
                 _liveWallSnap = null;
               }),
@@ -2938,10 +3009,13 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       final left = (screenX - width / 2)
           .clamp(8.0, math.max(8.0, _viewport.width - width - 8))
           .toDouble();
-      final proposed = screenY + 150 > _viewport.height
-          ? screenY - 150 : screenY + 22;
+      // Place the 176px inspector on the side with space. Never force
+      // a bottom sheet or reposition the camera when selecting a door.
+      const cardHeight = 176.0;
+      final proposed = screenY + cardHeight + 24 > _viewport.height
+          ? screenY - cardHeight - 16 : screenY + 22;
       final top = proposed
-          .clamp(55.0, math.max(55.0, _viewport.height - 170))
+          .clamp(52.0, math.max(52.0, _viewport.height - cardHeight - 8))
           .toDouble();
       final isDoor = opening.type == OpeningType.door;
       final leftHinge = opening.doorSwing == DoorSwing.leftIn ||
@@ -2996,6 +3070,32 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                     style: const TextStyle(fontSize: 11)),
                 )),
               ]),
+              // Distances are measured along the host wall from the door's
+              // edges, not from the phone screen's left/right directions.
+              Row(children: [
+                Expanded(child: TextButton(
+                  key: const ValueKey('opening-offset-from-start'),
+                  onPressed: () => _editOpening(wall, opening),
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size(0, 30),
+                    padding: EdgeInsets.zero),
+                  child: Text('← ${opening.offsetFromStartMm.round()} мм',
+                    maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 10)),
+                )),
+                const SizedBox(width: 7),
+                Expanded(child: TextButton(
+                  key: const ValueKey('opening-offset-to-end'),
+                  onPressed: () => _editOpening(wall, opening),
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size(0, 30),
+                    padding: EdgeInsets.zero),
+                  child: Text('${math.max(0.0, length -
+                    opening.offsetFromStartMm - opening.widthMm).round()} мм →',
+                    maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 10)),
+                )),
+              ]),
               if (isDoor) Row(children: [
                 Expanded(child: OutlinedButton(
                   key: const ValueKey('door-flip-hinges'),
@@ -3029,7 +3129,14 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
           _viewport = Size(constraints.maxWidth, constraints.maxHeight);
           if (!_centered) {
             _centered = true;
-            WidgetsBinding.instance.addPostFrameCallback((_) => _fit());
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              if (widget.viewportActive && widget.sharedViewport?.value != null) {
+                _adoptViewport();
+              } else {
+                _fit();
+              }
+            });
           }
           return Stack(
             children: [
@@ -3040,7 +3147,10 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                   maxScale: 6,
                   onInteractionStart: _wallDragStart,
                   onInteractionUpdate: _wallDragUpdate,
-                  onInteractionEnd: (_) => unawaited(_wallDragFinish()),
+                  onInteractionEnd: (_) {
+                    unawaited(_wallDragFinish());
+                    _publishViewport();
+                  },
                   // The user's finger draws walls; it must not drag or zoom
                   // the camera until the dedicated hand mode is activated.
                   panEnabled: widget.planTool != MeasurePlanTool.nodes &&
@@ -3119,6 +3229,31 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                                   border: Border.all(
                                     color: ZamerColors.background, width: 1.5),
                                 ),
+                              ),
+                            ),
+                          ),
+                      // When the contour has at least two sides, keep its
+                      // initial junction visible as the precise closing target.
+                      if (_drawingWall && _wallChainSegments >= 2 &&
+                          _wallChainFirstNodeId != null)
+                        if (floor.nodeById(_wallChainFirstNodeId!)
+                            case final first?)
+                          Positioned(
+                            key: const ValueKey('wall-chain-first-node'),
+                            left: _toCanvas(first).dx - 10,
+                            top: _toCanvas(first).dy - 10,
+                            child: IgnorePointer(
+                              child: Container(
+                                width: 20,
+                                height: 20,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: ZamerColors.accent.withValues(alpha: .16),
+                                  border: Border.all(
+                                    color: ZamerColors.accent, width: 2),
+                                ),
+                                child: const Icon(Icons.check_rounded,
+                                  color: ZamerColors.accent, size: 13),
                               ),
                             ),
                           ),
@@ -3241,13 +3376,41 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                   ],
                 ),
               ),
+              // Keep snap feedback by the exact intended wall endpoint,
+              // not pinned in the header where it hides editing controls.
               if (_drawingWall && _wallStartNodeId != null &&
                   _liveWallSnap != null && !_moveCameraInsteadOfDrawing)
-                Positioned(
-                  key: const ValueKey('measure-live-snap-hud'),
-                  left: 12, top: 10,
-                  child: _liveSnapHud(),
-                ),
+                if (_liveWallSnap case final snap?)
+                  Builder(builder: (context) {
+                    const tooltipWidth = 210.0;
+                    const tooltipHeight = 56.0;
+                    final world = _origin + Offset(
+                      snap.point.x * _mmToPx,
+                      snap.point.y * _mmToPx,
+                    );
+                    final tip = MatrixUtils.transformPoint(
+                      _transform.value, world);
+                    final preferLeft = tip.dx + tooltipWidth + 18 >
+                        _viewport.width;
+                    final proposedLeft = preferLeft
+                        ? tip.dx - tooltipWidth - 18 : tip.dx + 18;
+                    final proposedTop = tip.dy + tooltipHeight + 14 >
+                            _viewport.height
+                        ? tip.dy - tooltipHeight - 14 : tip.dy + 12;
+                    return Positioned(
+                      key: const ValueKey('measure-live-snap-hud'),
+                      left: proposedLeft.clamp(8.0,
+                        math.max(8.0, _viewport.width - tooltipWidth - 8))
+                          .toDouble(),
+                      top: proposedTop.clamp(112.0,
+                        math.max(112.0, _viewport.height - tooltipHeight - 8))
+                          .toDouble(),
+                      width: math.min(tooltipWidth,
+                        math.max(1.0, _viewport.width - 16)),
+                      child: _liveSnapHud(),
+                    );
+                  }),
+
               // Fixed-size feedback above the tool strip: the measured
               // coordinates and snap kind remain legible at any zoom.
               if (widget.planTool == MeasurePlanTool.nodes &&
@@ -3308,10 +3471,37 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                     ),
                   ),
                 ),
-              if (_editingGeometry)
+              // Opening placement only needs a small contextual hint,
+              // not another full-width toolbar over the apartment.
+              if (widget.planTool == MeasurePlanTool.openings &&
+                  _selectedOpening == null && !_moveCameraInsteadOfDrawing)
                 Positioned(
+                  key: const ValueKey('compact-opening-hint'),
                   left: 8,
-                  right: 8,
+                  top: widget.nativeKitV2 ? 55 : 8,
+                  child: IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: const Color(0xE80C1B20),
+                        border: Border.all(color: ZamerColors.outlineSoft),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 9, vertical: 6),
+                        child: Text('Коснитесь стены, чтобы добавить проём',
+                          style: TextStyle(
+                            fontSize: 10, color: ZamerColors.textSecondary)),
+                      ),
+                    ),
+                  ),
+                ),
+              if (_editingGeometry &&
+                  widget.planTool != MeasurePlanTool.openings)
+                Positioned(
+                  key: const ValueKey('compact-wall-tools'),
+                  left: 8,
+                  width: math.min(282.0, math.max(1.0, _viewport.width - 16)),
                   top: widget.nativeKitV2 ? 65 : null,
                   bottom: widget.nativeKitV2 ? null : 8,
                   child: _compactEditingBar(),

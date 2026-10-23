@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../design_system/zamer_tokens.dart';
 import '../models/models.dart';
 import '../services/geometry_service.dart';
+import '../services/plan_viewport_link.dart';
 import '../widgets/cad_plan_painter.dart';
 import '../widgets/floor_finish_plan_overlay.dart';
 import 'layouts_screen.dart';
@@ -15,10 +16,14 @@ class MeasureFloorPlanLayerScreen extends StatefulWidget {
     super.key,
     required this.floor,
     required this.onChanged,
+    this.sharedViewport,
+    this.viewportActive = true,
   });
 
   final FloorPlan floor;
   final Future<void> Function() onChanged;
+  final ValueNotifier<PlanViewportSnapshot?>? sharedViewport;
+  final bool viewportActive;
 
   @override
   State<MeasureFloorPlanLayerScreen> createState() =>
@@ -33,6 +38,7 @@ class _MeasureFloorPlanLayerScreenState
 
   final TransformationController _transform = TransformationController();
   String? _selectedFaceKey;
+  bool _placingLayoutStart = false;
   bool _centered = false;
   Size _viewport = Size.zero;
 
@@ -56,7 +62,23 @@ class _MeasureFloorPlanLayerScreenState
     super.initState();
     GeometryService.syncRoomMetadata(widget.floor);
     if (_faces.isNotEmpty) _selectedFaceKey = _faces.first.key;
-    WidgetsBinding.instance.addPostFrameCallback((_) => _fit());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (widget.viewportActive && widget.sharedViewport?.value != null) {
+        _adoptViewport();
+      } else {
+        _fit();
+      }
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant MeasureFloorPlanLayerScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.viewportActive && (!oldWidget.viewportActive ||
+        oldWidget.sharedViewport != widget.sharedViewport)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _adoptViewport());
+    }
   }
 
   @override
@@ -90,14 +112,70 @@ class _MeasureFloorPlanLayerScreenState
     return inside;
   }
 
-  void _selectAt(Offset canvasPoint) {
+  double _phase(double v, double step) {
+    final unit = math.max(1.0, step);
+    return (v % unit + unit) % unit;
+  }
+
+  Future<void> _selectAt(Offset canvasPoint) async {
     final mm = _toMm(canvasPoint);
     for (final face in _faces) {
-      if (_pointInPolygon(mm, face.innerPolygon)) {
-        setState(() => _selectedFaceKey = face.key);
-        return;
+      if (!_pointInPolygon(mm, face.innerPolygon)) continue;
+      if (_placingLayoutStart) {
+        final settings = widget.floor.roomMetaByKey(face.key)?.materials;
+        if (settings != null) {
+          final minX = face.innerPolygon.map((p) => p.x).reduce(math.min);
+          final minY = face.innerPolygon.map((p) => p.y).reduce(math.min);
+          settings.laminateOffsetXMm =
+              _phase(mm.x - minX, settings.laminatePlankLengthMm);
+          settings.laminateOffsetYMm =
+              _phase(mm.y - minY, settings.laminatePlankWidthMm);
+          settings.tileOffsetXMm =
+              _phase(mm.x - minX, settings.tileWidthMm);
+          settings.tileOffsetYMm =
+              _phase(mm.y - minY, settings.tileHeightMm);
+          // Persist the actual chosen point, not just the repeated
+          // grid phase. Reopening the project must restore the marker.
+          settings.floorLayoutStartXMm = mm.x;
+          settings.floorLayoutStartYMm = mm.y;
+          setState(() {
+            _selectedFaceKey = face.key;
+            _placingLayoutStart = false;
+          });
+          await widget.onChanged();
+          return;
+        }
       }
+      setState(() => _selectedFaceKey = face.key);
+      return;
     }
+  }
+
+
+  void _publishViewport() {
+    if (!widget.viewportActive) return;
+    final link = widget.sharedViewport;
+    if (link == null) return;
+    final snapshot = PlanViewportSnapshot.capture(
+      viewport: _viewport, origin: _origin,
+      mmToPx: _mmToPx, transform: _transform.value);
+    if (snapshot == null) return;
+    if (link.value case final previous?) {
+      if (previous.nearlyEquals(snapshot)) return;
+    }
+    link.value = snapshot;
+  }
+
+  void _adoptViewport() {
+    if (!mounted || !widget.viewportActive || _viewport.isEmpty) return;
+    final saved = widget.sharedViewport?.value;
+    if (saved == null) return;
+    final matrix = saved.toCanvasTransform(
+      viewport: _viewport, origin: _origin,
+      mmToPx: _mmToPx, minScale: .22, maxScale: 6);
+    if (matrix == null) return;
+    _transform.value = matrix;
+    setState(() => _centered = true);
   }
 
   void _fit() {
@@ -124,6 +202,7 @@ class _MeasureFloorPlanLayerScreenState
       ..translate(target.dx - center.dx * scale, target.dy - center.dy * scale)
       ..scale(scale);
     if (mounted) setState(() => _centered = true);
+    _publishViewport();
   }
 
   Future<void> _mutate(void Function(RoomMaterialSettings settings) change) async {
@@ -177,7 +256,7 @@ class _MeasureFloorPlanLayerScreenState
       child: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(10, 8, 10, 6),
+            padding: const EdgeInsets.fromLTRB(8, 4, 8, 2),
             child: Row(
               children: [
                 Expanded(
@@ -192,6 +271,16 @@ class _MeasureFloorPlanLayerScreenState
                       fontWeight: FontWeight.w800,
                     ),
                   ),
+                ),
+                IconButton.filledTonal(
+                  tooltip: _placingLayoutStart
+                      ? 'Отменить выбор начальной точки'
+                      : 'Указать начало укладки',
+                  onPressed: () => setState(
+                    () => _placingLayoutStart = !_placingLayoutStart),
+                  icon: Icon(Icons.my_location_rounded,
+                    color: _placingLayoutStart
+                        ? ZamerColors.accent : null, size: 19),
                 ),
                 IconButton.filledTonal(
                   tooltip: 'Вписать план',
@@ -265,11 +354,19 @@ class _MeasureFloorPlanLayerScreenState
               builder: (context, constraints) {
                 _viewport = constraints.biggest;
                 if (!_centered && widget.floor.nodes.isNotEmpty) {
-                  WidgetsBinding.instance.addPostFrameCallback((_) => _fit());
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (!mounted) return;
+                    if (widget.viewportActive && widget.sharedViewport?.value != null) {
+                      _adoptViewport();
+                    } else {
+                      _fit();
+                    }
+                  });
                 }
                 return ClipRect(
                   child: InteractiveViewer(
                     transformationController: _transform,
+                    onInteractionEnd: (_) => _publishViewport(),
                     minScale: .22,
                     maxScale: 6,
                     boundaryMargin: const EdgeInsets.all(2400),
@@ -289,7 +386,7 @@ class _MeasureFloorPlanLayerScreenState
                                 mmToPx: _mmToPx,
                                 origin: _origin,
                                 showGrid: true,
-                                showDimensions: true,
+                                showDimensions: false,
                               ),
                             ),
                             IgnorePointer(
@@ -299,6 +396,12 @@ class _MeasureFloorPlanLayerScreenState
                                   mmToPx: _mmToPx,
                                   origin: _origin,
                                   selectedFaceKey: _selectedFaceKey,
+                                  layoutStartMm: settings?.floorLayoutStartXMm != null &&
+                                      settings?.floorLayoutStartYMm != null
+                                      ? math.Point<double>(
+                                          settings!.floorLayoutStartXMm!,
+                                          settings.floorLayoutStartYMm!)
+                                      : null,
                                 ),
                               ),
                             ),
@@ -311,22 +414,7 @@ class _MeasureFloorPlanLayerScreenState
               },
             ),
           ),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
-            decoration: const BoxDecoration(
-              color: ZamerColors.surfaceLow,
-              border: Border(top: BorderSide(color: ZamerColors.outlineSoft)),
-            ),
-            child: Text(
-              meta == null
-                  ? 'Выбери помещение прямо на плане.'
-                  : 'Направление ${settings!.floorDirectionDeg.round()}° • '
-                      '${settings.floorMode == 'tile' ? '${settings.tileWidthMm.round()}×${settings.tileHeightMm.round()} мм' : '${settings.laminatePlankLengthMm.round()}×${settings.laminatePlankWidthMm.round()} мм'}',
-              textAlign: TextAlign.center,
-              style: ZamerTypography.caption,
-            ),
-          ),
+
         ],
       ),
     );

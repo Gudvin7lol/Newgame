@@ -4,6 +4,7 @@ import '../design_system/zamer_master_components.dart';
 import '../design_system/zamer_tokens.dart';
 import '../services/object_catalog.dart';
 import '../widgets/model_thumbnail.dart';
+import '../widgets/catalog_artwork_preview.dart';
 
 class MasterEquipmentScreen extends StatefulWidget {
   const MasterEquipmentScreen({
@@ -368,10 +369,14 @@ class _EquipmentCard extends StatelessWidget {
                   fit: StackFit.expand,
                   children: [
                     if (renderModelPreview)
-                      ZamerModelThumbnail(
+                      ZamerCatalogArtwork(
                         catalogId: item.id,
-                        size: 180,
-                        fallback: _FallbackPreview(item: item),
+                        loadingFallback: ZamerCatalogVectorFallback(item: item),
+                        fallback: ZamerModelThumbnail(
+                          catalogId: item.id,
+                          size: 180,
+                          fallback: ZamerCatalogVectorFallback(item: item),
+                        ),
                       )
                     else
                       _FallbackPreview(item: item),

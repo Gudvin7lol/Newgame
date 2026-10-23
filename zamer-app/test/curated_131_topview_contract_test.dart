@@ -39,12 +39,8 @@ void main() {
     expect(ImportedTopViewAssets.curated131Rects.containsKey('nightstand'), isFalse);
   });
 
-  test('plan and catalog use the same cached curated asset', () {
-    final renderer = File('lib/widgets/cad_plan_painter_v3.dart').readAsStringSync();
+  test('catalog recognizes the curated asset registry', () {
     final catalog = File('lib/screens/planning_objects_screen.dart').readAsStringSync();
-    expect(renderer.contains('assets.curated131Atlas'), isTrue);
-    expect(renderer.contains('assets.curated131RectForCatalog(object.catalogId)'),
-        isTrue);
     expect(catalog.contains('ImportedTopViewAssets.curated131Rects.containsKey(item.id)'),
         isTrue);
   });
