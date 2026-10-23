@@ -9,7 +9,6 @@ import '../widgets/electrical_plan_painter.dart';
 import '../widgets/cad_plan_painter.dart';
 import '../services/plan_visibility_service.dart';
 import '../services/plan_viewport_link.dart';
-import '../services/electrical_load_service.dart';
 import '../services/electrical_board_draft_service.dart';
 
 enum ElectricalMode { add, wire, select }
