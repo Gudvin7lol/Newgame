@@ -11,8 +11,8 @@ import 'top_view_object_renderer.dart';
 
 /// One production 2D artwork preview, used by the equipment catalogue.
 ///
-/// Uses the same decoded 2D assets as CAD: curated #131 atlas first, then
-/// generated GLB top-views, then approved #130 atlas. Only missing artwork
+/// Uses the same decoded 2D assets as CAD: neutral furniture first, then
+/// curated/approved atlases, then production top-views. Only missing artwork
 /// falls back to the more expensive 3D snapshot renderer. This prevents the
 /// grid from showing dozens of identical blank placeholder icons.
 class ZamerCatalogArtwork extends StatefulWidget {
@@ -54,22 +54,11 @@ class _ZamerCatalogArtworkState extends State<ZamerCatalogArtwork> {
     return AnimatedBuilder(
       animation: assets,
       builder: (context, _) {
-        ui.Image? image;
-        ui.Rect? source;
-        final rect131 = assets.curated131RectForCatalog(widget.catalogId);
-        if (rect131 != null && assets.curated131Atlas != null) {
-          image = assets.curated131Atlas;
-          source = rect131;
-        } else {
-          image = assets.imageForCatalog(widget.catalogId);
-          if (image == null) {
-            final rect130 = assets.approvedRectForCatalog(widget.catalogId);
-            if (rect130 != null && assets.approvedAtlas != null) {
-              image = assets.approvedAtlas;
-              source = rect130;
-            }
-          }
-        }
+        // Same priority as the actual plan: new neutral PNG artwork,
+        // then curated/approved atlases, then production top-view rasters.
+        final raster = assets.planRasterForCatalog(widget.catalogId);
+        final ui.Image? image = raster?.image;
+        final ui.Rect? source = raster?.sourceRect;
         if (image != null) {
           return CustomPaint(
             key: ValueKey('catalog-artwork-${widget.catalogId}'),
