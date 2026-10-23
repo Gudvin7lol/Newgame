@@ -3232,6 +3232,31 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                               ),
                             ),
                           ),
+                      // When the contour has at least two sides, keep its
+                      // initial junction visible as the precise closing target.
+                      if (_drawingWall && _wallChainSegments >= 2 &&
+                          _wallChainFirstNodeId != null)
+                        if (floor.nodeById(_wallChainFirstNodeId!)
+                            case final first?)
+                          Positioned(
+                            key: const ValueKey('wall-chain-first-node'),
+                            left: _toCanvas(first).dx - 10,
+                            top: _toCanvas(first).dy - 10,
+                            child: IgnorePointer(
+                              child: Container(
+                                width: 20,
+                                height: 20,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: ZamerColors.accent.withValues(alpha: .16),
+                                  border: Border.all(
+                                    color: ZamerColors.accent, width: 2),
+                                ),
+                                child: const Icon(Icons.check_rounded,
+                                  color: ZamerColors.accent, size: 13),
+                              ),
+                            ),
+                          ),
                       // Anchor the control measurement at the actual
                       // inside-corner intersection, not the axis node.
                       if (widget.planTool == MeasurePlanTool.dimensions &&
