@@ -80,6 +80,68 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     }
   }
 
+  void _publishCamera() {
+    if (!widget.embedded || !widget.viewportActive) return;
+    final camera = _camera;
+    final link = widget.sharedViewport;
+    if (camera == null || !camera.valid || link == null) return;
+    if (link.value case final old?) {
+      if (old.nearlyEquals(camera)) return;
+    }
+    link.value = camera;
+  }
+
+  void _touchDown(PointerDownEvent e) {
+    _touches[e.pointer] = e.localPosition;
+    if (_touches.length != 2 || _viewportSize.isEmpty) return;
+    final points = _touches.values.toList();
+    final midpoint = (points[0] + points[1]) / 2;
+    final tx = _tx(_viewportSize);
+    _pinchWorldAnchor = math.Point<double>(
+      (midpoint.dx - tx.origin.dx) / tx.scale,
+      (midpoint.dy - tx.origin.dy) / tx.scale,
+    );
+    _pinchStartScale = tx.scale;
+    _pinchStartDistance = math.max(1, (points[1] - points[0]).distance);
+    _pinchingCamera = true;
+    _dragPointId = null;
+    _wireStartId = null;
+  }
+
+  void _touchMove(PointerMoveEvent e) {
+    if (!_touches.containsKey(e.pointer)) return;
+    _touches[e.pointer] = e.localPosition;
+    if (!_pinchingCamera || _touches.length != 2 ||
+        _pinchWorldAnchor == null || _viewportSize.isEmpty) return;
+    final points = _touches.values.toList();
+    final midpoint = (points[0] + points[1]) / 2;
+    final spread = math.max(1, (points[1] - points[0]).distance);
+    final scale = (_pinchStartScale * spread / _pinchStartDistance)
+        .clamp(.004, .8).toDouble();
+    final origin = Offset(
+      midpoint.dx - _pinchWorldAnchor!.x * scale,
+      midpoint.dy - _pinchWorldAnchor!.y * scale,
+    );
+    final center = Offset(_viewportSize.width / 2, _viewportSize.height / 2);
+    final camera = PlanViewportSnapshot(
+      centerXMm: (center.dx - origin.dx) / scale,
+      centerYMm: (center.dy - origin.dy) / scale,
+      pixelsPerMm: scale,
+    );
+    if (!camera.valid) return;
+    setState(() => _camera = camera);
+    _publishCamera();
+  }
+
+  void _touchEnd(PointerEvent e) {
+    _touches.remove(e.pointer);
+    if (_touches.isEmpty) {
+      _pinchingCamera = false;
+      _pinchWorldAnchor = null;
+      _publishCamera();
+    }
+  }
+
   String _id(String p) => '$p-${DateTime.now().microsecondsSinceEpoch}';
 
   void _pushUndo() {
@@ -989,8 +1051,14 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
           child: LayoutBuilder(
             builder: (context, c) {
               final size = Size(c.maxWidth, c.maxHeight);
+              _viewportSize = size;
               final t = _tx(size);
-              return GestureDetector(
+              return Listener(
+                onPointerDown: _touchDown,
+                onPointerMove: _touchMove,
+                onPointerUp: _touchEnd,
+                onPointerCancel: _touchEnd,
+                child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTapUp: (d) => _tap(d, size),
                 onPanStart: _mode == ElectricalMode.select
@@ -1027,6 +1095,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                           overlayOnly: true,
                         ) : null,
                   child: const SizedBox.expand(),
+                ),
                 ),
               );
             },
