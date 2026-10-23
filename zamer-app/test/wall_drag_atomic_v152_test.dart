@@ -72,6 +72,18 @@ void main() {
     expect(section, contains("if (changed) await _changed()"));
   });
 
+  test('wall drag shows compact nonblocking feedback beside the finger', () {
+    final source = File('lib/screens/plan_editor_master_v4_screen.dart')
+        .readAsStringSync();
+    expect(source, contains("ValueKey('wall-drag-live-hud')"));
+    expect(source, contains('Widget _wallDragHud()'));
+    expect(source, contains('IgnorePointer('));
+    expect(source, contains('Недопустимое смещение'));
+    expect(source, contains('Отпустите для применения'));
+    expect(source, contains('_dragWallViewportPoint = details.localFocalPoint'));
+    expect(source, contains('if (_dragWallId != null) _wallDragHud()'));
+  });
+
   test('switching tools aborts both uncommitted node and wall gestures', () {
     final source = File('lib/screens/plan_editor_master_v4_screen.dart')
         .readAsStringSync();
