@@ -8,6 +8,7 @@ import '../services/geometry_service.dart';
 import '../widgets/electrical_plan_painter.dart';
 import '../widgets/cad_plan_painter.dart';
 import '../services/plan_visibility_service.dart';
+import '../services/plan_viewport_link.dart';
 
 enum ElectricalMode { add, wire, select }
 
@@ -19,12 +20,16 @@ class ElectricalScreen extends StatefulWidget {
     this.requestedMode,
     this.requestedType,
     this.embedded = false,
+    this.sharedViewport,
+    this.viewportActive = true,
   });
   final FloorPlan floor;
   final Future<void> Function() onChanged;
   final ElectricalMode? requestedMode;
   final ElectricalPointType? requestedType;
   final bool embedded;
+  final ValueNotifier<PlanViewportSnapshot?>? sharedViewport;
+  final bool viewportActive;
 
   @override
   State<ElectricalScreen> createState() => _ElectricalScreenState();
@@ -41,17 +46,29 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
   bool _dragUndoPushed = false;
   final _undo = <String>[];
   final _redo = <String>[];
+  PlanViewportSnapshot? _camera;
+  Size _viewportSize = Size.zero;
+  final Map<int, Offset> _touches = <int, Offset>{};
+  math.Point<double>? _pinchWorldAnchor;
+  double _pinchStartDistance = 1;
+  double _pinchStartScale = .1;
+  bool _pinchingCamera = false;
 
   @override
   void initState() {
     super.initState();
     _mode = widget.requestedMode ?? _mode;
     _type = widget.requestedType ?? _type;
+    if (widget.embedded && widget.viewportActive) _camera = widget.sharedViewport?.value;
   }
 
   @override
   void didUpdateWidget(covariant ElectricalScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (widget.embedded && widget.viewportActive &&
+        (!oldWidget.viewportActive || widget.sharedViewport != oldWidget.sharedViewport)) {
+      _camera = widget.sharedViewport?.value;
+    }
     if (widget.requestedMode != oldWidget.requestedMode &&
         widget.requestedMode != null) {
       _mode = widget.requestedMode!;
@@ -100,6 +117,14 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
   }
 
   _Tx _tx(Size size) {
+    final linked = widget.embedded ? (_camera ?? widget.sharedViewport?.value) : null;
+    if (linked != null && linked.valid) {
+      final scale = linked.pixelsPerMm;
+      return _Tx(scale: scale, origin: Offset(
+        size.width / 2 - linked.centerXMm * scale,
+        size.height / 2 - linked.centerYMm * scale,
+      ));
+    }
     final pts = <math.Point<double>>[];
     for (final n in widget.floor.nodes) pts.add(math.Point(n.xMm, n.yMm));
     for (final e in widget.floor.electricalPoints)
@@ -312,6 +337,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
   }
 
   void _dragStart(DragStartDetails d, Size size) {
+    if (_pinchingCamera || _touches.length > 1) return;
     if (_mode != ElectricalMode.select) return;
     final mm = _screenToMm(d.localPosition, size);
     final t = _tx(size);
@@ -324,6 +350,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
   }
 
   void _dragUpdate(DragUpdateDetails d, Size size) {
+    if (_pinchingCamera) return;
     if (_mode != ElectricalMode.select || _dragPointId == null) return;
     ElectricalPoint? point;
     for (final p in widget.floor.electricalPoints) {
@@ -415,6 +442,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
   }
 
   Future<void> _tap(TapUpDetails d, Size size) async {
+    if (_pinchingCamera) return;
     final t = _tx(size);
     final mm = math.Point<double>(
       (d.localPosition.dx - t.origin.dx) / t.scale,
