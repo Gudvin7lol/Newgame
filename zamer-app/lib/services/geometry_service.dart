@@ -1052,7 +1052,9 @@ class GeometryService {
       }
     }
 
-    normalizeIntersections(floor);
+    // The outer endpoint transaction owns the rollback snapshot, so avoid
+    // cloning the full project a second time during its normalization pass.
+    _normalizeIntersectionsUnchecked(floor);
     _cleanupTopology(floor);
     return floor.nodeById(moving.id) ?? moving;
   }
