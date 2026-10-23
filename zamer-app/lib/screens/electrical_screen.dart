@@ -9,6 +9,7 @@ import '../widgets/electrical_plan_painter.dart';
 import '../widgets/cad_plan_painter.dart';
 import '../services/plan_visibility_service.dart';
 import '../services/plan_viewport_link.dart';
+import '../services/electrical_load_service.dart';
 
 enum ElectricalMode { add, wire, select }
 
@@ -890,6 +891,69 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     if (mounted) setState(() {});
   }
 
+  Future<void> _showLoadInventory() async {
+    final circuits = ElectricalLoadService.summarize(widget.floor);
+    final total = circuits.fold<double>(0, (sum, group) =>
+        sum + group.connectedWatts);
+    final unrated = circuits.fold<int>(0, (sum, group) =>
+        sum + group.unratedCount);
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheet) => SafeArea(
+        child: FractionallySizedBox(
+          heightFactor: .75,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+            children: [
+              Text('Нагрузки и распределительный щит',
+                style: Theme.of(sheet).textTheme.titleLarge),
+              const SizedBox(height: 8),
+              Text('Сумма заданных мощностей: ${total.toStringAsFixed(0)} Вт'
+                   ' · групп: ${circuits.length}'),
+              if (unrated > 0) Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  'Не указана нагрузка у ${unrated} точек. '
+                  'Расчёт неполный: розетка без мощности не означает 0 Вт.',
+                  style: TextStyle(color: Theme.of(sheet).colorScheme.error),
+                ),
+              ),
+              const SizedBox(height: 12),
+              if (circuits.isEmpty)
+                const Text('Добавь электроточки и присвой им группы '
+                    'и расчётную мощность в карточках точек.'),
+              for (final group in circuits)
+                Card(
+                  child: ListTile(
+                    title: Text(group.name),
+                    subtitle: Text(
+                      '${group.loadCount} точек · '
+                      '${group.connectedWatts.toStringAsFixed(0)} Вт'
+                      ' · ≈${group.estimatedAmps.toStringAsFixed(1)} А '
+                      '(230 В, cosφ = 1)'),
+                    trailing: group.unratedCount > 0
+                      ? const Icon(Icons.warning_amber_rounded) : null,
+                  ),
+                ),
+              const SizedBox(height: 12),
+              Text('Подбор автоматов и схема сборки щита',
+                style: Theme.of(sheet).textTheme.titleMedium),
+              const SizedBox(height: 6),
+              const Text('Это предварительная ведомость, не готовая '
+                'спецификация защитных аппаратов. Для подбора нужны '
+                'сечение и материал жил, способ прокладки, длина линии, '
+                'допустимый ток кабеля, ток короткого замыкания, '
+                'система заземления, УЗО/дифзащита и действующие нормы. '
+                'Номинал автомата только по сумме ватт выбирать нельзя.'),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   double _runLength(ElectricalRun r) {
     ElectricalPoint? a, b;
     for (final p in widget.floor.electricalPoints) {
@@ -1041,11 +1105,19 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
         if (widget.embedded)
           Align(
             alignment: Alignment.centerRight,
-            child: TextButton.icon(
-              onPressed: _heightDefaults,
-              icon: const Icon(Icons.height, size: 16),
-              label: const Text('Высоты'),
-            ),
+            child: Wrap(spacing: 2, children: [
+              TextButton.icon(
+                key: const ValueKey('electrical-load-inventory'),
+                onPressed: _showLoadInventory,
+                icon: const Icon(Icons.electric_bolt_outlined, size: 16),
+                label: const Text('Нагрузки / щит'),
+              ),
+              TextButton.icon(
+                onPressed: _heightDefaults,
+                icon: const Icon(Icons.height, size: 16),
+                label: const Text('Высоты'),
+              ),
+            ]),
           ),
         Expanded(
           child: LayoutBuilder(
