@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zamer_app/services/object_catalog.dart';
@@ -55,10 +57,11 @@ void main() {
   });
 
   test('catalogue artwork honors bath raster quarter-turn', () {
-    const path = 'lib/widgets/catalog_artwork_preview.dart';
-    // Keep the orientation transform in the preview, matching CAD's V3
-    // quarter-turn source raster convention.
-    expect(() => catalogArtworkFootprintRect(
-      const Size(120, 180), const Size(1700, 750)), returnsNormally);
+    final src = File('lib/widgets/catalog_artwork_preview.dart')
+        .readAsStringSync();
+    expect(src, contains('quarterTurn: raster?.quarterTurn ?? false'));
+    expect(src, contains('canvas.rotate(math.pi / 2)'));
+    expect(src, contains('quarterTurn ? output.height : output.width'));
+    expect(src, contains('quarterTurn ? output.width : output.height'));
   });
 }
