@@ -1831,11 +1831,20 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       _nodeDragInvalid = null;
       _nodeDragChanged = false;
     });
-    if (rejected != null && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        duration: const Duration(milliseconds: 1400),
-        content: Text(rejected),
-      ));
+    if (rejected != null) {
+      // The pointer was released in a prohibited position. Do not silently
+      // commit the last valid intermediate position from the same gesture:
+      // restore the whole edit so the user's room cannot unexpectedly shift.
+      if (beforeDrag != null) floor.restoreFrom(beforeDrag);
+      _selectedNodeId = id;
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          duration: const Duration(milliseconds: 2200),
+          content: Text('Перемещение отменено: $rejected'),
+        ));
+        setState(() {});
+      }
+      return;
     }
     if (!changed) return;
 

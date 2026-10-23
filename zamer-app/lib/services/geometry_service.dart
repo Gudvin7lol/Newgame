@@ -982,7 +982,25 @@ class GeometryService {
     return NodeSnapResult(point: raw, kind: NodeSnapKind.none);
   }
 
+  /// Commit an endpoint move atomically. A rejected join (such as splitting
+  /// a door opening) cannot leave modified nodes or half-split wall segments.
   static PlanNode? finalizeNodeMove(
+    FloorPlan floor, {
+    required String movingNodeId,
+    required NodeSnapResult snap,
+  }) {
+    if (floor.nodeById(movingNodeId) == null) return null;
+    final before = FloorPlan.fromJson(floor.toJson());
+    try {
+      return _finalizeNodeMoveUnchecked(
+        floor, movingNodeId: movingNodeId, snap: snap);
+    } catch (_) {
+      floor.restoreFrom(before);
+      rethrow;
+    }
+  }
+
+  static PlanNode? _finalizeNodeMoveUnchecked(
     FloorPlan floor, {
     required String movingNodeId,
     required NodeSnapResult snap,
@@ -1034,12 +1052,26 @@ class GeometryService {
       }
     }
 
-    normalizeIntersections(floor);
+    // The outer endpoint transaction owns the rollback snapshot, so avoid
+    // cloning the full project a second time during its normalization pass.
+    _normalizeIntersectionsUnchecked(floor);
     _cleanupTopology(floor);
     return floor.nodeById(moving.id) ?? moving;
   }
 
+  /// Normalize crossing walls as one edit. If a cut is prohibited by an
+  /// opening, restore the entire source topology, not only the last wall.
   static void normalizeIntersections(FloorPlan floor) {
+    final before = FloorPlan.fromJson(floor.toJson());
+    try {
+      _normalizeIntersectionsUnchecked(floor);
+    } catch (_) {
+      floor.restoreFrom(before);
+      rethrow;
+    }
+  }
+
+  static void _normalizeIntersectionsUnchecked(FloorPlan floor) {
     for (var guard = 0; guard < 200; guard++) {
       final walls = List<PlanWall>.from(floor.walls);
       var changed = false;
@@ -1079,11 +1111,14 @@ class GeometryService {
             junction = hit.tWall <= 0.5 ? a2 : b2;
           } else {
             junction =
-                nearestNode(floor, hit.point, thresholdMm: 20) ??
+                // Reuse only genuinely coincident nodes. Selecting a nearby
+                // unrelated node (the old 20-mm radius) introduces a skewed
+                // corner even though the intersecting axes are exact.
+                nearestNode(floor, hit.point, thresholdMm: .5) ??
                 PlanNode(
                   id: _id('n'),
-                  xMm: _round5(hit.point.x),
-                  yMm: _round5(hit.point.y),
+                  xMm: hit.point.x,
+                  yMm: hit.point.y,
                 );
             if (floor.nodeById(junction.id) == null) floor.nodes.add(junction);
           }
