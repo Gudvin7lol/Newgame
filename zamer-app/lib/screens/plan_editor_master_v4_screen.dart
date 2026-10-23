@@ -125,6 +125,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   bool _dragWallModified = false;
   String? _dragWallRejected;
   Matrix4? _dragWallBaseTransform;
+  FloorPlan? _dragWallStartFloor;
   math.Point<double>? _dragWallStartMm;
   ProjectLayer _drawingLayer = ProjectLayer.existing;
   String? _selectedRoomFaceKey;
@@ -667,6 +668,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       _dragWallId = wall.id;
       _dragWallStartMm = _toMm(point);
       _dragWallBaseTransform = Matrix4.copy(_transform.value);
+      _dragWallStartFloor = FloorPlan.fromJson(floor.toJson());
       _dragWallOffsetMm = 0;
       _dragWallModified = false;
       _dragWallRejected = null;
@@ -679,7 +681,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     final base = _dragWallBaseTransform;
     if (id == null || originMm == null || base == null) return;
     if (details.pointerCount != 1) {
-      unawaited(_wallDragFinish());
+      _wallDragCancel();
       return;
     }
     // InteractiveViewer updates its matrix as part of the same gesture.
@@ -702,12 +704,19 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     final step = _snapping ? 10.0 : 1.0;
     final wanted = (rawOffset / step).round() * step;
     final change = wanted - _dragWallOffsetMm;
-    if (change.abs() < .01) return;
+    if (change.abs() < .01) {
+      // The user moved back into the last valid position: clear a previously
+      // rejected preview rather than incorrectly cancelling on release.
+      if (_dragWallRejected != null) {
+        setState(() => _dragWallRejected = null);
+      }
+      return;
+    }
     final result = OrthogonalWallEditService.move(
       floor, wallId: id, offsetMm: change,
     );
     if (!result.isValid) {
-      _dragWallRejected = result.message;
+      setState(() => _dragWallRejected = result.message);
       return;
     }
     _dragWallOffsetMm = wanted;
@@ -716,24 +725,49 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     setState(() {});
   }
 
-  Future<void> _wallDragFinish() async {
-    if (_dragWallId == null) return;
-    final changed = _dragWallModified;
-    final rejected = _dragWallRejected;
+  // Cancelled multi-touch and invalid releases must preserve the exact
+  // original project, including door offsets and wall-attached devices.
+  void _wallDragCancel() {
+    final before = _dragWallStartFloor;
+    if (before != null) floor.restoreFrom(before);
     setState(() {
       _dragWallId = null;
+      _dragWallStartFloor = null;
       _dragWallBaseTransform = null;
       _dragWallStartMm = null;
       _dragWallModified = false;
       _dragWallRejected = null;
       _dragWallOffsetMm = 0;
     });
-    if (changed) await _changed(); // single undo/history snapshot per drag
-    if (!changed && rejected != null && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(rejected)),
-      );
+  }
+
+  Future<void> _wallDragFinish() async {
+    if (_dragWallId == null) return;
+    final changed = _dragWallModified;
+    final rejected = _dragWallRejected;
+    final before = _dragWallStartFloor;
+    if (rejected != null && before != null) {
+      floor.restoreFrom(before);
     }
+    setState(() {
+      _dragWallId = null;
+      _dragWallStartFloor = null;
+      _dragWallBaseTransform = null;
+      _dragWallStartMm = null;
+      _dragWallModified = false;
+      _dragWallRejected = null;
+      _dragWallOffsetMm = 0;
+    });
+    if (rejected != null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          duration: const Duration(milliseconds: 2200),
+          content: Text('Перемещение стены отменено: $rejected'),
+        ));
+      }
+      return;
+    }
+    if (changed) await _changed(); // single undo/history snapshot per drag
   }
 
   Future<void> _tapCanvas(TapUpDetails details) async {
