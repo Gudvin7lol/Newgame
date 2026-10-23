@@ -3,13 +3,16 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('catalogue uses the approved 2D atlas before expensive GLB renders', () {
+  test('catalogue uses matching neutral 2D art before GLB renders', () {
     final source = File('lib/widgets/catalog_artwork_preview.dart')
         .readAsStringSync();
-    expect(source, contains('assets.curated131RectForCatalog'));
-    expect(source, contains('assets.curated131Atlas'));
-    expect(source, contains('assets.imageForCatalog'));
-    expect(source, contains('assets.approvedAtlas'));
+    expect(source, contains('assets.planRasterForCatalog(widget.catalogId)'));
+    expect(source, contains('raster?.image'));
+    expect(source, contains('raster?.sourceRect'));
+    final assets = File('lib/services/imported_top_view_assets.dart')
+        .readAsStringSync();
+    expect(assets, contains('neutralForCatalog(id)'));
+    expect(assets, contains('contactShadowForCatalog'));
     expect(source, contains('ImportedTopViewAssets.instance.ensureLoaded()'));
     expect(source, contains('_resolved'));
     expect(source, contains('_CatalogArtworkPainter'));
