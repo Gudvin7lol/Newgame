@@ -136,10 +136,12 @@ class SpaceCheckService {
     } else if (chair) {
       final seat = math.min(480.0, o.heightMm * .61);
       final leg = math.min(50.0, o.widthMm * .11);
-      add(0, 0, o.widthMm, o.depthMm * .88, seat - 65, seat);
-      // Positive local Y is the chair's rear. Only this narrow backrest
-      // extends above typical desk/table height.
-      add(0, o.depthMm * .42, o.widthMm, o.depthMm * .14,
+      // Match the approved top-view orientation: the chair's backrest is
+      // at NEGATIVE local Y (the top of its preview), not behind the seat.
+      // Only the seat/legs fit under a table; the raised backrest does not.
+      add(0, o.depthMm * .09, o.widthMm * .88, o.depthMm * .69,
+          seat - 65, seat);
+      add(0, -o.depthMm * .42, o.widthMm, o.depthMm * .16,
           seat - 25, o.heightMm);
       for (final x in [-1.0, 1.0]) {
         for (final y in [-1.0, 1.0]) {
