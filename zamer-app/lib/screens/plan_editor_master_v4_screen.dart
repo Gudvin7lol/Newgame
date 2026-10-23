@@ -125,7 +125,9 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   bool _dragWallModified = false;
   String? _dragWallRejected;
   Matrix4? _dragWallBaseTransform;
+  FloorPlan? _dragWallStartFloor;
   math.Point<double>? _dragWallStartMm;
+  Offset? _dragWallViewportPoint;
   ProjectLayer _drawingLayer = ProjectLayer.existing;
   String? _selectedRoomFaceKey;
   String? _wallStartNodeId;
@@ -196,6 +198,10 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       WidgetsBinding.instance.addPostFrameCallback((_) => _adoptViewport());
     }
     if (oldWidget.planTool != widget.planTool) {
+      // Tool changes also cancel uncommitted gestures. Without rollback,
+      // linked nodes and door/socket offsets could be left half-dragged.
+      final unfinishedDrag = _nodeDragStartFloor ?? _dragWallStartFloor;
+      if (unfinishedDrag != null) floor.restoreFrom(unfinishedDrag);
       // Switching tools must not continue an unfinished wall/arc, dimension,
       // or vertex drag on the same shared canvas.
       _wallStartNodeId = null;
@@ -222,8 +228,12 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       _selectedOpeningWallId = null;
       _selectedOpeningId = null;
       _dragWallStartMm = null;
+      _dragWallStartFloor = null;
       _dragWallBaseTransform = null;
+      _dragWallOffsetMm = 0;
+      _dragWallModified = false;
       _dragWallRejected = null;
+      _dragWallViewportPoint = null;
       _materialPickMode = widget.planTool == MeasurePlanTool.overview;
       _materialsExpanded = false;
     }
@@ -667,6 +677,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       _dragWallId = wall.id;
       _dragWallStartMm = _toMm(point);
       _dragWallBaseTransform = Matrix4.copy(_transform.value);
+      _dragWallStartFloor = FloorPlan.fromJson(floor.toJson());
+      _dragWallViewportPoint = details.localFocalPoint;
       _dragWallOffsetMm = 0;
       _dragWallModified = false;
       _dragWallRejected = null;
@@ -679,13 +691,14 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     final base = _dragWallBaseTransform;
     if (id == null || originMm == null || base == null) return;
     if (details.pointerCount != 1) {
-      unawaited(_wallDragFinish());
+      _wallDragCancel();
       return;
     }
     // InteractiveViewer updates its matrix as part of the same gesture.
     // Undo ONLY that camera pan while an actual wall is being dragged.
     _transform.value = Matrix4.copy(base);
     final touch = _toMm(_transform.toScene(details.localFocalPoint));
+    _dragWallViewportPoint = details.localFocalPoint;
     final wall = floor.wallById(id);
     if (wall == null) return;
     final a = floor.nodeById(wall.startNodeId);
@@ -702,12 +715,21 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     final step = _snapping ? 10.0 : 1.0;
     final wanted = (rawOffset / step).round() * step;
     final change = wanted - _dragWallOffsetMm;
-    if (change.abs() < .01) return;
+    if (change.abs() < .01) {
+      // The user moved back into the last valid position: clear a previously
+      // rejected preview rather than incorrectly cancelling on release.
+      if (_dragWallRejected != null) {
+        setState(() => _dragWallRejected = null);
+      } else {
+        setState(() {});
+      }
+      return;
+    }
     final result = OrthogonalWallEditService.move(
       floor, wallId: id, offsetMm: change,
     );
     if (!result.isValid) {
-      _dragWallRejected = result.message;
+      setState(() => _dragWallRejected = result.message);
       return;
     }
     _dragWallOffsetMm = wanted;
@@ -716,24 +738,115 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     setState(() {});
   }
 
-  Future<void> _wallDragFinish() async {
-    if (_dragWallId == null) return;
-    final changed = _dragWallModified;
-    final rejected = _dragWallRejected;
+  // Cancelled multi-touch and invalid releases must preserve the exact
+  // original project, including door offsets and wall-attached devices.
+  void _wallDragCancel() {
+    final before = _dragWallStartFloor;
+    if (before != null) floor.restoreFrom(before);
     setState(() {
       _dragWallId = null;
+      _dragWallStartFloor = null;
       _dragWallBaseTransform = null;
       _dragWallStartMm = null;
       _dragWallModified = false;
       _dragWallRejected = null;
+      _dragWallViewportPoint = null;
       _dragWallOffsetMm = 0;
     });
-    if (changed) await _changed(); // single undo/history snapshot per drag
-    if (!changed && rejected != null && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(rejected)),
-      );
+  }
+
+  Future<void> _wallDragFinish() async {
+    if (_dragWallId == null) return;
+    final changed = _dragWallModified;
+    final rejected = _dragWallRejected;
+    final before = _dragWallStartFloor;
+    if (rejected != null && before != null) {
+      floor.restoreFrom(before);
     }
+    setState(() {
+      _dragWallId = null;
+      _dragWallStartFloor = null;
+      _dragWallBaseTransform = null;
+      _dragWallStartMm = null;
+      _dragWallModified = false;
+      _dragWallRejected = null;
+      _dragWallViewportPoint = null;
+      _dragWallOffsetMm = 0;
+    });
+    if (rejected != null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          duration: const Duration(milliseconds: 2200),
+          content: Text('Перемещение стены отменено: $rejected'),
+        ));
+      }
+      return;
+    }
+    if (changed) await _changed(); // single undo/history snapshot per drag
+  }
+
+  // A short contextual indicator replaces a full-width wall-drag toolbar.
+  // It follows the finger but never intercepts touch gestures.
+  Widget _wallDragHud() {
+    final point = _dragWallViewportPoint;
+    if (point == null || _viewport.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final rejected = _dragWallRejected;
+    const hudWidth = 208.0;
+    const hudHeight = 55.0;
+    final top = (point.dy > 165 ? point.dy - hudHeight - 28
+            : point.dy + 26)
+        .clamp(65.0, math.max(65.0, _viewport.height - hudHeight - 8))
+        .toDouble();
+    final left = (point.dx - hudWidth / 2)
+        .clamp(8.0, math.max(8.0, _viewport.width - hudWidth - 8))
+        .toDouble();
+    final color = rejected == null ? ZamerColors.accent : ZamerColors.danger;
+    return Positioned(
+      key: const ValueKey('wall-drag-live-hud'),
+      left: left,
+      top: top,
+      width: math.min(hudWidth, math.max(1.0, _viewport.width - 16)),
+      child: IgnorePointer(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: const Color(0xF20A1A21),
+            border: Border.all(color: color.withValues(alpha: .8)),
+            borderRadius: BorderRadius.circular(11),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(children: [
+                Icon(rejected == null
+                    ? Icons.swap_horiz_rounded
+                    : Icons.error_outline_rounded, size: 15, color: color),
+                const SizedBox(width: 6),
+                Expanded(child: Text(
+                  rejected == null
+                      ? 'Сдвиг стены: ${_dragWallOffsetMm >= 0 ? '+' : ''}${_dragWallOffsetMm.round()} мм'
+                      : 'Недопустимое смещение',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: color, fontSize: 11,
+                    fontWeight: FontWeight.w700),
+                )),
+              ]),
+              const SizedBox(height: 4),
+              Text(
+                rejected ?? 'Отпустите для применения',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: ZamerColors.textSecondary, fontSize: 10),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _tapCanvas(TapUpDetails details) async {
@@ -3309,6 +3422,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                 ),
               ),
 
+              if (_dragWallId != null) _wallDragHud(),
               if (_selectedWall != null &&
                   !_drawingWall &&
                   _dragWallId == null &&
