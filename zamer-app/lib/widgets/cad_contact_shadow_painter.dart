@@ -16,7 +16,9 @@ abstract final class CadContactShadowPainter {
   }) {
     if (object.elevationMm > 2300 ||
         object.type == PlanObjectType.lighting ||
-        object.type == PlanObjectType.electrical) {
+        object.type == PlanObjectType.ceilingZone ||
+        object.type == PlanObjectType.waterPoint ||
+        object.type == PlanObjectType.drainPoint) {
       return;
     }
     final width = object.widthMm * mmToPx;
