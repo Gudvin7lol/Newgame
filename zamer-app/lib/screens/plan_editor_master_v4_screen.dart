@@ -121,6 +121,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   bool _openingDragDirty = false;
   String? _openingSnapHint;
   String? _dragWallId;
+  FloorPlan? _dragWallStartFloor;
   double _dragWallOffsetMm = 0;
   bool _dragWallModified = false;
   String? _dragWallRejected;
@@ -216,6 +217,12 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       _nodeDragChanged = false;
       _selectedNodeId = null;
       _selectedWallId = null;
+      // Switching tools in the middle of a wall gesture is cancellation,
+      // not approval of its last intermediate position.
+      if (_dragWallStartFloor != null) {
+        floor.restoreFrom(_dragWallStartFloor!);
+      }
+      _dragWallStartFloor = null;
       _dragWallId = null;
       _dragOpeningWallId = null;
       _dragOpeningId = null;
@@ -224,6 +231,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       _dragWallStartMm = null;
       _dragWallBaseTransform = null;
       _dragWallRejected = null;
+      _dragWallModified = false;
+      _dragWallOffsetMm = 0;
       _materialPickMode = widget.planTool == MeasurePlanTool.overview;
       _materialsExpanded = false;
     }
@@ -665,6 +674,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     setState(() {
       _selectedWallId = wall.id;
       _dragWallId = wall.id;
+      _dragWallStartFloor = FloorPlan.fromJson(floor.toJson());
       _dragWallStartMm = _toMm(point);
       _dragWallBaseTransform = Matrix4.copy(_transform.value);
       _dragWallOffsetMm = 0;
@@ -679,7 +689,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     final base = _dragWallBaseTransform;
     if (id == null || originMm == null || base == null) return;
     if (details.pointerCount != 1) {
-      unawaited(_wallDragFinish());
+      // Pinch/navigation should not commit a half-finished wall move.
+      unawaited(_wallDragFinish(cancel: true));
       return;
     }
     // InteractiveViewer updates its matrix as part of the same gesture.
@@ -702,12 +713,19 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     final step = _snapping ? 10.0 : 1.0;
     final wanted = (rawOffset / step).round() * step;
     final change = wanted - _dragWallOffsetMm;
-    if (change.abs() < .01) return;
+    if (change.abs() < .01) {
+      // The finger has returned to a known-valid position after briefly
+      // crossing a prohibited area. Remove the stale rejection warning.
+      if (_dragWallRejected != null) {
+        setState(() => _dragWallRejected = null);
+      }
+      return;
+    }
     final result = OrthogonalWallEditService.move(
       floor, wallId: id, offsetMm: change,
     );
     if (!result.isValid) {
-      _dragWallRejected = result.message;
+      setState(() => _dragWallRejected = result.message);
       return;
     }
     _dragWallOffsetMm = wanted;
@@ -716,24 +734,38 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     setState(() {});
   }
 
-  Future<void> _wallDragFinish() async {
+  Future<void> _wallDragFinish({bool cancel = false}) async {
     if (_dragWallId == null) return;
-    final changed = _dragWallModified;
+    // Returning exactly to the original wall location is a no-op, not a
+    // separate undo/history event.
+    final changed = _dragWallModified && _dragWallOffsetMm.abs() >= .01;
     final rejected = _dragWallRejected;
+    final beforeDrag = _dragWallStartFloor;
+    final mustRollback = cancel || rejected != null;
+    // One transaction for the entire drag: an invalid final position or
+    // interrupted multitouch gesture never saves the last valid intermediate.
+    if (mustRollback && beforeDrag != null) {
+      floor.restoreFrom(beforeDrag);
+    }
     setState(() {
       _dragWallId = null;
+      _dragWallStartFloor = null;
       _dragWallBaseTransform = null;
       _dragWallStartMm = null;
       _dragWallModified = false;
       _dragWallRejected = null;
       _dragWallOffsetMm = 0;
     });
-    if (changed) await _changed(); // single undo/history snapshot per drag
-    if (!changed && rejected != null && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(rejected)),
-      );
+    if (mustRollback) {
+      if (!cancel && rejected != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          duration: const Duration(milliseconds: 2200),
+          content: Text('Сдвиг стены отменён: $rejected'),
+        ));
+      }
+      return;
     }
+    if (changed) await _changed(); // exactly one undo entry per valid drag
   }
 
   Future<void> _tapCanvas(TapUpDetails details) async {
@@ -873,6 +905,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       _pinchInProgress = true;
       _stopEdgePan();
       if (_dragNodeId != null) _nodeDragCancel();
+      if (_dragWallId != null) unawaited(_wallDragFinish(cancel: true));
       return;
     }
     if (_pinchInProgress ||
@@ -3309,6 +3342,54 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                 ),
               ),
 
+              // Only a compact status chip while dragging. No floating
+              // inspector covers the wall or requires a second mode.
+              if (_dragWallId != null &&
+                  widget.planTool == MeasurePlanTool.select)
+                Positioned(
+                  key: const ValueKey('wall-drag-status'),
+                  top: 64,
+                  left: 9,
+                  width: math.min(236.0, math.max(1.0, _viewport.width - 18)),
+                  child: IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: const Color(0xED10252D),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: _dragWallRejected == null
+                              ? ZamerColors.accent.withValues(alpha: .5)
+                              : ZamerColors.danger,
+                        ),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 7),
+                        child: Row(children: [
+                          Icon(
+                            _dragWallRejected == null
+                                ? Icons.open_with_rounded
+                                : Icons.warning_amber_rounded,
+                            color: _dragWallRejected == null
+                                ? ZamerColors.accent : ZamerColors.danger,
+                            size: 15),
+                          const SizedBox(width: 6),
+                          Expanded(child: Text(
+                            _dragWallRejected ??
+                                'Сдвиг: ${_dragWallOffsetMm.round()} мм',
+                            maxLines: 2, overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: _dragWallRejected == null
+                                  ? ZamerColors.textPrimary
+                                  : ZamerColors.danger,
+                            ),
+                          )),
+                        ]),
+                      ),
+                    ),
+                  ),
+                ),
               if (_selectedWall != null &&
                   !_drawingWall &&
                   _dragWallId == null &&
