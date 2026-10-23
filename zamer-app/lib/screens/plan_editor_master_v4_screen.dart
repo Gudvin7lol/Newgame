@@ -713,7 +713,14 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     final step = _snapping ? 10.0 : 1.0;
     final wanted = (rawOffset / step).round() * step;
     final change = wanted - _dragWallOffsetMm;
-    if (change.abs() < .01) return;
+    if (change.abs() < .01) {
+      // The finger has returned to a known-valid position after briefly
+      // crossing a prohibited area. Remove the stale rejection warning.
+      if (_dragWallRejected != null) {
+        setState(() => _dragWallRejected = null);
+      }
+      return;
+    }
     final result = OrthogonalWallEditService.move(
       floor, wallId: id, offsetMm: change,
     );
@@ -896,6 +903,7 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       _pinchInProgress = true;
       _stopEdgePan();
       if (_dragNodeId != null) _nodeDragCancel();
+      if (_dragWallId != null) unawaited(_wallDragFinish(cancel: true));
       return;
     }
     if (_pinchInProgress ||
@@ -3332,6 +3340,54 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                 ),
               ),
 
+              // Only a compact status chip while dragging. No floating
+              // inspector covers the wall or requires a second mode.
+              if (_dragWallId != null &&
+                  widget.planTool == MeasurePlanTool.select)
+                Positioned(
+                  key: const ValueKey('wall-drag-status'),
+                  top: 64,
+                  left: 9,
+                  width: math.min(236.0, math.max(1.0, _viewport.width - 18)),
+                  child: IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: const Color(0xED10252D),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: _dragWallRejected == null
+                              ? ZamerColors.accent.withValues(alpha: .5)
+                              : ZamerColors.danger,
+                        ),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 7),
+                        child: Row(children: [
+                          Icon(
+                            _dragWallRejected == null
+                                ? Icons.open_with_rounded
+                                : Icons.warning_amber_rounded,
+                            color: _dragWallRejected == null
+                                ? ZamerColors.accent : ZamerColors.danger,
+                            size: 15),
+                          const SizedBox(width: 6),
+                          Expanded(child: Text(
+                            _dragWallRejected ??
+                                'Сдвиг: ${_dragWallOffsetMm.round()} мм',
+                            maxLines: 2, overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: _dragWallRejected == null
+                                  ? ZamerColors.textPrimary
+                                  : ZamerColors.danger,
+                            ),
+                          )),
+                        ]),
+                      ),
+                    ),
+                  ),
+                ),
               if (_selectedWall != null &&
                   !_drawingWall &&
                   _dragWallId == null &&
