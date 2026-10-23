@@ -260,8 +260,12 @@ class CadPlanPainterV2 extends CustomPainter {
     // Tiles and board COLOR must use one persistent world grid. Previously
     // the first row was bounds.top, so changing the painter's clipping/fitted
     // viewport shifted the random shades even while the joints stayed put.
-    final startX = origin.dx + settings.laminateOffsetXMm * mmToPx;
-    final startY = origin.dy + settings.laminateOffsetYMm * mmToPx;
+    // Projects with a picked start point use its exact world coordinate,
+    // including older files where the saved phase was room-relative.
+    final startX = origin.dx +
+        (settings.floorLayoutStartXMm ?? settings.laminateOffsetXMm) * mmToPx;
+    final startY = origin.dy +
+        (settings.floorLayoutStartYMm ?? settings.laminateOffsetYMm) * mmToPx;
     final joint = Paint()
       ..color = Color.lerp(base, Colors.black, .56)!.withValues(alpha: .42)
       ..strokeWidth = math.max(.07, .45 * mmToPx);
@@ -361,8 +365,10 @@ class CadPlanPainterV2 extends CustomPainter {
   ) {
     final tileW = math.max(16.0, settings.tileWidthMm * mmToPx);
     final tileH = math.max(16.0, settings.tileHeightMm * mmToPx);
-    final startX = origin.dx + settings.tileOffsetXMm * mmToPx;
-    final startY = origin.dy + settings.tileOffsetYMm * mmToPx;
+    final startX = origin.dx +
+        (settings.floorLayoutStartXMm ?? settings.tileOffsetXMm) * mmToPx;
+    final startY = origin.dy +
+        (settings.floorLayoutStartYMm ?? settings.tileOffsetYMm) * mmToPx;
     final grout = math.max(.07, settings.floorTileGroutMm * mmToPx);
     final line = Paint()
       ..color = const Color(0xFF777B7C).withValues(alpha: .54)
