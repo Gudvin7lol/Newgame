@@ -329,8 +329,10 @@ class CadPlanPainterV2 extends CustomPainter {
       maxY: bounds.bottom + padding,
       plankLength: plankLength,
       plankWidth: plankWidth,
-      offsetX: settings.laminateOffsetXMm * mmToPx,
-      offsetY: settings.laminateOffsetYMm * mmToPx,
+      offsetX: origin.dx +
+          (settings.floorLayoutStartXMm ?? settings.laminateOffsetXMm) * mmToPx,
+      offsetY: origin.dy +
+          (settings.floorLayoutStartYMm ?? settings.laminateOffsetYMm) * mmToPx,
     );
     final joint = Paint()
       ..color = Color.lerp(base, Colors.black, .60)!.withValues(alpha: .44)
@@ -342,7 +344,16 @@ class CadPlanPainterV2 extends CustomPainter {
       Paint()..color = base,
     ];
 
-    var index = 0;
+    // Stable board shade by world motif index, not the order the list was
+    // clipped/generated. Zooming must never repaint the same physical board
+    // with an unrelated color.
+    final r = plankLength / math.sqrt2;
+    final q = plankWidth / math.sqrt2;
+    final stepX = 2 * r, stepY = 2 * q;
+    final phaseX = origin.dx +
+        (settings.floorLayoutStartXMm ?? settings.laminateOffsetXMm) * mmToPx;
+    final phaseY = origin.dy +
+        (settings.floorLayoutStartYMm ?? settings.laminateOffsetYMm) * mmToPx;
     for (final board in boards) {
       if (board.points.length != 4) continue;
       final path = Path()
@@ -351,9 +362,15 @@ class CadPlanPainterV2 extends CustomPainter {
         ..lineTo(board.points[2].x, board.points[2].y)
         ..lineTo(board.points[3].x, board.points[3].y)
         ..close();
-      canvas.drawPath(path, shades[index % shades.length]);
+      final correction = board.variant == 1 ? r - q : 0.0;
+      final column = ((board.points[0].x - correction - phaseX) / stepX)
+          .round();
+      final row = ((board.points[0].y - correction - phaseY) / stepY)
+          .round();
+      final shade = (((column * 73856093) ^ (row * 19349663) ^
+          board.variant) & 0x7fffffff) % shades.length;
+      canvas.drawPath(path, shades[shade]);
       canvas.drawPath(path, joint);
-      index++;
     }
   }
 
