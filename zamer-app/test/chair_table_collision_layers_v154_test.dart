@@ -19,6 +19,7 @@ void main() {
       planObjects: [table, chair]);
     expect(SpaceCheckService.inspect(floor)
         .where((issue) => issue.kind == SpaceIssueKind.objectObject), isEmpty);
+    expect(SpaceCheckService.overlappingVolumePairs(table, chair), isEmpty);
   });
 
   test('chair collides when its raised backrest is pushed into table top', () {
@@ -28,6 +29,7 @@ void main() {
       planObjects: [table, chair]);
     expect(SpaceCheckService.inspect(floor)
         .any((issue) => issue.kind == SpaceIssueKind.objectObject), isTrue);
+    expect(SpaceCheckService.overlappingVolumePairs(table, chair), isNotEmpty);
   });
 
   test('tables composite over chairs independent of insertion order', () {
