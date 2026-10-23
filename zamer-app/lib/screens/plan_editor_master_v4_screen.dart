@@ -197,6 +197,10 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       WidgetsBinding.instance.addPostFrameCallback((_) => _adoptViewport());
     }
     if (oldWidget.planTool != widget.planTool) {
+      // Tool changes also cancel uncommitted gestures. Without rollback,
+      // linked nodes and door/socket offsets could be left half-dragged.
+      final unfinishedDrag = _nodeDragStartFloor ?? _dragWallStartFloor;
+      if (unfinishedDrag != null) floor.restoreFrom(unfinishedDrag);
       // Switching tools must not continue an unfinished wall/arc, dimension,
       // or vertex drag on the same shared canvas.
       _wallStartNodeId = null;
@@ -223,7 +227,10 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       _selectedOpeningWallId = null;
       _selectedOpeningId = null;
       _dragWallStartMm = null;
+      _dragWallStartFloor = null;
       _dragWallBaseTransform = null;
+      _dragWallOffsetMm = 0;
+      _dragWallModified = false;
       _dragWallRejected = null;
       _materialPickMode = widget.planTool == MeasurePlanTool.overview;
       _materialsExpanded = false;
