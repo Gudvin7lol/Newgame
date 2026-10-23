@@ -97,6 +97,38 @@ void main() {
       f.nodeById(w.endNodeId) != null), isTrue);
   });
 
+  test('joining a host through a door opening is rejected safely', () {
+    final f = FloorPlan(id: 'door', name: 'Opening');
+    f.nodes.addAll([
+      PlanNode(id: 'a', xMm: 0, yMm: 0),
+      PlanNode(id: 'b', xMm: 4000, yMm: 0),
+      PlanNode(id: 'x', xMm: 1500, yMm: 1200),
+      PlanNode(id: 'tip', xMm: 1500, yMm: 2400),
+    ]);
+    f.walls.addAll([
+      PlanWall(id: 'host', startNodeId: 'a', endNodeId: 'b',
+          openings: [
+            WallOpening(id: 'door', type: OpeningType.door,
+              offsetFromStartMm: 1000, widthMm: 900, heightMm: 2100),
+          ]),
+      PlanWall(id: 'partition', startNodeId: 'x', endNodeId: 'tip'),
+    ]);
+    expect(
+      () => GeometryService.finalizeNodeMove(
+        f, movingNodeId: 'x',
+        snap: NodeSnapResult(
+          kind: NodeSnapKind.wall,
+          targetWallId: 'host',
+          point: const math.Point<double>(1500, 0),
+        ),
+      ),
+      throwsStateError,
+    );
+    expect(f.wallById('host'), isNotNull,
+      reason: 'Host must not be deleted when junction cut is forbidden');
+    expect(f.wallById('host')!.openings.single.id, 'door');
+  });
+
   test('orthogonal guide keeps connected wall at 90 degrees', () {
     final f = FloorPlan(id: 'f', name: 'F');
     f.nodes.addAll([
