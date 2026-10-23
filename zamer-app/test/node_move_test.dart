@@ -62,6 +62,41 @@ void main() {
     expect(f.nodeDegree(moved.id), greaterThanOrEqualTo(3));
   });
 
+  test('fractional T-junction reuses moved vertex and has no open seam', () {
+    final f = FloorPlan(id: 'fractional', name: 'T');
+    f.nodes.addAll([
+      PlanNode(id: 'a', xMm: 0, yMm: 0),
+      PlanNode(id: 'b', xMm: 4200, yMm: 0),
+      PlanNode(id: 'x', xMm: 2371.37, yMm: 1600),
+      PlanNode(id: 'tip', xMm: 2371.37, yMm: 2800),
+    ]);
+    f.walls.addAll([
+      PlanWall(id: 'host', startNodeId: 'a', endNodeId: 'b'),
+      PlanWall(id: 'branch', startNodeId: 'x', endNodeId: 'tip'),
+    ]);
+    final beforeCount = f.nodes.length;
+    final moved = GeometryService.finalizeNodeMove(
+      f, movingNodeId: 'x',
+      snap: NodeSnapResult(
+        kind: NodeSnapKind.wall,
+        targetWallId: 'host',
+        point: const math.Point<double>(2371.37, 0),
+      ),
+    );
+    expect(moved, isNotNull);
+    expect(moved!.id, 'x');
+    expect(moved.xMm, closeTo(2371.37, .001));
+    expect(moved.yMm, closeTo(0, .001));
+    expect(f.nodes.length, beforeCount,
+        reason: 'Host must reuse x rather than making an almost identical node');
+    expect(f.nodeDegree('x'), 3);
+    expect(f.walls.where((w) =>
+      w.startNodeId == 'x' || w.endNodeId == 'x').length, 3);
+    expect(f.walls.every((w) =>
+      f.nodeById(w.startNodeId) != null &&
+      f.nodeById(w.endNodeId) != null), isTrue);
+  });
+
   test('orthogonal guide keeps connected wall at 90 degrees', () {
     final f = FloorPlan(id: 'f', name: 'F');
     f.nodes.addAll([
