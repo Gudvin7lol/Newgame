@@ -532,6 +532,8 @@ class _RecoveredMeasureWorkspaceScreenState
         embedded: true,
         floor: widget.floor,
         onChanged: widget.onChanged,
+        sharedViewport: _sharedViewport,
+        viewportActive: _layer == 3,
         requestedMode: _electricalMode,
         requestedType: _electricalType,
       ),
