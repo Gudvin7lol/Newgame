@@ -1518,7 +1518,10 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
               final tx = _tx(size);
 
               return Stack(children: [
-                Positioned.fill(child: GestureDetector(
+                // Hard clip the 2D raster to its actual viewport. Drawing
+                // operations at high zoom must never paint over the parent
+                // mode/task header above this workspace.
+                Positioned.fill(child: ClipRect(child: GestureDetector(
                   behavior: HitTestBehavior.opaque,
                   onTapUp: (d) => _tap(d, size),
                   onScaleStart: (d) => _objectScaleStart(d, size),
@@ -1535,7 +1538,7 @@ class _PlanningObjectsScreenState extends State<PlanningObjectsScreen> {
                     ),
                     child: const SizedBox.expand(),
                   ),
-                )),
+                ))),
                 Positioned(right: 9, bottom: 10, child: Row(children: [
                   _viewportButton(Icons.remove_rounded,
                     () => _changeViewportZoom(1 / 1.2)),
