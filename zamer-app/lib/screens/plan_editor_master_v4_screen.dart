@@ -129,6 +129,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
   ProjectLayer _drawingLayer = ProjectLayer.existing;
   String? _selectedRoomFaceKey;
   String? _wallStartNodeId;
+  String? _wallChainFirstNodeId;
+  int _wallChainSegments = 0;
   String? _dimensionStartNodeId;
   math.Point<double>? _dimensionStartInterior;
   String? _dimensionStartInteriorNodeId;
@@ -197,6 +199,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       // Switching tools must not continue an unfinished wall/arc, dimension,
       // or vertex drag on the same shared canvas.
       _wallStartNodeId = null;
+      _wallChainFirstNodeId = null;
+      _wallChainSegments = 0;
       _lastWallSnapLabel = null;
       _liveWallSnap = null;
       _moveCameraInsteadOfDrawing = false;
@@ -285,6 +289,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     setState(() {
       _materialPickMode = true;
       _wallStartNodeId = null;
+      _wallChainFirstNodeId = null;
+      _wallChainSegments = 0;
       _dimensionStartNodeId = null;
       _selectedWallId = null;
     });
@@ -299,6 +305,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       _materialCategory = category;
       _materialPickMode = true;
       _wallStartNodeId = null;
+      _wallChainFirstNodeId = null;
+      _wallChainSegments = 0;
       _dimensionStartNodeId = null;
       _selectedWallId = null;
     });
@@ -841,6 +849,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     wallCaptureMm: 12 / (_mmToPx * _scale),
     allowWallFaces: _captureWallFace,
     previousSnap: _liveWallSnap,
+    priorityNodeId: _wallChainSegments >= 2
+        ? _wallChainFirstNodeId : null,
   );
 
   // Listener is passive: it never claims a gesture. Navigation is only
@@ -1021,7 +1031,11 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     final dy = snap.point.y - start.yMm;
     final lengthMm = math.sqrt(dx * dx + dy * dy);
     final angle = math.atan2(dy, dx) * 180 / math.pi;
-    final kind = !_snapping ? 'Без привязки' : snap.label;
+    final closesOutline = _wallChainSegments >= 2 &&
+        snap.targetNodeId == _wallChainFirstNodeId &&
+        snap.targetNodeId != null;
+    final kind = closesOutline
+        ? 'Замкнуть контур' : !_snapping ? 'Без привязки' : snap.label;
     final target = snap.targetNodeId != null
         ? ' · Узел' : snap.targetWallId != null ? ' · Стена' : '';
     final kindLabel = '$kind$target';
@@ -1107,6 +1121,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       }
       setState(() {
         _wallStartNodeId = node.id;
+        _wallChainFirstNodeId = node.id;
+        _wallChainSegments = 0;
         _lastWallSnapLabel = 'Начало стены';
         _liveWallSnap = null;
         _selectedWallId = null;
@@ -1180,8 +1196,17 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
     }
     _lastWallAngleDegrees =
         math.atan2(end.yMm - start.yMm, end.xMm - start.xMm) * 180 / math.pi;
+    final closed = WallDrawingService.closesChain(
+      firstNodeId: _wallChainFirstNodeId,
+      endNodeId: end.id,
+      completedSegments: _wallChainSegments,
+      changed: changed,
+    );
     setState(() {
-      _wallStartNodeId = end.id;
+      _wallStartNodeId = closed ? null : end.id;
+      _wallChainSegments = closed ? 0 : _wallChainSegments + (changed ? 1 : 0);
+      if (closed) _wallChainFirstNodeId = null;
+      _lastWallSnapLabel = closed ? 'Контур замкнут' : _lastWallSnapLabel;
       _liveWallSnap = null;
       if (drawn.isNotEmpty) _selectedWallId = drawn.last.id;
     });
@@ -2563,6 +2588,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       _materialPickMode = false;
       _tool = tool;
       _wallStartNodeId = null;
+      _wallChainFirstNodeId = null;
+      _wallChainSegments = 0;
       _dimensionStartNodeId = null;
     });
   }
@@ -2792,6 +2819,8 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
             TextButton.icon(
               onPressed: () => setState(() {
                 _wallStartNodeId = null;
+                _wallChainFirstNodeId = null;
+                _wallChainSegments = 0;
                 _lastWallSnapLabel = null;
                 _liveWallSnap = null;
               }),
