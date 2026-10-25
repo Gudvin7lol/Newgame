@@ -124,6 +124,8 @@ void main() {
     expect(src, contains('WallTopologyDiagnostics.findGaps(floor)'));
     expect(src, contains("ValueKey('wall-gap-contours')"));
     expect(src, contains("ValueKey('wall-near-gap-indicator')"));
+    expect(src, contains("ValueKey('wall-gap-repair')"));
+    expect(src, contains('WallTopologyRepairService.repair('));
     expect(src, contains('_focusFirstTopologyGap'));
     expect(src, contains('WallDragTouchPolicy.shouldStart('));
   });
