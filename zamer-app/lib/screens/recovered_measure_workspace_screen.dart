@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../application/workspace_action_registry.dart';
+import '../application/workspace_session.dart';
 import '../design_system/zamer_measure_chrome.dart';
 import '../design_system/zamer_tokens.dart';
 import '../models/models.dart';
@@ -67,26 +69,57 @@ class RecoveredMeasureWorkspaceScreen extends StatefulWidget {
 
 class _RecoveredMeasureWorkspaceScreenState
     extends State<RecoveredMeasureWorkspaceScreen> {
-  int _layer = 0;
-  int _categoryIndex = 0;
-  bool _taskActivated = false;
-  String? _selectionKind;
-  String _activeFanCommand = 'select';
+  final WorkspaceSession _session = WorkspaceSession();
   final ValueNotifier<String?> _objectFanCommands = ValueNotifier(null);
+  final ValueNotifier<String?> _floorFanCommands = ValueNotifier(null);
   final ValueNotifier<PlanViewportSnapshot?> _sharedViewport =
       ValueNotifier<PlanViewportSnapshot?>(null);
   int _objectCommandSerial = 0;
+  int _floorCommandSerial = 0;
   MeasurePlanTool _planTool = MeasurePlanTool.select;
   OpeningType? _preferredOpeningType;
   ElectricalMode _electricalMode = ElectricalMode.select;
   ElectricalPointType _electricalType = ElectricalPointType.socket;
   ZMeasureViewMode _view = ZMeasureViewMode.twoD;
 
+  // Compatibility accessors let the current production canvases migrate to
+  // the shared workspace state without changing their public APIs yet.
+  int get _layer => _session.domain.index;
+  set _layer(int value) => _session.selectDomain(
+    WorkspaceDomain.values[value.clamp(0, WorkspaceDomain.values.length - 1)
+        .toInt()],
+  );
+  int get _categoryIndex => _session.taskIndex;
+  set _categoryIndex(int value) => _session.selectTask(
+    value,
+    activated: _session.taskActivated,
+  );
+  bool get _taskActivated => _session.taskActivated;
+  set _taskActivated(bool value) => _session.selectTask(
+    _session.taskIndex,
+    activated: value,
+  );
+  String? get _selectionKind => _session.selection?.kind;
+  set _selectionKind(String? value) => _session.setSelection(value);
+  String get _activeFanCommand => _session.quickAction;
+  set _activeFanCommand(String value) => _session.setQuickAction(value);
+
   @override
   void dispose() {
     _objectFanCommands.dispose();
+    _floorFanCommands.dispose();
     _sharedViewport.dispose();
+    _session.dispose();
     super.dispose();
+  }
+
+  Future<void> _commitChanged() async {
+    _session.markDirty(true);
+    try {
+      await widget.onChanged();
+    } finally {
+      if (mounted) _session.markDirty(false);
+    }
   }
 
   static const _layers = <(String, IconData)>[
@@ -100,14 +133,19 @@ class _RecoveredMeasureWorkspaceScreenState
 
   void _selectView(ZMeasureViewMode value) {
     if (value == ZMeasureViewMode.twoD) {
-      if (_view != value) setState(() => _view = value);
+      if (_view != value) {
+        _session.setView(WorkspaceView.twoD);
+        setState(() => _view = value);
+      }
       return;
     }
     if (value == ZMeasureViewMode.threeD) {
+      _session.setView(WorkspaceView.threeD);
       widget.onOpen3D();
       return;
     }
     if (value == ZMeasureViewMode.photo) {
+      _session.setView(WorkspaceView.photo);
       widget.onOpenPhoto();
     }
   }
@@ -118,6 +156,7 @@ class _RecoveredMeasureWorkspaceScreenState
     if (value == _layer) return;
     setState(() {
       _view = ZMeasureViewMode.twoD;
+      _session.setView(WorkspaceView.twoD);
       _layer = value.clamp(0, _layers.length - 1).toInt();
       _categoryIndex = 0;
       _taskActivated = false;
@@ -172,24 +211,10 @@ class _RecoveredMeasureWorkspaceScreenState
   };
 
   Set<String> get _availableFanActions {
-    if (_layer == 2) {
-      return _selectionKind == 'object'
-          ? const {'select', 'move', 'rotate', 'duplicate', 'delete'}
-          : const {'select', 'add'};
-    }
-    if (_layer == 0) {
-      return const {'select', 'wall', 'opening', 'straight',
-        'arc', 'move', 'nodes', 'moveNode', 'measure',
-        'door', 'window', 'segment', 'whole',
-        'linearDimension', 'chainDimension'};
-    }
-    if (_layer == 3) {
-      return const {'select','point','singlePoint',
-        'light','line','route'};
-    }
-    // The floor plan has working editing controls of its own. Future
-    // radial operations remain locked until wired to their actual handler.
-    return const {'select'};
+    return WorkspaceActionRegistry.actions(
+      WorkspaceDomain.values[_layer],
+      WorkspaceActionLocation.fan,
+    );
   }
 
   void _selectTask(int value) {
@@ -267,6 +292,13 @@ class _RecoveredMeasureWorkspaceScreenState
       }
       return;
     }
+    if (_layer == 1) {
+      if (id == 'select' || id == 'direction' || id == 'start') {
+        _floorFanCommands.value = '${++_floorCommandSerial}:$id';
+        setState(() => _activeFanCommand = id);
+      }
+      return;
+    }
     if (_layer == 3) {
       setState(() {
         _activeFanCommand = id;
@@ -308,6 +340,7 @@ class _RecoveredMeasureWorkspaceScreenState
   Widget _kitTasks() {
     final current = _layer < 4 ? _layer : 0;
     final categories = ZamerKitNavigation.categories(current);
+    final visibleIndices = _visibleTaskIndices(current);
     return Container(
       height: 52,
       decoration: const BoxDecoration(
@@ -321,34 +354,38 @@ class _RecoveredMeasureWorkspaceScreenState
               key: const ValueKey('kit-v2-tasks'),
               padding: const EdgeInsets.fromLTRB(8, 3, 8, 4),
               scrollDirection: Axis.horizontal,
-              itemCount: categories.length,
+              itemCount: visibleIndices.length,
               separatorBuilder: (_, _) => const SizedBox(width: 6),
               itemBuilder: (_, index) {
-                final selected = _categoryIndex == index && _taskActivated;
+                final sourceIndex = visibleIndices[index];
+                final selected = _categoryIndex == sourceIndex &&
+                    _taskActivated;
                 final icon = switch (current) {
                   0 => [Icons.border_outer_rounded, Icons.view_week_outlined,
                     Icons.door_front_door_outlined, Icons.auto_delete_outlined,
-                    Icons.straighten_outlined][index],
+                    Icons.straighten_outlined][sourceIndex],
                   1 => [Icons.grid_on_outlined, Icons.layers_outlined,
-                    Icons.format_color_fill_outlined][index],
+                    Icons.format_color_fill_outlined][sourceIndex],
                   2 => Icons.chair_alt_outlined,
                   _ => [Icons.power_outlined, Icons.toggle_on_outlined,
                     Icons.lightbulb_outline, Icons.polyline_outlined,
-                    Icons.electrical_services_outlined, Icons.hub_outlined][index],
+                    Icons.electrical_services_outlined, Icons.hub_outlined]
+                    [sourceIndex],
                 };
                 return KeyedSubtree(
-                  key: ValueKey('kit-v2-task-$index'),
+                  key: ValueKey('kit-v2-task-$sourceIndex'),
                   // Horizontal ListView gives children unbounded width.
                   // An explicit chip width keeps the Segment's LayoutBuilder
                   // and Flexible label valid on small Android screens.
                   child: SizedBox(
-                    width: categories[index].length > 10
-                        ? 136 : categories[index].length > 7 ? 120 : 104,
+                    width: categories[sourceIndex].length > 10
+                        ? 136 : categories[sourceIndex].length > 7
+                            ? 120 : 104,
                     child: ZamerKitSegment(
-                      label: categories[index],
+                      label: categories[sourceIndex],
                       icon: icon,
                       selected: selected,
-                      onTap: () => _selectTask(index),
+                      onTap: () => _selectTask(sourceIndex),
                     ),
                   ),
                 );
@@ -367,7 +404,27 @@ class _RecoveredMeasureWorkspaceScreenState
     );
   }
 
+  List<int> _visibleTaskIndices(int domain) => switch (domain) {
+    // Dimensions stay available in the overflow sheet so the main ribbon
+    // remains focused on the four frequent construction tools.
+    0 => const [0, 1, 2, 3],
+    // Lines and groups are contextual electrical operations.
+    3 => const [0, 1, 2, 4],
+    _ => List<int>.generate(
+      ZamerKitNavigation.categories(domain).length,
+      (index) => index,
+    ),
+  };
+
+  List<int> _overflowTaskIndices(int domain) => switch (domain) {
+    0 => const [4],
+    3 => const [3, 5],
+    _ => const <int>[],
+  };
+
   void _showMoreTools() {
+    final overflowTasks = _overflowTaskIndices(_layer);
+    final overflowLabels = ZamerKitNavigation.categories(_layer);
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: ZamerKitColors.panel,
@@ -394,6 +451,33 @@ class _RecoveredMeasureWorkspaceScreenState
                   _selectLayer(value);
                 },
               ),
+              if (overflowTasks.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Дополнительные инструменты',
+                    style: TextStyle(
+                      color: ZamerKitColors.muted,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                for (final taskIndex in overflowTasks)
+                  ListTile(
+                    dense: true,
+                    leading: const Icon(
+                      Icons.tune_rounded,
+                      color: ZamerKitColors.peach,
+                    ),
+                    title: Text(overflowLabels[taskIndex]),
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      _selectTask(taskIndex);
+                    },
+                  ),
+              ],
               const SizedBox(height: 12),
               ZMeasureViewTabs(
                 value: _view,
@@ -440,7 +524,7 @@ class _RecoveredMeasureWorkspaceScreenState
                 item: item,
               );
               try {
-                await widget.onChanged();
+                await _commitChanged();
                 if (!mounted) return;
                 setState(() {
                   _view = ZMeasureViewMode.twoD;
@@ -481,7 +565,7 @@ class _RecoveredMeasureWorkspaceScreenState
     final pages = <Widget>[
       PlanEditorProductionScreen(
         floor: widget.floor,
-        onChanged: widget.onChanged,
+        onChanged: _commitChanged,
         onOpenObjects: () => _selectLayer(2),
         planTool: _planTool,
         nativeKitV2: true,
@@ -506,13 +590,14 @@ class _RecoveredMeasureWorkspaceScreenState
       ),
       MeasureFloorPlanLayerScreen(
         floor: widget.floor,
-        onChanged: widget.onChanged,
+        onChanged: _commitChanged,
         sharedViewport: _sharedViewport,
         viewportActive: _layer == 1,
+        fanCommand: _floorFanCommands,
       ),
       PlanningObjectsScreen(
         floor: widget.floor,
-        onChanged: widget.onChanged,
+        onChanged: _commitChanged,
         embedded: true,
         sharedViewport: _sharedViewport,
         viewportActive: _layer == 2,
@@ -531,17 +616,17 @@ class _RecoveredMeasureWorkspaceScreenState
       ElectricalScreen(
         embedded: true,
         floor: widget.floor,
-        onChanged: widget.onChanged,
+        onChanged: _commitChanged,
         sharedViewport: _sharedViewport,
         viewportActive: _layer == 3,
         requestedMode: _electricalMode,
         requestedType: _electricalType,
       ),
-      EngineeringScreen(floor: widget.floor, onChanged: widget.onChanged),
+      EngineeringScreen(floor: widget.floor, onChanged: _commitChanged),
       MaterialsScreen(
         floor: widget.floor,
         project: widget.project,
-        onChanged: widget.onChanged,
+        onChanged: _commitChanged,
       ),
     ];
 
@@ -591,12 +676,18 @@ class _RecoveredMeasureWorkspaceScreenState
                     key: const ValueKey('zamer-native-v2-fan'),
                     contextId: '${_fanContext}:${_categoryIndex}',
                     selectedCommand: _activeFanCommand,
-                    first: ZamerFanProfilesV2.of(_fanContext,
-                      enabledActions: _availableFanActions).first,
-                    second: ZamerFanProfilesV2.of(_fanContext,
-                      enabledActions: _availableFanActions).second,
-                    outer: ZamerFanProfilesV2.of(_fanContext,
-                      enabledActions: _availableFanActions).outer,
+                    first: ZamerFanProfilesV2.canonicalForDomain(
+                      _layer,
+                      enabledActions: _availableFanActions,
+                    ).first,
+                    second: ZamerFanProfilesV2.canonicalForDomain(
+                      _layer,
+                      enabledActions: _availableFanActions,
+                    ).second,
+                    outer: ZamerFanProfilesV2.canonicalForDomain(
+                      _layer,
+                      enabledActions: _availableFanActions,
+                    ).outer,
                     onCommand: _fanCommand,
                     ),
                   ),

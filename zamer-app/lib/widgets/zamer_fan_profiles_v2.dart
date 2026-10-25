@@ -138,6 +138,34 @@ abstract final class ZamerFanProfilesV2 {
     _ => Icons.tune_outlined,
   };
 
+  /// Production vocabulary for the live workspace. The historical 43
+  /// profiles remain available for compatibility, but they are not allowed
+  /// to expose upper-ribbon commands in the main fan.
+  static ZamerFanProfileV2 canonicalForDomain(
+    int domain, {
+    required Set<String> enabledActions,
+  }) {
+    final spec = switch (domain) {
+      0 => const ('nodes', 'arc', <String>['measure']),
+      1 => const ('direction', 'start', <String>[]),
+      2 => const ('rotate', 'duplicate', <String>[]),
+      3 => const ('point', 'line', <String>['route', 'side', 'group']),
+      _ => const ('select', 'measure', <String>[]),
+    };
+    ZamerKitCommand action(String id) => ZamerKitCommand(
+      id,
+      _labels[id] ?? id,
+      _icon(id),
+      enabled: enabledActions.contains(id),
+    );
+    return ZamerFanProfileV2(
+      'canonical.$domain',
+      action(spec.$1),
+      action(spec.$2),
+      spec.$3.map(action).toList(growable: false),
+    );
+  }
+
   static ZamerFanProfileV2 of(
     String id, {required Set<String> enabledActions}) {
     final spec = _profiles[id] ?? _profiles['plan.idle']!;

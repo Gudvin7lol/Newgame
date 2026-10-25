@@ -21,6 +21,7 @@ import 'measure_plan_tool.dart';
 import '../services/space_check_service.dart';
 import '../services/plan_viewport_link.dart';
 import '../services/wall_topology_diagnostics.dart';
+import '../services/wall_topology_repair_service.dart';
 import '../services/wall_drag_touch_policy.dart';
 import '../widgets/cad_plan_painter.dart';
 import '../widgets/wall_draft_guide_painter.dart';
@@ -806,6 +807,29 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
       ..scale(scale);
     _publishViewport();
     setState(() {});
+  }
+
+  Future<void> _repairFirstTopologyGap() async {
+    if (_topologyGaps.isEmpty) return;
+    final result = WallTopologyRepairService.repair(
+      floor, _topologyGaps.first,
+    );
+    if (!result.isValid) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        duration: const Duration(milliseconds: 2400),
+        content: Text('Соединение отменено: ${result.message}'),
+      ));
+      return;
+    }
+    _selectedNodeId = result.nodeId;
+    await _changed();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        duration: Duration(milliseconds: 1400),
+        content: Text('Разрыв стен соединён'),
+      ));
+    }
   }
 
   Future<void> _tapCanvas(TapUpDetails details) async {
@@ -3423,6 +3447,27 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                       style: const TextStyle(fontSize: 11)),
                     backgroundColor: ZamerColors.surface,
                     side: const BorderSide(color: ZamerColors.danger),
+                  ),
+                ),
+              if (_topologyGaps.isNotEmpty &&
+                  _dragWallId == null &&
+                  (widget.planTool == MeasurePlanTool.select ||
+                   widget.planTool == MeasurePlanTool.nodes ||
+                   widget.planTool == MeasurePlanTool.exterior ||
+                   widget.planTool == MeasurePlanTool.partition))
+                Positioned(
+                  right: 8,
+                  top: 104,
+                  child: ActionChip(
+                    key: const ValueKey('wall-gap-repair'),
+                    tooltip: 'Соединить первый найденный разрыв',
+                    onPressed: _repairFirstTopologyGap,
+                    avatar: const Icon(Icons.link_rounded,
+                      color: ZamerColors.accent, size: 16),
+                    label: const Text('Соединить',
+                      style: TextStyle(fontSize: 11)),
+                    backgroundColor: ZamerColors.surface,
+                    side: const BorderSide(color: ZamerColors.accent),
                   ),
                 ),
               // Only a compact status chip while dragging. No floating
