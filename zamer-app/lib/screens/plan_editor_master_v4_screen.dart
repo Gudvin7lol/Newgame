@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 44317)
-Total output lines: 4496
-
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -2124,7 +2121,434 @@ class _PlanEditorMasterV4ScreenState extends State<PlanEditorMasterV4Screen> {
                   const SizedBox(height: 6),
                   const Text(
                     'Смежная перпендикулярная стена сместится, сохраняя '
-                    'прямые углы. Сложные уз…4317 tokens truncated…{
+                    'прямые углы. Сложные узлы блокируются.',
+                    style: TextStyle(
+                      fontSize: 11, color: ZamerColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      key: const ValueKey('existing-wall-length-apply'),
+                      onPressed: () {
+                        final newLength = double.tryParse(
+                          lengthText.trim().replaceAll(',', '.'),
+                        );
+                        if (newLength == null ||
+                            !newLength.isFinite ||
+                            newLength < WallLengthEditService.minLengthMm ||
+                            newLength > WallLengthEditService.maxLengthMm) {
+                          ScaffoldMessenger.of(sheet).showSnackBar(
+                            const SnackBar(
+                              content: Text('Укажите длину 120–100000 мм'),
+                            ),
+                          );
+                          return;
+                        }
+                        Navigator.pop(sheet, (newLength, keepStartFixed));
+                      },
+                      child: const Text('Применить размер'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    if (target == null || !mounted) return;
+
+    final result = WallLengthEditService.resize(
+      floor, wallId: wall.id, lengthMm: target.$1,
+      keepStartFixed: target.$2,
+    );
+    if (!result.isValid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result.message)),
+      );
+      return;
+    }
+    await _changed();
+  }
+
+  Future<void> _shiftSelectedWall() async {
+    final wall = _selectedWall;
+    if (wall == null) return;
+    var offsetText = '0';
+    final offset = await showModalBottomSheet<double>(
+      context: context,
+      backgroundColor: ZamerColors.surface,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheet) => SafeArea(
+        top: false,
+        child: AnimatedPadding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.viewInsetsOf(sheet).bottom,
+          ),
+          duration: const Duration(milliseconds: 150),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Сдвинуть стену параллельно'),
+                TextFormField(
+                  initialValue: offsetText,
+                  onChanged: (value) => offsetText = value,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    signed: true, decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'Смещение по X / Y',
+                    suffixText: 'мм',
+                    helperText: 'Вертикальная стена: X; горизонтальная: Y',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                FilledButton(
+                  onPressed: () {
+                    final mm = double.tryParse(
+                      offsetText.trim().replaceAll(',', '.'),
+                    );
+                    if (mm == null || !mm.isFinite) {
+                      ScaffoldMessenger.of(sheet).showSnackBar(
+                        const SnackBar(content: Text('Укажите смещение в мм')),
+                      );
+                      return;
+                    }
+                    Navigator.pop(sheet, mm);
+                  },
+                  child: const Text('Переместить'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    if (offset == null || offset == 0 || !mounted) return;
+    final result = OrthogonalWallEditService.move(
+      floor, wallId: wall.id, offsetMm: offset,
+    );
+    if (!result.isValid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result.message)),
+      );
+      return;
+    }
+    await _changed();
+  }
+
+  ({math.Point<double> point, String nodeId})?
+      _nearestRoomInteriorCorner(Offset canvasPoint) {
+    final raw = _toMm(canvasPoint);
+    final pixelToleranceMm = 18 / (_mmToPx * _scale);
+    var best = pixelToleranceMm;
+    ({math.Point<double> point, String nodeId})? result;
+    for (final face in _faces) {
+      if (face.edges.any(
+        (edge) => floor.wallById(edge.wallId)?.isCurved != false,
+      )) continue;
+      // The real corners exclude intermediate collinear vertices introduced
+      // when a host wall was split at a T-junction.
+      for (final dimension in RoomInteriorDimensionsService.forFace(face)) {
+        final i = dimension.startEdgeIndex;
+        if (i >= face.nodeIds.length) continue;
+        final candidate = dimension.start;
+        final d = WallDrawingService.distance(raw, candidate);
+        if (d >= best) continue;
+        best = d;
+        result = (point: candidate, nodeId: face.nodeIds[i]);
+      }
+    }
+    return result;
+  }
+
+  Future<void> _addDimension(Offset p) async {
+    if (_measureRoomInterior) {
+      final corner = _nearestRoomInteriorCorner(p);
+      if (corner == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text(
+              'Нажмите на внутренний угол замкнутого помещения',
+            )),
+          );
+        }
+        return;
+      }
+      final from = _dimensionStartInterior;
+      final nodeId = _dimensionStartInteriorNodeId;
+      if (from == null || nodeId == null) {
+        setState(() {
+          _dimensionStartInterior = corner.point;
+          _dimensionStartInteriorNodeId = corner.nodeId;
+        });
+        return;
+      }
+      if (nodeId == corner.nodeId) return;
+      final length = WallDrawingService.distance(from, corner.point);
+      if (length < 1) return;
+      final measure = ControlMeasure(
+        id: 'm-${DateTime.now().microsecondsSinceEpoch}',
+        startNodeId: nodeId,
+        endNodeId: corner.nodeId,
+        startXMm: from.x,
+        startYMm: from.y,
+        endXMm: corner.point.x,
+        endYMm: corner.point.y,
+        measuredMm: length,
+        label: 'Внутренний размер',
+      );
+      floor.measures.add(measure);
+      floor.dimensionRecords['control:${measure.id}'] = DimensionRecord(
+        valueMm: length,
+        source: DimensionSource.calculated,
+        author: 'Замер',
+        recordedAt: DateTime.now(),
+      );
+      setState(() {
+        _dimensionStartInterior = null;
+        _dimensionStartInteriorNodeId = null;
+      });
+      await _changed();
+      return;
+    }
+
+    // Axial measurements remain available intentionally for structural
+    // checks; they are not silently treated as actual room dimensions.
+    final node = _nodeNear(p);
+    if (node == null) return;
+    if (_dimensionStartNodeId == null) {
+      setState(() => _dimensionStartNodeId = node.id);
+      return;
+    }
+    final start = floor.nodeById(_dimensionStartNodeId!);
+    if (start == null || start.id == node.id) return;
+    final value = GeometryService.distance(start, node);
+    final measure = ControlMeasure(
+      id: 'm-${DateTime.now().microsecondsSinceEpoch}',
+      startNodeId: start.id,
+      endNodeId: node.id,
+      measuredMm: value,
+      label: 'По осям',
+    );
+    floor.measures.add(measure);
+    floor.dimensionRecords['control:${measure.id}'] = DimensionRecord(
+      valueMm: value,
+      source: DimensionSource.calculated,
+      author: 'Замер',
+      recordedAt: DateTime.now(),
+    );
+    setState(() => _dimensionStartNodeId = null);
+    await _changed();
+  }
+
+  Future<void> _editNotes() async {
+    final controller = TextEditingController(text: floor.notes);
+    final value = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Текст на плане'),
+        content: TextField(controller: controller, minLines: 3, maxLines: 6),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Отмена'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: const Text('Сохранить'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (value == null) return;
+    floor.notes = value;
+    await _changed();
+  }
+
+  /// Visibility is view state only: toggling a category never mutates a
+  /// PlanWall, PlanObject, ElectricalPoint or saved project material.
+  Future<void> _layersSheet() async {
+    final draftConstruction = Set<ProjectLayer>.of(_visibleLayers);
+    final draftCategories = Set<PlanDisplayLayer>.of(_visibleCategories);
+    final draftCollisions = Set<PlanCollisionKind>.of(_collisionKinds);
+    final marks = PlanCollisionService.inspect(floor);
+    if (!mounted) return;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: ZamerColors.surface,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheet) {
+          void toggle<T>(Set<T> target, T value, bool enabled) {
+            setSheet(() {
+              if (enabled) {
+                target.add(value);
+              } else {
+                target.remove(value);
+              }
+            });
+          }
+          return SafeArea(
+            child: SizedBox(
+              height: MediaQuery.sizeOf(context).height * .77,
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(children: [
+                      const Icon(Icons.layers_outlined, size: 20),
+                      const SizedBox(width: 10),
+                      const Expanded(
+                        child: Text('Слои и коллизии',
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      ),
+                      TextButton(
+                        onPressed: () => setSheet(() {
+                          draftConstruction
+                            ..clear()
+                            ..addAll(ProjectLayer.values);
+                          draftCategories
+                            ..clear()
+                            ..addAll(PlanDisplayLayer.values)
+                            ..remove(PlanDisplayLayer.axisDimensions)
+                            ..remove(PlanDisplayLayer.dimensions);
+                          draftCollisions
+                            ..clear()
+                            ..addAll(PlanCollisionKind.values);
+                        }),
+                        child: const Text('Сброс'),
+                      ),
+                    ]),
+                  ),
+                  Expanded(
+                    child: ListView(
+                      key: const ValueKey('plan-layers-list'),
+                      children: [
+                        const ListTile(
+                          dense: true,
+                          title: Text('Строительные слои',
+                            style: TextStyle(fontWeight: FontWeight.w700)),
+                          subtitle: Text('Существующее, демонтаж и новая планировка'),
+                        ),
+                        for (final layer in ProjectLayer.values)
+                          SwitchListTile.adaptive(
+                            dense: true,
+                            title: Text(layer.label),
+                            value: draftConstruction.contains(layer),
+                            onChanged: (enabled) =>
+                              toggle(draftConstruction, layer, enabled),
+                          ),
+                        const Divider(height: 16),
+                        const ListTile(
+                          dense: true,
+                          title: Text('Элементы плана',
+                            style: TextStyle(fontWeight: FontWeight.w700)),
+                          subtitle: Text('Скрытые объекты не удаляются из проекта'),
+                        ),
+                        for (final layer in PlanDisplayLayer.values)
+                          SwitchListTile.adaptive(
+                            dense: true,
+                            key: ValueKey('layer-${layer.name}'),
+                            title: Text(layer.label),
+                            value: draftCategories.contains(layer),
+                            onChanged: (enabled) =>
+                              toggle(draftCategories, layer, enabled),
+                          ),
+                        const Divider(height: 16),
+                        ListTile(
+                          dense: true,
+                          title: const Text('Контроль коллизий',
+                            style: TextStyle(fontWeight: FontWeight.w700)),
+                          subtitle: Text(
+                            '${marks.length} обнаружено · цветные метки на плане',
+                          ),
+                        ),
+                        for (final kind in PlanCollisionKind.values)
+                          SwitchListTile.adaptive(
+                            dense: true,
+                            key: ValueKey('collision-${kind.name}'),
+                            title: Text(kind.label),
+                            subtitle: Text(
+                              '${marks.where((issue) => issue.kind == kind).length} конфликтов',
+                            ),
+                            value: draftCollisions.contains(kind),
+                            onChanged: (enabled) =>
+                              toggle(draftCollisions, kind, enabled),
+                          ),
+                        const Padding(
+                          padding: EdgeInsets.fromLTRB(16, 8, 16, 12),
+                          child: Text(
+                            'Сейчас проверяются 2D-пересечения стен и объектов, '
+                            'а также свободный проход у двери. '
+                            'Коллизии кабелей и труб с конструкциями '
+                            'пока не рассчитываются.',
+                            style: TextStyle(fontSize: 11,
+                              color: ZamerColors.textSecondary),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: marks.isEmpty ? null : () {
+                              Navigator.pop(sheetContext);
+                              _collisionReport(marks);
+                            },
+                            icon: const Icon(Icons.fact_check_outlined, size: 18),
+                            label: Text('Ошибки (${marks.length})'),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: FilledButton(
+                            onPressed: () {
+                              setState(() {
+                                _visibleLayers
+                                  ..clear()
+                                  ..addAll(draftConstruction);
+                                _visibleCategories
+                                  ..clear()
+                                  ..addAll(draftCategories);
+                                _collisionKinds
+                                  ..clear()
+                                  ..addAll(draftCollisions);
+                                // Hidden walls/objects cannot remain selected.
+                                if (!_visibleCategories.contains(
+                                  PlanDisplayLayer.walls,
+                                )) _selectedWallId = null;
+                              });
+                              Navigator.pop(sheetContext);
+                            },
+                            child: const Text('Применить'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  void _focusCollision(math.Point<double> position) {
     if (_viewport.isEmpty) return;
     final scale = math.max(1.0, _transform.value.getMaxScaleOnAxis())
         .clamp(.28, 6.0);
