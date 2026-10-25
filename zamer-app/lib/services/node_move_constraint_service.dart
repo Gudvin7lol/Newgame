@@ -10,12 +10,19 @@ class NodeMoveConstraintResult {
     required this.isValid,
     this.positions = const {},
     this.movedNodeIds = const {},
+    this.electricalPositions = const {},
+    this.electricalOffsets = const {},
     this.message,
   });
 
   final bool isValid;
   final Map<String, math.Point<double>> positions;
   final Set<String> movedNodeIds;
+  /// New world positions for electrical points attached to walls affected by
+  /// the node move. The CAD painter uses x/y as its source of truth, so these
+  /// must be previewed and applied together with the wall nodes.
+  final Map<ElectricalPoint, math.Point<double>> electricalPositions;
+  final Map<ElectricalPoint, double> electricalOffsets;
   final String? message;
 }
 
@@ -76,6 +83,9 @@ class NodeMoveConstraintService {
       return (p.x - n.xMm).abs() > .01 || (p.y - n.yMm).abs() > .01;
     }).map((n) => n.id).toSet();
 
+    final electricalPositions = <ElectricalPoint, math.Point<double>>{};
+    final electricalOffsets = <ElectricalPoint, double>{};
+
     for (final wall in before.walls) {
       final oldA = before.nodeById(wall.startNodeId);
       final oldB = before.nodeById(wall.endNodeId);
@@ -129,6 +139,44 @@ class NodeMoveConstraintService {
           message: 'Для изменения дуги нужен инструмент дуг',
         );
       }
+
+      // A wall-mounted point is stored in world coordinates for the plan
+      // painter and also carries an offset from the wall start. When a node
+      // edit moves or stretches that wall, keep the point at the same
+      // measured offset so it remains physically attached to the wall.
+      if (changed.contains(oldA.id) || changed.contains(oldB.id)) {
+        final oldDx = oldB.xMm - oldA.xMm;
+        final oldDy = oldB.yMm - oldA.yMm;
+        final oldLengthSquared = oldDx * oldDx + oldDy * oldDy;
+        final newDx = b.x - a.x;
+        final newDy = b.y - a.y;
+        final newLength = math.sqrt(newDx * newDx + newDy * newDy);
+        if (oldLengthSquared <= .01 || !newLength.isFinite ||
+            newLength < _minWallLengthMm) {
+          continue;
+        }
+        final oldLength = math.sqrt(oldLengthSquared);
+        for (final point in before.electricalPoints.where(
+          (candidate) => candidate.wallId == wall.id,
+        )) {
+          final projected = ((point.xMm - oldA.xMm) * oldDx +
+              (point.yMm - oldA.yMm) * oldDy) / oldLength;
+          final offset = point.wallOffsetMm ?? projected;
+          if (!offset.isFinite || offset < -.01 ||
+              offset > oldLength + .01 || offset > newLength + .01) {
+            return const NodeMoveConstraintResult(
+              isValid: false,
+              message: 'Электроточка выйдет за пределы стены',
+            );
+          }
+          final clampedOffset = offset.clamp(0.0, newLength).toDouble();
+          electricalOffsets[point] = clampedOffset;
+          electricalPositions[point] = math.Point<double>(
+            a.x + newDx / newLength * clampedOffset,
+            a.y + newDy / newLength * clampedOffset,
+          );
+        }
+      }
     }
 
     // Reject a *new* proper crossing between segments without a shared node.
@@ -166,7 +214,11 @@ class NodeMoveConstraintService {
     }
 
     return NodeMoveConstraintResult(
-      isValid: true, positions: coordinates, movedNodeIds: changed,
+      isValid: true,
+      positions: coordinates,
+      movedNodeIds: changed,
+      electricalPositions: electricalPositions,
+      electricalOffsets: electricalOffsets,
     );
   }
 
@@ -224,6 +276,13 @@ class NodeMoveConstraintService {
       if (point == null) continue;
       node.xMm = point.x;
       node.yMm = point.y;
+    }
+    for (final entry in preview.electricalPositions.entries) {
+      entry.key.xMm = entry.value.x;
+      entry.key.yMm = entry.value.y;
+    }
+    for (final entry in preview.electricalOffsets.entries) {
+      entry.key.wallOffsetMm = entry.value;
     }
   }
 }

@@ -94,6 +94,34 @@ void main() {
     expect(result.message, contains('Проём'));
   });
 
+  test('wall-mounted electrical point follows a moved wall node', () {
+    final f = rectangle();
+    final point = ElectricalPoint(
+      id: 'socket-ab',
+      type: ElectricalPointType.socket,
+      xMm: 1000,
+      yMm: 0,
+      wallId: 'ab',
+      wallOffsetMm: 1000,
+    );
+    f.electricalPoints.add(point);
+
+    final preview = NodeMoveConstraintService.evaluate(
+      f,
+      nodeId: 'a',
+      destination: const math.Point<double>(500, 600),
+    );
+    expect(preview.isValid, isTrue, reason: preview.message);
+    expect(preview.electricalPositions[point],
+        const math.Point<double>(1500, 600));
+    expect(preview.electricalOffsets[point], 1000);
+
+    NodeMoveConstraintService.apply(f, preview);
+    expect(point.xMm, 1500);
+    expect(point.yMm, 600);
+    expect(point.wallOffsetMm, 1000);
+  });
+
   test('moving a wall onto another unjoined wall is rejected', () {
     final f = rectangle();
     f.nodes.addAll([
