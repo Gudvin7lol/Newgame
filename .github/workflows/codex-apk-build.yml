@@ -1,5 +1,6 @@
 name: Build Zamer APK (architecture)
 
+# Architecture branch APK build. A subsequent commit keeps this workflow active on branch pushes.
 on:
   workflow_dispatch:
   push:
