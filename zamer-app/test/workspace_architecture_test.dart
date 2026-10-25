@@ -85,6 +85,17 @@ void main() {
     }
   });
 
+  test('floor fan exposes only real layout operations', () {
+    final actions = WorkspaceActionRegistry.actions(
+      WorkspaceDomain.floor,
+      WorkspaceActionLocation.fan,
+    );
+    expect(actions, containsAll(<String>{'select', 'direction', 'start'}));
+    expect(actions, isNot(contains('cover')));
+    expect(actions, isNot(contains('underlay')));
+    expect(actions, isNot(contains('plinth')));
+  });
+
   test('command history executes, undoes and redoes one edit', () {
     final values = <int>[];
     final history = WorkspaceCommandHistory();

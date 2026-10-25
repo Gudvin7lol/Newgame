@@ -18,12 +18,14 @@ class MeasureFloorPlanLayerScreen extends StatefulWidget {
     required this.onChanged,
     this.sharedViewport,
     this.viewportActive = true,
+    this.fanCommand,
   });
 
   final FloorPlan floor;
   final Future<void> Function() onChanged;
   final ValueNotifier<PlanViewportSnapshot?>? sharedViewport;
   final bool viewportActive;
+  final ValueNotifier<String?>? fanCommand;
 
   @override
   State<MeasureFloorPlanLayerScreen> createState() =>
@@ -60,6 +62,7 @@ class _MeasureFloorPlanLayerScreenState
   @override
   void initState() {
     super.initState();
+    widget.fanCommand?.addListener(_handleFanCommand);
     GeometryService.syncRoomMetadata(widget.floor);
     if (_faces.isNotEmpty) _selectedFaceKey = _faces.first.key;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -75,6 +78,10 @@ class _MeasureFloorPlanLayerScreenState
   @override
   void didUpdateWidget(covariant MeasureFloorPlanLayerScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.fanCommand != widget.fanCommand) {
+      oldWidget.fanCommand?.removeListener(_handleFanCommand);
+      widget.fanCommand?.addListener(_handleFanCommand);
+    }
     if (widget.viewportActive && (!oldWidget.viewportActive ||
         oldWidget.sharedViewport != widget.sharedViewport)) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _adoptViewport());
@@ -83,8 +90,38 @@ class _MeasureFloorPlanLayerScreenState
 
   @override
   void dispose() {
+    widget.fanCommand?.removeListener(_handleFanCommand);
     _transform.dispose();
     super.dispose();
+  }
+
+  Future<void> _handleFanCommand() async {
+    final raw = widget.fanCommand?.value;
+    if (raw == null) return;
+    final separator = raw.lastIndexOf(':');
+    final command = separator < 0 ? raw : raw.substring(separator + 1);
+    switch (command) {
+      case 'select':
+        if (_placingLayoutStart && mounted) {
+          setState(() => _placingLayoutStart = false);
+        }
+        break;
+      case 'start':
+        if (mounted) {
+          setState(() => _placingLayoutStart = !_placingLayoutStart);
+        }
+        break;
+      case 'direction':
+        await _rotate(90);
+        if (mounted) {
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(const SnackBar(
+              duration: Duration(milliseconds: 900),
+              content: Text('Направление раскладки повернуто на 90°'),
+            ));
+        }
+    }
   }
 
   math.Point<double> _toMm(Offset p) => math.Point<double>(

@@ -19,7 +19,7 @@ abstract final class WorkspaceActionRegistry {
 
   static const _fan = <WorkspaceDomain, Set<String>>{
     WorkspaceDomain.plan: {'select', 'nodes', 'arc', 'measure'},
-    WorkspaceDomain.floor: {'select'},
+    WorkspaceDomain.floor: {'select', 'direction', 'start'},
     WorkspaceDomain.objects: {'select', 'rotate', 'duplicate'},
     WorkspaceDomain.electrical: {'select', 'point', 'line', 'route'},
   };

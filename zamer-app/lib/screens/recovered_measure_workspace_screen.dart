@@ -71,9 +71,11 @@ class _RecoveredMeasureWorkspaceScreenState
     extends State<RecoveredMeasureWorkspaceScreen> {
   final WorkspaceSession _session = WorkspaceSession();
   final ValueNotifier<String?> _objectFanCommands = ValueNotifier(null);
+  final ValueNotifier<String?> _floorFanCommands = ValueNotifier(null);
   final ValueNotifier<PlanViewportSnapshot?> _sharedViewport =
       ValueNotifier<PlanViewportSnapshot?>(null);
   int _objectCommandSerial = 0;
+  int _floorCommandSerial = 0;
   MeasurePlanTool _planTool = MeasurePlanTool.select;
   OpeningType? _preferredOpeningType;
   ElectricalMode _electricalMode = ElectricalMode.select;
@@ -105,6 +107,7 @@ class _RecoveredMeasureWorkspaceScreenState
   @override
   void dispose() {
     _objectFanCommands.dispose();
+    _floorFanCommands.dispose();
     _sharedViewport.dispose();
     _session.dispose();
     super.dispose();
@@ -285,6 +288,13 @@ class _RecoveredMeasureWorkspaceScreenState
       if (_selectionKind == 'object' ||
           id == 'select' || id == 'move') {
         _objectFanCommands.value = '${++_objectCommandSerial}:$id';
+        setState(() => _activeFanCommand = id);
+      }
+      return;
+    }
+    if (_layer == 1) {
+      if (id == 'select' || id == 'direction' || id == 'start') {
+        _floorFanCommands.value = '${++_floorCommandSerial}:$id';
         setState(() => _activeFanCommand = id);
       }
       return;
@@ -583,6 +593,7 @@ class _RecoveredMeasureWorkspaceScreenState
         onChanged: _commitChanged,
         sharedViewport: _sharedViewport,
         viewportActive: _layer == 1,
+        fanCommand: _floorFanCommands,
       ),
       PlanningObjectsScreen(
         floor: widget.floor,
