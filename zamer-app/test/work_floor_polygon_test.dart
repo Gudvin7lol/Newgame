@@ -164,6 +164,91 @@ void main() {
     expect(WorkStatusService.canStart(project.workBoard, successor), false);
   });
 
+  test('snap and move one vertex while keeping saved and sibling zones untouched', () {
+    final f = room(), face = GeometryService.roomFaces(f).single;
+    final x = WorkFloorSurfaceService.bounds(face, 'x');
+    final y = WorkFloorSurfaceService.bounds(face, 'y');
+    final a = zone(f, 'a', [
+      P(x.min + 100, y.min + 100), P(x.min + 800, y.min + 100),
+      P(x.min + 800, y.min + 800), P(x.min + 100, y.min + 800),
+    ]);
+    final b = zone(f, 'b', [
+      P(x.max - 850, y.max - 850), P(x.max - 150, y.max - 850),
+      P(x.max - 150, y.max - 150), P(x.max - 850, y.max - 150),
+    ]);
+    final board = WorkBoard();
+    WorkFloorPolygonService.save(board, f, face, [a, b]);
+    final before = WorkFloorPolygonService.areas(f, face, [a, b]);
+    final moved = WorkFloorPolygonService.movedVertex(
+      face, f, [a, b], zoneId: a.id, vertexIndex: 1,
+      position: P(x.min + 965, y.min + 110), snapMm: 50);
+    expect(moved.first.polygon[1], P(x.min + 950, y.min + 100));
+    expect(moved.first.id, 'a');
+    expect(moved.last.polygon, b.polygon);
+    expect(a.polygon[1], P(x.min + 800, y.min + 100));
+    expect(board.floorZones.first.polygon[1], a.polygon[1]);
+    final after = WorkFloorPolygonService.areas(f, face, moved);
+    expect(after.tileM2, greaterThan(before.tileM2));
+    expect(after.tileM2 + after.laminateM2, closeTo(face.areaM2, .001));
+    WorkFloorPolygonService.save(board, f, face, moved);
+    final restored = WorkBoard.fromJson(board.toJson());
+    expect(restored.floorZones.first.polygon[1], moved.first.polygon[1]);
+  });
+
+  test('drag validation rejects crossings, room escape, other zones and bad indices', () {
+    final f = room(), face = GeometryService.roomFaces(f).single;
+    final x = WorkFloorSurfaceService.bounds(face, 'x');
+    final y = WorkFloorSurfaceService.bounds(face, 'y');
+    final a = zone(f, 'a', [
+      P(x.min + 100, y.min + 100), P(x.min + 900, y.min + 100),
+      P(x.min + 900, y.min + 900), P(x.min + 100, y.min + 900),
+    ]);
+    final b = zone(f, 'b', [
+      P(x.min + 1300, y.min + 200), P(x.min + 2000, y.min + 200),
+      P(x.min + 2000, y.min + 900), P(x.min + 1300, y.min + 900),
+    ]);
+    final current = [a, b];
+    expect(() => WorkFloorPolygonService.movedVertex(
+      face, f, current, zoneId: 'a', vertexIndex: 0,
+      position: P(x.min - 100, y.min + 100)), throwsArgumentError);
+    expect(() => WorkFloorPolygonService.movedVertex(
+      face, f, current, zoneId: 'a', vertexIndex: 1,
+      position: P(x.min + 1700, y.min + 100)), throwsArgumentError);
+    expect(() => WorkFloorPolygonService.movedVertex(
+      face, f, current, zoneId: 'a', vertexIndex: 1,
+      position: P(x.min + 500, y.min + 1300)), throwsArgumentError);
+    expect(() => WorkFloorPolygonService.movedVertex(
+      face, f, current, zoneId: 'a', vertexIndex: 9,
+      position: P(x.min + 700, y.min + 100)), throwsRangeError);
+    expect(() => WorkFloorPolygonService.movedVertex(
+      face, f, current, zoneId: 'gone', vertexIndex: 0,
+      position: P(500, 500)), throwsArgumentError);
+    expect(() => WorkFloorPolygonService.movedVertex(
+      face, f, current, zoneId: 'a', vertexIndex: 0,
+      position: P(100, 100), snapMm: 0), throwsArgumentError);
+    expect(a.polygon.first, P(x.min + 100, y.min + 100));
+  });
+
+  test('finish material can change without losing the polygon geometry', () {
+    final f = room(), face = GeometryService.roomFaces(f).single;
+    final x = WorkFloorSurfaceService.bounds(face, 'x');
+    final y = WorkFloorSurfaceService.bounds(face, 'y');
+    final a = zone(f, 'first', [
+      P(x.min + 100, y.min + 100), P(x.min + 800, y.min + 100),
+      P(x.min + 800, y.min + 800), P(x.min + 100, y.min + 800),
+    ]);
+    final updated = WorkFloorPolygonService.changedMaterial(
+      face, f, [a], zoneId: 'first', material: 'laminate');
+    expect(updated.single.material, 'laminate');
+    expect(updated.single.polygon, a.polygon);
+    expect(updated.single.id, a.id);
+    expect(a.material, 'tile');
+    expect(WorkFloorPolygonService.areas(f, face, updated).tileM2, 0);
+    expect(() => WorkFloorPolygonService.changedMaterial(
+      face, f, [a], zoneId: 'first', material: 'unknown'),
+      throwsArgumentError);
+  });
+
   test('legacy straight split replaces polygon layout and vice versa', () {
     final f = room(), face = GeometryService.roomFaces(f).single;
     final b = WorkBoard();
