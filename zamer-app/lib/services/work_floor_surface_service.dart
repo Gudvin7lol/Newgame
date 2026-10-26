@@ -136,8 +136,9 @@ class WorkFloorSurfaceService {
     board.floorFinishes.add(split);
   }
 
-  /// Generated, untouched work may be corrected. Started or accepted tasks
-  /// are immutable. A zero quantity requires explicit human review.
+  /// Generated, untouched work may be corrected. Started/accepted quantity
+  /// is immutable, but altered surface scope is flagged for manual review.
+  /// A zero quantity requires explicit human review.
   static int refreshUnstarted(
       WorkBoard board, FloorPlan floor, RoomFace face) {
     final room = floor.roomMetaByKey(face.key);
@@ -145,10 +146,18 @@ class WorkFloorSurfaceService {
     var count = 0;
     for (final task in board.tasks) {
       if (task.floorId != floor.id || task.roomId != room.id ||
-          task.generatedKey == null || task.done > 0 ||
-          task.accepted > 0 || task.operationCode == null ||
+          task.generatedKey == null || task.operationCode == null ||
           !affectedCodes.contains(task.operationCode)) continue;
       final newQty = quantityFor(board, floor, face, task.operationCode!);
+      if (task.done > 0 || task.accepted > 0) {
+        // Recorded work is historical evidence: never alter measured,
+        // completed or accepted quantities. Flag a meaningful area change.
+        if ((newQty - task.quantity).abs() > .02) {
+          task.needsQuantityReview = true;
+          count++;
+        }
+        continue;
+      }
       if (newQty <= .0001 || task.quantity <= 0) {
         task.needsQuantityReview = true;
         count++;
