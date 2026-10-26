@@ -112,7 +112,7 @@ void main() {
       scrollable: find.byType(Scrollable).last);
     await tester.tap(find.text('Электрика'));
     await tester.pumpAndSettle();
-    expect(find.text('Электрика'), findsWidgets);
+    expect(find.text('Найдено: 34'), findsOneWidget);
 
     await tester.enterText(find.byType(TextFormField).last, 'УЗО');
     await tester.pumpAndSettle();
