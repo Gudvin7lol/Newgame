@@ -123,7 +123,16 @@ class WorkGenerationService {
         };
         if (includeOptional) {
           desired.addAll(WorkOperationCatalog.all
-              .where((op) => op.optional).map((op) => op.code));
+              .where((op) => op.optional && !{
+                'wall_wallpaper', // alternate finish to the modeled paint
+                'warm_floor', // only if enabled in room specification
+                'ceiling_gkl', 'ceiling_stretch',
+              }.contains(op.code))
+              .where((op) =>
+                  (op.code != 'wall_waterproof' || s.wallTile) &&
+                  (op.code != 'floor_waterproof' || tileFloor || room.heating.enabled))
+              .map((op) => op.code));
+          // Keep one floor finish and one ceiling finish, as configured.
         }
 
         final inRoom = <String, WorkTask>{};
