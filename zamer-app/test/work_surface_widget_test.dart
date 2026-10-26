@@ -34,7 +34,9 @@ void main() {
     await tester.tap(open);
     await tester.pumpAndSettle();
     expect(find.textContaining('Поверхности:'), findsOneWidget);
-    final heightSlider = find.byType(Slider).last;
+    final heightSlider = find.byType(Slider);
+    await tester.scrollUntilVisible(heightSlider, 150.0,
+      scrollable: find.byType(Scrollable).last);
     await tester.ensureVisible(heightSlider);
     await tester.pumpAndSettle();
     await tester.drag(heightSlider, const Offset(160, 0));
