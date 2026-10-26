@@ -4,6 +4,7 @@ import '../models/models.dart';
 import '../models/work_board.dart';
 import 'geometry_service.dart';
 import 'engineering_service.dart';
+import 'work_surface_service.dart';
 
 enum WorkQuantityBasis { floorArea, wallArea, ceilingArea, skirting, package }
 
@@ -327,17 +328,26 @@ class WorkGenerationService {
         roomsProcessed++;
         final s = room.materials;
         final tileFloor = s.floorMode == 'tile' || s.floorTile;
+        final assignedWalls = WorkSurfaceService.hasAssignments(
+          board, floor, room);
+        final paintArea = WorkSurfaceService.areaForCode(
+          board, floor, face, 'wall_paint');
+        final tileArea = WorkSurfaceService.areaForCode(
+          board, floor, face, 'wall_tile');
+        final needsPaint = assignedWalls ? paintArea > .0001 : s.wallPaint;
+        final needsTile = assignedWalls ? tileArea > .0001 : s.wallTile;
         final desired = <String>{
           'survey', 'protection', 'floor_base', 'ceiling_base',
           'cleaning', 'acceptance',
-          if (s.wallPlaster || s.wallPutty || s.wallPaint || s.wallTile)
+          if (s.wallPlaster || s.wallPutty || needsPaint || needsTile)
             'wall_primer',
-          if (s.wallPlaster || s.wallPutty || s.wallPaint || s.wallTile)
+          if (s.wallPlaster || s.wallPutty || needsPaint || needsTile)
             'wall_plaster',
-          if (!s.wallTile && (s.wallPutty || s.wallPaint)) 'wall_putty',
-          if (!s.wallTile && s.wallPaint) 'wall_prime_finish',
-          if (!s.wallTile && s.wallPaint) 'wall_paint',
-          if (s.wallTile) 'wall_tile',
+          if (needsPaint && (s.wallPutty || s.wallPaint || assignedWalls))
+            'wall_putty',
+          if (needsPaint) 'wall_prime_finish',
+          if (needsPaint) 'wall_paint',
+          if (needsTile) 'wall_tile',
           if (room.heating.enabled) 'warm_floor',
           if (tileFloor) 'floor_tile',
           if (!tileFloor) 'floor_underlay',
@@ -358,7 +368,7 @@ class WorkGenerationService {
                 'ceiling_gkl', 'ceiling_stretch',
               }.contains(op.code))
               .where((op) =>
-                  (op.code != 'wall_waterproof' || s.wallTile) &&
+                  (op.code != 'wall_waterproof' || needsTile) &&
                   (op.code != 'floor_waterproof' || tileFloor || room.heating.enabled))
               .map((op) => op.code));
           // Keep one floor finish and one ceiling finish, as configured.
@@ -376,7 +386,10 @@ class WorkGenerationService {
           final area = face.areaM2;
           final quantity = op.code == 'warm_floor'
               ? EngineeringService.warmFloor(face, room.heating).areaM2
-              : switch (op.basis) {
+              : WorkSurfaceService.finishCodes.contains(op.code)
+                  ? WorkSurfaceService.areaForCode(
+                      board, floor, face, op.code)
+                  : switch (op.basis) {
             WorkQuantityBasis.floorArea => area,
             WorkQuantityBasis.wallArea =>
               GeometryService.roomNetWallAreaM2(floor, face),
@@ -422,6 +435,9 @@ class WorkGenerationService {
             },
             requiredPredecessorIds: predecessors,
             predecessorId: latest?.id,
+            surfaceWallIds: WorkSurfaceService.finishCodes.contains(op.code)
+              ? WorkSurfaceService.wallIdsForCode(board, floor, face, op.code)
+              : null,
             needsQuantityReview: includeOptional && op.optional,
           );
           inRoom[op.code] = task;
