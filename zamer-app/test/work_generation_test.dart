@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zamer_app/models/models.dart';
+import 'package:zamer_app/models/work_board.dart';
 import 'package:zamer_app/services/geometry_service.dart';
 import 'package:zamer_app/services/work_generation_service.dart';
 import 'package:zamer_app/services/work_status_service.dart';
