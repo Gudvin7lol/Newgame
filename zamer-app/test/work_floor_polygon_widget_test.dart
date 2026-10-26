@@ -58,5 +58,31 @@ void main() {
     expect(project.workBoard.floorZones, hasLength(1));
     expect(project.workBoard.floorZones.single.polygon, hasLength(4));
     expect(project.workBoard.floorZones.single.material, 'tile');
+
+    // Reopen the persisted polygon and drag an existing vertex, rather than
+    // drawing a new zone. Its original ID and other vertices stay intact.
+    final original = List.of(project.workBoard.floorZones.single.polygon);
+    final zoneId = project.workBoard.floorZones.single.id;
+    await tester.ensureVisible(entry);
+    await tester.tap(entry);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Править вершины'));
+    await tester.pumpAndSettle();
+    final editingCanvas = find.byType(AspectRatio).last;
+    final editRect = tester.getRect(editingCanvas);
+    final first = Offset(
+      editRect.left + editRect.width * .36,
+      editRect.top + editRect.height * .36,
+    );
+    await tester.dragFrom(first, const Offset(24, 0));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Сохранить зоны'));
+    await tester.pumpAndSettle();
+    expect(saves, 2);
+    expect(project.workBoard.floorZones, hasLength(1));
+    expect(project.workBoard.floorZones.single.id, zoneId);
+    expect(project.workBoard.floorZones.single.polygon.first,
+      isNot(original.first));
+    expect(project.workBoard.floorZones.single.polygon[2], original[2]);
   });
 }
