@@ -256,14 +256,24 @@ class WorkSchedulePlanner {
     while (queue.isNotEmpty) {
       final parentId = queue.removeAt(0);
       scheduled.remove(parentId);
-      final parent = byId[parentId]!;
-      final parentFinish = proposals[parentId]?.finish ?? _date(parent.finish);
       for (final childId in children[parentId] ?? const <String>[]) {
         final child = byId[childId]!;
         final currentStart = proposals[childId]?.start ?? _date(child.start);
         final currentFinish = proposals[childId]?.finish ?? _date(child.finish);
-        final minimumStart =
-            board.calendar.firstDayAfter(parentFinish, child.lagDays);
+        // All mandatory predecessors (including every co-dependent peer)
+        // form a single handoff gate. The latest completion wins.
+        DateTime? minimumStart;
+        for (final priorId in predecessorsOf(childId)) {
+          final prior = byId[priorId]!;
+          final priorFinish =
+              proposals[priorId]?.finish ?? _date(prior.finish);
+          final candidate = board.calendar.firstDayAfter(
+              priorFinish, child.lagDays);
+          if (minimumStart == null || candidate.isAfter(minimumStart)) {
+            minimumStart = candidate;
+          }
+        }
+        if (minimumStart == null) continue;
         if (currentStart.isBefore(minimumStart)) {
           if (child.done > 0 || child.accepted > 0) {
             return _error('Нельзя автоматически перенести уже начатую работу «' +
@@ -316,7 +326,7 @@ class WorkSchedulePlanner {
     }
     if (proposal.dependencySignature != null &&
         proposal.dependencySignature != _dependencySignature(board)) {
-      return 'Созависимости или предшественники изменились. Обновите график.';
+      return 'График изменился: созависимости или предшественники обновлены.';
     }
     final byId = {for (final task in board.tasks) task.id: task};
     for (final change in proposal.changes) {
