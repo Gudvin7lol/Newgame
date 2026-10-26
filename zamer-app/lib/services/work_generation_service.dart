@@ -129,7 +129,7 @@ class WorkGenerationService {
         final inRoom = <String, WorkTask>{};
         for (final op in WorkOperationCatalog.all) {
           if (!desired.contains(op.code)) continue;
-          final key = 'generated:\${floor.id}:\${room.id}:\${op.code}';
+          final key = 'generated:${floor.id}:${room.id}:${op.code}';
           if (existing[key] case final WorkTask saved) {
             inRoom[op.code] = saved;
             duplicates++;
@@ -206,8 +206,8 @@ class WorkGenerationService {
     }
     board.tasks.addAll(plan.tasks);
     if (plan.tasks.isNotEmpty) {
-      board.log('Автоматически создано задач: \${plan.tasks.length}. '
-        'Помещений: \${plan.roomsProcessed}.');
+      board.log('Автоматически создано задач: ${plan.tasks.length}. '
+        'Помещений: ${plan.roomsProcessed}.');
     }
     return null;
   }
