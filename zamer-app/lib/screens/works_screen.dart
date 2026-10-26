@@ -921,7 +921,15 @@ class _WorksScreenState extends State<WorksScreen> {
       isScrollControlled: true,
       showDragHandle: true,
       builder: (sheet) => StatefulBuilder(builder: (sheet, redraw) {
-        final summary = WorkFloorPolygonService.areas(floor, face, zones);
+        ({double tileM2, double laminateM2})? summary;
+        String? geometryError;
+        try {
+          summary = WorkFloorPolygonService.areas(floor, face, zones);
+        } on ArgumentError catch (error) {
+          // Geometry can change after a previously saved surface allocation.
+          // Keep the original zones visible for repair, never discard them.
+          geometryError = error.message.toString();
+        }
         return SafeArea(top: false, child: SizedBox(
           height: MediaQuery.sizeOf(sheet).height * .9,
           child: ListView(
@@ -1040,13 +1048,18 @@ class _WorksScreenState extends State<WorksScreen> {
                   ),
                 ),
               const Divider(color: _edge),
-              Row(children: [
-                _stat('Плитка',
-                  summary.tileM2.toStringAsFixed(2) + ' м²', tint: _blue),
-                const SizedBox(width: 8),
-                _stat('Ламинат',
-                  summary.laminateM2.toStringAsFixed(2) + ' м²'),
-              ]),
+              if (geometryError != null)
+                Padding(padding: const EdgeInsets.only(bottom: 8),
+                  child: Text('Проверьте зоны: ' + geometryError,
+                    style: const TextStyle(color: _peach, fontSize: 12)))
+              else if (summary != null)
+                Row(children: [
+                  _stat('Плитка',
+                    summary!.tileM2.toStringAsFixed(2) + ' м²', tint: _blue),
+                  const SizedBox(width: 8),
+                  _stat('Ламинат',
+                    summary!.laminateM2.toStringAsFixed(2) + ' м²'),
+                ]),
               const SizedBox(height: 8),
               Text('Всего: ' + face.areaM2.toStringAsFixed(2) +
                 ' м². Сохранение заменит прежнюю прямую линию '
@@ -1054,7 +1067,8 @@ class _WorksScreenState extends State<WorksScreen> {
                 style: const TextStyle(color: _muted, fontSize: 11)),
               const SizedBox(height: 12),
               FilledButton(
-                onPressed: drawing.isNotEmpty ? null : () {
+                onPressed: drawing.isNotEmpty || summary == null
+                    ? null : () {
                   try {
                     WorkFloorPolygonService.save(
                       board, floor, face, zones);
@@ -1068,9 +1082,9 @@ class _WorksScreenState extends State<WorksScreen> {
                       board, floor, face);
                   board.log('Зоны напольных покрытий: ' + room.name +
                     ', участков: ' + zones.length.toString() +
-                    ', плитка ' + summary.tileM2.toStringAsFixed(2) +
+                    ', плитка ' + summary!.tileM2.toStringAsFixed(2) +
                     ' м², ламинат ' +
-                    summary.laminateM2.toStringAsFixed(2) +
+                    summary!.laminateM2.toStringAsFixed(2) +
                     ' м²; проверено задач: ' + refreshed.toString());
                   Navigator.pop(sheet, true);
                 },
