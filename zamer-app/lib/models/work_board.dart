@@ -1,15 +1,49 @@
 import 'dart:math' as math;
 import 'work_calendar.dart';
 
+/// Room-side finish instruction for one wall, keyed by its stable wall ID.
+/// Tiles fill the wall from floor level to tileHeightMm; the upper part is
+/// available for paint. A different room on the other side has its own entry.
+class WorkWallFinish {
+  WorkWallFinish({
+    required this.floorId,
+    required this.roomId,
+    required this.wallId,
+    required this.tileHeightMm,
+  });
+
+  final String floorId, roomId, wallId;
+  double tileHeightMm;
+
+  String get key => '$floorId|$roomId|$wallId';
+
+  Map<String, dynamic> toJson() => {
+    'floorId': floorId,
+    'roomId': roomId,
+    'wallId': wallId,
+    'tileHeightMm': tileHeightMm,
+  };
+
+  factory WorkWallFinish.fromJson(Map<String, dynamic> json) =>
+      WorkWallFinish(
+        floorId: json['floorId']?.toString() ?? '',
+        roomId: json['roomId']?.toString() ?? '',
+        wallId: json['wallId']?.toString() ?? '',
+        tileHeightMm: (json['tileHeightMm'] as num?)?.toDouble() ?? 0,
+      );
+}
+
 /// Project-owned work records. They travel with the project's JSON/ZIP backup.
 class WorkBoard {
   WorkBoard({List<WorkTask>? tasks, List<WorkIssue>? issues, List<WorkLog>? events,
-    WorkCalendar? calendar, Map<String, double>? crewDailyHours})
+    WorkCalendar? calendar, Map<String, double>? crewDailyHours,
+    List<WorkWallFinish>? wallFinishes})
       : tasks = tasks ?? [],
         issues = issues ?? [],
         events = events ?? [],
         calendar = calendar ?? WorkCalendar(),
-        crewDailyHours = crewDailyHours ?? <String, double>{};
+        crewDailyHours = crewDailyHours ?? <String, double>{},
+        wallFinishes = wallFinishes ?? <WorkWallFinish>[];
 
   final List<WorkTask> tasks;
   final List<WorkIssue> issues;
@@ -17,6 +51,7 @@ class WorkBoard {
   final WorkCalendar calendar;
   /// Person-hours available per workday, indexed by a normalized crew name.
   final Map<String, double> crewDailyHours;
+  final List<WorkWallFinish> wallFinishes;
 
 
   double get actualProgress => _weighted((task) => task.progress);
@@ -48,9 +83,15 @@ class WorkBoard {
         'events': events.map((e) => e.toJson()).toList(),
         'calendar': calendar.toJson(),
         'crewDailyHours': crewDailyHours,
+        'wallFinishes': wallFinishes.map((finish) => finish.toJson()).toList(),
       };
 
   factory WorkBoard.fromJson(Map<String, dynamic> json) => WorkBoard(
+        wallFinishes: ((json['wallFinishes'] as List?) ?? const [])
+            .whereType<Map>()
+            .map((value) => WorkWallFinish.fromJson(
+              Map<String, dynamic>.from(value)))
+            .toList(),
         crewDailyHours: ((json['crewDailyHours'] as Map?) ?? const {})
             .map((key, value) => MapEntry(key.toString(),
                 value is num ? value.toDouble() : 8.0)),
@@ -92,8 +133,10 @@ class WorkTask {
     this.operationCode,
     this.generatedKey,
     List<String>? requiredPredecessorIds,
+    List<String>? surfaceWallIds,
     this.needsQuantityReview = false,
-  }) : requiredPredecessorIds = requiredPredecessorIds ?? [],
+  }) : surfaceWallIds = surfaceWallIds ?? [],
+       requiredPredecessorIds = requiredPredecessorIds ?? [],
        baselineStart = baselineStart ?? start,
        baselineFinish = baselineFinish ?? finish;
 
@@ -108,6 +151,8 @@ class WorkTask {
   String? operationCode, generatedKey;
   /// All required gates. Legacy tasks retain the single predecessorId.
   final List<String> requiredPredecessorIds;
+  /// Wall sides referenced by this task, interpreted in its floorId/roomId.
+  final List<String> surfaceWallIds;
   bool needsQuantityReview;
 
   double get progress => quantity <= 0 ? 0 : (done / quantity).clamp(0, 1).toDouble();
@@ -143,6 +188,7 @@ class WorkTask {
         'operationCode': operationCode,
         'generatedKey': generatedKey,
         'requiredPredecessorIds': requiredPredecessorIds,
+        'surfaceWallIds': surfaceWallIds,
         'needsQuantityReview': needsQuantityReview,
       };
 
@@ -171,6 +217,8 @@ class WorkTask {
         requiredPredecessorIds: ((json['requiredPredecessorIds'] as List?) ?? const [])
             .map((value) => value.toString()).toList(),
         needsQuantityReview: json['needsQuantityReview'] == true,
+        surfaceWallIds: ((json['surfaceWallIds'] as List?) ?? const [])
+            .map((value) => value.toString()).toList(),
       );
 }
 
