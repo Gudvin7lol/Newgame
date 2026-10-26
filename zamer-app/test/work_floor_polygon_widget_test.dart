@@ -7,6 +7,10 @@ import 'package:zamer_app/screens/works_screen.dart';
 void main() {
   testWidgets('draw multiple floor-zone vertices and save allocation',
       (tester) async {
+    tester.view.physicalSize = const Size(393, 820);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     final floor = FloorPlan(id: 'f1', name: 'Этаж',
       nodes: [
         PlanNode(id: 'a', xMm: 0, yMm: 0),
@@ -73,16 +77,22 @@ void main() {
     final selectedZone = find.textContaining('Зона 1');
     await tester.scrollUntilVisible(selectedZone, 130.0,
       scrollable: find.byType(Scrollable).last);
+    await tester.ensureVisible(selectedZone, alignment: .2);
+    await tester.pumpAndSettle();
     await tester.tap(selectedZone);
     await tester.pumpAndSettle();
     final firstVertex = find.text('Точка 1');
     await tester.scrollUntilVisible(firstVertex, 120.0,
       scrollable: find.byType(Scrollable).last);
+    await tester.ensureVisible(firstVertex, alignment: .25);
+    await tester.pumpAndSettle();
     await tester.tap(firstVertex);
     await tester.pumpAndSettle();
     final coordinates = find.text('Ввести X/Y');
     await tester.scrollUntilVisible(coordinates, 130.0,
       scrollable: find.byType(Scrollable).last);
+    await tester.ensureVisible(coordinates, alignment: .25);
+    await tester.pumpAndSettle();
     await tester.tap(coordinates);
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextFormField).first,
