@@ -6,6 +6,7 @@ import 'package:zamer_app/models/work_board.dart';
 import 'package:zamer_app/services/geometry_service.dart';
 import 'package:zamer_app/services/work_generation_service.dart';
 import 'package:zamer_app/services/work_floor_surface_service.dart';
+import 'package:zamer_app/services/work_status_service.dart';
 
 FloorPlan rectangle([String id = 'f1']) {
   final floor = FloorPlan(
@@ -210,6 +211,15 @@ void main() {
     // A formerly accepted quantity that conflicts with the current model
     // must not be allowed to open downstream finishing work.
     expect(skirting.requiredPredecessorIds, contains(laminate.id));
+    final nextStage = WorkTask(
+      id: 'next-stage', title: 'Финиш', start: DateTime(2026, 12, 1),
+      finish: DateTime(2026, 12, 2), quantity: 1,
+      unit: 'шт', hours: 4, predecessorId: laminate.id,
+    );
+    board.tasks.add(nextStage);
+    expect(WorkStatusService.canStart(board, nextStage), isFalse);
+    laminate.needsQuantityReview = false;
+    expect(WorkStatusService.canStart(board, nextStage), isTrue);
   });
 
   test('old projects keep existing floor finish mode by default', () {
