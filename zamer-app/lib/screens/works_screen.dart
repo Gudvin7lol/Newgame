@@ -12,6 +12,7 @@ import '../services/work_generation_service.dart';
 import '../services/work_operation_taxonomy.dart';
 import '../services/work_surface_service.dart';
 import '../services/work_floor_surface_service.dart';
+import '../services/work_floor_polygon_service.dart';
 import '../services/work_status_service.dart';
 import '../services/work_co_stage_service.dart';
 
@@ -834,7 +835,7 @@ class _WorksScreenState extends State<WorksScreen> {
     ),
   );
 
-  Future<void> _chooseFloorFinishes() async {
+  Future<void> _chooseFloorFinishes({bool polygons = false}) async {
     final choices = <({FloorPlan floor, RoomFace face, RoomMeta room})>[];
     for (final floor in widget.project.floors) {
       for (final face in GeometryService.roomFaces(floor)) {
@@ -875,7 +876,212 @@ class _WorksScreenState extends State<WorksScreen> {
     }
     if (selected == null || !mounted) return;
     final choice = choices[selected];
-    await _editFloorFinishes(choice.floor, choice.face);
+    if (polygons) {
+      await _editFloorPolygons(choice.floor, choice.face);
+    } else {
+      await _editFloorFinishes(choice.floor, choice.face);
+    }
+  }
+
+
+  Widget _floorPolygonEntry() => _card(
+    child: InkWell(
+      onTap: () => _chooseFloorFinishes(polygons: true),
+      child: Row(children: [
+        const Icon(Icons.polyline_outlined, color: _peach, size: 24),
+        const SizedBox(width: 12),
+        const Expanded(child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Нарисовать зоны пола',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800)),
+            SizedBox(height: 4),
+            Text('Контуры из точек · несколько участков · точные м²',
+              style: TextStyle(fontSize: 11, color: _muted)),
+          ],
+        )),
+        const Icon(Icons.chevron_right, color: _peach),
+      ]),
+    ),
+  );
+
+  Future<void> _editFloorPolygons(FloorPlan floor, RoomFace face) async {
+    final room = floor.roomMetaByKey(face.key);
+    if (room == null) return;
+    final existing = WorkFloorPolygonService.roomZones(board, floor, face);
+    final zones = List<WorkFloorFinishZone>.of(existing);
+    final drawing = <math.Point<double>>[];
+    var material = 'tile';
+    var nextId = DateTime.now().microsecondsSinceEpoch;
+    final baselineTile = room.materials.floorMode == 'tile' ||
+        room.materials.floorTile;
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: _panel,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheet) => StatefulBuilder(builder: (sheet, redraw) {
+        final summary = WorkFloorPolygonService.areas(floor, face, zones);
+        return SafeArea(top: false, child: SizedBox(
+          height: MediaQuery.sizeOf(sheet).height * .9,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 6, 16, 32),
+            children: [
+              Text('Контуры пола: ' + room.name,
+                style: const TextStyle(fontSize: 18,
+                  fontWeight: FontWeight.w800)),
+              const SizedBox(height: 5),
+              Text('Основное покрытие: ' +
+                (baselineTile ? 'плитка' : 'ламинат') +
+                '. Касаниями задайте вершины нового участка. '
+                'Минимум три вершины, затем завершите контур.',
+                style: const TextStyle(color: _muted, fontSize: 12)),
+              const SizedBox(height: 12),
+              AspectRatio(aspectRatio: 1.4, child: LayoutBuilder(
+                builder: (ctx, constraints) {
+                  final mapper = _PlanMapper([face], Size(
+                    constraints.maxWidth, constraints.maxHeight));
+                  return GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTapDown: (details) {
+                      final tap = details.localPosition;
+                      final x = (tap.dx - mapper.offsetX) /
+                          mapper.scale + mapper.minX;
+                      final y = (tap.dy - mapper.offsetY) /
+                          mapper.scale + mapper.minY;
+                      // Snap to 10 mm to avoid noisy vertices on a phone.
+                      final point = math.Point<double>(
+                        (x / 10).roundToDouble() * 10,
+                        (y / 10).roundToDouble() * 10,
+                      );
+                      redraw(() => drawing.add(point));
+                    },
+                    child: CustomPaint(
+                      painter: _FloorPolygonPlanPainter(
+                        face: face, mapper: mapper,
+                        zones: zones, drawing: drawing,
+                        draftMaterial: material,
+                        baseTile: baselineTile),
+                      child: const SizedBox.expand(),
+                    ),
+                  );
+                },
+              )),
+              const SizedBox(height: 12),
+              const Text('Материал новой зоны',
+                style: TextStyle(fontWeight: FontWeight.w700)),
+              Wrap(spacing: 8, children: [
+                ChoiceChip(
+                  label: const Text('Плитка'),
+                  selected: material == 'tile',
+                  onSelected: (_) => redraw(() => material = 'tile'),
+                ),
+                ChoiceChip(
+                  label: const Text('Ламинат'),
+                  selected: material == 'laminate',
+                  onSelected: (_) => redraw(() => material = 'laminate'),
+                ),
+              ]),
+              Text('Точек: ' + drawing.length.toString(),
+                style: const TextStyle(fontSize: 12, color: _muted)),
+              Wrap(spacing: 6, runSpacing: 5, children: [
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.undo, size: 16),
+                  label: const Text('Убрать точку'),
+                  onPressed: drawing.isEmpty ? null :
+                    () => redraw(() => drawing.removeLast()),
+                ),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.clear_all, size: 16),
+                  label: const Text('Сбросить контур'),
+                  onPressed: drawing.isEmpty ? null :
+                    () => redraw(drawing.clear),
+                ),
+                FilledButton.icon(
+                  icon: const Icon(Icons.check, size: 17),
+                  label: const Text('Завершить зону'),
+                  onPressed: drawing.length < 3 ? null : () {
+                    final candidate = WorkFloorFinishZone(
+                      id: 'zone_' + (nextId++).toString(),
+                      floorId: floor.id, roomId: room.id,
+                      material: material, polygon: drawing);
+                    try {
+                      WorkFloorPolygonService.validate(
+                        face, floor, [...zones, candidate]);
+                    } on ArgumentError catch (error) {
+                      ScaffoldMessenger.of(sheet).showSnackBar(
+                        SnackBar(content: Text(error.message.toString())));
+                      return;
+                    }
+                    redraw(() {
+                      zones.add(candidate);
+                      drawing.clear();
+                    });
+                  },
+                ),
+              ]),
+              const SizedBox(height: 10),
+              Text('Готовые зоны: ' + zones.length.toString(),
+                style: const TextStyle(fontWeight: FontWeight.w800)),
+              for (var i = 0; i < zones.length; i++)
+                ListTile(
+                  dense: true,
+                  title: Text('Зона ' + (i + 1).toString() +
+                    ' · ' + (zones[i].material == 'tile'
+                      ? 'Плитка' : 'Ламинат')),
+                  subtitle: Text(
+                    WorkFloorPolygonService.area(zones[i].polygon)
+                      .toStringAsFixed(2) + ' м²',
+                    style: const TextStyle(color: _muted, fontSize: 11)),
+                  trailing: IconButton(
+                    tooltip: 'Удалить зону',
+                    icon: const Icon(Icons.delete_outline, color: _peach),
+                    onPressed: () => redraw(() => zones.removeAt(i)),
+                  ),
+                ),
+              const Divider(color: _edge),
+              Row(children: [
+                _stat('Плитка',
+                  summary.tileM2.toStringAsFixed(2) + ' м²', tint: _blue),
+                const SizedBox(width: 8),
+                _stat('Ламинат',
+                  summary.laminateM2.toStringAsFixed(2) + ' м²'),
+              ]),
+              const SizedBox(height: 8),
+              Text('Всего: ' + face.areaM2.toStringAsFixed(2) +
+                ' м². Сохранение заменит прежнюю прямую линию '
+                'разделения покрытия в этой комнате.',
+                style: const TextStyle(color: _muted, fontSize: 11)),
+              const SizedBox(height: 12),
+              FilledButton(
+                onPressed: drawing.isNotEmpty ? null : () {
+                  try {
+                    WorkFloorPolygonService.save(
+                      board, floor, face, zones);
+                  } on ArgumentError catch (error) {
+                    ScaffoldMessenger.of(sheet).showSnackBar(
+                      SnackBar(content: Text(error.message.toString())));
+                    return;
+                  }
+                  final refreshed =
+                    WorkFloorSurfaceService.refreshUnstarted(
+                      board, floor, face);
+                  board.log('Зоны напольных покрытий: ' + room.name +
+                    ', участков: ' + zones.length.toString() +
+                    ', плитка ' + summary.tileM2.toStringAsFixed(2) +
+                    ' м², ламинат ' +
+                    summary.laminateM2.toStringAsFixed(2) +
+                    ' м²; проверено задач: ' + refreshed.toString());
+                  Navigator.pop(sheet, true);
+                },
+                child: const Text('Сохранить зоны и пересчитать работы'),
+              ),
+            ],
+          ),
+        ));
+      }),
+    );
+    if (saved == true) await _save();
   }
 
   Future<void> _editFloorFinishes(FloorPlan floor, RoomFace face) async {
@@ -1151,6 +1357,7 @@ class _WorksScreenState extends State<WorksScreen> {
       _generatorPanel(),
       _wallFinishEntry(),
       _floorFinishEntry(),
+      _floorPolygonEntry(),
       _heading('План работ', trailing: TextButton.icon(
         onPressed: _calendarSettings,
         icon: const Icon(Icons.calendar_month_outlined, size: 17),
