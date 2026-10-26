@@ -134,8 +134,10 @@ class WorkTask {
     this.generatedKey,
     List<String>? requiredPredecessorIds,
     List<String>? surfaceWallIds,
+    List<String>? coStageTaskIds,
     this.needsQuantityReview = false,
-  }) : surfaceWallIds = surfaceWallIds ?? [],
+  }) : coStageTaskIds = coStageTaskIds ?? [],
+       surfaceWallIds = surfaceWallIds ?? [],
        requiredPredecessorIds = requiredPredecessorIds ?? [],
        baselineStart = baselineStart ?? start,
        baselineFinish = baselineFinish ?? finish;
@@ -151,6 +153,9 @@ class WorkTask {
   String? operationCode, generatedKey;
   /// All required gates. Legacy tasks retain the single predecessorId.
   final List<String> requiredPredecessorIds;
+  /// Peers in one parallel phase. These tasks can start independently, but
+  /// their common successors must wait until all peers are accepted.
+  final List<String> coStageTaskIds;
   /// Wall sides referenced by this task, interpreted in its floorId/roomId.
   final List<String> surfaceWallIds;
   bool needsQuantityReview;
@@ -188,6 +193,7 @@ class WorkTask {
         'operationCode': operationCode,
         'generatedKey': generatedKey,
         'requiredPredecessorIds': requiredPredecessorIds,
+        'coStageTaskIds': coStageTaskIds,
         'surfaceWallIds': surfaceWallIds,
         'needsQuantityReview': needsQuantityReview,
       };
@@ -215,6 +221,8 @@ class WorkTask {
         operationCode: json['operationCode']?.toString(),
         generatedKey: json['generatedKey']?.toString(),
         requiredPredecessorIds: ((json['requiredPredecessorIds'] as List?) ?? const [])
+            .map((value) => value.toString()).toList(),
+        coStageTaskIds: ((json['coStageTaskIds'] as List?) ?? const [])
             .map((value) => value.toString()).toList(),
         needsQuantityReview: json['needsQuantityReview'] == true,
         surfaceWallIds: ((json['surfaceWallIds'] as List?) ?? const [])
