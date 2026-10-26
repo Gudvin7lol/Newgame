@@ -223,4 +223,24 @@ void main() {
     expect(b.start, DateTime(2026, 11, 7));
   });
 
+
+  test('prerequisite may be removed while preserving task baseline', () {
+    final first = WorkTask(
+      id: 'first', title: 'Черновые', start: DateTime(2026, 11, 1),
+      finish: DateTime(2026, 11, 2), quantity: 1, unit: 'шт', hours: 8);
+    final second = WorkTask(
+      id: 'second', title: 'Отделка', start: DateTime(2026, 11, 3),
+      finish: DateTime(2026, 11, 4), predecessorId: 'first',
+      quantity: 1, unit: 'шт', hours: 8);
+    final board = WorkBoard(tasks: [first, second]);
+    final preview = WorkSchedulePlanner.preview(
+      board: board, taskId: 'second',
+      start: second.start, finish: second.finish, predecessorId: null);
+    expect(preview.isValid, isTrue);
+    expect(preview.changes.length, 1);
+    expect(WorkSchedulePlanner.apply(board, preview), isNull);
+    expect(second.predecessorId, isNull);
+    expect(second.baselineFinish, DateTime(2026, 11, 4));
+  });
+
 }
