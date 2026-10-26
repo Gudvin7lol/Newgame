@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'work_board.dart';
+import 'electrical_mounting.dart';
 
 class MeasureProject {
   MeasureProject({
@@ -1388,6 +1389,7 @@ class ElectricalPoint {
     this.wallSide = 1,
     List<ElectricalModuleType>? modules,
     this.frameVertical = false,
+    this.mounting,
   }) : modules = modules ?? [_defaultModuleFor(type)];
 
   final String id;
@@ -1404,6 +1406,7 @@ class ElectricalPoint {
   int wallSide;
   final List<ElectricalModuleType> modules;
   bool frameVertical;
+  ElectricalMounting? mounting;
 
   bool get isWallDevice => <ElectricalPointType>{
     ElectricalPointType.wallLight,
@@ -1439,6 +1442,7 @@ class ElectricalPoint {
     'wallSide': wallSide,
     'modules': modules.map((e) => e.name).toList(),
     'frameVertical': frameVertical,
+    'mounting': mounting?.toJson(),
   };
 
   factory ElectricalPoint.fromJson(Map<String, dynamic> json) {
@@ -1471,6 +1475,9 @@ class ElectricalPoint {
       wallSide: (json['wallSide'] as num?)?.toInt() == -1 ? -1 : 1,
       modules: modules.isEmpty ? null : modules,
       frameVertical: json['frameVertical'] as bool? ?? false,
+      mounting: json['mounting'] is Map
+          ? ElectricalMounting.fromJson(Map<String, dynamic>.from(json['mounting'] as Map))
+          : null,
     );
   }
 }

@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../models/models.dart';
+import '../services/electrical_mounting_service.dart';
 
 class ElectricalPlanPainter extends CustomPainter {
   ElectricalPlanPainter({
@@ -70,6 +71,7 @@ class ElectricalPlanPainter extends CustomPainter {
         if (a != null && b != null) angle = math.atan2(b.yMm - a.yMm, b.xMm - a.xMm);
       }
       _symbol(canvas, pos, point, selected, angle: angle);
+      if (point.id == selectedPointId) _mountingDimension(canvas, point, size);
       if (point.label.isNotEmpty) {
         final tp = TextPainter(
           text: TextSpan(text: point.label, style: TextStyle(fontSize: 10,
@@ -80,6 +82,37 @@ class ElectricalPlanPainter extends CustomPainter {
         tp.paint(canvas, pos + const Offset(9, -18));
       }
     }
+  }
+
+  void _mountingDimension(Canvas canvas, ElectricalPoint point, Size size) {
+    final m = point.mounting;
+    if (m == null) return;
+    final issue = ElectricalMountingService.problem(floor, point);
+    final color = issue == null
+        ? (darkMode ? const Color(0xFFFFBD88) : const Color(0xFF6A3E1C))
+        : const Color(0xFFE16F52);
+    String caption;
+    if (issue != null) {
+      caption = issue;
+    } else {
+      final resolved = ElectricalMountingService.resolve(floor, m);
+      final a = p(resolved.datumXMm, resolved.datumYMm);
+      final b = p(resolved.xMm, resolved.yMm);
+      final delta = b - a;
+      final normal = delta.distance < .001 ? const Offset(0, -1) : Offset(delta.dy, -delta.dx) / delta.distance;
+      final lift = normal * 36;
+      final paint = Paint()..color = color..strokeWidth = 1.3;
+      canvas.drawLine(a, a + lift + normal * 4, paint);
+      canvas.drawLine(b, b + lift + normal * 4, paint);
+      canvas.drawLine(a + lift, b + lift, paint);
+      caption = '${point.label.isEmpty ? point.id : point.label} · ${m.datumName} → центр: ${m.distanceMm} мм · h ${point.heightMm} от ЧП';
+    }
+    final tp = TextPainter(text: TextSpan(text: caption,
+      style: TextStyle(fontSize: 11, color: color, backgroundColor: darkMode ? const Color(0xFF142027) : Colors.white)),
+      textDirection: TextDirection.ltr)..layout(maxWidth: 235);
+    final anchor = p(point.xMm, point.yMm) + const Offset(12, 18);
+    tp.paint(canvas, Offset(anchor.dx.clamp(4, math.max(4, size.width - tp.width - 4)).toDouble(),
+      anchor.dy.clamp(4, math.max(4, size.height - tp.height - 4)).toDouble()));
   }
 
   void _symbol(Canvas canvas, Offset c, ElectricalPoint point, bool selected, {double angle = 0}) {

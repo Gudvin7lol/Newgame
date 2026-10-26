@@ -1,0 +1,29 @@
+name: Verify electrical mounting
+on:
+  push:
+    branches: ['feature/zamer-electrical-mounting-p1']
+    paths: ['zamer-app/**', '.github/workflows/verify-electrical-mounting.yml']
+  pull_request:
+    paths: ['zamer-app/lib/models/electrical_mounting.dart', 'zamer-app/lib/services/electrical_mounting_service.dart', 'zamer-app/lib/widgets/electrical_mounting_editor.dart', 'zamer-app/test/electrical_mounting*']
+permissions:
+  contents: read
+jobs:
+  mounting:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CI: 'true'
+      FLUTTER_SUPPRESS_ANALYTICS: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - run: flutter pub get
+        working-directory: zamer-app
+      - run: flutter analyze --no-fatal-infos --no-fatal-warnings lib/models/electrical_mounting.dart lib/services/electrical_mounting_service.dart lib/widgets/electrical_mounting_editor.dart lib/screens/electrical_screen.dart lib/widgets/electrical_plan_painter.dart
+        working-directory: zamer-app
+      - run: flutter test test/electrical_mounting_test.dart test/electrical_mounting_editor_test.dart test/electrical_mounting_integration_test.dart test/electrical_board_draft_v155_test.dart test/electrical_floor_camera_v154_test.dart
+        working-directory: zamer-app

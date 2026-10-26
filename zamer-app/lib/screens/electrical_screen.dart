@@ -4,6 +4,9 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../models/models.dart';
+import '../models/electrical_mounting.dart';
+import '../services/electrical_mounting_service.dart';
+import '../widgets/electrical_mounting_editor.dart';
 import '../services/geometry_service.dart';
 import '../widgets/electrical_plan_painter.dart';
 import '../widgets/cad_plan_painter.dart';
@@ -362,7 +365,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
   }
 
   void _movePoint(ElectricalPoint point, math.Point<double> raw) {
-    if (_needsWall(point.type)) {
+    if (_needsWall(point.type) || (point.type == ElectricalPointType.junctionBox && point.wallId != null)) {
       final rawHit = _nearestWall(raw, maxDistanceMm: 700);
       final hit = rawHit == null
           ? null
@@ -639,11 +642,13 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
   Future<void> _pointSheet(ElectricalPoint p) async {
     final label = TextEditingController(text: p.label);
     final circuit = TextEditingController(text: p.circuit);
-    final height = TextEditingController(text: p.heightMm.round().toString());
-    final power = TextEditingController(text: p.powerW.round().toString());
+    final height = TextEditingController(text: p.heightMm.toString());
+    final power = TextEditingController(text: p.powerW.toString());
     var localModules = List<ElectricalModuleType>.of(p.modules);
     var frameVertical = p.frameVertical;
     var wallSide = p.wallSide;
+    ElectricalMounting? mountingDraft;
+    String? mountingError;
     if (localModules.isEmpty && _needsWall(p.type))
       localModules = _defaultModules(p.type);
 
@@ -673,10 +678,40 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                   Padding(
                     padding: const EdgeInsets.only(top: 4),
                     child: Text(
-                      'Привязано к стене • ${p.wallOffsetMm?.round() ?? 0} мм от начала',
+                      '${p.wallId} · ${p.wallOffsetMm ?? 0} мм от узла A по оси',
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ),
+                if (p.isWallDevice || p.type == ElectricalPointType.junctionBox)
+                  OutlinedButton.icon(
+                    key: const ValueKey('edit-mounting'),
+                    icon: const Icon(Icons.straighten),
+                    label: Text(mountingDraft == null ? 'Точная монтажная привязка' : 'Привязка подготовлена'),
+                    onPressed: () async {
+                      final draftPoint = ElectricalPoint.fromJson(p.toJson());
+                      draftPoint.heightMm = double.tryParse(height.text.replaceAll(',', '.')) ?? p.heightMm;
+                      draftPoint.wallSide = wallSide;
+                      if (mountingDraft != null) {
+                        try {
+                          ElectricalMountingService.apply(widget.floor, draftPoint, mountingDraft!);
+                        } on FormatException catch (e) {
+                          setModal(() { mountingDraft = null; mountingError = e.message; });
+                          return;
+                        }
+                      }
+                      final next = await Navigator.of(context).push<ElectricalMounting>(MaterialPageRoute(
+                        builder: (_) => ElectricalMountingEditor(floor: widget.floor, point: draftPoint)));
+                      if (next == null || !context.mounted) return;
+                      setModal(() {
+                        mountingDraft = next;
+                        height.text = next.heightAboveFinishedFloorMm.toString();
+                        wallSide = next.wallSide;
+                        mountingError = null;
+                      });
+                    },
+                  ),
+                if (p.mounting != null && mountingDraft == null)
+                  Text(ElectricalMountingService.problem(widget.floor, p) ?? 'Геометрическая привязка актуальна'),
                 if (p.wallId != null)
                   SwitchListTile.adaptive(
                     title: const Text('Обратная сторона стены'),
@@ -704,7 +739,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                   controller: height,
                   keyboardType: TextInputType.number,
                   decoration: const InputDecoration(
-                    labelText: 'Высота установки',
+                    labelText: 'Центр над чистым полом',
                     suffixText: 'мм',
                   ),
                 ),
@@ -786,8 +821,29 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                     ),
                 ],
                 const SizedBox(height: 14),
+                if (mountingError != null) Text(mountingError!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
                 FilledButton(
-                  onPressed: () => Navigator.pop(context, 'save'),
+                  onPressed: () {
+                    final h = double.tryParse(height.text.replaceAll(',', '.'));
+                    final watts = double.tryParse(power.text.replaceAll(',', '.'));
+                    if (h == null || !h.isFinite || h < 0 || watts == null || !watts.isFinite || watts < 0) {
+                      setModal(() => mountingError = 'Укажите конечные неотрицательные высоту и мощность.');
+                      return;
+                    }
+                    if (mountingDraft != null) {
+                      if (h != mountingDraft!.heightAboveFinishedFloorMm || wallSide != mountingDraft!.wallSide) {
+                        setModal(() => mountingError = 'Высота или сторона изменены. Обновите монтажную привязку.');
+                        return;
+                      }
+                      try {
+                        ElectricalMountingService.apply(widget.floor, ElectricalPoint.fromJson(p.toJson()), mountingDraft!);
+                      } on FormatException catch (e) {
+                        setModal(() => mountingError = e.message);
+                        return;
+                      }
+                    }
+                    Navigator.pop(context, 'save');
+                  },
                   child: const Text('Сохранить'),
                 ),
                 TextButton(
@@ -823,11 +879,12 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
       p.frameVertical = frameVertical;
       p.wallSide = wallSide;
       if (localModules.length > 1) p.type = ElectricalPointType.frame;
+      if (mountingDraft != null) ElectricalMountingService.apply(widget.floor, p, mountingDraft!);
     } else {
       return;
     }
     await widget.onChanged();
-    if (mounted) setState(() => _selectedId = null);
+    if (mounted) setState(() => _selectedId = result == 'delete' ? null : p.id);
   }
 
   Future<void> _heightDefaults() async {
