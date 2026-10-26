@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import '../models/models.dart';
 import '../models/work_board.dart';
+import 'work_floor_polygon_service.dart';
 
 /// A single straight split between tile and laminate, clipped to the room's
 /// actual INNER polygon. Source geometry is never mutated.
@@ -96,6 +97,10 @@ class WorkFloorSurfaceService {
   static ({double tileM2, double laminateM2}) areas(
       WorkBoard board, FloorPlan floor, RoomFace face,
       {WorkFloorFinishSplit? preview}) {
+    final zones = WorkFloorPolygonService.roomZones(board, floor, face);
+    if (preview == null && zones.isNotEmpty) {
+      return WorkFloorPolygonService.areas(floor, face, zones);
+    }
     final assigned = preview ?? selected(board, floor, face);
     if (assigned == null) {
       final room = floor.roomMetaByKey(face.key);
@@ -134,6 +139,10 @@ class WorkFloorSurfaceService {
     board.floorFinishes.removeWhere((item) =>
       item.floorId == floor.id && item.roomId == room.id);
     board.floorFinishes.add(split);
+    // A deliberate return to the straight-line editor replaces any
+    // previously drawn polygon layout. No two allocation modes coexist.
+    board.floorZones.removeWhere((z) =>
+        z.floorId == floor.id && z.roomId == room.id);
   }
 
   /// Generated, untouched work may be corrected. Started/accepted quantity
