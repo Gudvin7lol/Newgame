@@ -102,7 +102,8 @@ class WorkScheduleProposal {
   final DateTime? previousCompletion, projectedCompletion;
   final String? error;
   bool get isValid => error == null;
-  int get shiftedSuccessors => changes.length > 1 ? changes.length - 1 : 0;
+  int get shiftedSuccessors =>
+      changes.where((change) => change.taskId != rootTaskId).length;
 }
 
 /// Calendar-day finish-to-start scheduling. A successor may begin on the
