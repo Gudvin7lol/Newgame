@@ -1115,6 +1115,7 @@ class _WorksScreenState extends State<WorksScreen> {
     var start = _selected, finish = _selected, unit = 'м²';
     String? roomId = _roomId;
     String? predecessorId;
+    String? operationCode;
     var lagDays = 0;
     final saved = await showModalBottomSheet<bool>(
       context: context, isScrollControlled: true, showDragHandle: true,
@@ -1137,6 +1138,35 @@ class _WorksScreenState extends State<WorksScreen> {
             children: [
               const Text('Новая работа', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800)),
               const SizedBox(height: 16),
+              DropdownButtonFormField<String?>(
+                initialValue: operationCode,
+                decoration: const InputDecoration(
+                  labelText: 'Операция из строительного каталога'),
+                isExpanded: true,
+                items: [
+                  const DropdownMenuItem<String?>(
+                    value: null, child: Text('Произвольная работа')),
+                  for (final op in WorkOperationCatalog.all)
+                    DropdownMenuItem<String?>(
+                      value: op.code,
+                      child: Text('${op.phase} · ${op.title}',
+                        overflow: TextOverflow.ellipsis),
+                    ),
+                ],
+                onChanged: (code) => state(() {
+                  operationCode = code;
+                  if (code != null) {
+                    final op = WorkOperationCatalog.byCode[code]!;
+                    title.text = op.title;
+                    unit = switch (op.basis) {
+                      WorkQuantityBasis.skirting => 'м',
+                      WorkQuantityBasis.package => 'шт',
+                      _ => 'м²',
+                    };
+                  }
+                }),
+              ),
+              const SizedBox(height: 12),
               TextField(controller: title, decoration: const InputDecoration(labelText: 'Название работы')),
               const SizedBox(height: 11),
               DropdownButtonFormField<String?>(
@@ -1240,12 +1270,55 @@ class _WorksScreenState extends State<WorksScreen> {
                   }
                 }
                 final taskId = _id();
+                final operation = WorkOperationCatalog.byCode[operationCode];
+                final requiredTasks = <WorkTask>[];
+                if (operation != null) {
+                  final missing = <String>[];
+                  for (final requiredCode in operation.requiredCodes) {
+                    final matches = board.tasks.where((task) =>
+                      task.operationCode == requiredCode &&
+                      task.roomId == roomId && task.floorId == floorId);
+                    if (matches.isEmpty) {
+                      if (!(WorkOperationCatalog.byCode[requiredCode]?.optional ?? false)) {
+                        missing.add(WorkOperationCatalog.byCode[requiredCode]?.title ??
+                          requiredCode);
+                      }
+                    } else {
+                      requiredTasks.add(matches.first);
+                    }
+                  }
+                  if (missing.isNotEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Сначала создайте этапы: ' +
+                        missing.join(', '))));
+                    return;
+                  }
+                }
+                if (predecessorId != null) {
+                  final selected = board.tasks.where((t) =>
+                    t.id == predecessorId).firstOrNull;
+                  if (selected != null) requiredTasks.add(selected);
+                }
+                final required = {for (final t in requiredTasks) t.id}.toList();
+                if (requiredTasks.any((t) =>
+                    !start.isAfter(t.finish) &&
+                    !start.isAtSameMomentAs(
+                      board.calendar.firstDayAfter(t.finish, 0)))) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text(
+                      'Начало должно быть после обязательных предшественников.')));
+                  return;
+                }
+                final latest = requiredTasks.isEmpty ? null :
+                    requiredTasks.reduce((a, b) =>
+                      a.finish.isAfter(b.finish) ? a : b);
+                final scheduledPredecessor = predecessorId ?? latest?.id;
                 final problem = WorkScheduleService.validate(
                   board: board,
                   taskId: taskId,
                   start: start,
                   finish: finish,
-                  predecessorId: predecessorId,
+                  predecessorId: scheduledPredecessor,
                   lagDays: lagDays,
                 );
                 if (problem != null) {
@@ -1258,7 +1331,10 @@ class _WorksScreenState extends State<WorksScreen> {
                   id: taskId, title:title.text.trim(), start:start, finish:finish,
                   quantity:q, unit:unit, hours:h, floorId:floorId,
                   roomId:roomId, roomName:room?.name ?? '',
-                  assignee:assignee.text.trim(), predecessorId:predecessorId,
+                  assignee:assignee.text.trim(),
+                  operationCode: operationCode,
+                  requiredPredecessorIds: required,
+                  predecessorId: scheduledPredecessor,
                   lagDays: lagDays));
                 board.log('Создана работа: ' + title.text.trim(),
                   taskId: board.tasks.last.id);
