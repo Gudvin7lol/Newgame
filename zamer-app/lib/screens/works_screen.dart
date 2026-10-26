@@ -1102,14 +1102,14 @@ class _WorksScreenState extends State<WorksScreen> {
                           zones..clear()..addAll(result);
                           editProblem = null;
                         });
-                      } on ArgumentError catch (error) {
-                        redraw(() => editProblem =
-                          error.message.toString());
                       } on RangeError {
                         redraw(() {
                           selectedVertex = null;
                           editProblem = 'Вершина больше не существует.';
                         });
+                      } on ArgumentError catch (error) {
+                        redraw(() => editProblem =
+                          error.message.toString());
                       }
                     } : null,
                     child: CustomPaint(
