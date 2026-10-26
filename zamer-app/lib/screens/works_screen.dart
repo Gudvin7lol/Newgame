@@ -33,9 +33,16 @@ class _WorksScreenState extends State<WorksScreen> {
   int _tab = 0, _calendar = 0, _control = 0;
   DateTime _selected = _day(DateTime.now());
   String? _roomId;
+  String? _selectedFloorId;
   WorkBoard get board => widget.project.workBoard;
-  List<RoomMeta> get rooms =>
-      widget.project.floors.expand((floor) => floor.roomMetas).toList();
+  FloorPlan? get _activeFloor {
+    final floors = widget.project.floors;
+    if (floors.isEmpty) return null;
+    return floors.where((floor) => floor.id == _selectedFloorId).firstOrNull ??
+        floors.first;
+  }
+
+  List<RoomMeta> get rooms => _activeFloor?.roomMetas ?? const <RoomMeta>[];
 
   Future<void> _save() async {
     await widget.onChanged();
@@ -139,10 +146,17 @@ class _WorksScreenState extends State<WorksScreen> {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
         gradient: active ? const LinearGradient(
-          colors: [Color(0xFFFBD0AB), _peach]) : null,
-        color: active ? null : _panel,
-        border: Border.all(color: active ? _peach : _edge),
-        boxShadow: active ? [BoxShadow(color: _peach.withValues(alpha: .18), blurRadius: 12)] : null,
+          colors: [Color(0xFFFFE0B8), Color(0xFFF2B18D)],
+          begin: Alignment.topLeft, end: Alignment.bottomRight)
+          : const LinearGradient(
+            colors: [Color(0xFF32363A), Color(0xFF181E23)],
+            begin: Alignment.topLeft, end: Alignment.bottomRight),
+        border: Border.all(color: active ? _peach : ZamerColors.outlineLight, width: .8),
+        boxShadow: [
+          const BoxShadow(color: Color(0x7D000000), blurRadius: 11, offset: Offset(0, 4)),
+          if (active) BoxShadow(color: _peach.withValues(alpha: .22),
+            blurRadius: 17, spreadRadius: .3),
+        ],
       ),
       child: Text(text, style: TextStyle(
         color: active ? _bg : Colors.white70,
@@ -157,10 +171,15 @@ class _WorksScreenState extends State<WorksScreen> {
         padding: padding,
         decoration: BoxDecoration(
           gradient: const LinearGradient(
-            colors: [Color(0xFF282B35), _panel],
+            colors: [Color(0xFF2C302F), Color(0xFF202326), Color(0xFF151B1E)],
+            stops: [0.0, .42, 1.0],
             begin: Alignment.topLeft, end: Alignment.bottomRight),
-          borderRadius: BorderRadius.circular(17),
-          border: Border.all(color: _edge),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFF4A4843), width: .8),
+          boxShadow: const [
+            BoxShadow(color: Color(0x73000000), blurRadius: 18, offset: Offset(0, 7)),
+            BoxShadow(color: Color(0x19FDD2A3), blurRadius: 14, offset: Offset(-3, -4)),
+          ],
         ),
         child: child,
       );
@@ -444,15 +463,39 @@ class _WorksScreenState extends State<WorksScreen> {
         _stat('На приёмке', '${board.tasks.where((t)=>t.complete && !t.fullyAccepted).length}'),
       ]),
       _heading('Контроль по помещениям', trailing:
-        TextButton.icon(onPressed: _fullPlan,
+        TextButton.icon(onPressed: _activeFloor == null ? null : _fullPlan,
           icon: const Icon(Icons.open_in_full, size: 16),
           label: const Text('2D-план'))),
-      if (widget.project.floors.isEmpty)
+      if (widget.project.floors.length > 1)
+        _card(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+          child: DropdownButtonHideUnderline(child: DropdownButton<String>(
+            isExpanded: true,
+            value: _activeFloor?.id,
+            dropdownColor: _panel,
+            icon: const Icon(Icons.keyboard_arrow_down, color: _peach),
+            items: [
+              for (final floor in widget.project.floors)
+                DropdownMenuItem<String>(
+                  value: floor.id,
+                  child: Row(children: [
+                    const Icon(Icons.layers_outlined, color: _peach, size: 18),
+                    const SizedBox(width: 10),
+                    Expanded(child: Text(floor.name, maxLines: 1,
+                      overflow: TextOverflow.ellipsis)),
+                  ]),
+                ),
+            ],
+            onChanged: (floorId) => setState(() {
+              _selectedFloorId = floorId;
+              _roomId = null;
+            }),
+          ))),
+      if (_activeFloor == null)
         _empty('Сначала создайте этаж и помещения в «Замере».')
       else
         _card(padding: const EdgeInsets.all(9), child: Column(children: [
           _PlanView(
-            floor: widget.project.floors.first,
+            floor: _activeFloor!,
             selected: _roomId,
             onSelect: (id) => setState(() => _roomId = id),
             colorFor: _roomColor,
@@ -493,7 +536,8 @@ class _WorksScreenState extends State<WorksScreen> {
 
   List<Widget> _controlRows() {
     final tasks = board.tasks.where((t) =>
-      _roomId == null || t.roomId == _roomId).toList();
+      (t.floorId == null || t.floorId == _activeFloor?.id) &&
+      (_roomId == null || t.roomId == _roomId)).toList();
     if (_control == 0) return tasks.isEmpty ?
       [_empty('Нет работ в выбранной зоне.')] : tasks.map(_taskCard).toList();
     if (_control == 1) {
@@ -536,6 +580,8 @@ class _WorksScreenState extends State<WorksScreen> {
   }
 
   void _fullPlan() {
+    final floor = _activeFloor;
+    if (floor == null) return;
     showDialog<void>(context: context, builder: (_) => Dialog(
       backgroundColor: _panel,
       insetPadding: const EdgeInsets.all(12),
@@ -547,12 +593,18 @@ class _WorksScreenState extends State<WorksScreen> {
             IconButton(onPressed: () => Navigator.pop(context),
               icon: const Icon(Icons.close)),
           ]),
-          SizedBox(height: 440, child: _PlanView(
-            floor: widget.project.floors.first,
-            selected: _roomId, onSelect: (id) {
+          SizedBox(height: 440,
+            child: InteractiveViewer(
+              minScale: .8,
+              maxScale: 5,
+              boundaryMargin: const EdgeInsets.all(24),
+              child: _PlanView(
+                floor: floor,
+                selected: _roomId, onSelect: (id) {
               setState(() => _roomId = id);
               Navigator.pop(context);
             }, colorFor: _roomColor)),
+          ),
         ]))));
   }
 
@@ -663,9 +715,11 @@ class _WorksScreenState extends State<WorksScreen> {
                   return;
                 }
                 final room = rooms.where((r)=>r.id==roomId).firstOrNull;
-                String? floorId;
-                for (final f in widget.project.floors) {
-                  if (f.roomMetas.any((r)=>r.id==roomId)) floorId=f.id;
+                String? floorId = _activeFloor?.id;
+                if (roomId != null) {
+                  for (final f in widget.project.floors) {
+                    if (f.roomMetas.any((r)=>r.id==roomId)) floorId=f.id;
+                  }
                 }
                 board.tasks.add(WorkTask(
                   id: _id(), title:title.text.trim(), start:start, finish:finish,
