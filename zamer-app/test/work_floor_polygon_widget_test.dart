@@ -90,7 +90,16 @@ void main() {
     // two gestures a finger uses on the editing canvas.
     await tester.tapAt(first);
     await tester.pumpAndSettle();
-    await tester.dragFrom(first, const Offset(24, 0));
+    // One-step drag only activates Flutter's pan recognizer; multiple
+    // pointer moves are needed to produce the subsequent update callback.
+    final gesture = await tester.startGesture(first);
+    await gesture.moveBy(const Offset(19, 0));
+    await tester.pump();
+    await gesture.moveBy(const Offset(12, 0));
+    await tester.pump();
+    await gesture.moveBy(const Offset(12, 0));
+    await tester.pump();
+    await gesture.up();
     await tester.pumpAndSettle();
     await tester.tap(find.text('Сохранить зоны'));
     await tester.pumpAndSettle();
