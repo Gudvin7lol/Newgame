@@ -18,6 +18,7 @@ import 'photo_studio_screen.dart';
 import 'plan_geometry_tools_screen.dart';
 import 'recovered_measure_workspace_screen.dart';
 import 'scan_plan_screen.dart';
+import 'works_screen.dart';
 
 /// Unified recovery shell after the +108 branch split.
 ///
@@ -250,6 +251,19 @@ class _RecoveredProjectWorkspaceScreenState
     );
   }
 
+  Future<void> _openWorks() async {
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute<void>(
+        builder: (_) => WorksScreen(
+          project: widget.project,
+          onChanged: widget.onChanged,
+        ),
+      ),
+    );
+    if (mounted) setState(() {});
+  }
+
   Future<void> _showProjectActions() async {
     await showModalBottomSheet<void>(
       context: context,
@@ -262,6 +276,15 @@ class _RecoveredProjectWorkspaceScreenState
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            ZActionTile(
+              icon: Icons.calendar_month_outlined,
+              title: 'Работы • календарь и контроль',
+              subtitle: 'График, фактические объёмы, помещения и приёмка',
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _openWorks();
+              },
+            ),
             ZActionTile(
               icon: Icons.layers_outlined,
               title: 'Этажи',
