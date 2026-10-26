@@ -330,6 +330,7 @@ class _RecoveredMeasureWorkspaceScreenState
             child: ZamerKitSegment(
               label: _layers[i].$1,
               icon: _layers[i].$2,
+              stacked: true,
               selected: _layer == i,
               onTap: () => _selectLayer(i),
             ),
