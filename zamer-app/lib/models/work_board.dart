@@ -4,16 +4,20 @@ import 'work_calendar.dart';
 /// Project-owned work records. They travel with the project's JSON/ZIP backup.
 class WorkBoard {
   WorkBoard({List<WorkTask>? tasks, List<WorkIssue>? issues, List<WorkLog>? events,
-    WorkCalendar? calendar})
+    WorkCalendar? calendar, Map<String, double>? crewDailyHours})
       : tasks = tasks ?? [],
         issues = issues ?? [],
         events = events ?? [],
-        calendar = calendar ?? WorkCalendar();
+        calendar = calendar ?? WorkCalendar(),
+        crewDailyHours = crewDailyHours ?? <String, double>{};
 
   final List<WorkTask> tasks;
   final List<WorkIssue> issues;
   final List<WorkLog> events;
   final WorkCalendar calendar;
+  /// Person-hours available per workday, indexed by a normalized crew name.
+  final Map<String, double> crewDailyHours;
+
 
   double get actualProgress => _weighted((task) => task.progress);
   double get acceptedProgress => _weighted((task) => task.acceptedProgress);
@@ -43,9 +47,13 @@ class WorkBoard {
         'issues': issues.map((e) => e.toJson()).toList(),
         'events': events.map((e) => e.toJson()).toList(),
         'calendar': calendar.toJson(),
+        'crewDailyHours': crewDailyHours,
       };
 
   factory WorkBoard.fromJson(Map<String, dynamic> json) => WorkBoard(
+        crewDailyHours: ((json['crewDailyHours'] as Map?) ?? const {})
+            .map((key, value) => MapEntry(key.toString(),
+                value is num ? value.toDouble() : 8.0)),
         calendar: WorkCalendar.fromJson(
           Map<String, dynamic>.from((json['calendar'] as Map?) ?? const {})),
         tasks: ((json['tasks'] as List?) ?? const [])
