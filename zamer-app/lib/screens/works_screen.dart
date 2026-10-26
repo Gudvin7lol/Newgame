@@ -7,6 +7,7 @@ import '../models/work_calendar.dart';
 import '../design_system/zamer_tokens.dart';
 import '../services/geometry_service.dart';
 import '../services/work_schedule_service.dart';
+import '../services/workload_service.dart';
 
 const _bg = ZamerColors.background;
 const _panel = ZamerColors.surface;
@@ -211,6 +212,166 @@ class _WorksScreenState extends State<WorksScreen> {
     ]));
   }
 
+  Widget _workloadPanel() {
+    if (board.tasks.isEmpty) return const SizedBox.shrink();
+    final report = WorkloadService.analyze(board);
+    final count = report.overloadedDayCount;
+    final crews = WorkloadService.assignedCrews(board);
+    return _card(child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(children: [
+          Icon(Icons.groups_2_outlined, color: count > 0 ? _red : _peach),
+          const SizedBox(width: 9),
+          const Expanded(child: Text('Загрузка исполнителей',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800))),
+          TextButton(
+            onPressed: _crewLoadDetails,
+            child: const Text('Подробнее'),
+          ),
+        ]),
+        const SizedBox(height: 5),
+        Text(crews.isEmpty
+          ? 'Исполнители ещё не назначены.'
+          : count > 0
+            ? 'Перегрузка: $count бригадо-дней, '
+              '${report.overloadPersonHours.toStringAsFixed(1)} чел·ч сверх нормы.'
+            : 'Перегрузок не обнаружено. '
+              'Дней с параллельными работами: ${report.overlappingDayCount}.',
+          style: TextStyle(fontSize: 12,
+            color: count > 0 ? _red : _muted)),
+        const SizedBox(height: 6),
+        Text('По умолчанию 8 чел·ч/день на назначенного исполнителя. '
+          'Норму можно изменить.',
+          style: const TextStyle(fontSize: 11, color: _muted)),
+      ],
+    ));
+  }
+
+  Future<void> _editCrewCapacity(String crew) async {
+    final key = WorkloadService.crewKey(crew);
+    final current = WorkloadService.capacityFor(board, crew);
+    final controller = TextEditingController(
+      text: current.toStringAsFixed(current % 1 == 0 ? 0 : 1));
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: Text(crew),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text('Сколько человеко-часов эта бригада '
+            'может отработать за один рабочий день?',
+            style: TextStyle(fontSize: 12, color: _muted)),
+          const SizedBox(height: 12),
+          TextField(
+            controller: controller,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(
+              labelText: 'Производительность, чел·ч/день'),
+          ),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialog, false),
+            child: const Text('Отмена')),
+          FilledButton(onPressed: () {
+            final amount = double.tryParse(
+              controller.text.trim().replaceAll(',', '.'));
+            if (amount == null || !amount.isFinite ||
+                amount <= 0 || amount > 1000) {
+              ScaffoldMessenger.of(dialog).showSnackBar(
+                const SnackBar(content: Text('Введите число от 0 до 1000.')),
+              );
+              return;
+            }
+            board.crewDailyHours[key] = amount;
+            board.log('Норма для $crew: '
+              '${amount.toStringAsFixed(1)} чел·ч/день');
+            Navigator.pop(dialog, true);
+          }, child: const Text('Сохранить')),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (saved == true) await _save();
+  }
+
+  Future<void> _crewLoadDetails() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: _panel,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheet) => StatefulBuilder(
+        builder: (sheet, redraw) {
+          final crews = WorkloadService.assignedCrews(board);
+          final report = WorkloadService.analyze(board);
+          final overloaded = report.overloadedDays;
+          return SafeArea(top: false, child: SizedBox(
+            height: MediaQuery.sizeOf(sheet).height * .73,
+            child: ListView(padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+              children: [
+                const Text('Загрузка бригад',
+                  style: TextStyle(fontSize: 19,
+                    fontWeight: FontWeight.w800)),
+                const SizedBox(height: 6),
+                Text('Перегружено дней: ${report.overloadedDayCount}. '
+                  'Часы распределены равномерно по рабочим дням задачи.',
+                  style: const TextStyle(fontSize: 12, color: _muted)),
+                const SizedBox(height: 12),
+                const Text('Доступная мощность',
+                  style: TextStyle(fontWeight: FontWeight.w700)),
+                if (crews.isEmpty)
+                  const ListTile(title: Text('Назначьте исполнителей работ.'))
+                else
+                  for (final crew in crews)
+                    ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.groups_outlined, color: _peach),
+                      title: Text(crew),
+                      subtitle: Text(
+                        '${WorkloadService.capacityFor(board, crew).toStringAsFixed(1)} '
+                        'чел·ч/рабочий день'),
+                      trailing: const Icon(Icons.edit_outlined, size: 18),
+                      onTap: () async {
+                        await _editCrewCapacity(crew);
+                        if (sheet.mounted) redraw(() {});
+                      },
+                    ),
+                const Divider(color: _edge),
+                const Text('Дни с перегрузкой',
+                  style: TextStyle(fontWeight: FontWeight.w700)),
+                if (overloaded.isEmpty)
+                  const ListTile(title: Text('Перегрузок нет.'))
+                else
+                  for (final day in overloaded.take(60))
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.warning_amber_rounded,
+                        color: _red),
+                      title: Text('${day.crew} · ${_date(day.day)}'),
+                      subtitle: Text(day.taskTitles.values.join(', '),
+                        maxLines: 2, overflow: TextOverflow.ellipsis),
+                      trailing: Text(
+                        '${day.plannedHours.toStringAsFixed(1)} / '
+                        '${day.capacity.toStringAsFixed(1)}',
+                        style: const TextStyle(color: _red,
+                          fontWeight: FontWeight.w700, fontSize: 12)),
+                    ),
+                if (overloaded.length > 60)
+                  Text('Показаны первые 60 из ${overloaded.length}.',
+                    style: const TextStyle(color: _muted, fontSize: 12)),
+                if (report.skippedInvalidTasks > 0)
+                  Text('Работ с некорректными датами: '
+                    '${report.skippedInvalidTasks}.',
+                    style: const TextStyle(color: _red, fontSize: 12)),
+              ],
+            ),
+          ));
+        },
+      ),
+    );
+  }
+
   Widget _heading(String title, {Widget? trailing}) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 12),
     child: Row(children: [
@@ -348,6 +509,7 @@ class _WorksScreenState extends State<WorksScreen> {
         ])),
       ])),
       _delayedNotice(),
+      _workloadPanel(),
       _heading('План работ', trailing: TextButton.icon(
         onPressed: _calendarSettings,
         icon: const Icon(Icons.calendar_month_outlined, size: 17),
@@ -650,6 +812,7 @@ class _WorksScreenState extends State<WorksScreen> {
           tint: _amber),
       ]),
       _delayedNotice(),
+      _workloadPanel(),
       _heading('Контроль по помещениям', trailing:
         TextButton.icon(onPressed: _activeFloor == null ? null : _fullPlan,
           icon: const Icon(Icons.open_in_full, size: 16),
