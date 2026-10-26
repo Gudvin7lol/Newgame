@@ -108,7 +108,7 @@ void main() {
     expect(preview.isValid, isTrue);
     expect(WorkCoStageService.link(board, 'a', 'b'), isNull);
     expect(WorkSchedulePlanner.apply(board, preview),
-      contains('Созависимости'));
+      contains('изменился'));
     expect(a.finish, DateTime(2026, 11, 3));
   });
 }
