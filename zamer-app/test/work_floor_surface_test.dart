@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zamer_app/models/models.dart';
 import 'package:zamer_app/models/work_board.dart';
@@ -153,6 +155,61 @@ void main() {
     WorkFloorSurfaceService.refreshUnstarted(board, floor, face);
     expect(laminate.quantity, keptQty);
     expect(laminate.done, keptQty / 2);
+  });
+
+  test('concave room polygon clips correctly without gross rectangle area', () {
+    final face = RoomFace(
+      key: 'l-room', nodeIds: const [], edges: const [],
+      innerPolygon: [
+        const math.Point<double>(0, 0),
+        const math.Point<double>(5000, 0),
+        const math.Point<double>(5000, 2000),
+        const math.Point<double>(2000, 2000),
+        const math.Point<double>(2000, 4000),
+        const math.Point<double>(0, 4000),
+      ],
+      signedAreaMm2: 14000000,
+    );
+    final floor = FloorPlan(id: 'f', name: 'Этаж');
+    final split = WorkFloorFinishSplit(
+      floorId: 'f', roomId: 'r', axis: 'x',
+      cutMm: 3000, tileBeforeCut: true);
+    final result = WorkFloorSurfaceService.areas(
+      WorkBoard(), floor, face, preview: split);
+    expect(face.areaM2, closeTo(14, .0001));
+    expect(result.tileM2, closeTo(10, .0001));
+    expect(result.laminateM2, closeTo(4, .0001));
+    expect(result.tileM2 + result.laminateM2, closeTo(14, .0001));
+  });
+
+  test('already accepted floor work survives changed split but blocks new gates', () {
+    final floor = rectangle();
+    final face = GeometryService.roomFaces(floor).single;
+    final project = MeasureProject(
+      id: 'accepted', name: 'Комната', floors: [floor]);
+    final board = project.workBoard;
+    final plan = WorkGenerationService.preview(project);
+    expect(WorkGenerationService.apply(board, plan), isNull);
+    final laminate = board.tasks.firstWhere(
+      (task) => task.operationCode == 'floor_laminate');
+    final quantity = laminate.quantity;
+    laminate.done = quantity;
+    laminate.accepted = quantity;
+    final bounds = WorkFloorSurfaceService.bounds(face, 'x');
+    WorkFloorSurfaceService.save(board, floor, face, WorkFloorFinishSplit(
+      floorId: floor.id, roomId: floor.roomMetas.single.id,
+      axis: 'x', cutMm: (bounds.min + bounds.max) / 2,
+      tileBeforeCut: true,
+    ));
+    WorkFloorSurfaceService.refreshUnstarted(board, floor, face);
+    expect(laminate.quantity, quantity);
+    expect(laminate.accepted, quantity);
+    expect(laminate.needsQuantityReview, isTrue);
+    final skirting = board.tasks.firstWhere(
+      (task) => task.operationCode == 'skirting');
+    // A formerly accepted quantity that conflicts with the current model
+    // must not be allowed to open downstream finishing work.
+    expect(skirting.requiredPredecessorIds, contains(laminate.id));
   });
 
   test('old projects keep existing floor finish mode by default', () {
