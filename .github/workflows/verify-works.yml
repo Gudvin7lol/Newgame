@@ -17,6 +17,7 @@ on:
       - 'zamer-app/test/work_board_test.dart'
       - 'zamer-app/test/work_generation_test.dart'
       - 'zamer-app/test/work_surface_test.dart'
+      - 'zamer-app/test/work_surface_widget_test.dart'
       - 'zamer-app/test/work_calendar_test.dart'
       - 'zamer-app/test/workload_service_test.dart'
       - 'zamer-app/test/works_screen_test.dart'
@@ -40,4 +41,4 @@ jobs:
         run: flutter analyze --no-fatal-infos lib/models/models.dart lib/models/work_board.dart lib/models/work_calendar.dart lib/services/work_schedule_service.dart lib/services/work_generation_service.dart lib/services/work_surface_service.dart lib/services/work_operation_taxonomy.dart lib/services/work_status_service.dart lib/services/workload_service.dart lib/screens/works_screen.dart lib/screens/recovered_project_workspace_screen.dart
       - name: Test work-board persistence and progress
         working-directory: zamer-app
-        run: flutter test test/work_board_test.dart test/work_generation_test.dart test/work_surface_test.dart test/work_calendar_test.dart test/workload_service_test.dart test/works_screen_test.dart
+        run: flutter test test/work_board_test.dart test/work_generation_test.dart test/work_surface_test.dart test/work_surface_widget_test.dart test/work_calendar_test.dart test/workload_service_test.dart test/works_screen_test.dart
