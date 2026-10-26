@@ -1181,20 +1181,22 @@ class _WorksScreenState extends State<WorksScreen> {
   }
 
   Future<void> _editResources(WorkTask task) async {
-    final assignee = TextEditingController(text: task.assignee);
-    final hours = TextEditingController(
-      text: task.hours.toStringAsFixed(task.hours % 1 == 0 ? 0 : 1),
-    );
+    var assignee = task.assignee;
+    var hours = task.hours.toStringAsFixed(task.hours % 1 == 0 ? 0 : 1);
     final saved = await showDialog<bool>(
       context: context,
       builder: (dialog) => AlertDialog(
         title: const Text('Ресурсы работы'),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
-          TextField(controller: assignee,
+          TextFormField(
+            initialValue: assignee,
+            onChanged: (value) => assignee = value,
             decoration: const InputDecoration(
               labelText: 'Исполнитель или бригада')),
           const SizedBox(height: 12),
-          TextField(controller: hours,
+          TextFormField(
+            initialValue: hours,
+            onChanged: (value) => hours = value,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: const InputDecoration(
               labelText: 'Плановая трудоёмкость, чел·ч')),
@@ -1212,14 +1214,14 @@ class _WorksScreenState extends State<WorksScreen> {
           ),
           FilledButton(onPressed: () {
             final value = double.tryParse(
-              hours.text.trim().replaceAll(',', '.'));
+              hours.trim().replaceAll(',', '.'));
             if (value == null || !value.isFinite ||
                 value <= 0 || value > 100000) {
               ScaffoldMessenger.of(dialog).showSnackBar(const SnackBar(
                 content: Text('Укажите допустимое число человеко-часов.')));
               return;
             }
-            task.assignee = assignee.text.trim();
+            task.assignee = assignee.trim();
             task.hours = value;
             board.log('Изменены ресурсы: ' + task.title, taskId: task.id);
             Navigator.pop(dialog, true);
@@ -1227,8 +1229,6 @@ class _WorksScreenState extends State<WorksScreen> {
         ],
       ),
     );
-    assignee.dispose();
-    hours.dispose();
     if (saved == true) await _save();
   }
 
