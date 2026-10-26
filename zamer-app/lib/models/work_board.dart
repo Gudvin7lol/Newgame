@@ -33,17 +33,54 @@ class WorkWallFinish {
       );
 }
 
+/// One straight division between tile and laminate within a room.
+/// Coordinates are in the same millimetres as RoomFace.innerPolygon.
+class WorkFloorFinishSplit {
+  WorkFloorFinishSplit({
+    required this.floorId,
+    required this.roomId,
+    required this.axis,
+    required this.cutMm,
+    required this.tileBeforeCut,
+  });
+
+  final String floorId, roomId;
+  /// 'x' divides left/right; 'y' divides upper/lower in plan coordinates.
+  final String axis;
+  final double cutMm;
+  final bool tileBeforeCut;
+
+  Map<String, dynamic> toJson() => {
+    'floorId': floorId,
+    'roomId': roomId,
+    'axis': axis,
+    'cutMm': cutMm,
+    'tileBeforeCut': tileBeforeCut,
+  };
+
+  factory WorkFloorFinishSplit.fromJson(Map<String, dynamic> json) =>
+      WorkFloorFinishSplit(
+        floorId: json['floorId']?.toString() ?? '',
+        roomId: json['roomId']?.toString() ?? '',
+        axis: json['axis']?.toString() ?? 'x',
+        cutMm: (json['cutMm'] as num?)?.toDouble() ?? 0,
+        tileBeforeCut: json['tileBeforeCut'] == true,
+      );
+}
+
 /// Project-owned work records. They travel with the project's JSON/ZIP backup.
 class WorkBoard {
   WorkBoard({List<WorkTask>? tasks, List<WorkIssue>? issues, List<WorkLog>? events,
     WorkCalendar? calendar, Map<String, double>? crewDailyHours,
-    List<WorkWallFinish>? wallFinishes})
+    List<WorkWallFinish>? wallFinishes,
+    List<WorkFloorFinishSplit>? floorFinishes})
       : tasks = tasks ?? [],
         issues = issues ?? [],
         events = events ?? [],
         calendar = calendar ?? WorkCalendar(),
         crewDailyHours = crewDailyHours ?? <String, double>{},
-        wallFinishes = wallFinishes ?? <WorkWallFinish>[];
+        wallFinishes = wallFinishes ?? <WorkWallFinish>[],
+        floorFinishes = floorFinishes ?? <WorkFloorFinishSplit>[];
 
   final List<WorkTask> tasks;
   final List<WorkIssue> issues;
@@ -52,6 +89,7 @@ class WorkBoard {
   /// Person-hours available per workday, indexed by a normalized crew name.
   final Map<String, double> crewDailyHours;
   final List<WorkWallFinish> wallFinishes;
+  final List<WorkFloorFinishSplit> floorFinishes;
 
 
   double get actualProgress => _weighted((task) => task.progress);
@@ -84,9 +122,15 @@ class WorkBoard {
         'calendar': calendar.toJson(),
         'crewDailyHours': crewDailyHours,
         'wallFinishes': wallFinishes.map((finish) => finish.toJson()).toList(),
+        'floorFinishes': floorFinishes.map((finish) => finish.toJson()).toList(),
       };
 
   factory WorkBoard.fromJson(Map<String, dynamic> json) => WorkBoard(
+        floorFinishes: ((json['floorFinishes'] as List?) ?? const [])
+            .whereType<Map>()
+            .map((value) => WorkFloorFinishSplit.fromJson(
+              Map<String, dynamic>.from(value)))
+            .toList(),
         wallFinishes: ((json['wallFinishes'] as List?) ?? const [])
             .whereType<Map>()
             .map((value) => WorkWallFinish.fromJson(
