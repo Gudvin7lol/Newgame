@@ -1168,6 +1168,9 @@ class _WorksScreenState extends State<WorksScreen> {
             Navigator.pop(sheet); _editSchedule(t);
           }, child: const Text('Сроки и зависимости')),
           OutlinedButton(onPressed: () {
+            Navigator.pop(sheet); _editResources(t);
+          }, child: const Text('Исполнитель и трудоёмкость')),
+          OutlinedButton(onPressed: () {
             Navigator.pop(sheet); _addIssue(task:t);
           }, child: const Text('Создать замечание')),
           if (t.done > t.accepted)
@@ -1176,6 +1179,58 @@ class _WorksScreenState extends State<WorksScreen> {
             }, child: const Text('Передать / принять выполненный объём')),
         ]),
       )));
+  }
+
+  Future<void> _editResources(WorkTask task) async {
+    final assignee = TextEditingController(text: task.assignee);
+    final hours = TextEditingController(
+      text: task.hours.toStringAsFixed(task.hours % 1 == 0 ? 0 : 1),
+    );
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: const Text('Ресурсы работы'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(controller: assignee,
+            decoration: const InputDecoration(
+              labelText: 'Исполнитель или бригада')),
+          const SizedBox(height: 12),
+          TextField(controller: hours,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(
+              labelText: 'Плановая трудоёмкость, чел·ч')),
+          const SizedBox(height: 10),
+          const Text(
+            'Изменение трудоёмкости влияет на прогнозную загрузку '
+            'и вес задачи в общем проценте выполнения.',
+            style: TextStyle(fontSize: 11, color: _muted),
+          ),
+        ]),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialog, false),
+            child: const Text('Отмена'),
+          ),
+          FilledButton(onPressed: () {
+            final value = double.tryParse(
+              hours.text.trim().replaceAll(',', '.'));
+            if (value == null || !value.isFinite ||
+                value <= 0 || value > 100000) {
+              ScaffoldMessenger.of(dialog).showSnackBar(const SnackBar(
+                content: Text('Укажите допустимое число человеко-часов.')));
+              return;
+            }
+            task.assignee = assignee.text.trim();
+            task.hours = value;
+            board.log('Изменены ресурсы: ' + task.title, taskId: task.id);
+            Navigator.pop(dialog, true);
+          }, child: const Text('Сохранить')),
+        ],
+      ),
+    );
+    assignee.dispose();
+    hours.dispose();
+    if (saved == true) await _save();
   }
 
   Future<void> _editSchedule(WorkTask task) async {
