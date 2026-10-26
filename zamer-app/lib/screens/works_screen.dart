@@ -223,6 +223,21 @@ class _WorksScreenState extends State<WorksScreen> {
     );
   }
 
+  String _shortWorkStatus(WorkState state, WorkTask task) =>
+      switch (state) {
+        WorkState.accepted => 'Принято',
+        WorkState.defect => 'Замечание',
+        WorkState.quantityReview => 'Проверить',
+        WorkState.overdue => 'Просрочено',
+        WorkState.awaitingAcceptance => 'Приёмка',
+        WorkState.paused => 'Пауза',
+        WorkState.blocked => 'Ожидает',
+        WorkState.ready => 'К началу',
+        WorkState.planned => 'План',
+        WorkState.inProgress =>
+          (task.progress * 100).round().toString() + '%',
+      };
+
   Widget _compactWorkRow(WorkTask task) {
     final state = WorkStatusService.state(board, task);
     final color = _statusColor(task);
@@ -251,10 +266,12 @@ class _WorksScreenState extends State<WorksScreen> {
             ],
           )),
           const SizedBox(width: 6),
-          Text(state == WorkState.accepted ? '✓' :
-              (task.progress * 100).round().toString() + '%',
-            style: TextStyle(fontWeight: FontWeight.w800,
-              fontSize: 11, color: color)),
+          Tooltip(
+            message: state.label,
+            child: Text(_shortWorkStatus(state, task),
+              style: TextStyle(fontWeight: FontWeight.w800,
+                fontSize: 10.5, color: color)),
+          ),
           const Icon(Icons.chevron_right, color: _muted, size: 18),
         ]),
       ),
