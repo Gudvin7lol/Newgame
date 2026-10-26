@@ -135,4 +135,20 @@ void main() {
     board.issues.first.closedAt = DateTime(2026, 10, 27);
     expect(WorkStatusService.canAccept(board, task), true);
   });
+  test('rescheduling one prerequisite cascades through mandatory edges', () {
+    final project = MeasureProject(
+      id: 'deps', name: 'Зависимости', floors: [rectangle('deps')]);
+    final generated = WorkGenerationService.preview(
+      project, begin: DateTime(2026, 11, 2));
+    WorkGenerationService.apply(project.workBoard, generated);
+    final board = project.workBoard;
+    final cleaning = board.tasks.firstWhere(
+      (task) => task.operationCode == 'cleaning');
+    final paint = board.tasks.firstWhere(
+      (task) => task.operationCode == 'wall_paint');
+    expect(cleaning.requiredPredecessorIds, contains(paint.id));
+    // Final cleaning is blocked until all mandatory stages are accepted.
+    expect(WorkStatusService.canStart(board, cleaning), false);
+  });
+
 }
