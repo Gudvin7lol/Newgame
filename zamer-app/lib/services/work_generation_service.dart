@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import '../models/models.dart';
 import '../models/work_board.dart';
 import 'geometry_service.dart';
+import 'engineering_service.dart';
 
 enum WorkQuantityBasis { floorArea, wallArea, ceilingArea, skirting, package }
 
@@ -105,9 +106,9 @@ class WorkGenerationService {
             'wall_primer',
           if (s.wallPlaster || s.wallPutty || s.wallPaint || s.wallTile)
             'wall_plaster',
-          if (s.wallPutty || s.wallPaint) 'wall_putty',
-          if (s.wallPaint) 'wall_prime_finish',
-          if (s.wallPaint) 'wall_paint',
+          if (!s.wallTile && (s.wallPutty || s.wallPaint)) 'wall_putty',
+          if (!s.wallTile && s.wallPaint) 'wall_prime_finish',
+          if (!s.wallTile && s.wallPaint) 'wall_paint',
           if (s.wallTile) 'wall_tile',
           if (room.heating.enabled) 'warm_floor',
           if (tileFloor) 'floor_tile',
@@ -145,7 +146,9 @@ class WorkGenerationService {
             continue;
           }
           final area = face.areaM2;
-          final quantity = switch (op.basis) {
+          final quantity = op.code == 'warm_floor'
+              ? EngineeringService.warmFloor(face, room.heating).areaM2
+              : switch (op.basis) {
             WorkQuantityBasis.floorArea => area,
             WorkQuantityBasis.wallArea =>
               GeometryService.roomNetWallAreaM2(floor, face),
