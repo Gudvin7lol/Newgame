@@ -462,12 +462,12 @@ class _WorksScreenState extends State<WorksScreen> {
                 ),
                 const SizedBox(height: 10),
                 Row(children: [
-                  Expanded(child: _stat('Новых', '${plan.tasks.length}')),
+                  _stat('Новых', '${plan.tasks.length}'),
                   const SizedBox(width: 7),
-                  Expanded(child: _stat('Уже есть', '${plan.skippedExisting}')),
+                  _stat('Уже есть', '${plan.skippedExisting}'),
                   const SizedBox(width: 7),
-                  Expanded(child: _stat('Проверить', '${plan.reviewCount}',
-                    tint: _amber)),
+                  _stat('Проверить', '${plan.reviewCount}',
+                    tint: _amber),
                 ]),
                 Text('Помещений: ${plan.roomsProcessed}. '
                   'Трудоёмкость: ${plan.totalEstimatedHours.toStringAsFixed(1)} чел·ч. '
@@ -722,11 +722,11 @@ class _WorksScreenState extends State<WorksScreen> {
                   ),
                 const Divider(color: _edge),
                 Row(children: [
-                  Expanded(child: _stat('Под плитку',
-                    totalTile.toStringAsFixed(2) + ' м²')),
+                  _stat('Под плитку',
+                    totalTile.toStringAsFixed(2) + ' м²'),
                   const SizedBox(width: 8),
-                  Expanded(child: _stat('Под покраску',
-                    totalPaint.toStringAsFixed(2) + ' м²')),
+                  _stat('Под покраску',
+                    totalPaint.toStringAsFixed(2) + ' м²'),
                 ]),
                 const SizedBox(height: 8),
                 const Text('Проёмы учитываются по высоте. Ранее начатые '
