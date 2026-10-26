@@ -81,6 +81,7 @@ void main() {
       start: parent.start, finish: parent.finish);
     expect(preview.error, isNull);
     expect(preview.changes.single.taskId, child.id);
+    expect(preview.shiftedSuccessors, 1);
     expect(preview.changes.single.start, DateTime(2026, 11, 9));
     expect(WorkSchedulePlanner.apply(board, preview), isNull);
     expect(child.lagDays, 2);
