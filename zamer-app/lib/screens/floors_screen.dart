@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/models.dart';
 import 'floor_workspace_screen.dart';
 import 'estimate_screen.dart';
+import 'works_screen.dart';
 
 class FloorsScreen extends StatefulWidget {
   const FloorsScreen({
@@ -326,6 +327,30 @@ class _FloorsScreenState extends State<FloorsScreen> {
                   ),
                 ),
               ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          Card(
+            color: const Color(0xFF20232C),
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+              leading: const CircleAvatar(
+                backgroundColor: Color(0xFF3B3233),
+                child: Icon(Icons.calendar_month_outlined, color: Color(0xFFF4B592)),
+              ),
+              title: const Text('Работы • календарь и контроль',
+                style: TextStyle(fontWeight: FontWeight.w800)),
+              subtitle: const Text('График, объёмы, помещения, замечания и приёмка'),
+              trailing: const Icon(Icons.chevron_right, color: Color(0xFFF4B592)),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => WorksScreen(
+                    project: widget.project,
+                    onChanged: widget.onChanged,
+                  ),
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 14),
