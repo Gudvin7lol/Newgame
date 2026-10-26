@@ -44,12 +44,19 @@ class WorkScheduleService {
           : board.tasks.where((t) => t.id == priorId).firstOrNull;
     }
 
-    if (predecessor != null &&
-        from.isBefore(board.calendar.firstDayAfter(predecessor.finish, lagDays))) {
-      return 'Начало раньше завершения предыдущей работы.';
+    if (predecessor != null) {
+      for (final memberId in WorkCoStageService.memberIds(
+          board, predecessor.id)) {
+        final peer = board.tasks.firstWhere((task) => task.id == memberId);
+        if (from.isBefore(
+            board.calendar.firstDayAfter(peer.finish, lagDays))) {
+          return 'Начало раньше завершения связанного этапа «' +
+              peer.title + '».';
+        }
+      }
     }
 
-    final nextTasks = board.tasks.where((t) => t.predecessorId == taskId);
+    final nextTasks = successors(board, taskId);
     for (final next in nextTasks) {
       final nextStart = DateTime(next.start.year, next.start.month, next.start.day);
       if (nextStart.isBefore(board.calendar.firstDayAfter(through, next.lagDays))) {
@@ -60,7 +67,9 @@ class WorkScheduleService {
   }
 
   static List<WorkTask> successors(WorkBoard board, String taskId) =>
-      board.tasks.where((t) => t.predecessorId == taskId).toList();
+      board.tasks.where((t) =>
+        WorkCoStageService.expandedPredecessors(board, t)
+          .contains(taskId)).toList();
 }
 
 
