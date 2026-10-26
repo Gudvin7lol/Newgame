@@ -81,6 +81,24 @@ void main() {
     expect(first.paintAreaM2, greaterThan(0));
   });
 
+  test('precise millimetre height splits opening-aware wall quantity', () {
+    final floor = sampleRoom(door: true);
+    final face = GeometryService.roomFaces(floor).single;
+    final board = WorkBoard();
+    WorkSurfaceService.save(board, floor, face, {'w1': 1350.0});
+    final segment = WorkSurfaceService.walls(board, floor, face)
+      .firstWhere((wall) => wall.wallId == 'w1');
+    expect(segment.tileHeightMm, 1350);
+    expect(segment.tileAreaM2, greaterThan(0));
+    expect(segment.paintAreaM2, greaterThan(0));
+    final rounded = WorkBoard.fromJson(board.toJson());
+    expect(rounded.wallFinishes.single.tileHeightMm, 1350);
+    final restored = WorkSurfaceService.walls(rounded, floor, face)
+      .firstWhere((wall) => wall.wallId == 'w1');
+    expect(restored.tileAreaM2, closeTo(segment.tileAreaM2, .0001));
+    expect(restored.paintAreaM2, closeTo(segment.paintAreaM2, .0001));
+  });
+
   test('preview does not mutate finish instructions and validates selections', () {
     final floor = sampleRoom();
     final face = GeometryService.roomFaces(floor).single;
