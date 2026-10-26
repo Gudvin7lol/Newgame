@@ -9,6 +9,7 @@ import '../services/geometry_service.dart';
 import '../services/work_schedule_service.dart';
 import '../services/workload_service.dart';
 import '../services/work_generation_service.dart';
+import '../services/work_operation_taxonomy.dart';
 import '../services/work_status_service.dart';
 
 const _bg = ZamerColors.background;
@@ -1109,49 +1110,114 @@ class _WorksScreenState extends State<WorksScreen> {
 
   Future<String?> _pickWorkOperation() async {
     var query = '';
-    var category = 'Все';
-    final categories = WorkOperationCatalog.all.map((op) => op.phase)
-        .toSet().toList()..sort();
+    String? group;
+    String? subgroup;
+
     return showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
       backgroundColor: _panel,
       showDragHandle: true,
       builder: (sheet) => StatefulBuilder(builder: (sheet, update) {
-        final search = query.trim().toLowerCase();
-        final matches = WorkOperationCatalog.all.where((op) =>
-            (category == 'Все' || op.phase == category) &&
-            (search.isEmpty || op.title.toLowerCase().contains(search) ||
-              op.code.toLowerCase().contains(search))).toList();
+        final groups = WorkOperationTaxonomy.groups;
+        final showGroupList = group == null && query.trim().isEmpty;
+        final matches = WorkOperationTaxonomy.search(
+          query, group: group, subgroup: subgroup);
+        final subgroups = group == null ? <String>[] :
+          WorkOperationTaxonomy.subgroups(group!);
+
+        // Section headings are computed from the filtered results. Operations
+        // preserve their stable catalogue identity, without modifying phase.
+        final rows = <Object>[];
+        String? lastGroup, lastSubgroup;
+        for (final major in groups) {
+          for (final minor in WorkOperationTaxonomy.subgroups(major)) {
+            final local = matches.where((op) =>
+                WorkOperationTaxonomy.groupOf(op) == major &&
+                WorkOperationTaxonomy.subgroupOf(op) == minor);
+            for (final op in local) {
+              if (lastGroup != major) {
+                rows.add('group:' + major);
+                lastGroup = major;
+                lastSubgroup = null;
+              }
+              if (lastSubgroup != minor) {
+                rows.add('sub:' + minor);
+                lastSubgroup = minor;
+              }
+              rows.add(op);
+            }
+          }
+        }
+
         return SafeArea(top: false, child: SizedBox(
           height: (MediaQuery.sizeOf(sheet).height -
-              MediaQuery.viewInsetsOf(sheet).bottom) * .78,
+              MediaQuery.viewInsetsOf(sheet).bottom) * .85,
           child: Column(children: [
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 18),
-              child: Align(alignment: Alignment.centerLeft,
-                child: Text('Библиотека работ',
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(children: [
+                if (group != null)
+                  IconButton(
+                    tooltip: 'К списку групп',
+                    icon: const Icon(Icons.arrow_back_ios_new, size: 19),
+                    onPressed: () => update(() {
+                      group = null;
+                      subgroup = null;
+                    }),
+                  ),
+                const Expanded(child: Text('Библиотека работ',
                   style: TextStyle(fontSize: 19,
-                    fontWeight: FontWeight.w800)))),
-            Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                    fontWeight: FontWeight.w800))),
+                Text('${WorkOperationCatalog.all.length} работ',
+                  style: const TextStyle(color: _muted, fontSize: 12)),
+              ]),
+            ),
+            Padding(padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
               child: TextFormField(
                 decoration: const InputDecoration(
                   prefixIcon: Icon(Icons.search),
-                  hintText: 'Найти операцию, материал или этап'),
-                onChanged: (text) => update(() => query = text),
+                  hintText: 'Поиск по названию или виду работ'),
+                onChanged: (text) => update(() {
+                  query = text;
+                  // Search all groups when typing a query at the top level.
+                }),
               )),
-            SizedBox(height: 43, child: ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 15),
-              scrollDirection: Axis.horizontal,
-              children: [
-                for (final name in ['Все', ...categories])
-                  Padding(padding: const EdgeInsets.only(right: 7),
-                    child: ChoiceChip(
-                      label: Text(name, style: const TextStyle(fontSize: 11)),
-                      selected: category == name,
-                      onSelected: (_) => update(() => category = name),
-                    )),
-              ])),
+            if (!showGroupList) ...[
+              SizedBox(height: 43, child: ListView(
+                padding: const EdgeInsets.symmetric(horizontal: 15),
+                scrollDirection: Axis.horizontal,
+                children: [
+                  for (final name in ['Все', ...groups])
+                    Padding(padding: const EdgeInsets.only(right: 7),
+                      child: ChoiceChip(
+                        label: Text(name,
+                          style: const TextStyle(fontSize: 11)),
+                        selected: (group ?? 'Все') == name,
+                        onSelected: (_) => update(() {
+                          group = name == 'Все' ? null : name;
+                          subgroup = null;
+                        }),
+                      )),
+                ],
+              )),
+              if (group != null)
+                SizedBox(height: 40, child: ListView(
+                  padding: const EdgeInsets.symmetric(horizontal: 15),
+                  scrollDirection: Axis.horizontal,
+                  children: [
+                    for (final name in ['Все подразделы', ...subgroups])
+                      Padding(padding: const EdgeInsets.only(right: 6),
+                        child: ChoiceChip(
+                          label: Text(name,
+                            style: const TextStyle(fontSize: 11)),
+                          selected: (subgroup ?? 'Все подразделы') == name,
+                          onSelected: (_) => update(() =>
+                            subgroup = name == 'Все подразделы' ? null : name),
+                        )),
+                  ],
+                )),
+            ],
             ListTile(
               dense: true,
               leading: const Icon(Icons.edit_note_outlined, color: _peach),
@@ -1159,30 +1225,69 @@ class _WorksScreenState extends State<WorksScreen> {
               onTap: () => Navigator.pop(sheet, '__manual__'),
             ),
             const Divider(height: 1, color: _edge),
-            Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 5),
-              child: Align(alignment: Alignment.centerLeft,
-                child: Text('Найдено: ${matches.length}',
-                  style: const TextStyle(fontSize: 11, color: _muted)))),
-            Expanded(child: ListView.builder(
-              itemCount: matches.length,
-              itemBuilder: (_, index) {
-                final op = matches[index];
-                final unit = switch (op.basis) {
-                  WorkQuantityBasis.package => 'шт/компл.',
-                  WorkQuantityBasis.skirting => 'м',
-                  _ => 'м²',
-                };
-                return ListTile(
-                  title: Text(op.title, maxLines: 2,
-                    overflow: TextOverflow.ellipsis),
-                  subtitle: Text('${op.phase} · $unit · '
-                    '${op.hoursPerUnit} чел·ч/ед. (ориентир)',
-                    style: const TextStyle(fontSize: 11, color: _muted)),
-                  trailing: const Icon(Icons.chevron_right, color: _peach),
-                  onTap: () => Navigator.pop(sheet, op.code),
-                );
-              },
-            )),
+            if (showGroupList)
+              Expanded(child: ListView.builder(
+                itemCount: groups.length,
+                itemBuilder: (_, index) {
+                  final name = groups[index];
+                  final count = WorkOperationTaxonomy.inGroup(name).length;
+                  final subs = WorkOperationTaxonomy.subgroups(name);
+                  return ListTile(
+                    title: Text(name,
+                      style: const TextStyle(fontWeight: FontWeight.w700)),
+                    subtitle: Text(subs.join(' · '),
+                      maxLines: 2, overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: _muted, fontSize: 11)),
+                    trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Text('$count',
+                        style: const TextStyle(color: _peach,
+                          fontWeight: FontWeight.w700)),
+                      const SizedBox(width: 5),
+                      const Icon(Icons.chevron_right, color: _peach),
+                    ]),
+                    onTap: () => update(() { group = name; subgroup = null; }),
+                  );
+                },
+              ))
+            else ...[
+              Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 5),
+                child: Align(alignment: Alignment.centerLeft,
+                  child: Text('Найдено: ${matches.length}',
+                    style: const TextStyle(fontSize: 11, color: _muted)))),
+              Expanded(child: ListView.builder(
+                itemCount: rows.length,
+                itemBuilder: (_, index) {
+                  final item = rows[index];
+                  if (item is String) {
+                    final major = item.startsWith('group:');
+                    return Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        16, major ? 13 : 17, 16, 4),
+                      child: Text(item.substring(major ? 6 : 4),
+                        style: TextStyle(
+                          fontSize: major ? 14 : 12,
+                          color: major ? _peach : _muted,
+                          fontWeight: FontWeight.w700)),
+                    );
+                  }
+                  final op = item as WorkOperation;
+                  final unit = switch (op.basis) {
+                    WorkQuantityBasis.package => 'шт/компл.',
+                    WorkQuantityBasis.skirting => 'м',
+                    _ => 'м²',
+                  };
+                  return ListTile(
+                    title: Text(op.title, maxLines: 2,
+                      overflow: TextOverflow.ellipsis),
+                    subtitle: Text('$unit · '
+                      '${op.hoursPerUnit} чел·ч/ед. (ориентир)',
+                      style: const TextStyle(fontSize: 11, color: _muted)),
+                    trailing: const Icon(Icons.chevron_right, color: _peach),
+                    onTap: () => Navigator.pop(sheet, op.code),
+                  );
+                },
+              )),
+            ],
           ]),
         ));
       }),
