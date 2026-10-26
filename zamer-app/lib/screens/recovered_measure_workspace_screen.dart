@@ -644,7 +644,7 @@ class _RecoveredMeasureWorkspaceScreenState
       appBar: ZWorkspaceHeader(
         projectName: widget.project.name,
         floorName: widget.floor.name,
-        modeLabel: 'ЗАМЕР',
+        modeLabel: _layer == 6 ? 'РАБОТЫ' : 'ЗАМЕР',
         onCheck: widget.onOpenReview,
         onUndo: widget.onUndo,
         onRedo: widget.onRedo,
