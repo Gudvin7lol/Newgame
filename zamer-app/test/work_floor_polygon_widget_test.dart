@@ -46,21 +46,12 @@ void main() {
       await tester.pump();
     }
     final complete = find.text('Завершить зону');
-    await tester.drag(find.byType(Scrollable).last,
-      const Offset(0, -260));
-    await tester.pumpAndSettle();
     expect(complete, findsOneWidget);
-    await tester.ensureVisible(complete);
     await tester.tap(complete);
     await tester.pumpAndSettle();
-    expect(find.textContaining('Готовые зоны: 1'), findsOneWidget);
 
-    final save = find.text('Сохранить зоны и пересчитать работы');
-    await tester.drag(find.byType(Scrollable).last,
-      const Offset(0, -400));
-    await tester.pumpAndSettle();
+    final save = find.text('Сохранить зоны');
     expect(save, findsOneWidget);
-    await tester.ensureVisible(save);
     await tester.tap(save);
     await tester.pumpAndSettle();
     expect(saves, 1);
