@@ -12,6 +12,7 @@ import '../services/work_generation_service.dart';
 import '../services/work_operation_taxonomy.dart';
 import '../services/work_surface_service.dart';
 import '../services/work_status_service.dart';
+import '../services/work_co_stage_service.dart';
 
 const _bg = ZamerColors.background;
 const _panel = ZamerColors.surface;
@@ -1911,6 +1912,15 @@ class _WorksScreenState extends State<WorksScreen> {
                     .firstOrNull ?? 'Неизвестная работа')
                     .join(', '),
                 style: const TextStyle(color: _muted, fontSize: 11))),
+          if (WorkCoStageService.memberIds(board, t.id).length > 1)
+            Padding(padding: const EdgeInsets.only(top: 6),
+              child: Text('Параллельная группа: ' +
+                WorkCoStageService.memberIds(board, t.id)
+                  .where((id) => id != t.id)
+                  .map((id) => board.tasks.where((other) => other.id == id)
+                    .map((other) => other.title).firstOrNull ?? id)
+                  .join(', '),
+                style: const TextStyle(color: _peach, fontSize: 11))),
           if (t.needsQuantityReview)
             Padding(padding: const EdgeInsets.only(top: 8),
               child: FilledButton.tonal(
@@ -1930,6 +1940,9 @@ class _WorksScreenState extends State<WorksScreen> {
             await _save();
           }, child: Text(t.paused ? 'Возобновить работу' : 'Приостановить работу')),
           OutlinedButton(onPressed: () {
+            Navigator.pop(sheet); _manageCoStages(t);
+          }, child: const Text('Созависимые этапы')),
+          OutlinedButton(onPressed: () {
             Navigator.pop(sheet); _editSchedule(t);
           }, child: const Text('Сроки и зависимости')),
           OutlinedButton(onPressed: () {
@@ -1944,6 +1957,127 @@ class _WorksScreenState extends State<WorksScreen> {
             }, child: const Text('Передать / принять выполненный объём')),
         ]),
       )));
+  }
+
+  Future<void> _manageCoStages(WorkTask task) async {
+    final peers = board.tasks.where((other) =>
+      other.id != task.id &&
+      other.floorId == task.floorId &&
+      other.roomId == task.roomId).toList()
+      ..sort((a, b) => a.title.compareTo(b.title));
+
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: _panel,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheet) => StatefulBuilder(
+        builder: (sheet, redraw) {
+          final group = WorkCoStageService.memberIds(board, task.id);
+          return SafeArea(top: false, child: SizedBox(
+            height: MediaQuery.sizeOf(sheet).height * .7,
+            child: Column(children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Созависимые этапы',
+                      style: TextStyle(fontSize: 19,
+                        fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 6),
+                    Text(task.title,
+                      style: const TextStyle(color: _peach)),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Связанные работы можно выполнять параллельно. '
+                      'Следующая работа начнётся только после приёмки '
+                      'каждого этапа группы. Сроки пересчитываются при добавлении.',
+                      style: TextStyle(fontSize: 12, color: _muted),
+                    ),
+                    const SizedBox(height: 8),
+                    Text('В группе: ${group.length} · Выберите связанные работы',
+                      style: const TextStyle(fontSize: 12,
+                        fontWeight: FontWeight.w700)),
+                  ],
+                ),
+              ),
+              Expanded(child: ListView(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                children: [
+                  if (peers.isEmpty)
+                    const ListTile(title: Text(
+                      'Добавьте ещё работы в этом помещении.')),
+                  for (final candidate in peers)
+                    ListTile(
+                      title: Text(candidate.title, maxLines: 2,
+                        overflow: TextOverflow.ellipsis),
+                      subtitle: Text(
+                        '${_date(candidate.start)}–${_date(candidate.finish)} · ' +
+                        (group.contains(candidate.id)
+                          ? 'Связан с текущим этапом' : 'Отдельный этап'),
+                        style: const TextStyle(color: _muted, fontSize: 11)),
+                      trailing: Icon(
+                        group.contains(candidate.id)
+                          ? Icons.link : Icons.add_link,
+                        color: group.contains(candidate.id) ? _peach : _muted,
+                      ),
+                      onTap: () async {
+                        final directlyLinked =
+                          task.coStageTaskIds.contains(candidate.id);
+                        if (directlyLinked) {
+                          WorkCoStageService.unlink(
+                            board, task.id, candidate.id);
+                          board.log('Разъединены созависимые этапы: ' +
+                            task.title + ' и ' + candidate.title,
+                            taskId: task.id);
+                          await _save();
+                          if (sheet.mounted) redraw(() {});
+                          return;
+                        }
+                        final problem = WorkCoStageService.link(
+                          board, task.id, candidate.id);
+                        if (problem != null) {
+                          ScaffoldMessenger.of(sheet).showSnackBar(
+                            SnackBar(content: Text(problem)));
+                          return;
+                        }
+                        final preview = WorkSchedulePlanner.preview(
+                          board: board, taskId: task.id,
+                          start: task.start, finish: task.finish,
+                          predecessorId: task.predecessorId,
+                          lagDays: task.lagDays,
+                        );
+                        final error = preview.error ??
+                          WorkSchedulePlanner.apply(board, preview);
+                        if (error != null) {
+                          WorkCoStageService.unlink(
+                            board, task.id, candidate.id);
+                          ScaffoldMessenger.of(sheet).showSnackBar(
+                            SnackBar(content: Text(error)));
+                          return;
+                        }
+                        board.log('Связаны параллельные этапы: ' +
+                          task.title + ' и ' + candidate.title +
+                          '; перенесено задач: ' +
+                          preview.shiftedSuccessors.toString(),
+                          taskId: task.id);
+                        await _save();
+                        if (sheet.mounted) redraw(() {});
+                      },
+                    ),
+                ],
+              )),
+              Padding(padding: const EdgeInsets.all(12),
+                child: TextButton(
+                  onPressed: () => Navigator.pop(sheet),
+                  child: const Text('Готово'),
+                )),
+            ]),
+          ));
+        },
+      ),
+    );
   }
 
   Future<void> _editResources(WorkTask task) async {
