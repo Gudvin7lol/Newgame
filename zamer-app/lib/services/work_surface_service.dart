@@ -30,10 +30,14 @@ class WorkSurfaceService {
 
   static double tileHeightFor(
     WorkBoard board, FloorPlan floor, RoomFace face, String wallId,
+    {Map<String, double>? previewHeights}
   ) {
     final room = floor.roomMetaByKey(face.key);
     final height = GeometryService.roomHeightMm(floor, face);
     if (room == null) return 0;
+    if (previewHeights?.containsKey(wallId) == true) {
+      return previewHeights![wallId]!.clamp(0.0, height).toDouble();
+    }
     final found = board.wallFinishes.where((f) =>
         f.floorId == floor.id && f.roomId == room.id && f.wallId == wallId);
     if (found.isNotEmpty) {
@@ -46,7 +50,8 @@ class WorkSurfaceService {
   }
 
   static List<WorkWallSurface> walls(
-      WorkBoard board, FloorPlan floor, RoomFace face) {
+      WorkBoard board, FloorPlan floor, RoomFace face,
+      {Map<String, double>? previewHeights}) {
     final result = <WorkWallSurface>[];
     if (face.innerPolygon.length != face.edges.length) return result;
     final height = math.max(0, GeometryService.roomHeightMm(floor, face));
@@ -62,8 +67,8 @@ class WorkSurfaceService {
       if (innerLength < 1 || centerLength < 1) continue;
       final wallHeight = math.min(
           height, wall.heightOverrideMm ?? height).toDouble();
-      final tileHeight = tileHeightFor(board, floor, face, wall.id)
-          .clamp(0.0, wallHeight).toDouble();
+      final tileHeight = tileHeightFor(board, floor, face, wall.id,
+          previewHeights: previewHeights).clamp(0.0, wallHeight).toDouble();
       var tileArea = innerLength * tileHeight / 1000000;
       var paintArea = innerLength * (wallHeight - tileHeight) / 1000000;
       final projection = innerLength / centerLength;
