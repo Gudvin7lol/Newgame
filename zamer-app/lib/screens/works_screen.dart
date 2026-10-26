@@ -821,6 +821,7 @@ class _WorksScreenState extends State<WorksScreen> {
     var start = _selected, finish = _selected, unit = 'м²';
     String? roomId = _roomId;
     String? predecessorId;
+    var lagDays = 0;
     final saved = await showModalBottomSheet<bool>(
       context: context, isScrollControlled: true, showDragHandle: true,
       backgroundColor: _panel,
@@ -828,7 +829,8 @@ class _WorksScreenState extends State<WorksScreen> {
         Future<void> choose(bool beginning) async {
           final chosen = await showDatePicker(context: context,
             firstDate: DateTime(2020), lastDate: DateTime(2100),
-            initialDate: beginning ? start : finish);
+            initialDate: board.calendar.nextWorkday(beginning ? start : finish),
+            selectableDayPredicate: board.calendar.isWorkday);
           if (chosen != null) state(() {
             if (beginning) { start = chosen; if (finish.isBefore(start)) finish = start; }
             else { finish = chosen; }
@@ -900,8 +902,23 @@ class _WorksScreenState extends State<WorksScreen> {
                       child: Text(task.title, overflow: TextOverflow.ellipsis),
                     )),
                   ],
-                  onChanged: (value) => state(() => predecessorId = value),
+                  onChanged: (value) => state(() {
+                    predecessorId = value;
+                    if (value == null) lagDays = 0;
+                  }),
                 ),
+                if (predecessorId != null) ...[
+                  const SizedBox(height: 11),
+                  DropdownButtonFormField<int>(
+                    initialValue: lagDays,
+                    decoration: const InputDecoration(
+                      labelText: 'Технологическая пауза, календ. дней'),
+                    items: [0, 1, 2, 3, 5, 7, 14]
+                      .map((d) => DropdownMenuItem(
+                        value: d, child: Text('$d дн.'))).toList(),
+                    onChanged: (value) => state(() => lagDays = value ?? 0),
+                  ),
+                ],
               ],
               const SizedBox(height: 11),
               Row(children: [
@@ -935,6 +952,7 @@ class _WorksScreenState extends State<WorksScreen> {
                   start: start,
                   finish: finish,
                   predecessorId: predecessorId,
+                  lagDays: lagDays,
                 );
                 if (problem != null) {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -946,7 +964,8 @@ class _WorksScreenState extends State<WorksScreen> {
                   id: taskId, title:title.text.trim(), start:start, finish:finish,
                   quantity:q, unit:unit, hours:h, floorId:floorId,
                   roomId:roomId, roomName:room?.name ?? '',
-                  assignee:assignee.text.trim(), predecessorId:predecessorId));
+                  assignee:assignee.text.trim(), predecessorId:predecessorId,
+                  lagDays: lagDays));
                 board.log('Создана работа: ' + title.text.trim(),
                   taskId: board.tasks.last.id);
                 Navigator.pop(context, true);
@@ -1000,6 +1019,7 @@ class _WorksScreenState extends State<WorksScreen> {
     var nextStart = task.start;
     var nextFinish = task.finish;
     String? predecessorId = task.predecessorId;
+    var lagDays = task.lagDays;
     final updated = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
@@ -1012,8 +1032,9 @@ class _WorksScreenState extends State<WorksScreen> {
               context: sheet,
               firstDate: DateTime(2020),
               lastDate: DateTime(2100),
-              initialDate: isStart ? nextStart :
-                (nextFinish.isBefore(nextStart) ? nextStart : nextFinish),
+              initialDate: board.calendar.nextWorkday(isStart ? nextStart :
+                (nextFinish.isBefore(nextStart) ? nextStart : nextFinish)),
+              selectableDayPredicate: board.calendar.isWorkday,
             );
             if (selected == null || !sheet.mounted) return;
             setSheetState(() {
@@ -1070,9 +1091,26 @@ class _WorksScreenState extends State<WorksScreen> {
                             maxLines: 1, overflow: TextOverflow.ellipsis),
                         )),
                     ],
-                    onChanged: (value) =>
-                      setSheetState(() => predecessorId = value),
+                    onChanged: (value) => setSheetState(() {
+                      predecessorId = value;
+                      if (value == null) lagDays = 0;
+                    }),
                   ),
+                  if (predecessorId != null) ...[
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<int>(
+                      initialValue: lagDays,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Технологическая пауза (календарных дней)'),
+                      items: [0, 1, 2, 3, 5, 7, 14]
+                          .map((d) => DropdownMenuItem(
+                            value: d, child: Text('$d дн.')))
+                          .toList(),
+                      onChanged: (value) =>
+                          setSheetState(() => lagDays = value ?? 0),
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   const Text(
                     'Последующие работы сдвигаются только после подтверждения. '
@@ -1089,6 +1127,7 @@ class _WorksScreenState extends State<WorksScreen> {
                         start: nextStart,
                         finish: nextFinish,
                         predecessorId: predecessorId,
+                        lagDays: lagDays,
                       );
                       if (proposal.error != null) {
                         ScaffoldMessenger.of(sheet).showSnackBar(
