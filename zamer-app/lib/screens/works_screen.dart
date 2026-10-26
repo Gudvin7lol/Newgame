@@ -2871,6 +2871,74 @@ class _PlanMapper {
     Offset(offsetX+(p.x-minX)*scale,offsetY+(p.y-minY)*scale);
 }
 
+/// 2D preview of one clipped tile/laminate split inside the REAL room polygon.
+class _FloorFinishPlanPainter extends CustomPainter {
+  const _FloorFinishPlanPainter({
+    required this.face, required this.mapper, required this.split,
+  });
+  final RoomFace face;
+  final _PlanMapper mapper;
+  final WorkFloorFinishSplit split;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawRect(Offset.zero & size,
+      Paint()..color = const Color(0xFF191E26));
+
+    void fill(List<math.Point<double>> pts, Color color) {
+      if (pts.length < 3) return;
+      final polygon = Path();
+      for (var i = 0; i < pts.length; i++) {
+        final pixel = mapper.toCanvas(pts[i]);
+        if (i == 0) {
+          polygon.moveTo(pixel.dx, pixel.dy);
+        } else {
+          polygon.lineTo(pixel.dx, pixel.dy);
+        }
+      }
+      polygon.close();
+      canvas.drawPath(polygon, Paint()..color = color);
+    }
+
+    fill(WorkFloorSurfaceService.clip(face, split, false),
+      const Color(0xFF969F9B));
+    fill(WorkFloorSurfaceService.clip(face, split, true),
+      const Color(0xFF517DAE));
+
+    final outline = Path();
+    for (var i = 0; i < face.innerPolygon.length; i++) {
+      final p = mapper.toCanvas(face.innerPolygon[i]);
+      if (i == 0) {
+        outline.moveTo(p.dx, p.dy);
+      } else {
+        outline.lineTo(p.dx, p.dy);
+      }
+    }
+    outline.close();
+    canvas.drawPath(outline, Paint()
+      ..color = const Color(0xFFE2E5E9)
+      ..strokeWidth = 2.5
+      ..style = PaintingStyle.stroke);
+    final bounds = WorkFloorSurfaceService.bounds(face, split.axis);
+    final start = split.axis == 'x'
+      ? math.Point<double>(split.cutMm, bounds.min)
+      : math.Point<double>(bounds.min, split.cutMm);
+    final end = split.axis == 'x'
+      ? math.Point<double>(split.cutMm, bounds.max)
+      : math.Point<double>(bounds.max, split.cutMm);
+    // The reference line extends across the bounding box; actual zones
+    // are clipped to the room interior.
+    canvas.drawLine(mapper.toCanvas(start), mapper.toCanvas(end),
+      Paint()
+        ..color = const Color(0xFFF1AF91)
+        ..strokeWidth = 2.5
+        ..strokeCap = StrokeCap.round);
+  }
+
+  @override
+  bool shouldRepaint(covariant _FloorFinishPlanPainter old) => true;
+}
+
 /// Lightweight 2D editor preview. Every highlighted segment is an actual
 /// room-side wall from the geometry engine, not an invented rectangle.
 class _WallFinishPlanPainter extends CustomPainter {
