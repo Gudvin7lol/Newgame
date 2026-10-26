@@ -1599,6 +1599,7 @@ class _WorksScreenState extends State<WorksScreen> {
     String? roomId = _roomId;
     String? predecessorId;
     String? operationCode;
+    final coStageSelection = <String>{};
     var lagDays = 0;
     void refillFromGeometry() {
       final op = WorkOperationCatalog.byCode[operationCode];
@@ -1690,6 +1691,7 @@ class _WorksScreenState extends State<WorksScreen> {
                 ],
                 onChanged: (v) => state(() {
                   roomId = v;
+                  coStageSelection.clear();
                   refillFromGeometry();
                 }),
               ),
@@ -1764,6 +1766,32 @@ class _WorksScreenState extends State<WorksScreen> {
                     onChanged: (value) => state(() => lagDays = value ?? 0),
                   ),
                 ],
+              ],
+              if (board.tasks.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                const Text('Созависимые этапы (выполняются параллельно)',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                const Text('Приёмка всех связанных работ обязательна '
+                  'для запуска следующих этапов.',
+                  style: TextStyle(fontSize: 11, color: _muted)),
+                const SizedBox(height: 7),
+                Wrap(spacing: 7, runSpacing: 3, children: [
+                  for (final other in board.tasks.where((item) =>
+                      item.roomId == roomId &&
+                      (roomId != null || item.floorId == _activeFloor?.id)))
+                    FilterChip(
+                      label: Text(other.title, maxLines: 1,
+                        overflow: TextOverflow.ellipsis),
+                      selected: coStageSelection.contains(other.id),
+                      onSelected: (yes) => state(() {
+                        if (yes) {
+                          coStageSelection.add(other.id);
+                        } else {
+                          coStageSelection.remove(other.id);
+                        }
+                      }),
+                    ),
+                ]),
               ],
               const SizedBox(height: 11),
               Row(children: [
@@ -1852,7 +1880,7 @@ class _WorksScreenState extends State<WorksScreen> {
                   );
                   return;
                 }
-                board.tasks.add(WorkTask(
+                final created = WorkTask(
                   id: taskId, title:title.text.trim(), start:start, finish:finish,
                   quantity:q, unit:unit, hours:h, floorId:floorId,
                   roomId:roomId, roomName:room?.name ?? '',
@@ -1869,9 +1897,51 @@ class _WorksScreenState extends State<WorksScreen> {
                   ],
                   requiredPredecessorIds: required,
                   predecessorId: scheduledPredecessor,
-                  lagDays: lagDays));
-                board.log('Создана работа: ' + title.text.trim(),
-                  taskId: board.tasks.last.id);
+                  lagDays: lagDays);
+                board.tasks.add(created);
+                final linked = <String>[];
+                String? linkingProblem;
+                for (final peer in coStageSelection) {
+                  linkingProblem = WorkCoStageService.link(board, created.id, peer);
+                  if (linkingProblem != null) break;
+                  linked.add(peer);
+                }
+                WorkScheduleProposal? linkedPreview;
+                if (linkingProblem == null && linked.isNotEmpty) {
+                  linkedPreview = WorkSchedulePlanner.preview(
+                    board: board, taskId: created.id,
+                    start: created.start, finish: created.finish,
+                    predecessorId: created.predecessorId,
+                    lagDays: created.lagDays,
+                  );
+                  linkingProblem = linkedPreview.error;
+                }
+                if (linkingProblem != null) {
+                  for (final id in linked) {
+                    WorkCoStageService.unlink(board, created.id, id);
+                  }
+                  board.tasks.remove(created);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(linkingProblem)));
+                  return;
+                }
+                if (linkedPreview != null) {
+                  final applyError = WorkSchedulePlanner.apply(
+                      board, linkedPreview);
+                  if (applyError != null) {
+                    for (final id in linked) {
+                      WorkCoStageService.unlink(board, created.id, id);
+                    }
+                    board.tasks.remove(created);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(applyError)));
+                    return;
+                  }
+                }
+                board.log('Создана работа: ' + title.text.trim() +
+                    (linked.isEmpty ? '' :
+                      '; связанных этапов: ' + linked.length.toString()),
+                  taskId: created.id);
                 Navigator.pop(context, true);
               }, child: const Text('Добавить в график')),
             ],
