@@ -1004,9 +1004,9 @@ class _PlanPainter extends CustomPainter {
       final openings = [...wall.openings]
         ..sort((a, b) => a.offsetFromStartMm.compareTo(b.offsetFromStartMm));
       for (final opening in openings) {
-        final left = opening.offsetFromStartMm.clamp(0.0, length);
+        final left = opening.offsetFromStartMm.clamp(0.0, length).toDouble();
         final right = (opening.offsetFromStartMm + opening.widthMm)
-            .clamp(0.0, length);
+            .clamp(0.0, length).toDouble();
         if (right <= left) continue;
         if (left > cursor) {
           wallStroke(start + direction * cursor,
