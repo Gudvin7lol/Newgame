@@ -10,6 +10,7 @@ import '../services/work_schedule_service.dart';
 import '../services/workload_service.dart';
 import '../services/work_generation_service.dart';
 import '../services/work_operation_taxonomy.dart';
+import '../services/work_surface_service.dart';
 import '../services/work_status_service.dart';
 
 const _bg = ZamerColors.background;
@@ -516,6 +517,241 @@ class _WorksScreenState extends State<WorksScreen> {
     }
   }
 
+
+  Widget _wallFinishEntry() => _card(
+    child: InkWell(
+      onTap: _chooseWallFinishes,
+      child: Row(children: [
+        const Icon(Icons.texture_outlined, color: _peach, size: 24),
+        const SizedBox(width: 12),
+        const Expanded(child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Отделка по отдельным стенам',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800)),
+            SizedBox(height: 4),
+            Text('Выделить стены на плане · Плитка / покраска · м²',
+              style: TextStyle(color: _muted, fontSize: 11)),
+          ],
+        )),
+        const Icon(Icons.chevron_right, color: _peach),
+      ]),
+    ),
+  );
+
+  Future<void> _chooseWallFinishes() async {
+    final choices = <({FloorPlan floor, RoomFace face, RoomMeta room})>[];
+    for (final floor in widget.project.floors) {
+      for (final face in GeometryService.roomFaces(floor)) {
+        final room = floor.roomMetaByKey(face.key);
+        if (room != null && face.innerPolygon.length >= 3) {
+          choices.add((floor: floor, face: face, room: room));
+        }
+      }
+    }
+    if (choices.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Сначала постройте замкнутые помещения на плане.')));
+      return;
+    }
+    int? selected;
+    if (choices.length == 1) {
+      selected = 0;
+    } else {
+      selected = await showModalBottomSheet<int>(
+        context: context,
+        backgroundColor: _panel,
+        showDragHandle: true,
+        builder: (sheet) => SafeArea(top: false,
+          child: ListView(shrinkWrap: true, children: [
+            const Padding(padding: EdgeInsets.all(16),
+              child: Text('Выберите помещение',
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18))),
+            for (var i = 0; i < choices.length; i++)
+              ListTile(
+                title: Text(choices[i].room.name),
+                subtitle: Text(choices[i].floor.name),
+                trailing: const Icon(Icons.chevron_right, color: _peach),
+                onTap: () => Navigator.pop(sheet, i),
+              ),
+          ])),
+      );
+    }
+    if (selected == null || !mounted) return;
+    final item = choices[selected];
+    await _editWallFinishes(item.floor, item.face);
+  }
+
+  Future<void> _editWallFinishes(FloorPlan floor, RoomFace face) async {
+    final room = floor.roomMetaByKey(face.key);
+    if (room == null) return;
+    final initial = WorkSurfaceService.walls(board, floor, face);
+    if (initial.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Для помещения не найдены стороны стен.')));
+      return;
+    }
+    final heights = <String, double>{
+      for (final wall in initial) wall.wallId: wall.tileHeightMm,
+    };
+    var selectedWall = initial.first.wallId;
+    final maxHeight = GeometryService.roomHeightMm(floor, face).toDouble();
+
+    double pointDistance(Offset p, Offset a, Offset b) {
+      final dx = b.dx - a.dx, dy = b.dy - a.dy;
+      final lengthSquared = dx * dx + dy * dy;
+      if (lengthSquared <= .0001) return (p - a).distance;
+      final t = (((p.dx - a.dx) * dx + (p.dy - a.dy) * dy) /
+          lengthSquared).clamp(0.0, 1.0);
+      return (p - Offset(a.dx + dx * t, a.dy + dy * t)).distance;
+    }
+
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: _panel,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheet) => StatefulBuilder(
+        builder: (sheet, redraw) {
+          final all = WorkSurfaceService.walls(
+            board, floor, face, previewHeights: heights);
+          final active = all.where((s) => s.wallId == selectedWall).first;
+          final totalTile = all.fold<double>(0, (s, w) => s + w.tileAreaM2);
+          final totalPaint = all.fold<double>(0, (s, w) => s + w.paintAreaM2);
+          final newHeight = heights[selectedWall] ?? 0;
+
+          return SafeArea(top: false, child: SizedBox(
+            height: MediaQuery.sizeOf(sheet).height * .87,
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(16, 6, 16, 30),
+              children: [
+                Text('Поверхности: ' + room.name,
+                  style: const TextStyle(fontSize: 18,
+                    fontWeight: FontWeight.w800)),
+                const SizedBox(height: 6),
+                const Text('Нажмите на стену на плане. Плитка считается '
+                  'от пола до выбранной высоты; выше остаётся покраска.',
+                  style: TextStyle(fontSize: 12, color: _muted)),
+                const SizedBox(height: 12),
+                AspectRatio(aspectRatio: 1.55,
+                  child: LayoutBuilder(builder: (ctx, constraints) {
+                    final mapper = _PlanMapper([face], Size(
+                      constraints.maxWidth, constraints.maxHeight));
+                    return GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTapDown: (details) {
+                        String? closest;
+                        var best = 25.0;
+                        for (var i = 0; i < face.edges.length; i++) {
+                          final a = mapper.toCanvas(face.innerPolygon[i]);
+                          final b = mapper.toCanvas(face.innerPolygon[
+                            (i + 1) % face.innerPolygon.length]);
+                          final d = pointDistance(
+                            details.localPosition, a, b);
+                          if (d < best) {
+                            best = d;
+                            closest = face.edges[i].wallId;
+                          }
+                        }
+                        if (closest != null) {
+                          redraw(() => selectedWall = closest!);
+                        }
+                      },
+                      child: CustomPaint(
+                        painter: _WallFinishPlanPainter(
+                          face: face, mapper: mapper,
+                          tileHeights: heights, selectedWall: selectedWall),
+                        child: const SizedBox.expand(),
+                      ),
+                    );
+                  }),
+                ),
+                const SizedBox(height: 12),
+                Row(children: [
+                  const Icon(Icons.crop_square, color: _peach, size: 17),
+                  const SizedBox(width: 7),
+                  Expanded(child: Text(active.label +
+                    ' · ' + active.widthM.toStringAsFixed(2) + ' м',
+                    style: const TextStyle(fontWeight: FontWeight.w800))),
+                  Text(active.netAreaM2.toStringAsFixed(2) + ' м²',
+                    style: const TextStyle(color: _muted)),
+                ]),
+                const SizedBox(height: 10),
+                Text('Высота плитки: ' +
+                  (newHeight / 1000).toStringAsFixed(2) + ' м',
+                  style: const TextStyle(color: _muted, fontSize: 12)),
+                Slider(
+                  min: 0,
+                  max: maxHeight,
+                  divisions: math.max(1, (maxHeight / 100).round()),
+                  value: newHeight.clamp(0.0, maxHeight),
+                  activeColor: _peach,
+                  onChanged: (height) =>
+                    redraw(() => heights[selectedWall] = height),
+                ),
+                Wrap(spacing: 6, children: [
+                  OutlinedButton(onPressed: () =>
+                    redraw(() => heights[selectedWall] = 0),
+                    child: const Text('Покраска')),
+                  OutlinedButton(onPressed: () =>
+                    redraw(() => heights[selectedWall] =
+                      math.min(1200, maxHeight)),
+                    child: const Text('Плитка 1,2 м')),
+                  OutlinedButton(onPressed: () =>
+                    redraw(() => heights[selectedWall] = maxHeight),
+                    child: const Text('Плитка до потолка')),
+                ]),
+                const SizedBox(height: 12),
+                const Text('Все стены помещения',
+                  style: TextStyle(fontWeight: FontWeight.w800)),
+                for (final wall in all)
+                  ListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    selected: wall.wallId == selectedWall,
+                    selectedColor: _peach,
+                    title: Text(wall.label),
+                    subtitle: Text('Плитка: ' +
+                      wall.tileAreaM2.toStringAsFixed(2) +
+                      ' м² · Покраска: ' +
+                      wall.paintAreaM2.toStringAsFixed(2) + ' м²',
+                      style: const TextStyle(fontSize: 11)),
+                    trailing: wall.wallId == selectedWall ?
+                      const Icon(Icons.check_circle, color: _peach) :
+                      const Icon(Icons.chevron_right),
+                    onTap: () => redraw(() => selectedWall = wall.wallId),
+                  ),
+                const Divider(color: _edge),
+                Row(children: [
+                  Expanded(child: _stat('Под плитку',
+                    totalTile.toStringAsFixed(2) + ' м²')),
+                  const SizedBox(width: 8),
+                  Expanded(child: _stat('Под покраску',
+                    totalPaint.toStringAsFixed(2) + ' м²')),
+                ]),
+                const SizedBox(height: 8),
+                const Text('Проёмы учитываются по высоте. Ранее начатые '
+                  'работы не пересчитываются автоматически.',
+                  style: TextStyle(fontSize: 11, color: _muted)),
+                const SizedBox(height: 12),
+                FilledButton(onPressed: () {
+                  WorkSurfaceService.save(board, floor, face, heights);
+                  final changed = WorkSurfaceService.refreshUnstartedFinishes(
+                    board, floor, face);
+                  board.log('Назначена отделка стен: ' + room.name +
+                    ', плитка ' + totalTile.toStringAsFixed(2) +
+                    ' м², покраска ' + totalPaint.toStringAsFixed(2) +
+                    ' м²; обновлено задач: ' + changed.toString());
+                  Navigator.pop(sheet, true);
+                }, child: const Text('Сохранить распределение')),
+              ],
+            ),
+          ));
+        },
+      ),
+    );
+    if (saved == true) await _save();
+  }
+
   Future<void> _calendarSettings() async {
     var weekdaysOnly = board.calendar.weekdaysOnly;
     final daysOff = {...board.calendar.daysOff};
@@ -639,6 +875,7 @@ class _WorksScreenState extends State<WorksScreen> {
       _delayedNotice(),
       _workloadPanel(),
       _generatorPanel(),
+      _wallFinishEntry(),
       _heading('План работ', trailing: TextButton.icon(
         onPressed: _calendarSettings,
         icon: const Icon(Icons.calendar_month_outlined, size: 17),
