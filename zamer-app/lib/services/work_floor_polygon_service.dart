@@ -244,6 +244,61 @@ class WorkFloorPolygonService {
     return (tileM2: tile, laminateM2: face.areaM2 - tile);
   }
 
+  /// Preview a single vertex move without modifying the saved object.
+  /// The same room-boundary and no-overlap checks apply while dragging.
+  static List<WorkFloorFinishZone> movedVertex(
+    RoomFace face,
+    FloorPlan floor,
+    List<WorkFloorFinishZone> zones, {
+    required String zoneId,
+    required int vertexIndex,
+    required FloorPoint position,
+    double snapMm = 10,
+  }) {
+    if (!snapMm.isFinite || snapMm <= 0 || snapMm > 1000 ||
+        !position.x.isFinite || !position.y.isFinite) {
+      throw ArgumentError('Некорректные координаты или шаг привязки.');
+    }
+    final zoneIndex = zones.indexWhere((z) => z.id == zoneId);
+    if (zoneIndex < 0) {
+      throw ArgumentError('Выбранная зона не найдена.');
+    }
+    final zone = zones[zoneIndex];
+    if (vertexIndex < 0 || vertexIndex >= zone.polygon.length) {
+      throw RangeError.index(vertexIndex, zone.polygon, 'vertexIndex');
+    }
+    double snap(double value) =>
+        (value / snapMm).roundToDouble() * snapMm;
+    final moved = List<FloorPoint>.of(zone.polygon);
+    moved[vertexIndex] = FloorPoint(snap(position.x), snap(position.y));
+    final replacement = WorkFloorFinishZone(
+      id: zone.id, floorId: zone.floorId,
+      roomId: zone.roomId, material: zone.material, polygon: moved);
+    final preview = List<WorkFloorFinishZone>.of(zones);
+    preview[zoneIndex] = replacement;
+    validate(face, floor, preview);
+    return preview;
+  }
+
+  /// Material changes preserve IDs and all polygon vertices.
+  static List<WorkFloorFinishZone> changedMaterial(
+    RoomFace face, FloorPlan floor, List<WorkFloorFinishZone> zones, {
+    required String zoneId, required String material,
+  }) {
+    if (material != 'tile' && material != 'laminate') {
+      throw ArgumentError('Неизвестное напольное покрытие.');
+    }
+    final index = zones.indexWhere((z) => z.id == zoneId);
+    if (index < 0) throw ArgumentError('Выбранная зона не найдена.');
+    final old = zones[index];
+    final copy = List<WorkFloorFinishZone>.of(zones);
+    copy[index] = WorkFloorFinishZone(
+      id: old.id, floorId: old.floorId, roomId: old.roomId,
+      material: material, polygon: old.polygon);
+    validate(face, floor, copy);
+    return copy;
+  }
+
   /// Save a complete room snapshot. A polygon layout replaces the legacy
   /// straight-line split, but never changes previously accepted work.
   static void save(WorkBoard board, FloorPlan floor, RoomFace face,
