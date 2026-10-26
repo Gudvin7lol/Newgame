@@ -141,7 +141,8 @@ class WorkSurfaceService {
   }
 
   /// Refresh only untouched auto-generated tasks. Work that already started
-  /// is never silently modified. Zero-area tasks need manual cancellation.
+  /// is never silently modified. If the new assigned area is zero, the task
+  /// remains in the dependency graph but is blocked for quantity review.
   static int refreshUnstartedFinishes(
       WorkBoard board, FloorPlan floor, RoomFace face) {
     final room = floor.roomMetaByKey(face.key);
@@ -155,10 +156,19 @@ class WorkSurfaceService {
           !finishCodes.contains(task.operationCode)) continue;
       final area = areaForCode(
           board, floor, face, task.operationCode!);
-      if (area <= 0 || task.quantity <= 0) continue;
+      if (area <= .0001 || task.quantity <= 0) {
+        // Never silently erase a scheduled task that other tasks depend on.
+        // Flag it for review and prohibit recording new done quantities until
+        // the user either revises its scope or cancels it explicitly.
+        task.needsQuantityReview = true;
+        task.surfaceWallIds.clear();
+        updated++;
+        continue;
+      }
       final previous = task.quantity;
       task.quantity = double.parse(area.toStringAsFixed(2));
       task.hours *= task.quantity / previous;
+      task.needsQuantityReview = false;
       task.surfaceWallIds
         ..clear()
         ..addAll(wallIdsForCode(
