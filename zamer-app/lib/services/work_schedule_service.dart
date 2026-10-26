@@ -152,8 +152,15 @@ class WorkSchedulePlanner {
       return _error('Предыдущая работа не найдена.');
     }
 
-    String? predecessorOf(String id) =>
-        id == taskId ? predecessorId : byId[id]!.predecessorId;
+    List<String> predecessorsOf(String id) {
+      final task = byId[id]!;
+      final source = id == taskId ? predecessorId : task.predecessorId;
+      final ids = <String>{
+        ...task.requiredPredecessorIds,
+        if (source != null) source,
+      };
+      return ids.toList(growable: false);
+    }
 
     // Check the whole dependency graph before attempting any date changes.
     final visits = <String, int>{};
@@ -166,8 +173,7 @@ class WorkSchedulePlanner {
       }
       if (visitState == 2) return true;
       visits[id] = 1;
-      final prior = predecessorOf(id);
-      if (prior != null) {
+      for (final prior in predecessorsOf(id)) {
         if (!byId.containsKey(prior)) {
           graphProblem = 'У одной из работ отсутствует предыдущая задача.';
           return false;
@@ -181,16 +187,20 @@ class WorkSchedulePlanner {
       if (!visit(id)) return _error(graphProblem!);
     }
 
-    final rootPrevious = predecessorId == null ? null : byId[predecessorId];
-    if (rootPrevious != null &&
-        start.isBefore(board.calendar.firstDayAfter(rootPrevious.finish, selectedLag))) {
-      return _error('Начало работы должно быть после завершения предыдущей.');
+    for (final priorId in predecessorsOf(taskId)) {
+      final requiredStart = board.calendar.firstDayAfter(
+          byId[priorId]!.finish, selectedLag);
+      if (start.isBefore(requiredStart)) {
+        return _error('Начало работы раньше окончания обязательного этапа: '
+          + byId[priorId]!.title);
+      }
     }
 
     final children = <String, List<String>>{};
     for (final id in byId.keys) {
-      final prior = predecessorOf(id);
-      if (prior != null) children.putIfAbsent(prior, () => []).add(id);
+      for (final prior in predecessorsOf(id)) {
+        children.putIfAbsent(prior, () => []).add(id);
+      }
     }
     final proposals = <String, WorkScheduleChange>{};
 
@@ -221,8 +231,10 @@ class WorkSchedulePlanner {
     // Traverse the descendants in topological order; only push a successor
     // forward when it would overlap its prerequisite. Never pull it earlier.
     final queue = <String>[root.id];
+    final scheduled = <String>{root.id};
     while (queue.isNotEmpty) {
       final parentId = queue.removeAt(0);
+      scheduled.remove(parentId);
       final parent = byId[parentId]!;
       final parentFinish = proposals[parentId]?.finish ?? _date(parent.finish);
       for (final childId in children[parentId] ?? const <String>[]) {
@@ -244,7 +256,7 @@ class WorkSchedulePlanner {
           proposals[childId] = makeChange(
               child, nextStart, nextFinish, child.predecessorId, child.lagDays);
         }
-        queue.add(childId);
+        if (scheduled.add(childId)) queue.add(childId);
       }
     }
 
