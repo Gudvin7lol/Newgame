@@ -932,8 +932,9 @@ class _WorksScreenState extends State<WorksScreen> {
         }
         return SafeArea(top: false, child: SizedBox(
           height: MediaQuery.sizeOf(sheet).height * .9,
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 6, 16, 32),
+          child: Column(children: [
+            Expanded(child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
             children: [
               Text('Контуры пола: ' + room.name,
                 style: const TextStyle(fontSize: 18,
@@ -1005,28 +1006,6 @@ class _WorksScreenState extends State<WorksScreen> {
                   onPressed: drawing.isEmpty ? null :
                     () => redraw(drawing.clear),
                 ),
-                FilledButton.icon(
-                  icon: const Icon(Icons.check, size: 17),
-                  label: const Text('Завершить зону'),
-                  onPressed: drawing.length < 3 ? null : () {
-                    final candidate = WorkFloorFinishZone(
-                      id: 'zone_' + (nextId++).toString(),
-                      floorId: floor.id, roomId: room.id,
-                      material: material, polygon: drawing);
-                    try {
-                      WorkFloorPolygonService.validate(
-                        face, floor, [...zones, candidate]);
-                    } on ArgumentError catch (error) {
-                      ScaffoldMessenger.of(sheet).showSnackBar(
-                        SnackBar(content: Text(error.message.toString())));
-                      return;
-                    }
-                    redraw(() {
-                      zones.add(candidate);
-                      drawing.clear();
-                    });
-                  },
-                ),
               ]),
               const SizedBox(height: 10),
               Text('Готовые зоны: ' + zones.length.toString(),
@@ -1066,6 +1045,37 @@ class _WorksScreenState extends State<WorksScreen> {
                 'разделения покрытия в этой комнате.',
                 style: const TextStyle(color: _muted, fontSize: 11)),
               const SizedBox(height: 12),
+            ],
+          )),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 5, 12, 12),
+            child: Row(children: [
+              Expanded(child:
+                FilledButton.icon(
+                  icon: const Icon(Icons.check, size: 17),
+                  label: const Text('Завершить зону'),
+                  onPressed: drawing.length < 3 ? null : () {
+                    final candidate = WorkFloorFinishZone(
+                      id: 'zone_' + (nextId++).toString(),
+                      floorId: floor.id, roomId: room.id,
+                      material: material, polygon: drawing);
+                    try {
+                      WorkFloorPolygonService.validate(
+                        face, floor, [...zones, candidate]);
+                    } on ArgumentError catch (error) {
+                      ScaffoldMessenger.of(sheet).showSnackBar(
+                        SnackBar(content: Text(error.message.toString())));
+                      return;
+                    }
+                    redraw(() {
+                      zones.add(candidate);
+                      drawing.clear();
+                    });
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(child:
               FilledButton(
                 onPressed: drawing.isNotEmpty || summary == null
                     ? null : () {
@@ -1088,10 +1098,12 @@ class _WorksScreenState extends State<WorksScreen> {
                     ' м²; проверено задач: ' + refreshed.toString());
                   Navigator.pop(sheet, true);
                 },
-                child: const Text('Сохранить зоны и пересчитать работы'),
+                child: const Text('Сохранить зоны'),
               ),
-            ],
+              ),
+            ]),
           ),
+        ]),
         ));
       }),
     );
