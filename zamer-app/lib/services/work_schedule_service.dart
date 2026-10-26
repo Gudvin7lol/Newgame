@@ -212,7 +212,9 @@ class WorkSchedulePlanner {
             return _error('Нельзя автоматически перенести уже начатую работу «' +
                 child.title + '». Измените график вручную.');
           }
-          final shiftDays = minimumStart.difference(currentStart).inDays;
+          final shiftDays = DateTime.utc(minimumStart.year, minimumStart.month,
+              minimumStart.day).difference(DateTime.utc(currentStart.year,
+              currentStart.month, currentStart.day)).inDays;
           // DateTime(year, month, day + N) avoids local DST hour drift.
           final nextStart = _addDays(currentStart, shiftDays);
           final nextFinish = _addDays(currentFinish, shiftDays);
@@ -257,6 +259,30 @@ class WorkSchedulePlanner {
           !_sameDay(task.finish, change.oldFinish) ||
           task.predecessorId != change.oldPredecessorId) {
         return 'График изменился. Откройте предварительный просмотр заново.';
+      }
+    }
+    if (proposal.changes.isNotEmpty) {
+      final selected = proposal.changes.first;
+      final current = preview(
+        board: board,
+        taskId: selected.taskId,
+        start: selected.start,
+        finish: selected.finish,
+        predecessorId: selected.predecessorId,
+      );
+      if (!current.isValid ||
+          current.changes.length != proposal.changes.length) {
+        return 'График изменился. Обновите предварительный просмотр.';
+      }
+      for (var i = 0; i < current.changes.length; i++) {
+        final a = current.changes[i];
+        final b = proposal.changes[i];
+        if (a.taskId != b.taskId ||
+            !_sameDay(a.start, b.start) ||
+            !_sameDay(a.finish, b.finish) ||
+            a.predecessorId != b.predecessorId) {
+          return 'График изменился. Обновите предварительный просмотр.';
+        }
       }
     }
     for (final change in proposal.changes) {
