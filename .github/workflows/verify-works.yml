@@ -1,0 +1,31 @@
+name: Verify Zamer works module
+
+on:
+  pull_request:
+    paths:
+      - 'zamer-app/lib/models/models.dart'
+      - 'zamer-app/lib/models/work_board.dart'
+      - 'zamer-app/lib/screens/works_screen.dart'
+      - 'zamer-app/lib/screens/floors_screen.dart'
+      - 'zamer-app/test/work_board_test.dart'
+      - '.github/workflows/verify-works.yml'
+  workflow_dispatch:
+
+jobs:
+  flutter-works-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+      - name: Install dependencies
+        working-directory: zamer-app
+        run: flutter pub get
+      - name: Analyze changed Dart files
+        working-directory: zamer-app
+        run: flutter analyze lib/models/work_board.dart lib/screens/works_screen.dart lib/screens/floors_screen.dart
+      - name: Test work-board persistence and progress
+        working-directory: zamer-app
+        run: flutter test test/work_board_test.dart
