@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import '../models/work_board.dart';
 
 /// Guards manual schedule edits. The original baseline dates live on WorkTask
@@ -9,10 +11,15 @@ class WorkScheduleService {
     required DateTime start,
     required DateTime finish,
     String? predecessorId,
+    int lagDays = 0,
   }) {
     final from = DateTime(start.year, start.month, start.day);
     final through = DateTime(finish.year, finish.month, finish.day);
     if (through.isBefore(from)) return 'Дата окончания раньше начала.';
+    if (lagDays < 0 || lagDays > 3650) return 'Недопустимая технологическая пауза.';
+    if (!board.calendar.isWorkday(from) || !board.calendar.isWorkday(through)) {
+      return 'Начало и окончание должны быть рабочими днями.';
+    }
     final predecessor = predecessorId == null
         ? null
         : board.tasks.where((t) => t.id == predecessorId).firstOrNull;
@@ -37,15 +44,14 @@ class WorkScheduleService {
     }
 
     if (predecessor != null &&
-        !from.isAfter(DateTime(predecessor.finish.year,
-            predecessor.finish.month, predecessor.finish.day))) {
+        from.isBefore(board.calendar.firstDayAfter(predecessor.finish, lagDays))) {
       return 'Начало раньше завершения предыдущей работы.';
     }
 
     final nextTasks = board.tasks.where((t) => t.predecessorId == taskId);
     for (final next in nextTasks) {
       final nextStart = DateTime(next.start.year, next.start.month, next.start.day);
-      if (!nextStart.isAfter(through)) {
+      if (nextStart.isBefore(board.calendar.firstDayAfter(through, next.lagDays))) {
         return 'Сначала перенесите зависимую работу «${next.title}».';
       }
     }
@@ -69,12 +75,15 @@ class WorkScheduleChange {
     required this.finish,
     required this.oldPredecessorId,
     required this.predecessorId,
+    required this.oldLagDays,
+    required this.lagDays,
   });
 
   final String taskId;
   final String title;
   final DateTime oldStart, oldFinish, start, finish;
   final String? oldPredecessorId, predecessorId;
+  final int oldLagDays, lagDays;
   bool get moved => oldStart != start || oldFinish != finish;
 }
 
@@ -82,13 +91,14 @@ class WorkScheduleProposal {
   const WorkScheduleProposal({
     required this.changes,
     this.rootTaskId,
+    this.calendarSignature,
     required this.previousCompletion,
     required this.projectedCompletion,
     this.error,
   });
 
   final List<WorkScheduleChange> changes;
-  final String? rootTaskId;
+  final String? rootTaskId, calendarSignature;
   final DateTime? previousCompletion, projectedCompletion;
   final String? error;
   bool get isValid => error == null;
@@ -115,6 +125,7 @@ class WorkSchedulePlanner {
     required DateTime start,
     required DateTime finish,
     String? predecessorId,
+    int? lagDays,
   }) {
     final tasks = board.tasks;
     final byId = <String, WorkTask>{};
@@ -126,9 +137,16 @@ class WorkSchedulePlanner {
     }
     final root = byId[taskId];
     if (root == null) return _error('Работа больше не найдена в проекте.');
+    final selectedLag = lagDays ?? root.lagDays;
+    if (selectedLag < 0 || selectedLag > 3650) {
+      return _error('Недопустимая технологическая пауза.');
+    }
     start = _date(start);
     finish = _date(finish);
     if (finish.isBefore(start)) return _error('Дата окончания раньше начала.');
+    if (!board.calendar.isWorkday(start) || !board.calendar.isWorkday(finish)) {
+      return _error('Выберите рабочие дни для начала и завершения работы.');
+    }
     if (predecessorId == taskId) {
       return _error('Работа не может зависеть от самой себя.');
     }
@@ -166,7 +184,8 @@ class WorkSchedulePlanner {
     }
 
     final rootPrevious = predecessorId == null ? null : byId[predecessorId];
-    if (rootPrevious != null && !start.isAfter(_date(rootPrevious.finish))) {
+    if (rootPrevious != null &&
+        start.isBefore(board.calendar.firstDayAfter(rootPrevious.finish, selectedLag))) {
       return _error('Начало работы должно быть после завершения предыдущей.');
     }
 
@@ -179,6 +198,7 @@ class WorkSchedulePlanner {
 
     WorkScheduleChange makeChange(
       WorkTask task, DateTime newStart, DateTime newFinish, String? prior,
+      int proposedLag,
     ) => WorkScheduleChange(
       taskId: task.id,
       title: task.title,
@@ -188,13 +208,16 @@ class WorkSchedulePlanner {
       finish: newFinish,
       oldPredecessorId: task.predecessorId,
       predecessorId: prior,
+      oldLagDays: task.lagDays,
+      lagDays: proposedLag,
     );
 
     final changedRoot = !_sameDay(root.start, start) ||
         !_sameDay(root.finish, finish) ||
-        root.predecessorId != predecessorId;
+        root.predecessorId != predecessorId || root.lagDays != selectedLag;
     if (changedRoot) {
-      proposals[root.id] = makeChange(root, start, finish, predecessorId);
+      proposals[root.id] = makeChange(root, start, finish, predecessorId,
+          selectedLag);
     }
 
     // Traverse the descendants in topological order; only push a successor
@@ -208,20 +231,20 @@ class WorkSchedulePlanner {
         final child = byId[childId]!;
         final currentStart = proposals[childId]?.start ?? _date(child.start);
         final currentFinish = proposals[childId]?.finish ?? _date(child.finish);
-        final minimumStart = _addDays(parentFinish, 1);
+        final minimumStart =
+            board.calendar.firstDayAfter(parentFinish, child.lagDays);
         if (currentStart.isBefore(minimumStart)) {
           if (child.done > 0 || child.accepted > 0) {
             return _error('Нельзя автоматически перенести уже начатую работу «' +
                 child.title + '». Измените график вручную.');
           }
-          final shiftDays = DateTime.utc(minimumStart.year, minimumStart.month,
-              minimumStart.day).difference(DateTime.utc(currentStart.year,
-              currentStart.month, currentStart.day)).inDays;
-          // DateTime(year, month, day + N) avoids local DST hour drift.
-          final nextStart = _addDays(currentStart, shiftDays);
-          final nextFinish = _addDays(currentFinish, shiftDays);
-          proposals[childId] =
-              makeChange(child, nextStart, nextFinish, child.predecessorId);
+          final workingDuration =
+              board.calendar.workingDaysInclusive(currentStart, currentFinish);
+          final nextStart = board.calendar.nextWorkday(minimumStart);
+          final nextFinish = board.calendar.finishForDuration(
+              nextStart, workingDuration < 1 ? 1 : workingDuration);
+          proposals[childId] = makeChange(
+              child, nextStart, nextFinish, child.predecessorId, child.lagDays);
         }
         queue.add(childId);
       }
@@ -237,6 +260,7 @@ class WorkSchedulePlanner {
             .reduce((a, b) => a.isAfter(b) ? a : b);
     return WorkScheduleProposal(
       rootTaskId: taskId,
+      calendarSignature: jsonEncode(board.calendar.toJson()),
       changes: proposals.values.toList(growable: false),
       previousCompletion: originalCompletion,
       projectedCompletion: newCompletion,
@@ -254,13 +278,18 @@ class WorkSchedulePlanner {
   /// Atomic apply, with a stale-preview check. No state is mutated on error.
   static String? apply(WorkBoard board, WorkScheduleProposal proposal) {
     if (!proposal.isValid) return proposal.error;
+    if (proposal.calendarSignature != null &&
+        proposal.calendarSignature != jsonEncode(board.calendar.toJson())) {
+      return 'Календарь изменился. Пересчитайте график.';
+    }
     final byId = {for (final task in board.tasks) task.id: task};
     for (final change in proposal.changes) {
       final task = byId[change.taskId];
       if (task == null ||
           !_sameDay(task.start, change.oldStart) ||
           !_sameDay(task.finish, change.oldFinish) ||
-          task.predecessorId != change.oldPredecessorId) {
+          task.predecessorId != change.oldPredecessorId ||
+          task.lagDays != change.oldLagDays) {
         return 'График изменился. Откройте предварительный просмотр заново.';
       }
     }
@@ -277,6 +306,7 @@ class WorkSchedulePlanner {
         start: rootEdit?.start ?? currentRoot.start,
         finish: rootEdit?.finish ?? currentRoot.finish,
         predecessorId: rootEdit == null ? currentRoot.predecessorId : rootEdit.predecessorId,
+        lagDays: rootEdit == null ? currentRoot.lagDays : rootEdit.lagDays,
       );
       if (!current.isValid ||
           current.changes.length != proposal.changes.length) {
@@ -288,7 +318,7 @@ class WorkSchedulePlanner {
         if (a.taskId != b.taskId ||
             !_sameDay(a.start, b.start) ||
             !_sameDay(a.finish, b.finish) ||
-            a.predecessorId != b.predecessorId) {
+            a.predecessorId != b.predecessorId || a.lagDays != b.lagDays) {
           return 'График изменился. Обновите предварительный просмотр.';
         }
       }
@@ -298,6 +328,7 @@ class WorkSchedulePlanner {
       task.start = change.start;
       task.finish = change.finish;
       task.predecessorId = change.predecessorId;
+      task.lagDays = change.lagDays;
     }
     return null;
   }
