@@ -1142,13 +1142,19 @@ class _WorksScreenState extends State<WorksScreen> {
                     onSelected: editing ? (selectedZone == null
                       ? null : (_) {
                         final id = selectedZone!.id;
-                        final changed =
-                          WorkFloorPolygonService.changedMaterial(
-                            face, floor, zones,
-                            zoneId: id, material: entry.$1);
-                        redraw(() {
-                          zones..clear()..addAll(changed);
-                        });
+                        try {
+                          final changed =
+                            WorkFloorPolygonService.changedMaterial(
+                              face, floor, zones,
+                              zoneId: id, material: entry.$1);
+                          redraw(() {
+                            zones..clear()..addAll(changed);
+                            editProblem = null;
+                          });
+                        } on ArgumentError catch (error) {
+                          redraw(() =>
+                            editProblem = error.message.toString());
+                        }
                       }) : (_) => redraw(() => material = entry.$1),
                   ),
               ]),
