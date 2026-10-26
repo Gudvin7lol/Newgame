@@ -601,7 +601,7 @@ class _WorksScreenState extends State<WorksScreen> {
       final lengthSquared = dx * dx + dy * dy;
       if (lengthSquared <= .0001) return (p - a).distance;
       final t = (((p.dx - a.dx) * dx + (p.dy - a.dy) * dy) /
-          lengthSquared).clamp(0.0, 1.0);
+          lengthSquared).clamp(0.0, 1.0).toDouble();
       return (p - Offset(a.dx + dx * t, a.dy + dy * t)).distance;
     }
 
@@ -683,7 +683,7 @@ class _WorksScreenState extends State<WorksScreen> {
                   min: 0,
                   max: maxHeight,
                   divisions: math.max(1, (maxHeight / 100).round()),
-                  value: newHeight.clamp(0.0, maxHeight),
+                  value: newHeight.clamp(0.0, maxHeight).toDouble(),
                   activeColor: _peach,
                   onChanged: (height) =>
                     redraw(() => heights[selectedWall] = height),
