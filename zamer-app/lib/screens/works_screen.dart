@@ -1419,6 +1419,9 @@ class _WorksScreenState extends State<WorksScreen> {
                         (point.y / snapMm).roundToDouble() * snapMm,
                       )));
                     },
+                    onPanDown: editing
+                      ? (details) => selectAt(details.localPosition)
+                      : null,
                     onPanStart: editing
                       ? (details) => selectAt(details.localPosition)
                       : null,
