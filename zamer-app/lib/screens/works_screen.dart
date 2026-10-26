@@ -1198,6 +1198,40 @@ class _WorksScreenState extends State<WorksScreen> {
     String? predecessorId;
     String? operationCode;
     var lagDays = 0;
+    void refillFromGeometry() {
+      final op = WorkOperationCatalog.byCode[operationCode];
+      if (op == null) return;
+      unit = switch (op.basis) {
+        WorkQuantityBasis.skirting => 'м',
+        WorkQuantityBasis.package => 'шт',
+        _ => 'м²',
+      };
+      if (op.basis == WorkQuantityBasis.package) {
+        amount.text = '1';
+        hours.text = op.hoursPerUnit.toStringAsFixed(1);
+        return;
+      }
+      if (roomId == null) return;
+      for (final floor in widget.project.floors) {
+        for (final face in GeometryService.roomFaces(floor)) {
+          if (floor.roomMetaByKey(face.key)?.id != roomId) continue;
+          final count = switch (op.basis) {
+            WorkQuantityBasis.floorArea || WorkQuantityBasis.ceilingArea =>
+              face.areaM2,
+            WorkQuantityBasis.wallArea =>
+              GeometryService.roomNetWallAreaM2(floor, face),
+            WorkQuantityBasis.skirting =>
+              GeometryService.roomSkirtingM(floor, face),
+            WorkQuantityBasis.package => 1.0,
+          };
+          if (count.isFinite && count > 0) {
+            amount.text = count.toStringAsFixed(2);
+            hours.text = (count * op.hoursPerUnit).toStringAsFixed(1);
+          }
+          return;
+        }
+      }
+    }
     final saved = await showModalBottomSheet<bool>(
       context: context, isScrollControlled: true, showDragHandle: true,
       backgroundColor: _panel,
@@ -1232,37 +1266,8 @@ class _WorksScreenState extends State<WorksScreen> {
                   state(() {
                     operationCode = code == '__manual__' ? null : code;
                     if (operationCode != null) {
-                      final op = WorkOperationCatalog.byCode[operationCode]!;
-                      title.text = op.title;
-                      unit = switch (op.basis) {
-                        WorkQuantityBasis.skirting => 'м',
-                        WorkQuantityBasis.package => 'шт',
-                        _ => 'м²',
-                      };
-                      if (op.basis == WorkQuantityBasis.package) {
-                        amount.text = '1';
-                        hours.text = op.hoursPerUnit.toStringAsFixed(1);
-                      } else if (roomId != null) {
-                        for (final floor in widget.project.floors) {
-                          for (final face in GeometryService.roomFaces(floor)) {
-                            if (floor.roomMetaByKey(face.key)?.id != roomId) continue;
-                            final count = switch (op.basis) {
-                              WorkQuantityBasis.floorArea ||
-                                  WorkQuantityBasis.ceilingArea => face.areaM2,
-                              WorkQuantityBasis.wallArea =>
-                                  GeometryService.roomNetWallAreaM2(floor, face),
-                              WorkQuantityBasis.skirting =>
-                                  GeometryService.roomSkirtingM(floor, face),
-                              WorkQuantityBasis.package => 1.0,
-                            };
-                            amount.text = count.toStringAsFixed(2);
-                            hours.text = (count * op.hoursPerUnit).toStringAsFixed(1);
-                            break;
-                          }
-                        }
-                      } else {
-                        hours.text = op.hoursPerUnit.toStringAsFixed(1);
-                      }
+                      title.text = WorkOperationCatalog.byCode[operationCode]!.title;
+                      refillFromGeometry();
                     }
                   });
                 },
@@ -1278,7 +1283,10 @@ class _WorksScreenState extends State<WorksScreen> {
                   ...rooms.map((r) => DropdownMenuItem<String?>(
                     value: r.id, child: Text(r.name))),
                 ],
-                onChanged: (v) => state(() => roomId = v),
+                onChanged: (v) => state(() {
+                  roomId = v;
+                  refillFromGeometry();
+                }),
               ),
               const SizedBox(height: 11),
               Row(children: [
@@ -1293,7 +1301,13 @@ class _WorksScreenState extends State<WorksScreen> {
                     DropdownMenuItem(value: s, child: Text(s))).toList(),
                   onChanged: (v)=>state(()=>unit=v ?? 'м²'))),
               ]),
-              if (roomId != null) TextButton.icon(
+              if (roomId != null && operationCode != null)
+                TextButton.icon(
+                  onPressed: () => state(refillFromGeometry),
+                  icon: const Icon(Icons.architecture),
+                  label: const Text('Пересчитать объём по геометрии помещения'),
+                )
+              else if (roomId != null) TextButton.icon(
                 onPressed: () {
                   for (final floor in widget.project.floors) {
                     for (final face in GeometryService.roomFaces(floor)) {
