@@ -1,4 +1,5 @@
 import '../models/work_board.dart';
+import 'work_co_stage_service.dart';
 
 enum WorkState {
   planned,
@@ -41,7 +42,7 @@ class WorkStatusService {
   static List<WorkTask> outstanding(WorkBoard board, WorkTask task) {
     final byId = {for (final t in board.tasks) t.id: t};
     return [
-      for (final id in prerequisites(task))
+      for (final id in WorkCoStageService.expandedPredecessors(board, task))
         if (byId[id] == null || !byId[id]!.fullyAccepted)
           if (byId[id] != null) byId[id]!,
     ];
@@ -49,7 +50,8 @@ class WorkStatusService {
 
   static List<String> missingPrerequisiteIds(WorkBoard board, WorkTask task) {
     final ids = board.tasks.map((t) => t.id).toSet();
-    return prerequisites(task).where((id) => !ids.contains(id)).toList();
+    return WorkCoStageService.expandedPredecessors(board, task)
+        .where((id) => !ids.contains(id)).toList();
   }
 
   static bool canStart(WorkBoard board, WorkTask task) =>
@@ -85,7 +87,7 @@ class WorkStatusService {
     if (missing.isNotEmpty) return 'Не найдены обязательные этапы: ${missing.join(', ')}.';
     final pending = outstanding(board, task);
     if (pending.isNotEmpty) {
-      return 'Сначала примите этапы: ${pending.map((e) => e.title).join(', ')}.';
+      return 'Сначала примите связанные этапы: ${pending.map((e) => e.title).join(', ')}.';
     }
     return null;
   }
