@@ -270,7 +270,7 @@ class _WorksScreenState extends State<WorksScreen> {
               ]),
             ),
           ),
-        )));
+        ));
       })),
     ]);
   }
@@ -350,7 +350,7 @@ class _WorksScreenState extends State<WorksScreen> {
             SizedBox(height: 25, child: Row(children: List.generate(span, (i) =>
               SizedBox(width: 22, child: Center(child: Text(
                 '${start.add(Duration(days:i)).day}',
-                style: const TextStyle(fontSize: 10, color: _muted)))))),
+                style: const TextStyle(fontSize: 10, color: _muted))))))),
             for (final t in sorted)
               SizedBox(height: 49, child: Stack(children: [
                 Positioned(left: 22.0 * _day(t.start).difference(start).inDays,
