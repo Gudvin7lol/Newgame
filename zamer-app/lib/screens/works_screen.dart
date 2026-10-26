@@ -1302,6 +1302,11 @@ class _WorksScreenState extends State<WorksScreen> {
                         Navigator.pop(sheet, false);
                         return;
                       }
+                      final previousLoad = WorkloadService.analyze(board);
+                      final resultingLoad = WorkloadService.analyze(
+                        board,
+                        proposedChanges: proposal.changes,
+                      );
                       final oldFinish = proposal.previousCompletion;
                       final newFinish = proposal.projectedCompletion;
                       final approved = await showDialog<bool>(
@@ -1325,10 +1330,28 @@ class _WorksScreenState extends State<WorksScreen> {
                                   (newFinish == null ? '—' : _date(newFinish)),
                                   style: const TextStyle(
                                     fontSize: 12, color: _muted)),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Перегрузка бригад (дни): ' +
+                                  previousLoad.overloadedDayCount.toString() +
+                                  ' → ' +
+                                  resultingLoad.overloadedDayCount.toString(),
+                                  style: TextStyle(fontSize: 12,
+                                    color: resultingLoad.overloadedDayCount >
+                                      previousLoad.overloadedDayCount
+                                      ? _red : _muted),
+                                ),
+                                if (resultingLoad.overloadedDayCount >
+                                      previousLoad.overloadedDayCount)
+                                  const Text(
+                                    'Внимание: после переноса нагрузка увеличится. '
+                                    'Измените даты или мощность бригад.',
+                                    style: TextStyle(fontSize: 11, color: _red),
+                                  ),
                                 const SizedBox(height: 12),
                                 SizedBox(
                                   height: math.min(
-                                    320.0, proposal.changes.length * 70.0),
+                                    270.0, proposal.changes.length * 62.0),
                                   child: ListView.builder(
                                     shrinkWrap: true,
                                     itemCount: proposal.changes.length,
