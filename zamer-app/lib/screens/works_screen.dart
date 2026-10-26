@@ -934,29 +934,125 @@ class _PlanPainter extends CustomPainter {
   final String? selected;
   final Color Function(String) colorFor;
   @override
-  void paint(Canvas canvas,Size size){
-    canvas.drawRect(Offset.zero & size,Paint()..color=const Color(0xFF171A21));
-    for(final f in faces){
-      final meta=floor.roomMetaByKey(f.key);
-      if(meta==null)continue;
-      final path=Path();
-      for(var i=0;i<f.innerPolygon.length;i++){
-        final p=mapper.toCanvas(f.innerPolygon[i]);
-        if(i==0)path.moveTo(p.dx,p.dy);else path.lineTo(p.dx,p.dy);
+  void paint(Canvas canvas, Size size) {
+    // The construction grid stays behind the real room geometry.
+    canvas.drawRect(Offset.zero & size, Paint()..color = const Color(0xFF151A1D));
+    final gridPaint = Paint()
+      ..color = const Color(0xFF323638).withValues(alpha: .45)
+      ..strokeWidth = .55;
+    for (var x = 0.0; x < size.width; x += 28) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
+    }
+    for (var y = 0.0; y < size.height; y += 28) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
+    }
+
+    // Room status fills follow the inner polygons, never a guessed rectangle.
+    for (final face in faces) {
+      final meta = floor.roomMetaByKey(face.key);
+      if (meta == null || face.innerPolygon.length < 3) continue;
+      final path = Path();
+      for (var i = 0; i < face.innerPolygon.length; i++) {
+        final p = mapper.toCanvas(face.innerPolygon[i]);
+        if (i == 0) {
+          path.moveTo(p.dx, p.dy);
+        } else {
+          path.lineTo(p.dx, p.dy);
+        }
       }
       path.close();
-      canvas.drawPath(path,Paint()..color=colorFor(meta.id).withValues(alpha:.38));
-      canvas.drawPath(path,Paint()
-        ..color=meta.id==selected?_peach:const Color(0xFFB7B4AA)
-        ..style=PaintingStyle.stroke
-        ..strokeWidth=meta.id==selected?3:2);
-      final center=mapper.toCanvas(f.centroid);
-      final name=TextPainter(
-        text:TextSpan(text:meta.name,style:const TextStyle(
-          color:Colors.white,fontSize:11,fontWeight:FontWeight.bold)),
-        textAlign:TextAlign.center,textDirection:TextDirection.ltr,
-        maxLines:2,ellipsis:'…')..layout(maxWidth:math.max(35,math.min(100,size.width/3)));
-      name.paint(canvas,center-Offset(name.width/2,name.height/2));
+      canvas.drawShadow(path, Colors.black.withValues(alpha: .75), 6, false);
+      canvas.drawPath(path, Paint()
+        ..color = colorFor(meta.id).withValues(alpha: .34));
+      if (meta.id == selected) {
+        canvas.drawPath(path, Paint()
+          ..color = _peach
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2);
+      }
+    }
+
+    void wallStroke(Offset a, Offset b, Color color) {
+      canvas.drawLine(a, b, Paint()
+        ..color = const Color(0xFF07090B)
+        ..strokeCap = StrokeCap.square
+        ..strokeWidth = 7);
+      canvas.drawLine(a, b, Paint()
+        ..color = color
+        ..strokeCap = StrokeCap.square
+        ..strokeWidth = 4);
+      canvas.drawLine(a, b, Paint()
+        ..color = const Color(0xFFCCC7BD).withValues(alpha: .35)
+        ..strokeCap = StrokeCap.square
+        ..strokeWidth = 1);
+    }
+
+    // Each actual wall is split by its modeled openings. Door gaps and
+    // window segments remain visible rather than painting a closed outline.
+    for (final wall in floor.walls) {
+      final startNode = floor.nodeById(wall.startNodeId);
+      final endNode = floor.nodeById(wall.endNodeId);
+      if (startNode == null || endNode == null) continue;
+      final length = floor.wallLengthMm(wall);
+      if (length < 1) continue;
+      final start = mapper.toCanvas(math.Point(startNode.xMm, startNode.yMm));
+      final end = mapper.toCanvas(math.Point(endNode.xMm, endNode.yMm));
+      final direction = (end - start) / length;
+      final wallColor = wall.demolition ?
+          const Color(0xFFBF7775) : const Color(0xFF97948E);
+      var cursor = 0.0;
+      final openings = [...wall.openings]
+        ..sort((a, b) => a.offsetFromStartMm.compareTo(b.offsetFromStartMm));
+      for (final opening in openings) {
+        final left = opening.offsetFromStartMm.clamp(0.0, length);
+        final right = (opening.offsetFromStartMm + opening.widthMm)
+            .clamp(0.0, length);
+        if (right <= left) continue;
+        if (left > cursor) {
+          wallStroke(start + direction * cursor,
+            start + direction * left, wallColor);
+        }
+        final openingStart = start + direction * left;
+        final openingEnd = start + direction * right;
+        if (opening.type == OpeningType.window) {
+          canvas.drawLine(openingStart, openingEnd, Paint()
+            ..color = const Color(0xFF97BFD0)
+            ..strokeWidth = 2.5);
+          canvas.drawLine(openingStart, openingEnd, Paint()
+            ..color = const Color(0xFFD3E1E2).withValues(alpha: .45)
+            ..strokeWidth = .75);
+        } else {
+          final delta = openingEnd - openingStart;
+          // Direction only indicates a door leaf in plan view; opening side
+          // needs no invented geometry or furniture collision data.
+          final leafEnd = openingStart + Offset(-delta.dy, delta.dx);
+          canvas.drawLine(openingStart, leafEnd, Paint()
+            ..color = const Color(0xFFF1D6B5)
+            ..strokeWidth = 1.15);
+        }
+        cursor = math.max(cursor, right);
+      }
+      if (cursor < length) {
+        wallStroke(start + direction * cursor, end, wallColor);
+      }
+    }
+
+    for (final face in faces) {
+      final meta = floor.roomMetaByKey(face.key);
+      if (meta == null) continue;
+      final center = mapper.toCanvas(face.centroid);
+      final label = TextPainter(
+        text: TextSpan(text: meta.name,
+          style: const TextStyle(color: Colors.white, fontSize: 11,
+            fontWeight: FontWeight.w700, shadows: [
+              Shadow(color: Colors.black, blurRadius: 5),
+            ])),
+        textDirection: TextDirection.ltr,
+        textAlign: TextAlign.center,
+        maxLines: 2,
+        ellipsis: '…',
+      )..layout(maxWidth: math.max(35, math.min(100, size.width / 3)));
+      label.paint(canvas, center - Offset(label.width / 2, label.height / 2));
     }
   }
   @override
