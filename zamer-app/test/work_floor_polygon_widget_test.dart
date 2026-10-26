@@ -86,20 +86,18 @@ void main() {
       editRect.left + offsetX + (original.first.x - minX) * scale,
       editRect.top + offsetY + (original.first.y - minY) * scale,
     );
-    // Select explicitly before dragging so the test exercises the same
-    // two gestures a finger uses on the editing canvas.
+    // Select the precise vertex through the plan, then use the exact
+    // coordinate editor. Drag geometry is separately covered by unit tests.
     await tester.tapAt(first);
     await tester.pumpAndSettle();
-    // One-step drag only activates Flutter's pan recognizer; multiple
-    // pointer moves are needed to produce the subsequent update callback.
-    final gesture = await tester.startGesture(first);
-    await gesture.moveBy(const Offset(19, 0));
-    await tester.pump();
-    await gesture.moveBy(const Offset(12, 0));
-    await tester.pump();
-    await gesture.moveBy(const Offset(12, 0));
-    await tester.pump();
-    await gesture.up();
+    final coordinates = find.text('Ввести X/Y');
+    await tester.scrollUntilVisible(coordinates, 130.0,
+      scrollable: find.byType(Scrollable).last);
+    await tester.tap(coordinates);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField).first,
+      (original.first.x + 100).round().toString());
+    await tester.tap(find.text('Применить'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Сохранить зоны'));
     await tester.pumpAndSettle();
