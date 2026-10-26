@@ -3347,6 +3347,7 @@ class _FloorPolygonPlanPainter extends CustomPainter {
   const _FloorPolygonPlanPainter({
     required this.face, required this.mapper, required this.zones,
     required this.drawing, required this.draftMaterial, required this.baseTile,
+    required this.editing, this.selectedZoneId, this.selectedVertexIndex,
   });
   final RoomFace face;
   final _PlanMapper mapper;
@@ -3354,6 +3355,9 @@ class _FloorPolygonPlanPainter extends CustomPainter {
   final List<math.Point<double>> drawing;
   final String draftMaterial;
   final bool baseTile;
+  final bool editing;
+  final String? selectedZoneId;
+  final int? selectedVertexIndex;
 
   static const _tile = Color(0xFF517DAE);
   static const _laminate = Color(0xFF969F9B);
@@ -3393,6 +3397,21 @@ class _FloorPolygonPlanPainter extends CustomPainter {
     canvas.drawPath(roomPath, Paint()
       ..color = const Color(0xFFF1F3F6)
       ..strokeWidth = 2.5..style = PaintingStyle.stroke);
+    if (editing) {
+      for (final zone in zones) {
+        for (var i = 0; i < zone.polygon.length; i++) {
+          final point = mapper.toCanvas(zone.polygon[i]);
+          final selected = zone.id == selectedZoneId &&
+              i == selectedVertexIndex;
+          canvas.drawCircle(point, selected ? 10 : 6.5,
+            Paint()..color = const Color(0xFF101419));
+          canvas.drawCircle(point, selected ? 7 : 4.4,
+            Paint()..color = selected
+              ? const Color(0xFFF1AF91)
+              : const Color(0xFFE6E9EE));
+        }
+      }
+    }
     if (drawing.isNotEmpty) {
       final draftPath = _path(drawing, close: false);
       canvas.drawPath(draftPath, Paint()
