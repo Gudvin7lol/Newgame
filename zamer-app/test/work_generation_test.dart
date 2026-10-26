@@ -3,6 +3,7 @@ import 'package:zamer_app/models/models.dart';
 import 'package:zamer_app/models/work_board.dart';
 import 'package:zamer_app/services/geometry_service.dart';
 import 'package:zamer_app/services/work_generation_service.dart';
+import 'package:zamer_app/services/work_operation_taxonomy.dart';
 import 'package:zamer_app/services/work_status_service.dart';
 
 FloorPlan rectangle(String id) {
@@ -186,6 +187,65 @@ void main() {
     expect(codes, isNot(contains('elec_panel_assemble')));
     expect(codes, isNot(contains('plumb_bath')));
     expect(plan.tasks.length, lessThan(100));
+  });
+
+
+  test('all 245 catalogue entries belong to exactly one main work group', () {
+    final ops = WorkOperationCatalog.all;
+    expect(ops.length, 245);
+    expect(WorkOperationTaxonomy.groups.length, 11);
+    final actual = <String>{};
+    for (final group in WorkOperationTaxonomy.groups) {
+      final items = WorkOperationTaxonomy.inGroup(group);
+      expect(items, isNotEmpty, reason: group);
+      final subgroups = WorkOperationTaxonomy.subgroups(group);
+      expect(subgroups.length, greaterThan(1), reason: group);
+      for (final op in items) {
+        expect(actual.add(op.code), isTrue, reason: op.code);
+        expect(WorkOperationTaxonomy.groupOf(op), group);
+        expect(subgroups, contains(WorkOperationTaxonomy.subgroupOf(op)));
+      }
+    }
+    expect(actual, WorkOperationCatalog.byCode.keys.toSet());
+    expect(WorkOperationTaxonomy.search('').length, 245);
+  });
+
+  test('walls, floors, ceilings, electrics and engineering are mapped safely', () {
+    String main(String code) => WorkOperationTaxonomy.groupOf(
+      WorkOperationCatalog.byCode[code]!);
+    String sub(String code) => WorkOperationTaxonomy.subgroupOf(
+      WorkOperationCatalog.byCode[code]!);
+    expect(main('wall_plaster_gypsum'), 'Стены');
+    expect(sub('wall_plaster_gypsum'), 'Штукатурка');
+    expect(main('tile_mosaic'), 'Стены');
+    expect(main('tile_grout_floor'), 'Пол');
+    expect(main('floor_laminate'), 'Пол');
+    expect(main('ceiling_stretch'), 'Потолок');
+    expect(main('electrical_rough'), 'Электрика');
+    expect(main('low_data_cable'), 'Электрика');
+    expect(sub('low_data_cable'), 'Слаботочные сети');
+    expect(main('plumbing_rough'), 'Инженерия');
+    expect(main('heat_radiator_install'), 'Инженерия');
+    expect(main('hvac_commission'), 'Инженерия');
+    expect(main('doors'), 'Двери и окна');
+    expect(main('qc_handover'), 'Контроль и сдача');
+  });
+
+  test('search respects group and subgroup without modifying operation data', () {
+    final catalog = WorkOperationCatalog.byCode;
+    final oldPhase = catalog['wall_plaster_gypsum']!.phase;
+    final plaster = WorkOperationTaxonomy.search('штукатурка',
+      group: 'Стены', subgroup: 'Штукатурка');
+    expect(plaster.map((op) => op.code), contains('wall_plaster_gypsum'));
+    expect(plaster.every((op) =>
+      WorkOperationTaxonomy.groupOf(op) == 'Стены' &&
+      WorkOperationTaxonomy.subgroupOf(op) == 'Штукатурка'), isTrue);
+    expect(WorkOperationTaxonomy.search('УЗО',
+      group: 'Инженерия'), isEmpty);
+    expect(WorkOperationTaxonomy.search('УЗО',
+      group: 'Электрика').map((op) => op.code),
+      contains('elec_rcd_test'));
+    expect(catalog['wall_plaster_gypsum']!.phase, oldPhase);
   });
 
 }
