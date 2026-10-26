@@ -77,21 +77,24 @@ void main() {
     final selectedZone = find.textContaining('Зона 1');
     await tester.scrollUntilVisible(selectedZone, 130.0,
       scrollable: find.byType(Scrollable).last);
-    await tester.ensureVisible(selectedZone, alignment: .2);
+    await Scrollable.ensureVisible(tester.element(selectedZone),
+      alignment: .2);
     await tester.pumpAndSettle();
     await tester.tap(selectedZone);
     await tester.pumpAndSettle();
     final firstVertex = find.text('Точка 1');
     await tester.scrollUntilVisible(firstVertex, 120.0,
       scrollable: find.byType(Scrollable).last);
-    await tester.ensureVisible(firstVertex, alignment: .25);
+    await Scrollable.ensureVisible(tester.element(firstVertex),
+      alignment: .25);
     await tester.pumpAndSettle();
     await tester.tap(firstVertex);
     await tester.pumpAndSettle();
     final coordinates = find.text('Ввести X/Y');
     await tester.scrollUntilVisible(coordinates, 130.0,
       scrollable: find.byType(Scrollable).last);
-    await tester.ensureVisible(coordinates, alignment: .25);
+    await Scrollable.ensureVisible(tester.element(coordinates),
+      alignment: .25);
     await tester.pumpAndSettle();
     await tester.tap(coordinates);
     await tester.pumpAndSettle();
