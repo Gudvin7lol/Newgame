@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zamer_app/models/models.dart';
@@ -70,10 +72,24 @@ void main() {
     await tester.pumpAndSettle();
     final editingCanvas = find.byType(AspectRatio).last;
     final editRect = tester.getRect(editingCanvas);
+    final polygon = GeometryService.roomFaces(floor).single.innerPolygon;
+    final minX = polygon.map((p) => p.x).reduce(math.min);
+    final minY = polygon.map((p) => p.y).reduce(math.min);
+    final maxX = polygon.map((p) => p.x).reduce(math.max);
+    final maxY = polygon.map((p) => p.y).reduce(math.max);
+    final scale = math.min(
+      (editRect.width - 28) / math.max(1, maxX - minX),
+      (editRect.height - 28) / math.max(1, maxY - minY));
+    final offsetX = (editRect.width - (maxX - minX) * scale) / 2;
+    final offsetY = (editRect.height - (maxY - minY) * scale) / 2;
     final first = Offset(
-      editRect.left + editRect.width * .36,
-      editRect.top + editRect.height * .36,
+      editRect.left + offsetX + (original.first.x - minX) * scale,
+      editRect.top + offsetY + (original.first.y - minY) * scale,
     );
+    // Select explicitly before dragging so the test exercises the same
+    // two gestures a finger uses on the editing canvas.
+    await tester.tapAt(first);
+    await tester.pumpAndSettle();
     await tester.dragFrom(first, const Offset(24, 0));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Сохранить зоны'));
