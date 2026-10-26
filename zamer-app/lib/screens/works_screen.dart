@@ -1558,15 +1558,18 @@ class _WorksScreenState extends State<WorksScreen> {
       for (final floor in widget.project.floors) {
         for (final face in GeometryService.roomFaces(floor)) {
           if (floor.roomMetaByKey(face.key)?.id != roomId) continue;
-          final count = switch (op.basis) {
-            WorkQuantityBasis.floorArea || WorkQuantityBasis.ceilingArea =>
-              face.areaM2,
-            WorkQuantityBasis.wallArea =>
-              GeometryService.roomNetWallAreaM2(floor, face),
-            WorkQuantityBasis.skirting =>
-              GeometryService.roomSkirtingM(floor, face),
-            WorkQuantityBasis.package => 1.0,
-          };
+          final count = WorkSurfaceService.finishCodes.contains(op.code)
+            ? WorkSurfaceService.areaForCode(
+                board, floor, face, op.code)
+            : switch (op.basis) {
+              WorkQuantityBasis.floorArea || WorkQuantityBasis.ceilingArea =>
+                face.areaM2,
+              WorkQuantityBasis.wallArea =>
+                GeometryService.roomNetWallAreaM2(floor, face),
+              WorkQuantityBasis.skirting =>
+                GeometryService.roomSkirtingM(floor, face),
+              WorkQuantityBasis.package => 1.0,
+            };
           if (count.isFinite && count > 0) {
             amount.text = count.toStringAsFixed(2);
             hours.text = (count * op.hoursPerUnit).toStringAsFixed(1);
@@ -1796,6 +1799,15 @@ class _WorksScreenState extends State<WorksScreen> {
                   roomId:roomId, roomName:room?.name ?? '',
                   assignee:assignee.text.trim(),
                   operationCode: operationCode,
+                  surfaceWallIds: [
+                    if (roomId != null && operationCode != null &&
+                        WorkSurfaceService.finishCodes.contains(operationCode))
+                      for (final floor in widget.project.floors)
+                        for (final face in GeometryService.roomFaces(floor))
+                          if (floor.roomMetaByKey(face.key)?.id == roomId)
+                            ...WorkSurfaceService.wallIdsForCode(
+                              board, floor, face, operationCode),
+                  ],
                   requiredPredecessorIds: required,
                   predecessorId: scheduledPredecessor,
                   lagDays: lagDays));
