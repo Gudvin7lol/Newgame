@@ -107,9 +107,12 @@ void main() {
     expect(find.text('Стены'), findsOneWidget);
     expect(find.text('Пол'), findsOneWidget);
     expect(find.text('Потолок'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Электрика'), 120.0,
+      scrollable: find.byType(Scrollable).last);
     await tester.tap(find.text('Электрика'));
     await tester.pumpAndSettle();
-    expect(find.text('Слаботочные сети'), findsWidgets);
+    expect(find.text('Электрика'), findsWidgets);
 
     await tester.enterText(find.byType(TextFormField).last, 'УЗО');
     await tester.pumpAndSettle();
