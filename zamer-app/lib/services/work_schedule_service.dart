@@ -81,12 +81,14 @@ class WorkScheduleChange {
 class WorkScheduleProposal {
   const WorkScheduleProposal({
     required this.changes,
+    this.rootTaskId,
     required this.previousCompletion,
     required this.projectedCompletion,
     this.error,
   });
 
   final List<WorkScheduleChange> changes;
+  final String? rootTaskId;
   final DateTime? previousCompletion, projectedCompletion;
   final String? error;
   bool get isValid => error == null;
@@ -234,6 +236,7 @@ class WorkSchedulePlanner {
         : tasks.map((task) => proposals[task.id]?.finish ?? _date(task.finish))
             .reduce((a, b) => a.isAfter(b) ? a : b);
     return WorkScheduleProposal(
+      rootTaskId: taskId,
       changes: proposals.values.toList(growable: false),
       previousCompletion: originalCompletion,
       projectedCompletion: newCompletion,
@@ -262,13 +265,18 @@ class WorkSchedulePlanner {
       }
     }
     if (proposal.changes.isNotEmpty) {
-      final selected = proposal.changes.first;
+      final rootId = proposal.rootTaskId;
+      final rootEdit = proposal.changes.where((c) => c.taskId == rootId).firstOrNull;
+      final currentRoot = rootId == null ? null : byId[rootId];
+      if (currentRoot == null) {
+        return 'График изменился. Обновите предварительный просмотр.';
+      }
       final current = preview(
         board: board,
-        taskId: selected.taskId,
-        start: selected.start,
-        finish: selected.finish,
-        predecessorId: selected.predecessorId,
+        taskId: rootId!,
+        start: rootEdit?.start ?? currentRoot.start,
+        finish: rootEdit?.finish ?? currentRoot.finish,
+        predecessorId: rootEdit?.predecessorId ?? currentRoot.predecessorId,
       );
       if (!current.isValid ||
           current.changes.length != proposal.changes.length) {
