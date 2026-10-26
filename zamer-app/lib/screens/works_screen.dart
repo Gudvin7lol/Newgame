@@ -1107,6 +1107,87 @@ class _WorksScreenState extends State<WorksScreen> {
       ])));
   }
 
+  Future<String?> _pickWorkOperation() async {
+    var query = '';
+    var category = 'Все';
+    final categories = WorkOperationCatalog.all.map((op) => op.phase)
+        .toSet().toList()..sort();
+    return showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: _panel,
+      showDragHandle: true,
+      builder: (sheet) => StatefulBuilder(builder: (sheet, update) {
+        final search = query.trim().toLowerCase();
+        final matches = WorkOperationCatalog.all.where((op) =>
+            (category == 'Все' || op.phase == category) &&
+            (search.isEmpty || op.title.toLowerCase().contains(search) ||
+              op.code.toLowerCase().contains(search))).toList();
+        return SafeArea(top: false, child: SizedBox(
+          height: MediaQuery.sizeOf(sheet).height * .78,
+          child: Column(children: [
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 18),
+              child: Align(alignment: Alignment.centerLeft,
+                child: Text('Библиотека работ',
+                  style: TextStyle(fontSize: 19,
+                    fontWeight: FontWeight.w800)))),
+            Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              child: TextFormField(
+                decoration: const InputDecoration(
+                  prefixIcon: Icon(Icons.search),
+                  hintText: 'Найти операцию, материал или этап'),
+                onChanged: (text) => update(() => query = text),
+              )),
+            SizedBox(height: 43, child: ListView(
+              padding: const EdgeInsets.symmetric(horizontal: 15),
+              scrollDirection: Axis.horizontal,
+              children: [
+                for (final name in ['Все', ...categories])
+                  Padding(padding: const EdgeInsets.only(right: 7),
+                    child: ChoiceChip(
+                      label: Text(name, style: const TextStyle(fontSize: 11)),
+                      selected: category == name,
+                      onSelected: (_) => update(() => category = name),
+                    )),
+              ])),
+            ListTile(
+              dense: true,
+              leading: const Icon(Icons.edit_note_outlined, color: _peach),
+              title: const Text('Создать произвольную работу'),
+              onTap: () => Navigator.pop(sheet, '__manual__'),
+            ),
+            const Divider(height: 1, color: _edge),
+            Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 5),
+              child: Align(alignment: Alignment.centerLeft,
+                child: Text('Найдено: ${matches.length}',
+                  style: const TextStyle(fontSize: 11, color: _muted)))),
+            Expanded(child: ListView.builder(
+              itemCount: matches.length,
+              itemBuilder: (_, index) {
+                final op = matches[index];
+                final unit = switch (op.basis) {
+                  WorkQuantityBasis.package => 'шт/компл.',
+                  WorkQuantityBasis.skirting => 'м',
+                  _ => 'м²',
+                };
+                return ListTile(
+                  title: Text(op.title, maxLines: 2,
+                    overflow: TextOverflow.ellipsis),
+                  subtitle: Text('${op.phase} · $unit · '
+                    '${op.hoursPerUnit} чел·ч/ед. (ориентир)',
+                    style: const TextStyle(fontSize: 11, color: _muted)),
+                  trailing: const Icon(Icons.chevron_right, color: _peach),
+                  onTap: () => Navigator.pop(sheet, op.code),
+                );
+              },
+            )),
+          ]),
+        ));
+      }),
+    );
+  }
+
   Future<void> _addTask() async {
     final title = TextEditingController();
     final amount = TextEditingController(text: '1');
@@ -1138,33 +1219,53 @@ class _WorksScreenState extends State<WorksScreen> {
             children: [
               const Text('Новая работа', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800)),
               const SizedBox(height: 16),
-              DropdownButtonFormField<String?>(
-                initialValue: operationCode,
-                decoration: const InputDecoration(
-                  labelText: 'Операция из строительного каталога'),
-                isExpanded: true,
-                items: [
-                  const DropdownMenuItem<String?>(
-                    value: null, child: Text('Произвольная работа')),
-                  for (final op in WorkOperationCatalog.all)
-                    DropdownMenuItem<String?>(
-                      value: op.code,
-                      child: Text('${op.phase} · ${op.title}',
-                        overflow: TextOverflow.ellipsis),
-                    ),
-                ],
-                onChanged: (code) => state(() {
-                  operationCode = code;
-                  if (code != null) {
-                    final op = WorkOperationCatalog.byCode[code]!;
-                    title.text = op.title;
-                    unit = switch (op.basis) {
-                      WorkQuantityBasis.skirting => 'м',
-                      WorkQuantityBasis.package => 'шт',
-                      _ => 'м²',
-                    };
-                  }
-                }),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.menu_book_outlined, color: _peach),
+                label: Text(operationCode == null
+                  ? 'Выбрать операцию из библиотеки'
+                  : (WorkOperationCatalog.byCode[operationCode]?.title ??
+                    'Произвольная работа'),
+                  maxLines: 2, overflow: TextOverflow.ellipsis),
+                onPressed: () async {
+                  final code = await _pickWorkOperation();
+                  if (code == null || !context.mounted) return;
+                  state(() {
+                    operationCode = code == '__manual__' ? null : code;
+                    if (operationCode != null) {
+                      final op = WorkOperationCatalog.byCode[operationCode]!;
+                      title.text = op.title;
+                      unit = switch (op.basis) {
+                        WorkQuantityBasis.skirting => 'м',
+                        WorkQuantityBasis.package => 'шт',
+                        _ => 'м²',
+                      };
+                      if (op.basis == WorkQuantityBasis.package) {
+                        amount.text = '1';
+                        hours.text = op.hoursPerUnit.toStringAsFixed(1);
+                      } else if (roomId != null) {
+                        for (final floor in widget.project.floors) {
+                          for (final face in GeometryService.roomFaces(floor)) {
+                            if (floor.roomMetaByKey(face.key)?.id != roomId) continue;
+                            final count = switch (op.basis) {
+                              WorkQuantityBasis.floorArea ||
+                                  WorkQuantityBasis.ceilingArea => face.areaM2,
+                              WorkQuantityBasis.wallArea =>
+                                  GeometryService.roomNetWallAreaM2(floor, face),
+                              WorkQuantityBasis.skirting =>
+                                  GeometryService.roomSkirtingM(floor, face),
+                              WorkQuantityBasis.package => 1.0,
+                            };
+                            amount.text = count.toStringAsFixed(2);
+                            hours.text = (count * op.hoursPerUnit).toStringAsFixed(1);
+                            break;
+                          }
+                        }
+                      } else {
+                        hours.text = op.hoursPerUnit.toStringAsFixed(1);
+                      }
+                    }
+                  });
+                },
               ),
               const SizedBox(height: 12),
               TextField(controller: title, decoration: const InputDecoration(labelText: 'Название работы')),
@@ -1186,6 +1287,7 @@ class _WorksScreenState extends State<WorksScreen> {
                   decoration: const InputDecoration(labelText: 'Объём'))),
                 const SizedBox(width: 8),
                 SizedBox(width: 94, child: DropdownButtonFormField<String>(
+                  key: ValueKey(unit),
                   initialValue: unit,
                   items: ['м²','м','шт','м³'].map((s) =>
                     DropdownMenuItem(value: s, child: Text(s))).toList(),
