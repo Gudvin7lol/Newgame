@@ -1,27 +1,26 @@
 import 'dart:math' as math;
+import 'work_calendar.dart';
 
 /// Project-owned work records. They travel with the project's JSON/ZIP backup.
 class WorkBoard {
-  WorkBoard({List<WorkTask>? tasks, List<WorkIssue>? issues, List<WorkLog>? events})
+  WorkBoard({List<WorkTask>? tasks, List<WorkIssue>? issues, List<WorkLog>? events,
+    WorkCalendar? calendar})
       : tasks = tasks ?? [],
         issues = issues ?? [],
-        events = events ?? [];
+        events = events ?? [],
+        calendar = calendar ?? WorkCalendar();
 
   final List<WorkTask> tasks;
   final List<WorkIssue> issues;
   final List<WorkLog> events;
+  final WorkCalendar calendar;
 
   double get actualProgress => _weighted((task) => task.progress);
   double get acceptedProgress => _weighted((task) => task.acceptedProgress);
 
   // Planned completion is a comparison metric, not a mutation of the baseline.
-  double plannedProgress(DateTime at) => _weighted((task) {
-        final start = task.baselineStart.millisecondsSinceEpoch;
-        final finish = task.baselineFinish.add(const Duration(days: 1)).millisecondsSinceEpoch;
-        if (finish <= start) return at.isAfter(task.baselineFinish) ? 1 : 0;
-        return ((at.millisecondsSinceEpoch - start) / (finish - start))
-            .clamp(0.0, 1.0);
-      });
+  double plannedProgress(DateTime at) => _weighted((task) =>
+      calendar.plannedFraction(task.baselineStart, task.baselineFinish, at));
 
   double _weighted(double Function(WorkTask) portion) {
     final weight = tasks.fold<double>(0, (sum, task) => sum + math.max(0.1, task.hours));
@@ -43,9 +42,12 @@ class WorkBoard {
         'tasks': tasks.map((e) => e.toJson()).toList(),
         'issues': issues.map((e) => e.toJson()).toList(),
         'events': events.map((e) => e.toJson()).toList(),
+        'calendar': calendar.toJson(),
       };
 
   factory WorkBoard.fromJson(Map<String, dynamic> json) => WorkBoard(
+        calendar: WorkCalendar.fromJson(
+          Map<String, dynamic>.from((json['calendar'] as Map?) ?? const {})),
         tasks: ((json['tasks'] as List?) ?? const [])
             .map((e) => WorkTask.fromJson(Map<String, dynamic>.from(e as Map)))
             .toList(),
@@ -78,6 +80,7 @@ class WorkTask {
     this.done = 0,
     this.accepted = 0,
     this.paused = false,
+    this.lagDays = 0,
   }) : baselineStart = baselineStart ?? start,
        baselineFinish = baselineFinish ?? finish;
 
@@ -88,6 +91,7 @@ class WorkTask {
   DateTime start, finish;
   double quantity, done, accepted, hours;
   bool paused;
+  int lagDays;
 
   double get progress => quantity <= 0 ? 0 : (done / quantity).clamp(0, 1).toDouble();
   double get acceptedProgress =>
@@ -118,6 +122,7 @@ class WorkTask {
         'done': done,
         'accepted': accepted,
         'paused': paused,
+        'lagDays': lagDays,
       };
 
   factory WorkTask.fromJson(Map<String, dynamic> json) => WorkTask(
@@ -139,6 +144,7 @@ class WorkTask {
         done: (json['done'] as num?)?.toDouble() ?? 0,
         accepted: (json['accepted'] as num?)?.toDouble() ?? 0,
         paused: json['paused'] == true,
+        lagDays: (json['lagDays'] as num?)?.toInt() ?? 0,
       );
 }
 
