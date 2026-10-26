@@ -156,6 +156,28 @@ void main() {
   });
 
 
+  test('optional rough-in operations form one parallel co-dependent phase', () {
+    final project = MeasureProject(id: 'peers',
+      name: 'Инженерные этапы', floors: [rectangle('f-co')]);
+    final generated = WorkGenerationService.preview(
+      project, includeOptional: true, begin: DateTime(2026, 11, 2));
+    final phases = generated.tasks.where((t) =>
+      const {'electrical_rough', 'plumbing_rough', 'ventilation'}
+        .contains(t.operationCode)).toList();
+    expect(phases.length, 3);
+    for (final item in phases) {
+      expect(item.coStageTaskIds.length, 2);
+      expect(item.coStageTaskIds.toSet(),
+        phases.where((peer) => peer.id != item.id)
+          .map((peer) => peer.id).toSet());
+    }
+    expect(WorkGenerationService.apply(project.workBoard, generated), isNull);
+    final restored = MeasureProject.fromJson(project.toJson());
+    final pair = restored.workBoard.tasks.firstWhere((t) =>
+      t.operationCode == 'plumbing_rough');
+    expect(pair.coStageTaskIds.length, 2);
+  });
+
   test('expanded catalogue has stable unique IDs and valid prerequisites', () {
     final all = WorkOperationCatalog.all;
     expect(all.length, greaterThanOrEqualTo(245));
