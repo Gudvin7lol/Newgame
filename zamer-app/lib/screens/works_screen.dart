@@ -1958,7 +1958,8 @@ class _WorksScreenState extends State<WorksScreen> {
       isScrollControlled: true, showDragHandle: true,
       builder: (sheet) => SafeArea(child: Padding(
         padding: const EdgeInsets.all(18),
-        child: Column(mainAxisSize: MainAxisSize.min,
+        child: SingleChildScrollView(child: Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           Text(t.title, style: const TextStyle(fontSize:19, fontWeight:FontWeight.w800)),
           const SizedBox(height: 8),
@@ -2025,7 +2026,7 @@ class _WorksScreenState extends State<WorksScreen> {
             TextButton(onPressed: () {
               Navigator.pop(sheet); _accept(t);
             }, child: const Text('Передать / принять выполненный объём')),
-        ]),
+        ])),
       )));
   }
 
