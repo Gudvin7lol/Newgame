@@ -1806,7 +1806,7 @@ class _WorksScreenState extends State<WorksScreen> {
                         for (final face in GeometryService.roomFaces(floor))
                           if (floor.roomMetaByKey(face.key)?.id == roomId)
                             ...WorkSurfaceService.wallIdsForCode(
-                              board, floor, face, operationCode),
+                              board, floor, face, operationCode!),
                   ],
                   requiredPredecessorIds: required,
                   predecessorId: scheduledPredecessor,
