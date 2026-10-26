@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zamer_app/models/models.dart';
@@ -70,25 +68,17 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Править вершины'));
     await tester.pumpAndSettle();
-    final editingCanvas = find.byType(AspectRatio).last;
-    final editRect = tester.getRect(editingCanvas);
-    final polygon = GeometryService.roomFaces(floor).single.innerPolygon;
-    final minX = polygon.map((p) => p.x).reduce(math.min);
-    final minY = polygon.map((p) => p.y).reduce(math.min);
-    final maxX = polygon.map((p) => p.x).reduce(math.max);
-    final maxY = polygon.map((p) => p.y).reduce(math.max);
-    final scale = math.min(
-      (editRect.width - 28) / math.max(1, maxX - minX),
-      (editRect.height - 28) / math.max(1, maxY - minY));
-    final offsetX = (editRect.width - (maxX - minX) * scale) / 2;
-    final offsetY = (editRect.height - (maxY - minY) * scale) / 2;
-    final first = Offset(
-      editRect.left + offsetX + (original.first.x - minX) * scale,
-      editRect.top + offsetY + (original.first.y - minY) * scale,
-    );
-    // Select the precise vertex through the plan, then use the exact
-    // coordinate editor. Drag geometry is separately covered by unit tests.
-    await tester.tapAt(first);
+    // Mobile users may also choose the zone and its numbered point from
+    // short chips instead of aiming at a tiny vertex on a phone.
+    final selectedZone = find.textContaining('Зона 1');
+    await tester.scrollUntilVisible(selectedZone, 130.0,
+      scrollable: find.byType(Scrollable).last);
+    await tester.tap(selectedZone);
+    await tester.pumpAndSettle();
+    final firstVertex = find.text('Точка 1');
+    await tester.scrollUntilVisible(firstVertex, 120.0,
+      scrollable: find.byType(Scrollable).last);
+    await tester.tap(firstVertex);
     await tester.pumpAndSettle();
     final coordinates = find.text('Ввести X/Y');
     await tester.scrollUntilVisible(coordinates, 130.0,
