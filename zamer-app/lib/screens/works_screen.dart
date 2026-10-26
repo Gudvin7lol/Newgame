@@ -694,7 +694,7 @@ class _WorksScreenState extends State<WorksScreen> {
                     child: const Text('Покраска')),
                   OutlinedButton(onPressed: () =>
                     redraw(() => heights[selectedWall] =
-                      math.min(1200, maxHeight)),
+                      math.min(1200.0, maxHeight)),
                     child: const Text('Плитка 1,2 м')),
                   OutlinedButton(onPressed: () =>
                     redraw(() => heights[selectedWall] = maxHeight),
