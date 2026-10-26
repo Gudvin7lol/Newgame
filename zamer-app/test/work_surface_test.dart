@@ -154,6 +154,40 @@ void main() {
     expect(paint.quantity, safeQuantity);
   });
 
+  test('zero-area generated finish is flagged, not deleted or overwritten', () {
+    final floor = sampleRoom();
+    final project = MeasureProject(
+      id: 'zero', name: 'Комната', floors: [floor]);
+    final face = GeometryService.roomFaces(floor).single;
+    final board = project.workBoard;
+    final plan = WorkGenerationService.preview(project);
+    expect(WorkGenerationService.apply(board, plan), isNull);
+    final paint = board.tasks.firstWhere((task) =>
+      task.operationCode == 'wall_paint');
+    final initialQuantity = paint.quantity;
+    final initialHours = paint.hours;
+    final initialId = paint.id;
+    WorkSurfaceService.save(board, floor, face, {
+      for (final edge in face.edges) edge.wallId: 2700.0,
+    });
+    WorkSurfaceService.refreshUnstartedFinishes(board, floor, face);
+    expect(paint.quantity, initialQuantity);
+    expect(paint.hours, initialHours);
+    expect(paint.id, initialId);
+    expect(paint.surfaceWallIds, isEmpty);
+    expect(paint.needsQuantityReview, true);
+
+    // Returning one wall to paint should restore a calculable area.
+    WorkSurfaceService.save(board, floor, face, {
+      for (var i = 0; i < face.edges.length; i++)
+        face.edges[i].wallId: i == 0 ? 0.0 : 2700.0,
+    });
+    WorkSurfaceService.refreshUnstartedFinishes(board, floor, face);
+    expect(paint.needsQuantityReview, false);
+    expect(paint.quantity, lessThan(initialQuantity));
+    expect(paint.surfaceWallIds.length, 1);
+  });
+
   test('legacy material finish remains unchanged without explicit assignment', () {
     final floor = sampleRoom();
     final face = GeometryService.roomFaces(floor).single;
