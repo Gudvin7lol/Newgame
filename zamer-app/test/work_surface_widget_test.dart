@@ -41,7 +41,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('Высота плитки:'), findsOneWidget);
     final save = find.text('Сохранить распределение');
-    await tester.ensureVisible(save);
+    await tester.scrollUntilVisible(save, 180.0,
+      scrollable: find.byType(Scrollable).last);
     await tester.tap(save);
     await tester.pumpAndSettle();
     expect(saves, 1);
