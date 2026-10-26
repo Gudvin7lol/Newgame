@@ -34,7 +34,9 @@ void main() {
     await tester.tap(open);
     await tester.pumpAndSettle();
     expect(find.textContaining('Поверхности:'), findsOneWidget);
-    expect(find.text('Плитка до потолка'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Плитка до потолка'), 110.0,
+      scrollable: find.byType(Scrollable).last);
     await tester.tap(find.text('Плитка до потолка'));
     await tester.pumpAndSettle();
     expect(find.textContaining('Высота плитки:'), findsOneWidget);
