@@ -18,6 +18,7 @@ import 'materials_screen.dart';
 import 'measure_floor_plan_layer_screen.dart';
 import 'plan_editor_production_screen.dart';
 import 'planning_objects_screen.dart';
+import 'works_screen.dart';
 import 'measure_plan_tool.dart';
 import '../widgets/zamer_ui_kit_v2.dart';
 import '../widgets/zamer_fan_profiles_v2.dart';
@@ -129,6 +130,7 @@ class _RecoveredMeasureWorkspaceScreenState
     ('Электрика', Icons.electrical_services_outlined),
     ('Инженерия', Icons.plumbing_outlined),
     ('Материалы', Icons.inventory_2_outlined),
+    ('Работы', Icons.handyman_outlined),
   ];
 
   void _selectView(ZMeasureViewMode value) {
@@ -321,12 +323,12 @@ class _RecoveredMeasureWorkspaceScreenState
     padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
     child: Row(
       children: [
-        for (var i = 0; i < 4; i++) ...[
-          if (i > 0) const SizedBox(width: 6),
+        for (final i in const [0, 1, 2, 3, 6]) ...[
+          if (i != 0) const SizedBox(width: 5),
           Expanded(child: KeyedSubtree(
             key: ValueKey('kit-v2-domain-$i'),
             child: ZamerKitSegment(
-              label: ZamerKitNavigation.domains[i],
+              label: _layers[i].$1,
               icon: _layers[i].$2,
               selected: _layer == i,
               onTap: () => _selectLayer(i),
@@ -628,6 +630,13 @@ class _RecoveredMeasureWorkspaceScreenState
         project: widget.project,
         onChanged: _commitChanged,
       ),
+      WorksScreen(
+        key: const ValueKey('works-embedded'),
+        project: widget.project,
+        floorId: widget.floor.id,
+        embedded: true,
+        onChanged: _commitChanged,
+      ),
     ];
 
     return Scaffold(
@@ -648,7 +657,7 @@ class _RecoveredMeasureWorkspaceScreenState
           _kitDomains(),
           if (_layer < 4)
             _kitTasks()
-          else
+          else if (_layer != 6)
             Container(
               height: 56,
               alignment: Alignment.centerLeft,
