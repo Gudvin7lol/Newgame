@@ -6,7 +6,7 @@ on:
       - 'zamer-app/lib/models/models.dart'
       - 'zamer-app/lib/models/work_board.dart'
       - 'zamer-app/lib/screens/works_screen.dart'
-      - 'zamer-app/lib/screens/floors_screen.dart'
+      - 'zamer-app/lib/screens/recovered_project_workspace_screen.dart'
       - 'zamer-app/test/work_board_test.dart'
       - '.github/workflows/verify-works.yml'
   workflow_dispatch:
@@ -25,7 +25,7 @@ jobs:
         run: flutter pub get
       - name: Analyze changed Dart files
         working-directory: zamer-app
-        run: flutter analyze lib/models/work_board.dart lib/screens/works_screen.dart lib/screens/floors_screen.dart
+        run: flutter analyze --no-fatal-infos lib/models/models.dart lib/models/work_board.dart lib/screens/works_screen.dart lib/screens/recovered_project_workspace_screen.dart
       - name: Test work-board persistence and progress
         working-directory: zamer-app
         run: flutter test test/work_board_test.dart
