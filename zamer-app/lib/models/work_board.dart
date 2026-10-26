@@ -16,9 +16,9 @@ class WorkBoard {
 
   // Planned completion is a comparison metric, not a mutation of the baseline.
   double plannedProgress(DateTime at) => _weighted((task) {
-        final start = task.start.millisecondsSinceEpoch;
-        final finish = task.finish.add(const Duration(days: 1)).millisecondsSinceEpoch;
-        if (finish <= start) return at.isAfter(task.finish) ? 1 : 0;
+        final start = task.baselineStart.millisecondsSinceEpoch;
+        final finish = task.baselineFinish.add(const Duration(days: 1)).millisecondsSinceEpoch;
+        if (finish <= start) return at.isAfter(task.baselineFinish) ? 1 : 0;
         return ((at.millisecondsSinceEpoch - start) / (finish - start))
             .clamp(0.0, 1.0);
       });
@@ -64,6 +64,8 @@ class WorkTask {
     required this.title,
     required this.start,
     required this.finish,
+    DateTime? baselineStart,
+    DateTime? baselineFinish,
     required this.quantity,
     required this.unit,
     required this.hours,
@@ -76,8 +78,10 @@ class WorkTask {
     this.done = 0,
     this.accepted = 0,
     this.paused = false,
-  });
+  }) : baselineStart = baselineStart ?? start,
+       baselineFinish = baselineFinish ?? finish;
 
+  final DateTime baselineStart, baselineFinish;
   final String id;
   String title, unit, category, assignee, roomName;
   String? floorId, roomId, predecessorId;
@@ -100,6 +104,8 @@ class WorkTask {
         'title': title,
         'start': start.toIso8601String(),
         'finish': finish.toIso8601String(),
+        'baselineStart': baselineStart.toIso8601String(),
+        'baselineFinish': baselineFinish.toIso8601String(),
         'quantity': quantity,
         'unit': unit,
         'hours': hours,
@@ -119,6 +125,8 @@ class WorkTask {
         title: json['title']?.toString() ?? 'Работа',
         start: DateTime.tryParse(json['start']?.toString() ?? '') ?? DateTime.now(),
         finish: DateTime.tryParse(json['finish']?.toString() ?? '') ?? DateTime.now(),
+        baselineStart: DateTime.tryParse(json['baselineStart']?.toString() ?? ''),
+        baselineFinish: DateTime.tryParse(json['baselineFinish']?.toString() ?? ''),
         quantity: (json['quantity'] as num?)?.toDouble() ?? 0,
         unit: json['unit']?.toString() ?? 'м²',
         hours: (json['hours'] as num?)?.toDouble() ?? 1,
