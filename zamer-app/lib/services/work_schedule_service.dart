@@ -276,7 +276,7 @@ class WorkSchedulePlanner {
         taskId: rootId!,
         start: rootEdit?.start ?? currentRoot.start,
         finish: rootEdit?.finish ?? currentRoot.finish,
-        predecessorId: rootEdit?.predecessorId ?? currentRoot.predecessorId,
+        predecessorId: rootEdit == null ? currentRoot.predecessorId : rootEdit.predecessorId,
       );
       if (!current.isValid ||
           current.changes.length != proposal.changes.length) {
