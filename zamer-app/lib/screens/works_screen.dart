@@ -1055,10 +1055,10 @@ class _WorksScreenState extends State<WorksScreen> {
               else if (summary != null)
                 Row(children: [
                   _stat('Плитка',
-                    summary!.tileM2.toStringAsFixed(2) + ' м²', tint: _blue),
+                    summary.tileM2.toStringAsFixed(2) + ' м²', tint: _blue),
                   const SizedBox(width: 8),
                   _stat('Ламинат',
-                    summary!.laminateM2.toStringAsFixed(2) + ' м²'),
+                    summary.laminateM2.toStringAsFixed(2) + ' м²'),
                 ]),
               const SizedBox(height: 8),
               Text('Всего: ' + face.areaM2.toStringAsFixed(2) +
@@ -1082,9 +1082,9 @@ class _WorksScreenState extends State<WorksScreen> {
                       board, floor, face);
                   board.log('Зоны напольных покрытий: ' + room.name +
                     ', участков: ' + zones.length.toString() +
-                    ', плитка ' + summary!.tileM2.toStringAsFixed(2) +
+                    ', плитка ' + summary.tileM2.toStringAsFixed(2) +
                     ' м², ламинат ' +
-                    summary!.laminateM2.toStringAsFixed(2) +
+                    summary.laminateM2.toStringAsFixed(2) +
                     ' м²; проверено задач: ' + refreshed.toString());
                   Navigator.pop(sheet, true);
                 },
