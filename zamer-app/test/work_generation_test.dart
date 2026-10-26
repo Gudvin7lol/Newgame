@@ -38,13 +38,16 @@ void main() {
     expect(project.workBoard.tasks, isEmpty);
     final floorTask = plan.tasks.firstWhere(
       (task) => task.operationCode == 'floor_laminate');
-    expect(floorTask.quantity, closeTo(12, .01));
+    expect(floorTask.quantity,
+      closeTo(GeometryService.roomFaces(floor).single.areaM2, .01));
     expect(floorTask.unit, 'м²');
     expect(floorTask.roomId, floor.roomMetas.first.id);
     expect(floorTask.floorId, 'f1');
     final wall = plan.tasks.firstWhere(
       (task) => task.operationCode == 'wall_plaster');
-    expect(wall.quantity, closeTo(37.8, .1));
+    expect(wall.quantity, closeTo(
+      GeometryService.roomNetWallAreaM2(
+        floor, GeometryService.roomFaces(floor).single), .01));
     expect(wall.requiredPredecessorIds, isNotEmpty);
     expect(wall.predecessorId, isNotNull);
   });
