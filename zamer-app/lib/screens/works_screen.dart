@@ -251,8 +251,7 @@ class _WorksScreenState extends State<WorksScreen> {
   Future<void> _editCrewCapacity(String crew) async {
     final key = WorkloadService.crewKey(crew);
     final current = WorkloadService.capacityFor(board, crew);
-    final controller = TextEditingController(
-      text: current.toStringAsFixed(current % 1 == 0 ? 0 : 1));
+    var entered = current.toStringAsFixed(current % 1 == 0 ? 0 : 1);
     final saved = await showDialog<bool>(
       context: context,
       builder: (dialog) => AlertDialog(
@@ -262,8 +261,9 @@ class _WorksScreenState extends State<WorksScreen> {
             'может отработать за один рабочий день?',
             style: TextStyle(fontSize: 12, color: _muted)),
           const SizedBox(height: 12),
-          TextField(
-            controller: controller,
+          TextFormField(
+            initialValue: entered,
+            onChanged: (value) => entered = value,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: const InputDecoration(
               labelText: 'Производительность, чел·ч/день'),
@@ -274,7 +274,7 @@ class _WorksScreenState extends State<WorksScreen> {
             child: const Text('Отмена')),
           FilledButton(onPressed: () {
             final amount = double.tryParse(
-              controller.text.trim().replaceAll(',', '.'));
+              entered.trim().replaceAll(',', '.'));
             if (amount == null || !amount.isFinite ||
                 amount <= 0 || amount > 1000) {
               ScaffoldMessenger.of(dialog).showSnackBar(
@@ -290,7 +290,6 @@ class _WorksScreenState extends State<WorksScreen> {
         ],
       ),
     );
-    controller.dispose();
     if (saved == true) await _save();
   }
 
