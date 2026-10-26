@@ -1396,9 +1396,13 @@ class _WorksScreenState extends State<WorksScreen> {
                       task.operationCode == requiredCode &&
                       task.roomId == roomId && task.floorId == floorId);
                     if (matches.isEmpty) {
-                      if (!(WorkOperationCatalog.byCode[requiredCode]?.optional ?? false)) {
-                        missing.add(WorkOperationCatalog.byCode[requiredCode]?.title ??
-                          requiredCode);
+                      final prerequisite = WorkOperationCatalog.byCode[requiredCode];
+                      // Specialist steps are truly mandatory inside a selected
+                      // detailed workflow. Generic optional stages remain conditional.
+                      if (prerequisite == null ||
+                          !prerequisite.optional ||
+                          prerequisite.catalogOnly) {
+                        missing.add(prerequisite?.title ?? requiredCode);
                       }
                     } else {
                       requiredTasks.add(matches.first);
