@@ -89,7 +89,12 @@ class WorkTask {
     this.accepted = 0,
     this.paused = false,
     this.lagDays = 0,
-  }) : baselineStart = baselineStart ?? start,
+    this.operationCode,
+    this.generatedKey,
+    List<String>? requiredPredecessorIds,
+    this.needsQuantityReview = false,
+  }) : requiredPredecessorIds = requiredPredecessorIds ?? [],
+       baselineStart = baselineStart ?? start,
        baselineFinish = baselineFinish ?? finish;
 
   final DateTime baselineStart, baselineFinish;
@@ -100,6 +105,10 @@ class WorkTask {
   double quantity, done, accepted, hours;
   bool paused;
   int lagDays;
+  String? operationCode, generatedKey;
+  /// All required gates. Legacy tasks retain the single predecessorId.
+  final List<String> requiredPredecessorIds;
+  bool needsQuantityReview;
 
   double get progress => quantity <= 0 ? 0 : (done / quantity).clamp(0, 1).toDouble();
   double get acceptedProgress =>
@@ -131,6 +140,10 @@ class WorkTask {
         'accepted': accepted,
         'paused': paused,
         'lagDays': lagDays,
+        'operationCode': operationCode,
+        'generatedKey': generatedKey,
+        'requiredPredecessorIds': requiredPredecessorIds,
+        'needsQuantityReview': needsQuantityReview,
       };
 
   factory WorkTask.fromJson(Map<String, dynamic> json) => WorkTask(
@@ -153,6 +166,11 @@ class WorkTask {
         accepted: (json['accepted'] as num?)?.toDouble() ?? 0,
         paused: json['paused'] == true,
         lagDays: (json['lagDays'] as num?)?.toInt() ?? 0,
+        operationCode: json['operationCode']?.toString(),
+        generatedKey: json['generatedKey']?.toString(),
+        requiredPredecessorIds: ((json['requiredPredecessorIds'] as List?) ?? const [])
+            .map((value) => value.toString()).toList(),
+        needsQuantityReview: json['needsQuantityReview'] == true,
       );
 }
 
