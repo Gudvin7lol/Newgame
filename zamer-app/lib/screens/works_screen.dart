@@ -1124,7 +1124,8 @@ class _WorksScreenState extends State<WorksScreen> {
             (search.isEmpty || op.title.toLowerCase().contains(search) ||
               op.code.toLowerCase().contains(search))).toList();
         return SafeArea(top: false, child: SizedBox(
-          height: MediaQuery.sizeOf(sheet).height * .78,
+          height: (MediaQuery.sizeOf(sheet).height -
+              MediaQuery.viewInsetsOf(sheet).bottom) * .78,
           child: Column(children: [
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 18),
