@@ -181,7 +181,6 @@ class _WorksScreenState extends State<WorksScreen> {
       );
 
   List<Widget> _calendarContent() {
-    final now = DateTime.now();
     final actual = board.actualProgress;
     final due = board.tasks.isEmpty ? null :
         board.tasks.map((e) => e.finish).reduce((a, b) => a.isAfter(b) ? a : b);
@@ -453,7 +452,6 @@ class _WorksScreenState extends State<WorksScreen> {
         _card(padding: const EdgeInsets.all(9), child: Column(children: [
           _PlanView(
             floor: widget.project.floors.first,
-            board: board,
             selected: _roomId,
             onSelect: (id) => setState(() => _roomId = id),
             colorFor: _roomColor,
@@ -549,7 +547,7 @@ class _WorksScreenState extends State<WorksScreen> {
               icon: const Icon(Icons.close)),
           ]),
           SizedBox(height: 440, child: _PlanView(
-            floor: widget.project.floors.first, board: board,
+            floor: widget.project.floors.first,
             selected: _roomId, onSelect: (id) {
               setState(() => _roomId = id);
               Navigator.pop(context);
@@ -813,11 +811,10 @@ class _Legend extends StatelessWidget {
 
 class _PlanView extends StatelessWidget {
   const _PlanView({
-    required this.floor, required this.board, required this.selected,
+    required this.floor, required this.selected,
     required this.onSelect, required this.colorFor,
   });
   final FloorPlan floor;
-  final WorkBoard board;
   final String? selected;
   final ValueChanged<String> onSelect;
   final Color Function(String) colorFor;
@@ -855,7 +852,7 @@ class _PlanView extends StatelessWidget {
 }
 
 class _PlanMapper {
-  _PlanMapper(List<RoomFace> faces, Size size) : _size=size {
+  _PlanMapper(List<RoomFace> faces, Size size) {
     final pts=faces.expand((f)=>f.innerPolygon).toList();
     minX=pts.map((p)=>p.x).reduce(math.min);
     minY=pts.map((p)=>p.y).reduce(math.min);
@@ -866,7 +863,6 @@ class _PlanMapper {
     offsetX=(size.width-(maxX-minX)*scale)/2;
     offsetY=(size.height-(maxY-minY)*scale)/2;
   }
-  final Size _size;
   late final double minX,minY,scale,offsetX,offsetY;
   Offset toCanvas(math.Point<double> p)=>
     Offset(offsetX+(p.x-minX)*scale,offsetY+(p.y-minY)*scale);
