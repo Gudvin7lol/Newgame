@@ -32,9 +32,12 @@ DateTime _day(DateTime d) => DateTime(d.year, d.month, d.day);
 String _number(double n) => n.toStringAsFixed(n % 1 == 0 ? 0 : 1);
 
 class WorksScreen extends StatefulWidget {
-  const WorksScreen({super.key, required this.project, required this.onChanged});
+  const WorksScreen({super.key, required this.project,
+    required this.onChanged, this.embedded = false, this.floorId});
   final MeasureProject project;
   final Future<void> Function() onChanged;
+  final bool embedded;
+  final String? floorId;
 
   @override
   State<WorksScreen> createState() => _WorksScreenState();
@@ -42,10 +45,27 @@ class WorksScreen extends StatefulWidget {
 
 class _WorksScreenState extends State<WorksScreen> {
   int _tab = 0, _calendar = 0, _control = 0;
+  int _compactTab = 0;
+  final Set<String> _openGroups = <String>{};
   DateTime _selected = _day(DateTime.now());
   String? _roomId;
   String? _selectedFloorId;
   WorkBoard get board => widget.project.workBoard;
+  @override
+  void initState() {
+    super.initState();
+    _selectedFloorId = widget.floorId;
+  }
+
+  @override
+  void didUpdateWidget(covariant WorksScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.floorId != widget.floorId && widget.floorId != null) {
+      _selectedFloorId = widget.floorId;
+      _roomId = null;
+    }
+  }
+
   FloorPlan? get _activeFloor {
     final floors = widget.project.floors;
     if (floors.isEmpty) return null;
@@ -86,8 +106,323 @@ class _WorksScreenState extends State<WorksScreen> {
     return const Color(0xFF7B8595);
   }
 
+
+  // One ordered library, not dozens of unrelated cards in the work screen.
+  static const _workStageOrder = <String>[
+    'Подготовка', 'Демонтаж', 'Конструктив', 'Электрика',
+    'Инженерия', 'Стены', 'Потолок', 'Пол', 'Двери и окна',
+    'Оборудование и финиш', 'Контроль и сдача', 'Другие работы',
+  ];
+
+  String _stageFor(WorkTask task) {
+    final op = WorkOperationCatalog.byCode[task.operationCode];
+    if (op != null) return WorkOperationTaxonomy.groupOf(op);
+    return _workStageOrder.contains(task.category)
+        ? task.category : 'Другие работы';
+  }
+
+  List<WorkTask> get _visibleWorks {
+    final floorId = _activeFloor?.id;
+    return board.tasks.where((t) =>
+      (floorId == null || t.floorId == null || t.floorId == floorId) &&
+      (_roomId == null || t.roomId == _roomId)).toList()
+      ..sort((a, b) {
+        final date = a.start.compareTo(b.start);
+        return date != 0 ? date : a.title.compareTo(b.title);
+      });
+  }
+
+  Widget _compactTop() {
+    final tasks = _visibleWorks;
+    final accepted = tasks.where((t) =>
+      t.fullyAccepted && !t.needsQuantityReview).length;
+    final problems = tasks.where((t) =>
+      t.needsQuantityReview || t.isDelayed(DateTime.now()) ||
+      board.issues.any((i) => i.open && i.taskId == t.id)).length;
+    final progress = tasks.isEmpty ? 0.0 :
+      tasks.fold<double>(0, (sum, t) => sum + t.acceptedProgress) /
+      tasks.length;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 8, 8, 7),
+      decoration: const BoxDecoration(color: _panel,
+        border: Border(bottom: BorderSide(color: _edge))),
+      child: Column(children: [
+        Row(children: [
+          Text((progress * 100).round().toString() + '%',
+            style: const TextStyle(color: _peach, fontSize: 22,
+              fontWeight: FontWeight.w800)),
+          const SizedBox(width: 10),
+          Expanded(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(accepted.toString() + ' из ' +
+                tasks.length.toString() + ' принято',
+                style: const TextStyle(fontSize: 12,
+                  fontWeight: FontWeight.w700)),
+              const SizedBox(height: 6),
+              _meter(progress, height: 5),
+            ],
+          )),
+          if (problems > 0)
+            TextButton.icon(
+              onPressed: () => setState(() => _compactTab = 2),
+              icon: const Icon(Icons.error_outline, size: 16),
+              label: Text(problems.toString()),
+              style: TextButton.styleFrom(foregroundColor: _amber),
+            ),
+          PopupMenuButton<String>(
+            key: const ValueKey('works-tools'),
+            tooltip: 'Инструменты работ',
+            icon: const Icon(Icons.more_vert, color: _peach),
+            onSelected: (value) {
+              if (value == 'generate') _generateTasks();
+              if (value == 'wall') _chooseWallFinishes();
+              if (value == 'floor') _chooseFloorFinishes(polygons: true);
+              if (value == 'split') _chooseFloorFinishes();
+              if (value == 'calendar') _calendarSettings();
+              if (value == 'workload') {
+                setState(() => _compactTab = 2);
+              }
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 'generate',
+                child: Text('Сформировать работы')),
+              PopupMenuItem(value: 'wall',
+                child: Text('Отделка стен')),
+              PopupMenuItem(value: 'floor',
+                child: Text('Зоны пола')),
+              PopupMenuItem(value: 'split',
+                child: Text('Быстро разделить пол')),
+              PopupMenuItem(value: 'calendar',
+                child: Text('Рабочий календарь')),
+              PopupMenuItem(value: 'workload',
+                child: Text('Нагрузка бригад')),
+            ],
+          ),
+        ]),
+        if (rooms.isNotEmpty)
+          SizedBox(height: 38, child: ListView(
+            scrollDirection: Axis.horizontal,
+            children: [
+              for (final room in <(String?, String)>[
+                (null, 'Весь этаж'),
+                for (final r in rooms) (r.id, r.name),
+              ])
+                Padding(
+                  padding: const EdgeInsets.only(right: 6, top: 5),
+                  child: ChoiceChip(
+                    visualDensity: VisualDensity.compact,
+                    label: Text(room.$2, maxLines: 1,
+                      style: const TextStyle(fontSize: 11)),
+                    selected: _roomId == room.$1,
+                    onSelected: (_) => setState(() => _roomId = room.$1),
+                  ),
+                ),
+            ],
+          )),
+      ]),
+    );
+  }
+
+  Widget _compactWorkRow(WorkTask task) {
+    final state = WorkStatusService.state(board, task);
+    final color = _statusColor(task);
+    return InkWell(
+      key: ValueKey('work-row-' + task.id),
+      onTap: () => _taskDetail(task),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 10, 12, 10),
+        child: Row(children: [
+          Container(width: 4, height: 37,
+            decoration: BoxDecoration(color: color,
+              borderRadius: BorderRadius.circular(5))),
+          const SizedBox(width: 10),
+          Expanded(child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(task.title, maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 13,
+                  fontWeight: FontWeight.w700)),
+              const SizedBox(height: 3),
+              Text((task.roomName.isEmpty ? 'Объект' : task.roomName) +
+                  ' · ' + _number(task.quantity) + ' ' +
+                  task.unit + ' · ' + _date(task.finish),
+                maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: _muted, fontSize: 10.5)),
+            ],
+          )),
+          const SizedBox(width: 6),
+          Text(state == WorkState.accepted ? '✓' :
+              (task.progress * 100).round().toString() + '%',
+            style: TextStyle(fontWeight: FontWeight.w800,
+              fontSize: 11, color: color)),
+          const Icon(Icons.chevron_right, color: _muted, size: 18),
+        ]),
+      ),
+    );
+  }
+
+  Widget _compactStages() {
+    final tasks = _visibleWorks;
+    if (tasks.isEmpty) {
+      return _card(child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('Работ пока нет',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 5),
+          const Text('Начните с формирования работ по планировке.',
+            style: TextStyle(fontSize: 12, color: _muted)),
+          const SizedBox(height: 10),
+          FilledButton.icon(
+            onPressed: _generateTasks,
+            icon: const Icon(Icons.auto_awesome_outlined, size: 17),
+            label: const Text('Сформировать работы'),
+          ),
+        ],
+      ));
+    }
+    final groups = <String, List<WorkTask>>{};
+    for (final task in tasks) {
+      (groups[_stageFor(task)] ??= []).add(task);
+    }
+    return Column(children: [
+      for (final group in _workStageOrder)
+        if (groups.containsKey(group))
+          _card(padding: EdgeInsets.zero,
+            child: Column(children: [
+              InkWell(
+                key: ValueKey('works-group-' + group),
+                borderRadius: BorderRadius.circular(18),
+                onTap: () => setState(() {
+                  if (!_openGroups.add(group)) _openGroups.remove(group);
+                }),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+                  child: Row(children: [
+                    Icon(_openGroups.contains(group)
+                      ? Icons.keyboard_arrow_down : Icons.chevron_right,
+                      size: 19, color: _peach),
+                    const SizedBox(width: 7),
+                    Expanded(child: Text(group,
+                      style: const TextStyle(fontSize: 13,
+                        fontWeight: FontWeight.w800))),
+                    Text(groups[group]!.where((t) => t.fullyAccepted &&
+                      !t.needsQuantityReview).length.toString() +
+                      '/' + groups[group]!.length.toString(),
+                      style: const TextStyle(color: _muted, fontSize: 11)),
+                    const SizedBox(width: 8),
+                    SizedBox(width: 45, child: _meter(
+                      groups[group]!.where((t) => t.fullyAccepted &&
+                        !t.needsQuantityReview).length /
+                      groups[group]!.length, height: 4)),
+                  ]),
+                )),
+              if (_openGroups.contains(group)) ...[
+                const Divider(height: 1, color: _edge),
+                for (final task in groups[group]!) _compactWorkRow(task),
+              ],
+            ]),
+          ),
+    ]);
+  }
+
+  Widget _compactSchedule() => Column(children: [
+    Row(children: [
+      for (final e in ['Неделя', 'Месяц', 'Гант'].asMap().entries) ...[
+        Expanded(child: _segment(e.value, _calendar == e.key,
+          () => setState(() => _calendar = e.key))),
+        if (e.key < 2) const SizedBox(width: 6),
+      ],
+    ]),
+    const SizedBox(height: 12),
+    if (_calendar == 0) _weekSelector(),
+    if (_calendar == 1) _monthSelector(),
+    if (_calendar == 2) _gantt(),
+    if (_calendar != 2) ..._tasksOnDate(),
+  ]);
+
+  Widget _compactControl() {
+    final urgent = _visibleWorks.where((t) {
+      final state = WorkStatusService.state(board, t);
+      return state == WorkState.defect ||
+          state == WorkState.quantityReview ||
+          state == WorkState.overdue ||
+          state == WorkState.awaitingAcceptance;
+    }).toList();
+    final issues = board.issues.where((issue) => issue.open &&
+      (_roomId == null || issue.roomId == _roomId)).toList();
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+      if (urgent.isEmpty && issues.isEmpty)
+        _card(child: const Row(children: [
+          Icon(Icons.check_circle_outline, color: _green),
+          SizedBox(width: 10),
+          Expanded(child: Text('Нет работ, требующих проверки.',
+            style: TextStyle(fontSize: 13))),
+        ])),
+      for (final task in urgent)
+        _card(padding: EdgeInsets.zero, child: _compactWorkRow(task)),
+      for (final issue in issues)
+        _card(child: Row(children: [
+          const Icon(Icons.report_problem_outlined, color: _amber, size: 20),
+          const SizedBox(width: 9),
+          Expanded(child: Text(issue.title, maxLines: 2,
+            overflow: TextOverflow.ellipsis)),
+        ])),
+      if (_activeFloor != null)
+        _card(child: Column(children: [
+          const Align(alignment: Alignment.centerLeft,
+            child: Text('Контроль помещений',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800))),
+          const SizedBox(height: 9),
+          _PlanView(
+            floor: _activeFloor!,
+            selected: _roomId,
+            onSelect: (id) => setState(() => _roomId = id),
+            colorFor: _roomColor,
+          ),
+        ])),
+      _workloadPanel(),
+    ]);
+  }
+
+  Widget _embeddedBuild() => Scaffold(
+    backgroundColor: _bg,
+    body: Column(children: [
+      _compactTop(),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
+        child: Row(children: [
+          for (final entry in ['Этапы', 'График', 'Контроль']
+              .asMap().entries) ...[
+            Expanded(child: _segment(entry.value,
+              _compactTab == entry.key,
+              () => setState(() => _compactTab = entry.key))),
+            if (entry.key < 2) const SizedBox(width: 7),
+          ],
+        ]),
+      ),
+      Expanded(child: ListView(
+        key: ValueKey('works-compact-tab-' + _compactTab.toString()),
+        padding: const EdgeInsets.fromLTRB(12, 5, 12, 72),
+        children: [
+          if (_compactTab == 0) _compactStages(),
+          if (_compactTab == 1) _compactSchedule(),
+          if (_compactTab == 2) _compactControl(),
+        ],
+      )),
+    ]),
+    floatingActionButton: FloatingActionButton.small(
+      key: const ValueKey('works-add'),
+      backgroundColor: _peach,
+      foregroundColor: _bg,
+      tooltip: _compactTab == 2 ? 'Добавить запись' : 'Добавить работу',
+      onPressed: _compactTab == 2 ? _quickActions : _addTask,
+      child: const Icon(Icons.add_rounded),
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
+    if (widget.embedded) return _embeddedBuild();
     final base = Theme.of(context);
     final palette = ColorScheme.fromSeed(
       seedColor: _peach, brightness: Brightness.dark, surface: _bg,
