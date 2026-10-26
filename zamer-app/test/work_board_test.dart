@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zamer_app/models/models.dart';
 import 'package:zamer_app/models/work_board.dart';
+import 'package:zamer_app/services/work_schedule_service.dart';
 
 void main() {
   test('legacy project JSON remains compatible without a workBoard field', () {
@@ -51,4 +52,53 @@ void main() {
     expect(board.actualProgress, 0);
     expect(board.plannedProgress(DateTime.now()), 0);
   });
+  test('rescheduling retains original plan baseline through JSON', () {
+    final task = WorkTask(
+      id: 'original',
+      title: 'Отделка',
+      start: DateTime(2026, 10, 26),
+      finish: DateTime(2026, 10, 28),
+      quantity: 40,
+      unit: 'м²',
+      hours: 16,
+    );
+    final board = WorkBoard(tasks: [task]);
+    final baselineAt = board.plannedProgress(DateTime(2026, 10, 27));
+    task.start = DateTime(2026, 11, 1);
+    task.finish = DateTime(2026, 11, 4);
+    final loaded = WorkBoard.fromJson(board.toJson());
+    expect(loaded.plannedProgress(DateTime(2026, 10, 27)), baselineAt);
+    expect(loaded.tasks.single.finish, DateTime(2026, 11, 4));
+    expect(loaded.tasks.single.baselineFinish, DateTime(2026, 10, 28));
+  });
+
+  test('dependency rules reject overlaps and cycles', () {
+    WorkTask make(String id, int start, int finish, {String? prior}) => WorkTask(
+      id: id, title: id, start: DateTime(2026, 10, start),
+      finish: DateTime(2026, 10, finish), quantity: 1, unit: 'шт',
+      hours: 4, predecessorId: prior,
+    );
+    final board = WorkBoard(tasks: [
+      make('a', 20, 21),
+      make('b', 22, 24, prior: 'a'),
+      make('c', 25, 26, prior: 'b'),
+    ]);
+    expect(WorkScheduleService.validate(
+      board: board, taskId: 'a', start: DateTime(2026, 10, 20),
+      finish: DateTime(2026, 10, 21), predecessorId: 'c',
+    ), contains('цикл'));
+    expect(WorkScheduleService.validate(
+      board: board, taskId: 'b', start: DateTime(2026, 10, 21),
+      finish: DateTime(2026, 10, 24), predecessorId: 'a',
+    ), contains('раньше'));
+    expect(WorkScheduleService.validate(
+      board: board, taskId: 'b', start: DateTime(2026, 10, 22),
+      finish: DateTime(2026, 10, 25), predecessorId: 'a',
+    ), contains('зависимую'));
+    expect(WorkScheduleService.validate(
+      board: board, taskId: 'b', start: DateTime(2026, 10, 22),
+      finish: DateTime(2026, 10, 24), predecessorId: 'a',
+    ), isNull);
+  });
+
 }
