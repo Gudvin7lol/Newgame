@@ -1289,6 +1289,24 @@ class _WorksScreenState extends State<WorksScreen> {
           Text('Исполнитель: ' + (t.assignee.isEmpty?'Не назначен':t.assignee)),
           Text('Выполнено: ' + _number(t.done) + '/' + _number(t.quantity) + ' ' + t.unit),
           Text('Принято: ' + _number(t.accepted) + ' ' + t.unit),
+          const SizedBox(height: 8),
+          Text('Статус: ${_status(t)}',
+            style: TextStyle(color: _statusColor(t), fontSize: 12,
+              fontWeight: FontWeight.w700)),
+          if (WorkStatusService.prerequisites(t).isNotEmpty)
+            Padding(padding: const EdgeInsets.only(top: 6),
+              child: Text('Обязательные предшественники: ' +
+                WorkStatusService.prerequisites(t).map((id) =>
+                  board.tasks.where((p) => p.id == id).map((p) =>
+                    p.title + (p.fullyAccepted ? ' ✓' : ' (не принято)'))
+                    .firstOrNull ?? 'Неизвестная работа')
+                    .join(', '),
+                style: const TextStyle(color: _muted, fontSize: 11))),
+          if (t.needsQuantityReview)
+            Padding(padding: const EdgeInsets.only(top: 8),
+              child: FilledButton.tonal(
+                onPressed: () { Navigator.pop(sheet); _confirmQuantity(t); },
+                child: const Text('Проверить и подтвердить объём'))),
           const SizedBox(height: 10),
           _meter(t.progress),
           const SizedBox(height: 16),
@@ -1601,7 +1619,65 @@ class _WorksScreenState extends State<WorksScreen> {
     if (updated == true) await _save();
   }
 
+  Future<void> _confirmQuantity(WorkTask task) async {
+    var value = task.quantity.toStringAsFixed(
+      task.quantity % 1 == 0 ? 0 : 2);
+    final saved = await showDialog<double>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: const Text('Подтверждение объёма'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text(task.title + ' · ' + task.roomName),
+          const SizedBox(height: 12),
+          TextFormField(
+            initialValue: value,
+            onChanged: (text) => value = text,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(labelText: 'Объём (' + task.unit + ')'),
+          ),
+          const SizedBox(height: 8),
+          const Text('Проверьте количество на объекте. '
+            'После подтверждения можно учитывать выполненные объёмы.',
+            style: TextStyle(color: _muted, fontSize: 12)),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialog),
+            child: const Text('Отмена')),
+          FilledButton(onPressed: () {
+            final parsed = double.tryParse(value.replaceAll(',', '.'));
+            if (parsed == null || !parsed.isFinite || parsed <= 0 ||
+                parsed < task.done || parsed < task.accepted) {
+              ScaffoldMessenger.of(dialog).showSnackBar(
+                const SnackBar(content: Text('Проверьте объём работы.')));
+              return;
+            }
+            Navigator.pop(dialog, parsed);
+          }, child: const Text('Подтвердить')),
+        ],
+      ),
+    );
+    if (saved == null) return;
+    final previous = task.quantity;
+    task.quantity = saved;
+    if (previous > 0) task.hours = task.hours * saved / previous;
+    task.needsQuantityReview = false;
+    board.log('Подтверждён объём работы: ' + task.title +
+      ', ' + _number(saved) + ' ' + task.unit, taskId: task.id);
+    await _save();
+  }
+
   Future<void> _updateDone(WorkTask t) async {
+    if (t.paused) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Работа приостановлена.')));
+      return;
+    }
+    final blocker = WorkStatusService.startBlocker(board, t);
+    if (blocker != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(blocker)));
+      return;
+    }
     final controller = TextEditingController();
     final saved = await showDialog<bool>(context: context, builder: (dialog) =>
       AlertDialog(title: const Text('Обновить выполнение'), content: Column(
@@ -1632,6 +1708,12 @@ class _WorksScreenState extends State<WorksScreen> {
 
   Future<void> _accept(WorkTask t) async {
     if (t.done <= t.accepted) return;
+    if (!WorkStatusService.canAccept(board, t)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text(
+          'Устраните замечания и подтвердите объём перед приёмкой.')));
+      return;
+    }
     final confirmation = await showDialog<bool>(context:context,
       builder:(dialog)=>AlertDialog(title:const Text('Приёмка работы'),
         content:Text('Принять ' + _number(t.done - t.accepted) + ' ' +
