@@ -443,6 +443,22 @@ class WorkGenerationService {
           inRoom[op.code] = task;
           drafts.add(task);
         }
+        // Parallel engineering rough-in shares one acceptance barrier for
+        // subsequent finishes. Peers do not block each other's start.
+        const roughGroup = <String>[
+          'electrical_rough', 'plumbing_rough', 'ventilation',
+        ];
+        for (final code in roughGroup) {
+          final work = inRoom[code];
+          if (work == null || !drafts.contains(work)) continue;
+          for (final peerCode in roughGroup) {
+            final peer = inRoom[peerCode];
+            if (peer != null && peer.id != work.id &&
+                !work.coStageTaskIds.contains(peer.id)) {
+              work.coStageTaskIds.add(peer.id);
+            }
+          }
+        }
       }
     }
     return WorkGenerationPlan(
