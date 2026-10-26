@@ -110,7 +110,9 @@ void main() {
     expect(find.text('Проверка УЗО и дифавтоматов'), findsOneWidget);
     await tester.tap(find.text('Проверка УЗО и дифавтоматов'));
     await tester.pumpAndSettle();
-    expect(find.text('Проверка УЗО и дифавтоматов'), findsOneWidget);
+    // The selected operation is shown both on the picker button and
+    // in the editable task-title field.
+    expect(find.text('Проверка УЗО и дифавтоматов'), findsWidgets);
     expect(project.workBoard.tasks, isEmpty);
   });
 
