@@ -240,7 +240,7 @@ void main() {
     expect(plaster.every((op) =>
       WorkOperationTaxonomy.groupOf(op) == 'Стены' &&
       WorkOperationTaxonomy.subgroupOf(op) == 'Штукатурка'), isTrue);
-    expect(WorkOperationTaxonomy.search('УЗО',
+    expect(WorkOperationTaxonomy.search('elec_rcd_test',
       group: 'Инженерия'), isEmpty);
     expect(WorkOperationTaxonomy.search('УЗО',
       group: 'Электрика').map((op) => op.code),
