@@ -14,6 +14,7 @@ const _peach = ZamerColors.conceptAccent;
 const _blue = ZamerColors.info;
 const _green = ZamerColors.success;
 const _red = ZamerColors.danger;
+const _amber = ZamerColors.warning;
 const _muted = Color(0xFF9DA2AD);
 
 String _date(DateTime value) =>
@@ -55,7 +56,7 @@ class _WorksScreenState extends State<WorksScreen> {
   Color _statusColor(WorkTask task) {
     if (task.fullyAccepted) return _green;
     if (task.isDelayed(DateTime.now())) return _red;
-    if (task.paused) return const Color(0xFFECC07C);
+    if (task.paused || task.complete) return _amber;
     if (task.progress > 0) return _blue;
     return _muted;
   }
@@ -75,6 +76,7 @@ class _WorksScreenState extends State<WorksScreen> {
     if (board.issues.any((e) => e.roomId == roomId && e.open) ||
         tasks.any((t) => t.isDelayed(DateTime.now()))) return _red;
     if (tasks.every((t) => t.fullyAccepted)) return _green;
+    if (tasks.any((t) => t.complete)) return _amber;
     if (tasks.any((t) => t.progress > 0)) return _blue;
     return const Color(0xFF7B8595);
   }
@@ -185,6 +187,29 @@ class _WorksScreenState extends State<WorksScreen> {
         child: child,
       );
 
+  Widget _delayedNotice() {
+    final delayed = board.tasks.where((task) =>
+      task.isDelayed(DateTime.now())).toList();
+    if (delayed.isEmpty) return const SizedBox.shrink();
+    return _card(child: Row(children: [
+      const Icon(Icons.warning_amber_rounded, color: _red),
+      const SizedBox(width: 11),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Просрочено работ: ${delayed.length}',
+            style: const TextStyle(color: _red, fontWeight: FontWeight.w800)),
+          Text(delayed.first.title,
+            maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: _muted, fontSize: 12)),
+        ])),
+      TextButton(onPressed: () => setState(() {
+        _tab = 0;
+        _calendar = 0;
+        _selected = _day(delayed.first.finish);
+      }), child: const Text('Показать')),
+    ]));
+  }
+
   Widget _heading(String title, {Widget? trailing}) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 12),
     child: Row(children: [
@@ -223,6 +248,7 @@ class _WorksScreenState extends State<WorksScreen> {
           Text('${(actual * 100).round()}%', style: const TextStyle(fontWeight: FontWeight.bold)),
         ])),
       ])),
+      _delayedNotice(),
       _heading('План работ'),
       Row(children: [
         for (final entry in ['Неделя', 'Месяц', 'Гант'].asMap().entries) ...[
@@ -461,8 +487,10 @@ class _WorksScreenState extends State<WorksScreen> {
         const SizedBox(width: 8),
         _stat('Замечания', '$issues', tint: _red),
         const SizedBox(width: 8),
-        _stat('На приёмке', '${board.tasks.where((t)=>t.complete && !t.fullyAccepted).length}'),
+        _stat('На приёмке', '${board.tasks.where((t)=>t.complete && !t.fullyAccepted).length}',
+          tint: _amber),
       ]),
+      _delayedNotice(),
       _heading('Контроль по помещениям', trailing:
         TextButton.icon(onPressed: _activeFloor == null ? null : _fullPlan,
           icon: const Icon(Icons.open_in_full, size: 16),
@@ -504,7 +532,8 @@ class _WorksScreenState extends State<WorksScreen> {
           const SizedBox(height: 8),
           const Wrap(spacing: 12, runSpacing: 6, children: [
             _Legend('Принято', _green), _Legend('В работе', _blue),
-            _Legend('Проблемы', _red), _Legend('В плане', _muted),
+            _Legend('Проблемы', _red), _Legend('Приёмка', _amber),
+            _Legend('В плане', _muted),
           ]),
         ])),
       if (_roomId != null)
