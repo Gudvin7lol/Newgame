@@ -372,47 +372,101 @@ class _WorksScreenState extends State<WorksScreen> {
   }
 
   Widget _gantt() {
-    final sorted = [...board.tasks]..sort((a, b) => a.start.compareTo(b.start));
-    if (sorted.isEmpty) return _empty('Нет работ для диаграммы Ганта.');
-    final minDate = sorted.first.start;
-    final start = _day(minDate);
-    final maxDate = sorted.map((t) => t.finish).reduce((a,b) => a.isAfter(b)?a:b);
-    final span = math.max(14, _day(maxDate).difference(start).inDays + 1);
-    final width = span * 22.0;
-    return _card(padding: const EdgeInsets.all(10), child: Column(children: [
-      const Align(alignment: Alignment.centerLeft, child: Text('График по дням',
-        style: TextStyle(color: _muted, fontSize: 12))),
-      const SizedBox(height: 10),
-      Row(children: [
-        SizedBox(width: 105, child: Column(children: [
-          const SizedBox(height: 25),
-          for (final t in sorted) SizedBox(height: 49,
-            child: Align(alignment: Alignment.centerLeft, child: Text(t.title,
-              overflow: TextOverflow.ellipsis, maxLines: 2,
-              style: const TextStyle(fontSize: 11)))),
-        ])),
-        Expanded(child: SingleChildScrollView(scrollDirection: Axis.horizontal,
-          child: SizedBox(width: width, child: Column(children: [
-            SizedBox(height: 25, child: Row(children: List.generate(span, (i) =>
-              SizedBox(width: 22, child: Center(child: Text(
-                '${start.add(Duration(days:i)).day}',
-                style: const TextStyle(fontSize: 10, color: _muted))))))),
-            for (final t in sorted)
-              SizedBox(height: 49, child: Stack(children: [
-                Positioned(left: 22.0 * _day(t.start).difference(start).inDays,
-                  top: 12, width: 22.0 *
-                    (_day(t.finish).difference(_day(t.start)).inDays + 1),
-                  height: 24,
-                  child: ClipRRect(borderRadius: BorderRadius.circular(5),
-                    child: Stack(children: [
-                      Container(color: _statusColor(t).withValues(alpha: .35)),
-                      FractionallySizedBox(widthFactor: t.progress,
-                        child: Container(color: _statusColor(t))),
-                    ]))),
+    final tasks = [...board.tasks]
+      ..sort((a, b) => a.start.compareTo(b.start));
+    if (tasks.isEmpty) return _empty('Нет работ для диаграммы Ганта.');
+
+    int daysBetween(DateTime a, DateTime b) =>
+        DateTime.utc(b.year, b.month, b.day)
+            .difference(DateTime.utc(a.year, a.month, a.day)).inDays;
+
+    final starts = tasks.expand((task) =>
+        [_day(task.start), _day(task.baselineStart)]);
+    final finishes = tasks.expand((task) =>
+        [_day(task.finish), _day(task.baselineFinish)]);
+    final firstDay = starts.reduce((a, b) => a.isBefore(b) ? a : b);
+    final lastDay = finishes.reduce((a, b) => a.isAfter(b) ? a : b);
+    final dayCount = math.max(14, daysBetween(firstDay, lastDay) + 1);
+    const dayWidth = 25.0;
+
+    return _card(padding: const EdgeInsets.all(11), child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Сравнение графиков',
+          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+        const SizedBox(height: 8),
+        const Wrap(spacing: 12, runSpacing: 5, children: [
+          _Legend('Текущий', _blue),
+          _Legend('Исходный', _muted),
+          _Legend('Выполнение', _green),
+        ]),
+        const SizedBox(height: 12),
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          SizedBox(width: 104, child: Column(children: [
+            const SizedBox(height: 28),
+            for (final task in tasks)
+              InkWell(
+                onTap: () => _taskDetail(task),
+                child: SizedBox(height: 56, child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(task.title, maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 11)),
+                )),
+              ),
+          ])),
+          Expanded(child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: SizedBox(width: dayCount * dayWidth, child: Column(children: [
+              SizedBox(height: 28, child: Row(children: [
+                for (var i = 0; i < dayCount; i++)
+                  SizedBox(width: dayWidth, child: Center(
+                    child: Text(firstDay.add(Duration(days: i)).day.toString(),
+                      style: TextStyle(
+                        color: firstDay.add(Duration(days: i)).day == 1
+                            ? _peach : _muted,
+                        fontSize: 10,
+                      )),
+                  )),
               ])),
-          ])))),
-      ]),
-    ]));
+              for (final task in tasks)
+                SizedBox(height: 56, child: Stack(children: [
+                  Positioned(
+                    top: 7,
+                    left: dayWidth * daysBetween(firstDay, task.baselineStart),
+                    width: dayWidth *
+                        (daysBetween(task.baselineStart, task.baselineFinish) + 1),
+                    height: 15,
+                    child: DecoratedBox(decoration: BoxDecoration(
+                      color: _muted.withValues(alpha: .09),
+                      border: Border.all(color: _muted.withValues(alpha: .85)),
+                      borderRadius: BorderRadius.circular(4),
+                    )),
+                  ),
+                  Positioned(
+                    top: 26,
+                    left: dayWidth * daysBetween(firstDay, task.start),
+                    width: dayWidth * (daysBetween(task.start, task.finish) + 1),
+                    height: 19,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: Stack(children: [
+                        SizedBox.expand(child: ColoredBox(
+                          color: _statusColor(task).withValues(alpha: .34))),
+                        FractionallySizedBox(
+                          alignment: Alignment.centerLeft,
+                          widthFactor: task.progress,
+                          child: ColoredBox(color: _statusColor(task)),
+                        ),
+                      ]),
+                    ),
+                  ),
+                ])),
+            ])),
+          )),
+        ]),
+      ],
+    ));
   }
 
   List<Widget> _tasksOnDate() {
