@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import '../models/work_board.dart';
+import 'work_co_stage_service.dart';
 
 /// Guards manual schedule edits. The original baseline dates live on WorkTask
 /// and are never modified by this service.
@@ -92,13 +93,14 @@ class WorkScheduleProposal {
     required this.changes,
     this.rootTaskId,
     this.calendarSignature,
+    this.dependencySignature,
     required this.previousCompletion,
     required this.projectedCompletion,
     this.error,
   });
 
   final List<WorkScheduleChange> changes;
-  final String? rootTaskId, calendarSignature;
+  final String? rootTaskId, calendarSignature, dependencySignature;
   final DateTime? previousCompletion, projectedCompletion;
   final String? error;
   bool get isValid => error == null;
@@ -111,6 +113,20 @@ class WorkScheduleProposal {
 /// manpower conflicts and critical path calculations are deliberately NOT
 /// modeled here.
 class WorkSchedulePlanner {
+  static String _dependencySignature(WorkBoard board) {
+    final tasks = board.tasks.toList()
+      ..sort((a, b) => a.id.compareTo(b.id));
+    return jsonEncode([
+      for (final task in tasks)
+        {
+          'id': task.id,
+          'predecessorId': task.predecessorId,
+          'required': [...task.requiredPredecessorIds]..sort(),
+          'coStage': [...task.coStageTaskIds]..sort(),
+        },
+    ]);
+  }
+
   static DateTime _date(DateTime date) =>
       DateTime(date.year, date.month, date.day);
 
@@ -159,7 +175,12 @@ class WorkSchedulePlanner {
         ...task.requiredPredecessorIds,
         if (source != null) source,
       };
-      return ids.toList(growable: false);
+      final resolved = <String>{};
+      for (final prior in ids) {
+        resolved.add(prior);
+        resolved.addAll(WorkCoStageService.memberIds(board, prior));
+      }
+      return resolved.toList(growable: false);
     }
 
     // Check the whole dependency graph before attempting any date changes.
@@ -271,6 +292,7 @@ class WorkSchedulePlanner {
     return WorkScheduleProposal(
       rootTaskId: taskId,
       calendarSignature: jsonEncode(board.calendar.toJson()),
+      dependencySignature: _dependencySignature(board),
       changes: proposals.values.toList(growable: false),
       previousCompletion: originalCompletion,
       projectedCompletion: newCompletion,
@@ -291,6 +313,10 @@ class WorkSchedulePlanner {
     if (proposal.calendarSignature != null &&
         proposal.calendarSignature != jsonEncode(board.calendar.toJson())) {
       return 'Календарь изменился. Пересчитайте график.';
+    }
+    if (proposal.dependencySignature != null &&
+        proposal.dependencySignature != _dependencySignature(board)) {
+      return 'Созависимости или предшественники изменились. Обновите график.';
     }
     final byId = {for (final task in board.tasks) task.id: task};
     for (final change in proposal.changes) {
