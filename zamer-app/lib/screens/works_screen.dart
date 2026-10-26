@@ -2380,6 +2380,62 @@ class _PlanMapper {
     Offset(offsetX+(p.x-minX)*scale,offsetY+(p.y-minY)*scale);
 }
 
+/// Lightweight 2D editor preview. Every highlighted segment is an actual
+/// room-side wall from the geometry engine, not an invented rectangle.
+class _WallFinishPlanPainter extends CustomPainter {
+  const _WallFinishPlanPainter({
+    required this.face,
+    required this.mapper,
+    required this.tileHeights,
+    required this.selectedWall,
+  });
+  final RoomFace face;
+  final _PlanMapper mapper;
+  final Map<String, double> tileHeights;
+  final String selectedWall;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawRect(Offset.zero & size,
+      Paint()..color = const Color(0xFF191E26));
+    final polygon = Path();
+    for (var i = 0; i < face.innerPolygon.length; i++) {
+      final p = mapper.toCanvas(face.innerPolygon[i]);
+      if (i == 0) {
+        polygon.moveTo(p.dx, p.dy);
+      } else {
+        polygon.lineTo(p.dx, p.dy);
+      }
+    }
+    polygon.close();
+    canvas.drawPath(polygon, Paint()
+      ..color = const Color(0xFF282E39));
+    for (var i = 0; i < face.edges.length; i++) {
+      final edge = face.edges[i];
+      final a = mapper.toCanvas(face.innerPolygon[i]);
+      final b = mapper.toCanvas(
+        face.innerPolygon[(i + 1) % face.innerPolygon.length]);
+      final active = edge.wallId == selectedWall;
+      final tiled = (tileHeights[edge.wallId] ?? 0) > .01;
+      final paint = Paint()
+        ..color = active ? _peach :
+            (tiled ? const Color(0xFF72ACEB) : const Color(0xFF91A39A))
+        ..strokeWidth = active ? 9 : 6
+        ..strokeCap = StrokeCap.round;
+      canvas.drawLine(a, b, paint);
+      if (active) {
+        final center = Offset((a.dx + b.dx) / 2, (a.dy + b.dy) / 2);
+        canvas.drawCircle(center, 6,
+          Paint()..color = const Color(0xFF111419));
+        canvas.drawCircle(center, 3,
+          Paint()..color = _peach);
+      }
+    }
+  }
+  @override
+  bool shouldRepaint(covariant _WallFinishPlanPainter old) => true;
+}
+
 class _PlanPainter extends CustomPainter {
   const _PlanPainter({
     required this.floor,required this.faces,required this.mapper,
