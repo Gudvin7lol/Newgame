@@ -154,4 +154,38 @@ void main() {
     expect(WorkStatusService.canStart(board, cleaning), false);
   });
 
+
+  test('expanded catalogue has stable unique IDs and valid prerequisites', () {
+    final all = WorkOperationCatalog.all;
+    expect(all.length, greaterThanOrEqualTo(245));
+    expect(WorkOperationCatalog.byCode.length, all.length);
+    expect(all.map((op) => op.phase).toSet().length,
+      greaterThanOrEqualTo(15));
+    for (final op in all) {
+      expect(op.code.trim(), isNotEmpty);
+      expect(op.hoursPerUnit.isFinite && op.hoursPerUnit > 0, isTrue,
+        reason: op.code);
+      for (final predecessor in op.requiredCodes) {
+        expect(WorkOperationCatalog.byCode.containsKey(predecessor), isTrue,
+          reason: op.code + ' needs ' + predecessor);
+      }
+    }
+    expect(WorkOperationCatalog.byCode['elec_rcd_test']?.phase, 'Электрика');
+    expect(WorkOperationCatalog.byCode['tile_mosaic']?.catalogOnly, isTrue);
+  });
+
+  test('specialized catalogue-only operations are never bulk-generated', () {
+    final project = MeasureProject(
+      id: 'safe', name: 'Комната', floors: [rectangle('safe')]);
+    final plan = WorkGenerationService.preview(
+      project, includeOptional: true);
+    final codes = plan.tasks.map((task) => task.operationCode).toSet();
+    expect(codes, contains('demolition'));
+    expect(codes, isNot(contains('hvac_split_unit')));
+    expect(codes, isNot(contains('struct_opening_engineered')));
+    expect(codes, isNot(contains('elec_panel_assemble')));
+    expect(codes, isNot(contains('plumb_bath')));
+    expect(plan.tasks.length, lessThan(100));
+  });
+
 }
