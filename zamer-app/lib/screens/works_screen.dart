@@ -1079,6 +1079,8 @@ class _WorksScreenState extends State<WorksScreen> {
               FilledButton(
                 onPressed: drawing.isNotEmpty || summary == null
                     ? null : () {
+                  final takeoff = summary;
+                  if (takeoff == null) return;
                   try {
                     WorkFloorPolygonService.save(
                       board, floor, face, zones);
@@ -1092,9 +1094,9 @@ class _WorksScreenState extends State<WorksScreen> {
                       board, floor, face);
                   board.log('Зоны напольных покрытий: ' + room.name +
                     ', участков: ' + zones.length.toString() +
-                    ', плитка ' + summary.tileM2.toStringAsFixed(2) +
+                    ', плитка ' + takeoff.tileM2.toStringAsFixed(2) +
                     ' м², ламинат ' +
-                    summary.laminateM2.toStringAsFixed(2) +
+                    takeoff.laminateM2.toStringAsFixed(2) +
                     ' м²; проверено задач: ' + refreshed.toString());
                   Navigator.pop(sheet, true);
                 },
