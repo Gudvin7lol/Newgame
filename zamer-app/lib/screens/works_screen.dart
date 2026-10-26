@@ -905,6 +905,51 @@ class _WorksScreenState extends State<WorksScreen> {
     ),
   );
 
+
+  Future<math.Point<double>?> _askFloorVertexPosition(
+      math.Point<double> current) async {
+    var x = current.x.round().toString();
+    var y = current.y.round().toString();
+    return showDialog<math.Point<double>>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: const Text('Координаты вершины'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextFormField(
+            initialValue: x,
+            keyboardType: const TextInputType.numberWithOptions(
+              signed: true, decimal: true),
+            decoration: const InputDecoration(labelText: 'X, мм'),
+            onChanged: (value) => x = value,
+          ),
+          const SizedBox(height: 8),
+          TextFormField(
+            initialValue: y,
+            keyboardType: const TextInputType.numberWithOptions(
+              signed: true, decimal: true),
+            decoration: const InputDecoration(labelText: 'Y, мм'),
+            onChanged: (value) => y = value,
+          ),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialog),
+            child: const Text('Отмена')),
+          FilledButton(onPressed: () {
+            final xMm = double.tryParse(x.trim().replaceAll(',', '.'));
+            final yMm = double.tryParse(y.trim().replaceAll(',', '.'));
+            if (xMm == null || yMm == null ||
+                !xMm.isFinite || !yMm.isFinite) {
+              ScaffoldMessenger.of(dialog).showSnackBar(const SnackBar(
+                content: Text('Введите корректные координаты в мм.')));
+              return;
+            }
+            Navigator.pop(dialog, math.Point<double>(xMm, yMm));
+          }, child: const Text('Применить')),
+        ],
+      ),
+    );
+  }
+
   Future<void> _editFloorPolygons(FloorPlan floor, RoomFace face) async {
     final room = floor.roomMetaByKey(face.key);
     if (room == null) return;
@@ -912,6 +957,11 @@ class _WorksScreenState extends State<WorksScreen> {
     final zones = List<WorkFloorFinishZone>.of(existing);
     final drawing = <math.Point<double>>[];
     var material = 'tile';
+    var editing = false;
+    String? selectedZoneId;
+    int? selectedVertex;
+    String? editProblem;
+    double snapMm = 10;
     var nextId = DateTime.now().microsecondsSinceEpoch;
     final baselineTile = room.materials.floorMode == 'tile' ||
         room.materials.floorTile;
@@ -930,6 +980,19 @@ class _WorksScreenState extends State<WorksScreen> {
           // Keep the original zones visible for repair, never discard them.
           geometryError = error.message.toString();
         }
+        WorkFloorFinishZone? selectedZone;
+        for (final zone in zones) {
+          if (zone.id == selectedZoneId) {
+            selectedZone = zone;
+            break;
+          }
+        }
+        if (selectedZone == null ||
+            selectedVertex == null ||
+            selectedVertex! < 0 ||
+            selectedVertex! >= selectedZone.polygon.length) {
+          selectedVertex = null;
+        }
         return SafeArea(top: false, child: SizedBox(
           height: MediaQuery.sizeOf(sheet).height * .9,
           child: Column(children: [
@@ -941,72 +1004,227 @@ class _WorksScreenState extends State<WorksScreen> {
                   fontWeight: FontWeight.w800)),
               const SizedBox(height: 5),
               Text('Основное покрытие: ' +
-                (baselineTile ? 'плитка' : 'ламинат') +
-                '. Касаниями задайте вершины нового участка. '
-                'Минимум три вершины, затем завершите контур.',
+                (baselineTile ? 'плитка' : 'ламинат') + '. ' +
+                (editing
+                  ? 'Нажмите на вершину готовой зоны и потяните её. '
+                    'Недопустимые пересечения отклоняются.'
+                  : 'Касаниями добавляйте точки. После трёх вершин '
+                    'можно завершить контур.'),
                 style: const TextStyle(color: _muted, fontSize: 12)),
+              const SizedBox(height: 10),
+              Wrap(spacing: 8, children: [
+                ChoiceChip(
+                  label: const Text('Нарисовать'),
+                  selected: !editing,
+                  onSelected: (_) => redraw(() {
+                    editing = false;
+                    selectedZoneId = null;
+                    selectedVertex = null;
+                    editProblem = null;
+                  }),
+                ),
+                ChoiceChip(
+                  label: const Text('Править вершины'),
+                  selected: editing,
+                  onSelected: (_) => redraw(() {
+                    editing = true;
+                    drawing.clear();
+                    editProblem = null;
+                  }),
+                ),
+              ]),
               const SizedBox(height: 12),
               AspectRatio(aspectRatio: 1.4, child: LayoutBuilder(
                 builder: (ctx, constraints) {
                   final mapper = _PlanMapper([face], Size(
                     constraints.maxWidth, constraints.maxHeight));
+                  math.Point<double> canvasPoint(Offset point) {
+                    final x = (point.dx - mapper.offsetX) /
+                        mapper.scale + mapper.minX;
+                    final y = (point.dy - mapper.offsetY) /
+                        mapper.scale + mapper.minY;
+                    return math.Point<double>(x, y);
+                  }
+
+                  ({String zoneId, int vertex})? nearest(Offset point) {
+                    ({String zoneId, int vertex})? found;
+                    var smallest = 26.0;
+                    for (final zone in zones) {
+                      for (var i = 0; i < zone.polygon.length; i++) {
+                        final projected = mapper.toCanvas(zone.polygon[i]);
+                        final distance = (projected - point).distance;
+                        if (distance < smallest) {
+                          smallest = distance;
+                          found = (zoneId: zone.id, vertex: i);
+                        }
+                      }
+                    }
+                    return found;
+                  }
+
+                  void selectAt(Offset offset) {
+                    final nearby = nearest(offset);
+                    redraw(() {
+                      selectedZoneId = nearby?.zoneId;
+                      selectedVertex = nearby?.vertex;
+                      editProblem = null;
+                    });
+                  }
+
                   return GestureDetector(
                     behavior: HitTestBehavior.opaque,
                     onTapDown: (details) {
-                      final tap = details.localPosition;
-                      final x = (tap.dx - mapper.offsetX) /
-                          mapper.scale + mapper.minX;
-                      final y = (tap.dy - mapper.offsetY) /
-                          mapper.scale + mapper.minY;
-                      // Snap to 10 mm to avoid noisy vertices on a phone.
-                      final point = math.Point<double>(
-                        (x / 10).roundToDouble() * 10,
-                        (y / 10).roundToDouble() * 10,
-                      );
-                      redraw(() => drawing.add(point));
+                      if (editing) {
+                        selectAt(details.localPosition);
+                        return;
+                      }
+                      final point = canvasPoint(details.localPosition);
+                      redraw(() => drawing.add(math.Point<double>(
+                        (point.x / snapMm).roundToDouble() * snapMm,
+                        (point.y / snapMm).roundToDouble() * snapMm,
+                      )));
                     },
+                    onPanStart: editing
+                      ? (details) => selectAt(details.localPosition)
+                      : null,
+                    onPanUpdate: editing ? (details) {
+                      if (selectedZoneId == null ||
+                          selectedVertex == null) return;
+                      try {
+                        final result = WorkFloorPolygonService.movedVertex(
+                          face, floor, zones,
+                          zoneId: selectedZoneId!,
+                          vertexIndex: selectedVertex!,
+                          position: canvasPoint(details.localPosition),
+                          snapMm: snapMm,
+                        );
+                        redraw(() {
+                          zones..clear()..addAll(result);
+                          editProblem = null;
+                        });
+                      } on ArgumentError catch (error) {
+                        redraw(() => editProblem =
+                          error.message.toString());
+                      } on RangeError {
+                        redraw(() {
+                          selectedVertex = null;
+                          editProblem = 'Вершина больше не существует.';
+                        });
+                      }
+                    } : null,
                     child: CustomPaint(
                       painter: _FloorPolygonPlanPainter(
                         face: face, mapper: mapper,
                         zones: zones, drawing: drawing,
                         draftMaterial: material,
-                        baseTile: baselineTile),
+                        baseTile: baselineTile,
+                        editing: editing,
+                        selectedZoneId: selectedZoneId,
+                        selectedVertexIndex: selectedVertex),
                       child: const SizedBox.expand(),
                     ),
                   );
                 },
               )),
               const SizedBox(height: 12),
-              const Text('Материал новой зоны',
-                style: TextStyle(fontWeight: FontWeight.w700)),
+              Text(editing ? 'Материал выбранной зоны' : 'Материал новой зоны',
+                style: const TextStyle(fontWeight: FontWeight.w700)),
               Wrap(spacing: 8, children: [
-                ChoiceChip(
-                  label: const Text('Плитка'),
-                  selected: material == 'tile',
-                  onSelected: (_) => redraw(() => material = 'tile'),
-                ),
-                ChoiceChip(
-                  label: const Text('Ламинат'),
-                  selected: material == 'laminate',
-                  onSelected: (_) => redraw(() => material = 'laminate'),
-                ),
+                for (final entry in const [
+                  ('tile', 'Плитка'),
+                  ('laminate', 'Ламинат'),
+                ])
+                  ChoiceChip(
+                    label: Text(entry.$2),
+                    selected: editing
+                      ? selectedZone?.material == entry.$1
+                      : material == entry.$1,
+                    onSelected: editing ? (selectedZone == null
+                      ? null : (_) {
+                        final id = selectedZone!.id;
+                        final changed =
+                          WorkFloorPolygonService.changedMaterial(
+                            face, floor, zones,
+                            zoneId: id, material: entry.$1);
+                        redraw(() {
+                          zones..clear()..addAll(changed);
+                        });
+                      }) : (_) => redraw(() => material = entry.$1),
+                  ),
               ]),
-              Text('Точек: ' + drawing.length.toString(),
-                style: const TextStyle(fontSize: 12, color: _muted)),
-              Wrap(spacing: 6, runSpacing: 5, children: [
-                OutlinedButton.icon(
-                  icon: const Icon(Icons.undo, size: 16),
-                  label: const Text('Убрать точку'),
-                  onPressed: drawing.isEmpty ? null :
-                    () => redraw(() => drawing.removeLast()),
-                ),
-                OutlinedButton.icon(
-                  icon: const Icon(Icons.clear_all, size: 16),
-                  label: const Text('Сбросить контур'),
-                  onPressed: drawing.isEmpty ? null :
-                    () => redraw(drawing.clear),
-                ),
-              ]),
+              if (!editing) ...[
+                Text('Точек: ' + drawing.length.toString(),
+                  style: const TextStyle(fontSize: 12, color: _muted)),
+                Wrap(spacing: 6, runSpacing: 5, children: [
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.undo, size: 16),
+                    label: const Text('Убрать точку'),
+                    onPressed: drawing.isEmpty ? null :
+                      () => redraw(() => drawing.removeLast()),
+                  ),
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.clear_all, size: 16),
+                    label: const Text('Сбросить контур'),
+                    onPressed: drawing.isEmpty ? null :
+                      () => redraw(drawing.clear),
+                  ),
+                ]),
+              ] else ...[
+                const SizedBox(height: 5),
+                Text('Шаг привязки координат',
+                  style: const TextStyle(color: _muted, fontSize: 12)),
+                Wrap(spacing: 7, children: [
+                  for (final step in [10.0, 50.0, 100.0])
+                    ChoiceChip(
+                      label: Text(step.round().toString() + ' мм'),
+                      selected: snapMm == step,
+                      onSelected: (_) => redraw(() => snapMm = step),
+                    ),
+                ]),
+                if (selectedZone != null && selectedVertex != null)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text('Вершина ' +
+                      (selectedVertex! + 1).toString() +
+                      ': X ' + selectedZone.polygon[selectedVertex!].x
+                        .round().toString() +
+                      ' мм, Y ' + selectedZone.polygon[selectedVertex!].y
+                        .round().toString() + ' мм'),
+                    trailing: TextButton(
+                      child: const Text('Ввести X/Y'),
+                      onPressed: () async {
+                        final id = selectedZone!.id;
+                        final vertex = selectedVertex!;
+                        final current = selectedZone.polygon[vertex];
+                        final position =
+                          await _askFloorVertexPosition(current);
+                        if (position == null || !sheet.mounted) return;
+                        try {
+                          final updated =
+                            WorkFloorPolygonService.movedVertex(
+                              face, floor, zones,
+                              zoneId: id, vertexIndex: vertex,
+                              position: position,
+                              snapMm: 1,
+                            );
+                          redraw(() {
+                            zones..clear()..addAll(updated);
+                            editProblem = null;
+                          });
+                        } on ArgumentError catch (error) {
+                          redraw(() =>
+                            editProblem = error.message.toString());
+                        }
+                      },
+                    ),
+                  )
+                else
+                  const Text('Нажмите на вершину зоны на плане.',
+                    style: TextStyle(color: _muted, fontSize: 12)),
+                if (editProblem != null)
+                  Text(editProblem!,
+                    style: const TextStyle(color: _peach, fontSize: 12)),
+              ],
               const SizedBox(height: 10),
               Text('Готовые зоны: ' + zones.length.toString(),
                 style: const TextStyle(fontWeight: FontWeight.w800)),
@@ -1023,8 +1241,21 @@ class _WorksScreenState extends State<WorksScreen> {
                   trailing: IconButton(
                     tooltip: 'Удалить зону',
                     icon: const Icon(Icons.delete_outline, color: _peach),
-                    onPressed: () => redraw(() => zones.removeAt(i)),
+                    onPressed: () => redraw(() {
+                      if (zones[i].id == selectedZoneId) {
+                        selectedZoneId = null;
+                        selectedVertex = null;
+                      }
+                      zones.removeAt(i);
+                    }),
                   ),
+                  onTap: () => redraw(() {
+                    editing = true;
+                    drawing.clear();
+                    selectedZoneId = zones[i].id;
+                    selectedVertex = null;
+                    editProblem = null;
+                  }),
                 ),
               const Divider(color: _edge),
               if (geometryError != null)
@@ -1054,7 +1285,8 @@ class _WorksScreenState extends State<WorksScreen> {
                 FilledButton.icon(
                   icon: const Icon(Icons.check, size: 17),
                   label: const Text('Завершить зону'),
-                  onPressed: drawing.length < 3 ? null : () {
+                  onPressed: editing || drawing.length < 3
+                    ? null : () {
                     final candidate = WorkFloorFinishZone(
                       id: 'zone_' + (nextId++).toString(),
                       floorId: floor.id, roomId: room.id,
