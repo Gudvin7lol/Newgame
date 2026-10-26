@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zamer_app/models/models.dart';
+import 'package:zamer_app/models/work_board.dart';
 import 'package:zamer_app/screens/works_screen.dart';
 
 void main() {
@@ -51,4 +52,40 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(DropdownButton<String>), findsNothing);
   });
+
+  testWidgets('overcapacity is visible and crew capacity is editable',
+      (tester) async {
+    final project = MeasureProject(id: 'crew', name: 'Объект');
+    final day = DateTime(2026, 11, 2);
+    for (var i = 0; i < 2; i++) {
+      project.workBoard.tasks.add(WorkTask(
+        id: 'task-$i',
+        title: 'Работа $i',
+        start: day,
+        finish: day,
+        quantity: 10,
+        unit: 'м²',
+        hours: 8,
+        assignee: 'Бригада А',
+      ));
+    }
+    await tester.pumpWidget(MaterialApp(home: WorksScreen(
+      project: project, onChanged: () async {},
+    )));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Перегрузка: 1'), findsOneWidget);
+    await tester.tap(find.text('Подробнее').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Загрузка бригад'), findsOneWidget);
+    expect(find.text('Бригада А'), findsOneWidget);
+
+    await tester.tap(find.text('Бригада А'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).last, '16');
+    await tester.tap(find.text('Сохранить').last);
+    await tester.pumpAndSettle();
+    expect(project.workBoard.crewDailyHours['бригада а'], 16);
+  });
+
 }
