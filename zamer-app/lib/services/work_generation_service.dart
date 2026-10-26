@@ -5,6 +5,7 @@ import '../models/work_board.dart';
 import 'geometry_service.dart';
 import 'engineering_service.dart';
 import 'work_surface_service.dart';
+import 'work_floor_surface_service.dart';
 
 enum WorkQuantityBasis { floorArea, wallArea, ceilingArea, skirting, package }
 
@@ -327,7 +328,10 @@ class WorkGenerationService {
         if (roomIds != null && !roomIds.contains(room.id)) continue;
         roomsProcessed++;
         final s = room.materials;
-        final tileFloor = s.floorMode == 'tile' || s.floorTile;
+        final floorParts = WorkFloorSurfaceService.areas(
+          board, floor, face);
+        final tileFloor = floorParts.tileM2 > .0001;
+        final laminateFloor = floorParts.laminateM2 > .0001;
         final assignedWalls = WorkSurfaceService.hasAssignments(
           board, floor, room);
         final paintArea = WorkSurfaceService.areaForCode(
@@ -350,8 +354,8 @@ class WorkGenerationService {
           if (needsTile) 'wall_tile',
           if (room.heating.enabled) 'warm_floor',
           if (tileFloor) 'floor_tile',
-          if (!tileFloor) 'floor_underlay',
-          if (!tileFloor) 'floor_laminate',
+          if (laminateFloor) 'floor_underlay',
+          if (laminateFloor) 'floor_laminate',
           if (room.ceiling.finish == 'drywall') 'ceiling_gkl',
           if (room.ceiling.finish == 'stretch') 'ceiling_stretch',
           if (room.ceiling.finish != 'stretch' &&
@@ -389,7 +393,10 @@ class WorkGenerationService {
               : WorkSurfaceService.finishCodes.contains(op.code)
                   ? WorkSurfaceService.areaForCode(
                       board, floor, face, op.code)
-                  : switch (op.basis) {
+                  : WorkFloorSurfaceService.affectedCodes.contains(op.code)
+                    ? WorkFloorSurfaceService.quantityFor(
+                        board, floor, face, op.code)
+                    : switch (op.basis) {
             WorkQuantityBasis.floorArea => area,
             WorkQuantityBasis.wallArea =>
               GeometryService.roomNetWallAreaM2(floor, face),
