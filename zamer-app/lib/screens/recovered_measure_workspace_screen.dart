@@ -9,7 +9,6 @@ import '../services/equipment_placement_service.dart';
 import '../services/plan_viewport_link.dart';
 import '../widgets/recovered_workspace_navigation.dart';
 import '../widgets/workspace_master_header.dart';
-import '../widgets/workspace_mode_context.dart';
 import '../widgets/workspace_navigation.dart';
 import 'electrical_screen.dart';
 import 'engineering_screen.dart';
