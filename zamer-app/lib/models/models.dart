@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'work_board.dart';
 
 class MeasureProject {
   MeasureProject({
@@ -12,7 +13,9 @@ class MeasureProject {
     List<ProjectRevision>? revisions,
     Map<String, double>? unitPrices,
     Map<String, double>? workRates,
-  }) : createdAt = createdAt ?? DateTime.now(),
+    WorkBoard? workBoard,
+  }) : workBoard = workBoard ?? WorkBoard(),
+       createdAt = createdAt ?? DateTime.now(),
        floors = floors ?? [],
        revisions = revisions ?? [],
        unitPrices = unitPrices ?? {},
@@ -28,6 +31,7 @@ class MeasureProject {
   final List<ProjectRevision> revisions;
   final Map<String, double> unitPrices;
   final Map<String, double> workRates;
+  final WorkBoard workBoard;
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -40,6 +44,7 @@ class MeasureProject {
     'revisions': revisions.map((e) => e.toJson()).toList(),
     'unitPrices': unitPrices,
     'workRates': workRates,
+    'workBoard': workBoard.toJson(),
   };
 
   factory MeasureProject.fromJson(Map<String, dynamic> json) => MeasureProject(
@@ -62,6 +67,9 @@ class MeasureProject {
     ),
     workRates: ((json['workRates'] as Map?) ?? const {}).map(
       (key, value) => MapEntry(key.toString(), (value as num).toDouble()),
+    ),
+    workBoard: WorkBoard.fromJson(
+      Map<String, dynamic>.from((json['workBoard'] as Map?) ?? const {}),
     ),
   );
 }
