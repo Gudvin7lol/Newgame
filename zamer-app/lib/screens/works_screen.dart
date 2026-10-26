@@ -5,6 +5,7 @@ import '../models/models.dart';
 import '../models/work_board.dart';
 import '../design_system/zamer_tokens.dart';
 import '../services/geometry_service.dart';
+import '../services/work_schedule_service.dart';
 
 const _bg = ZamerColors.background;
 const _panel = ZamerColors.surface;
@@ -242,7 +243,7 @@ class _WorksScreenState extends State<WorksScreen> {
         const Icon(Icons.link_outlined, color: _peach),
         const SizedBox(width: 10),
         const Expanded(child: Text('Зависимости учитываются при начале работ. '
-          'Перенос сроков пока выполняется вручную.',
+          'При переносе сроков проверяются зависимости. Автосдвиг задач пока недоступен.',
           style: TextStyle(fontSize: 12, color: _muted))),
         Text('${board.tasks.where((t) => t.predecessorId != null).length}',
           style: const TextStyle(fontWeight: FontWeight.bold)),
@@ -631,6 +632,7 @@ class _WorksScreenState extends State<WorksScreen> {
     final assignee = TextEditingController();
     var start = _selected, finish = _selected, unit = 'м²';
     String? roomId = _roomId;
+    String? predecessorId;
     final saved = await showModalBottomSheet<bool>(
       context: context, isScrollControlled: true, showDragHandle: true,
       backgroundColor: _panel,
@@ -696,6 +698,23 @@ class _WorksScreenState extends State<WorksScreen> {
               const SizedBox(height: 11),
               TextField(controller: assignee,
                 decoration: const InputDecoration(labelText: 'Исполнитель / бригада')),
+              if (board.tasks.isNotEmpty) ...[
+                const SizedBox(height: 11),
+                DropdownButtonFormField<String?>(
+                  initialValue: predecessorId,
+                  decoration: const InputDecoration(labelText: 'Предыдущая работа'),
+                  isExpanded: true,
+                  items: [
+                    const DropdownMenuItem<String?>(
+                      value: null, child: Text('Нет зависимости')),
+                    ...board.tasks.map((task) => DropdownMenuItem<String?>(
+                      value: task.id,
+                      child: Text(task.title, overflow: TextOverflow.ellipsis),
+                    )),
+                  ],
+                  onChanged: (value) => state(() => predecessorId = value),
+                ),
+              ],
               const SizedBox(height: 11),
               Row(children: [
                 Expanded(child: OutlinedButton(
@@ -721,11 +740,25 @@ class _WorksScreenState extends State<WorksScreen> {
                     if (f.roomMetas.any((r)=>r.id==roomId)) floorId=f.id;
                   }
                 }
+                final taskId = _id();
+                final problem = WorkScheduleService.validate(
+                  board: board,
+                  taskId: taskId,
+                  start: start,
+                  finish: finish,
+                  predecessorId: predecessorId,
+                );
+                if (problem != null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(problem)),
+                  );
+                  return;
+                }
                 board.tasks.add(WorkTask(
-                  id: _id(), title:title.text.trim(), start:start, finish:finish,
+                  id: taskId, title:title.text.trim(), start:start, finish:finish,
                   quantity:q, unit:unit, hours:h, floorId:floorId,
                   roomId:roomId, roomName:room?.name ?? '',
-                  assignee:assignee.text.trim()));
+                  assignee:assignee.text.trim(), predecessorId:predecessorId));
                 board.log('Создана работа: ' + title.text.trim(),
                   taskId: board.tasks.last.id);
                 Navigator.pop(context, true);
@@ -762,6 +795,9 @@ class _WorksScreenState extends State<WorksScreen> {
             Navigator.pop(sheet); _updateDone(t);
           }, child: const Text('Зафиксировать выполнение')),
           OutlinedButton(onPressed: () {
+            Navigator.pop(sheet); _editSchedule(t);
+          }, child: const Text('Сроки и зависимости')),
+          OutlinedButton(onPressed: () {
             Navigator.pop(sheet); _addIssue(task:t);
           }, child: const Text('Создать замечание')),
           if (t.done > t.accepted)
@@ -770,6 +806,124 @@ class _WorksScreenState extends State<WorksScreen> {
             }, child: const Text('Передать / принять выполненный объём')),
         ]),
       )));
+  }
+
+  Future<void> _editSchedule(WorkTask task) async {
+    var nextStart = task.start;
+    var nextFinish = task.finish;
+    String? predecessorId = task.predecessorId;
+    final updated = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: _panel,
+      showDragHandle: true,
+      builder: (sheet) => StatefulBuilder(
+        builder: (sheet, setSheetState) {
+          Future<void> pickDate(bool isStart) async {
+            final selected = await showDatePicker(
+              context: sheet,
+              firstDate: DateTime(2020),
+              lastDate: DateTime(2100),
+              initialDate: isStart ? nextStart :
+                (nextFinish.isBefore(nextStart) ? nextStart : nextFinish),
+            );
+            if (selected == null || !sheet.mounted) return;
+            setSheetState(() {
+              if (isStart) {
+                nextStart = selected;
+                if (nextFinish.isBefore(nextStart)) nextFinish = nextStart;
+              } else {
+                nextFinish = selected;
+              }
+            });
+          }
+
+          return SafeArea(
+            top: false,
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                18, 8, 18, MediaQuery.viewInsetsOf(sheet).bottom + 20),
+              child: SingleChildScrollView(child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(task.title,
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 8),
+                  Text('Исходный график: ${_date(task.baselineStart)} — ${_date(task.baselineFinish)}',
+                    style: const TextStyle(fontSize: 12, color: _muted)),
+                  const SizedBox(height: 18),
+                  Row(children: [
+                    Expanded(child: OutlinedButton.icon(
+                      onPressed: () => pickDate(true),
+                      icon: const Icon(Icons.calendar_today_outlined, size: 16),
+                      label: Text('С ${_date(nextStart)}'),
+                    )),
+                    const SizedBox(width: 8),
+                    Expanded(child: OutlinedButton.icon(
+                      onPressed: () => pickDate(false),
+                      icon: const Icon(Icons.event_outlined, size: 16),
+                      label: Text('По ${_date(nextFinish)}'),
+                    )),
+                  ]),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String?>(
+                    initialValue: predecessorId,
+                    isExpanded: true,
+                    decoration: const InputDecoration(labelText: 'Предыдущая работа'),
+                    items: [
+                      const DropdownMenuItem<String?>(
+                        value: null, child: Text('Без зависимости')),
+                      ...board.tasks
+                        .where((candidate) => candidate.id != task.id)
+                        .map((candidate) => DropdownMenuItem<String?>(
+                          value: candidate.id,
+                          child: Text(candidate.title,
+                            maxLines: 1, overflow: TextOverflow.ellipsis),
+                        )),
+                    ],
+                    onChanged: (value) =>
+                      setSheetState(() => predecessorId = value),
+                  ),
+                  const SizedBox(height: 12),
+                  Text('Исходные даты сохраняются для сравнения план/факт. '
+                    'Если перенос затрагивает зависимую работу, её нужно '
+                    'перенести отдельно.',
+                    style: const TextStyle(color: _muted, fontSize: 12)),
+                  const SizedBox(height: 18),
+                  FilledButton(
+                    onPressed: () {
+                      final error = WorkScheduleService.validate(
+                        board: board,
+                        taskId: task.id,
+                        start: nextStart,
+                        finish: nextFinish,
+                        predecessorId: predecessorId,
+                      );
+                      if (error != null) {
+                        ScaffoldMessenger.of(sheet).showSnackBar(
+                          SnackBar(content: Text(error)),
+                        );
+                        return;
+                      }
+                      task.start = nextStart;
+                      task.finish = nextFinish;
+                      task.predecessorId = predecessorId;
+                      board.log('Перенесён график: ${task.title} '
+                        '(${_date(task.start)} — ${_date(task.finish)})',
+                        taskId: task.id);
+                      Navigator.pop(sheet, true);
+                    },
+                    child: const Text('Сохранить график'),
+                  ),
+                ],
+              )),
+            ),
+          );
+        },
+      ),
+    );
+    if (updated == true) await _save();
   }
 
   Future<void> _updateDone(WorkTask t) async {
