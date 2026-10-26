@@ -5,10 +5,12 @@ on:
     paths:
       - 'zamer-app/lib/models/models.dart'
       - 'zamer-app/lib/models/work_board.dart'
+      - 'zamer-app/lib/models/work_calendar.dart'
       - 'zamer-app/lib/screens/works_screen.dart'
       - 'zamer-app/lib/services/work_schedule_service.dart'
       - 'zamer-app/lib/screens/recovered_project_workspace_screen.dart'
       - 'zamer-app/test/work_board_test.dart'
+      - 'zamer-app/test/work_calendar_test.dart'
       - 'zamer-app/test/works_screen_test.dart'
       - '.github/workflows/verify-works.yml'
   workflow_dispatch:
@@ -27,7 +29,7 @@ jobs:
         run: flutter pub get
       - name: Analyze changed Dart files
         working-directory: zamer-app
-        run: flutter analyze --no-fatal-infos lib/models/models.dart lib/models/work_board.dart lib/services/work_schedule_service.dart lib/screens/works_screen.dart lib/screens/recovered_project_workspace_screen.dart
+        run: flutter analyze --no-fatal-infos lib/models/models.dart lib/models/work_board.dart lib/models/work_calendar.dart lib/services/work_schedule_service.dart lib/screens/works_screen.dart lib/screens/recovered_project_workspace_screen.dart
       - name: Test work-board persistence and progress
         working-directory: zamer-app
-        run: flutter test test/work_board_test.dart test/works_screen_test.dart
+        run: flutter test test/work_board_test.dart test/work_calendar_test.dart test/works_screen_test.dart
