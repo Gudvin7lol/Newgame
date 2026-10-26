@@ -11,6 +11,7 @@ import '../services/workload_service.dart';
 import '../services/work_generation_service.dart';
 import '../services/work_operation_taxonomy.dart';
 import '../services/work_surface_service.dart';
+import '../services/work_floor_surface_service.dart';
 import '../services/work_status_service.dart';
 import '../services/work_co_stage_service.dart';
 
@@ -811,6 +812,220 @@ class _WorksScreenState extends State<WorksScreen> {
     if (saved == true) await _save();
   }
 
+
+  Widget _floorFinishEntry() => _card(
+    child: InkWell(
+      onTap: _chooseFloorFinishes,
+      child: Row(children: [
+        const Icon(Icons.grid_on_rounded, color: _peach, size: 24),
+        const SizedBox(width: 12),
+        const Expanded(child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Зоны покрытий пола',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800)),
+            SizedBox(height: 4),
+            Text('Плитка + ламинат · разделить комнату на плане',
+              style: TextStyle(fontSize: 11, color: _muted)),
+          ],
+        )),
+        const Icon(Icons.chevron_right, color: _peach),
+      ]),
+    ),
+  );
+
+  Future<void> _chooseFloorFinishes() async {
+    final choices = <({FloorPlan floor, RoomFace face, RoomMeta room})>[];
+    for (final floor in widget.project.floors) {
+      for (final face in GeometryService.roomFaces(floor)) {
+        final room = floor.roomMetaByKey(face.key);
+        if (room != null && face.innerPolygon.length >= 3) {
+          choices.add((floor: floor, face: face, room: room));
+        }
+      }
+    }
+    if (choices.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Сначала создайте замкнутые помещения.')));
+      return;
+    }
+    int? selected;
+    if (choices.length == 1) {
+      selected = 0;
+    } else {
+      selected = await showModalBottomSheet<int>(
+        context: context,
+        backgroundColor: _panel,
+        showDragHandle: true,
+        builder: (sheet) => SafeArea(top: false, child: ListView(
+          shrinkWrap: true,
+          children: [
+            const Padding(padding: EdgeInsets.all(16),
+              child: Text('Помещение для разделения пола',
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18))),
+            for (var i = 0; i < choices.length; i++)
+              ListTile(
+                title: Text(choices[i].room.name),
+                subtitle: Text(choices[i].floor.name),
+                trailing: const Icon(Icons.chevron_right, color: _peach),
+                onTap: () => Navigator.pop(sheet, i),
+              ),
+          ],
+        )));
+    }
+    if (selected == null || !mounted) return;
+    final choice = choices[selected];
+    await _editFloorFinishes(choice.floor, choice.face);
+  }
+
+  Future<void> _editFloorFinishes(FloorPlan floor, RoomFace face) async {
+    final room = floor.roomMetaByKey(face.key);
+    if (room == null) return;
+    final previous = WorkFloorSurfaceService.selected(board, floor, face);
+    var axis = previous?.axis ?? 'x';
+    final initialBounds = WorkFloorSurfaceService.bounds(face, axis);
+    var cut = previous?.cutMm ??
+        (initialBounds.min + initialBounds.max) / 2;
+    var tileBefore = previous?.tileBeforeCut ?? true;
+
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: _panel,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheet) => StatefulBuilder(builder: (sheet, redraw) {
+        final limits = WorkFloorSurfaceService.bounds(face, axis);
+        cut = cut.clamp(limits.min, limits.max).toDouble();
+        final allocation = WorkFloorFinishSplit(
+          floorId: floor.id, roomId: room.id,
+          axis: axis, cutMm: cut,
+          tileBeforeCut: tileBefore,
+        );
+        final areas = WorkFloorSurfaceService.areas(
+          board, floor, face, preview: allocation);
+        return SafeArea(top: false, child: SizedBox(
+          height: MediaQuery.sizeOf(sheet).height * .86,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 6, 16, 30),
+            children: [
+              Text('Покрытия пола: ' + room.name,
+                style: const TextStyle(
+                  fontSize: 18, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 6),
+              const Text('Разделите пол прямой линией. Светлый участок '
+                'показывает ламинат, синий участок — плитку. '
+                'Объёмы считаются по внутреннему контуру комнаты.',
+                style: TextStyle(fontSize: 12, color: _muted)),
+              const SizedBox(height: 13),
+              AspectRatio(aspectRatio: 1.45, child: LayoutBuilder(
+                builder: (ctx, constraints) {
+                  final mapper = _PlanMapper([face], Size(
+                    constraints.maxWidth, constraints.maxHeight));
+                  return GestureDetector(
+                    onTapDown: (details) {
+                      final tapped = details.localPosition;
+                      final x = (tapped.dx - mapper.offsetX) /
+                          mapper.scale + mapper.minX;
+                      final y = (tapped.dy - mapper.offsetY) /
+                          mapper.scale + mapper.minY;
+                      redraw(() {
+                        cut = (axis == 'x' ? x : y)
+                          .clamp(limits.min, limits.max).toDouble();
+                      });
+                    },
+                    child: CustomPaint(
+                      painter: _FloorFinishPlanPainter(
+                        face: face, mapper: mapper,
+                        split: allocation),
+                      child: const SizedBox.expand(),
+                    ),
+                  );
+                },
+              )),
+              const SizedBox(height: 12),
+              const Text('Направление разделения',
+                style: TextStyle(fontWeight: FontWeight.w700)),
+              Wrap(spacing: 8, children: [
+                ChoiceChip(label: const Text('Слева / справа'),
+                  selected: axis == 'x',
+                  onSelected: (_) => redraw(() {
+                    axis = 'x';
+                    final b = WorkFloorSurfaceService.bounds(face, axis);
+                    cut = (b.min + b.max) / 2;
+                  })),
+                ChoiceChip(label: const Text('Сверху / снизу'),
+                  selected: axis == 'y',
+                  onSelected: (_) => redraw(() {
+                    axis = 'y';
+                    final b = WorkFloorSurfaceService.bounds(face, axis);
+                    cut = (b.min + b.max) / 2;
+                  })),
+              ]),
+              const SizedBox(height: 6),
+              Text('Линия: ' + cut.round().toString() + ' мм',
+                style: const TextStyle(fontSize: 12, color: _muted)),
+              Slider(
+                min: limits.min, max: limits.max,
+                divisions: math.max(1,
+                  ((limits.max - limits.min) / 100).round()),
+                value: cut.clamp(limits.min, limits.max).toDouble(),
+                activeColor: _peach,
+                onChanged: (value) => redraw(() => cut = value),
+              ),
+              SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Плитка до линии'),
+                subtitle: Text(axis == 'x'
+                  ? 'Включено: слева · Выключено: справа'
+                  : 'Включено: сверху · Выключено: снизу',
+                  style: const TextStyle(fontSize: 11, color: _muted)),
+                value: tileBefore,
+                onChanged: (yes) =>
+                  redraw(() => tileBefore = yes),
+              ),
+              const SizedBox(height: 8),
+              Row(children: [
+                _stat('Плитка',
+                  areas.tileM2.toStringAsFixed(2) + ' м²', tint: _blue),
+                const SizedBox(width: 8),
+                _stat('Ламинат',
+                  areas.laminateM2.toStringAsFixed(2) + ' м²'),
+              ]),
+              const SizedBox(height: 8),
+              Text('Общая площадь: ' + face.areaM2.toStringAsFixed(2) +
+                ' м². Переход покрытий рассчитывается по выбранной линии.',
+                style: const TextStyle(fontSize: 11, color: _muted)),
+              const SizedBox(height: 12),
+              FilledButton(
+                onPressed: () {
+                  try {
+                    WorkFloorSurfaceService.save(
+                      board, floor, face, allocation);
+                  } on ArgumentError catch (error) {
+                    ScaffoldMessenger.of(sheet).showSnackBar(
+                      SnackBar(content: Text(error.message.toString())));
+                    return;
+                  }
+                  final revised =
+                    WorkFloorSurfaceService.refreshUnstarted(
+                      board, floor, face);
+                  board.log('Распределение покрытий: ' + room.name +
+                    ', плитка ' + areas.tileM2.toStringAsFixed(2) +
+                    ' м², ламинат ' +
+                    areas.laminateM2.toStringAsFixed(2) +
+                    ' м²; проверено задач: ' + revised.toString());
+                  Navigator.pop(sheet, true);
+                },
+                child: const Text('Сохранить зоны покрытия'),
+              ),
+            ],
+          ),
+        ));
+      }),
+    );
+    if (saved == true) await _save();
+  }
+
   Future<void> _calendarSettings() async {
     var weekdaysOnly = board.calendar.weekdaysOnly;
     final daysOff = {...board.calendar.daysOff};
@@ -935,6 +1150,7 @@ class _WorksScreenState extends State<WorksScreen> {
       _workloadPanel(),
       _generatorPanel(),
       _wallFinishEntry(),
+      _floorFinishEntry(),
       _heading('План работ', trailing: TextButton.icon(
         onPressed: _calendarSettings,
         icon: const Icon(Icons.calendar_month_outlined, size: 17),
