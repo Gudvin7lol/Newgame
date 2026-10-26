@@ -3081,6 +3081,81 @@ class _PlanMapper {
     Offset(offsetX+(p.x-minX)*scale,offsetY+(p.y-minY)*scale);
 }
 
+/// Interactive multi-polygon plan: unfinished vertices are not saved until
+/// their polygon passes the geometric containment/overlap validator.
+class _FloorPolygonPlanPainter extends CustomPainter {
+  const _FloorPolygonPlanPainter({
+    required this.face, required this.mapper, required this.zones,
+    required this.drawing, required this.draftMaterial, required this.baseTile,
+  });
+  final RoomFace face;
+  final _PlanMapper mapper;
+  final List<WorkFloorFinishZone> zones;
+  final List<math.Point<double>> drawing;
+  final String draftMaterial;
+  final bool baseTile;
+
+  static const _tile = Color(0xFF517DAE);
+  static const _laminate = Color(0xFF969F9B);
+
+  Path _path(List<math.Point<double>> vertices, {bool close = true}) {
+    final path = Path();
+    for (var i = 0; i < vertices.length; i++) {
+      final pos = mapper.toCanvas(vertices[i]);
+      if (i == 0) {
+        path.moveTo(pos.dx, pos.dy);
+      } else {
+        path.lineTo(pos.dx, pos.dy);
+      }
+    }
+    if (close && vertices.length >= 3) path.close();
+    return path;
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawRect(Offset.zero & size,
+      Paint()..color = const Color(0xFF191E26));
+    final roomPath = _path(face.innerPolygon);
+    canvas.drawPath(roomPath,
+      Paint()..color = baseTile ? _tile : _laminate);
+    canvas.save();
+    canvas.clipPath(roomPath);
+    for (final zone in zones) {
+      final color = zone.material == 'tile' ? _tile : _laminate;
+      final path = _path(zone.polygon);
+      canvas.drawPath(path, Paint()..color = color);
+      canvas.drawPath(path, Paint()
+        ..color = const Color(0xFFF0CEAE)
+        ..strokeWidth = 1.8..style = PaintingStyle.stroke);
+    }
+    canvas.restore();
+    canvas.drawPath(roomPath, Paint()
+      ..color = const Color(0xFFF1F3F6)
+      ..strokeWidth = 2.5..style = PaintingStyle.stroke);
+    if (drawing.isNotEmpty) {
+      final draftPath = _path(drawing, close: false);
+      canvas.drawPath(draftPath, Paint()
+        ..color = const Color(0xFFF1AF91)
+        ..strokeWidth = 2.6
+        ..style = PaintingStyle.stroke);
+      for (final p in drawing) {
+        final canvasPoint = mapper.toCanvas(p);
+        canvas.drawCircle(canvasPoint, 4.6,
+          Paint()..color = const Color(0xFFF1AF91));
+      }
+      if (drawing.length >= 3) {
+        canvas.drawPath(_path(drawing), Paint()
+          ..color = draftMaterial == 'tile'
+            ? const Color(0x44517DAE) : const Color(0x44969F9B));
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _FloorPolygonPlanPainter old) => true;
+}
+
 /// 2D preview of one clipped tile/laminate split inside the REAL room polygon.
 class _FloorFinishPlanPainter extends CustomPainter {
   const _FloorFinishPlanPainter({
