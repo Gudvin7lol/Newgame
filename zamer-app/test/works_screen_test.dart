@@ -104,6 +104,12 @@ void main() {
     await tester.tap(find.text('Выбрать операцию из библиотеки'));
     await tester.pumpAndSettle();
     expect(find.text('Библиотека работ'), findsOneWidget);
+    expect(find.text('Стены'), findsOneWidget);
+    expect(find.text('Пол'), findsOneWidget);
+    expect(find.text('Потолок'), findsOneWidget);
+    await tester.tap(find.text('Электрика'));
+    await tester.pumpAndSettle();
+    expect(find.text('Слаботочные сети'), findsWidgets);
 
     await tester.enterText(find.byType(TextFormField).last, 'УЗО');
     await tester.pumpAndSettle();
