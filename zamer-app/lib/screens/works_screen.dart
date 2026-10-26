@@ -1837,6 +1837,9 @@ class _WorksScreenState extends State<WorksScreen> {
           final count = WorkSurfaceService.finishCodes.contains(op.code)
             ? WorkSurfaceService.areaForCode(
                 board, floor, face, op.code)
+            : WorkFloorSurfaceService.affectedCodes.contains(op.code)
+              ? WorkFloorSurfaceService.quantityFor(
+                  board, floor, face, op.code)
             : switch (op.basis) {
               WorkQuantityBasis.floorArea || WorkQuantityBasis.ceilingArea =>
                 face.areaM2,
