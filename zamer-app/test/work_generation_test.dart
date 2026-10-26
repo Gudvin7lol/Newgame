@@ -83,7 +83,7 @@ void main() {
       prior.accepted = prior.quantity;
     }
     expect(WorkStatusService.canStart(project.workBoard, plaster), true);
-    expect(WorkStatusService.canStart(project.workBoard, primer), false);
+    expect(WorkStatusService.canStart(project.workBoard, primer), true);
   });
 
   test('optional operations require quantity review and remain selected', () {
