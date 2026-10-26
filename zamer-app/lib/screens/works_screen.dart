@@ -581,6 +581,52 @@ class _WorksScreenState extends State<WorksScreen> {
     await _editWallFinishes(item.floor, item.face);
   }
 
+  Future<double?> _askExactTileHeight(
+      double current, double maximum) async {
+    var typed = current.round().toString();
+    return showDialog<double>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: const Text('Точная высота плитки'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextFormField(
+            initialValue: typed,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(
+              labelText: 'Высота облицовки, мм',
+              helperText: '0 мм означает полностью окрашенную стену',
+            ),
+            onChanged: (value) => typed = value,
+          ),
+          const SizedBox(height: 8),
+          Text('Допустимо: от 0 до ' + maximum.round().toString() + ' мм',
+            style: const TextStyle(fontSize: 12, color: _muted)),
+        ]),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialog),
+            child: const Text('Отмена'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final value = double.tryParse(
+                  typed.trim().replaceAll(',', '.'));
+              if (value == null || !value.isFinite ||
+                  value < 0 || value > maximum) {
+                ScaffoldMessenger.of(dialog).showSnackBar(const SnackBar(
+                  content: Text('Высота должна быть в пределах стены.'),
+                ));
+                return;
+              }
+              Navigator.pop(dialog, value);
+            },
+            child: const Text('Применить'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _editWallFinishes(FloorPlan floor, RoomFace face) async {
     final room = floor.roomMetaByKey(face.key);
     if (room == null) return;
@@ -699,6 +745,18 @@ class _WorksScreenState extends State<WorksScreen> {
                   OutlinedButton(onPressed: () =>
                     redraw(() => heights[selectedWall] = maxHeight),
                     child: const Text('Плитка до потолка')),
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.straighten, size: 17),
+                    label: const Text('Точная высота'),
+                    onPressed: () async {
+                      final wallId = selectedWall;
+                      final height = await _askExactTileHeight(
+                        heights[wallId] ?? 0, maxHeight);
+                      if (height != null && sheet.mounted) {
+                        redraw(() => heights[wallId] = height);
+                      }
+                    },
+                  ),
                 ]),
                 const SizedBox(height: 12),
                 const Text('Все стены помещения',
