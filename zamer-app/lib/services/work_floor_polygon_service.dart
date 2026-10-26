@@ -34,10 +34,19 @@ class WorkFloorPolygonService {
     final q = _cross(a, b, d);
     final r = _cross(c, d, a);
     final s = _cross(c, d, b);
-    return ((p > tolerance && q < -tolerance) ||
+    final crosses = ((p > tolerance && q < -tolerance) ||
             (p < -tolerance && q > tolerance)) &&
         ((r > tolerance && s < -tolerance) ||
             (r < -tolerance && s > tolerance));
+    if (crosses) return true;
+    bool touches(FloorPoint x, FloorPoint y, FloorPoint point) =>
+        _cross(x, y, point).abs() <= tolerance &&
+        point.x >= math.min(x.x, y.x) - tolerance &&
+        point.x <= math.max(x.x, y.x) + tolerance &&
+        point.y >= math.min(x.y, y.y) - tolerance &&
+        point.y <= math.max(x.y, y.y) + tolerance;
+    return touches(a, b, c) || touches(a, b, d) ||
+        touches(c, d, a) || touches(c, d, b);
   }
 
   static bool isSimple(List<FloorPoint> polygon) {
