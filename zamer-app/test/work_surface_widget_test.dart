@@ -34,12 +34,16 @@ void main() {
     await tester.tap(open);
     await tester.pumpAndSettle();
     expect(find.textContaining('Поверхности:'), findsOneWidget);
-    await tester.scrollUntilVisible(
-      find.text('Плитка до потолка'), 110.0,
+    final preset = find.text('Плитка до потолка');
+    await tester.scrollUntilVisible(preset, 220.0,
       scrollable: find.byType(Scrollable).last);
-    await tester.tap(find.text('Плитка до потолка'));
+    await tester.ensureVisible(preset);
     await tester.pumpAndSettle();
-    expect(find.textContaining('Высота плитки:'), findsOneWidget);
+    await tester.drag(find.byType(Scrollable).last, const Offset(0, -130));
+    await tester.pumpAndSettle();
+    expect(preset.hitTestable(), findsOneWidget);
+    await tester.tap(preset.hitTestable());
+    await tester.pumpAndSettle();
     final save = find.text('Сохранить распределение');
     await tester.scrollUntilVisible(save, 180.0,
       scrollable: find.byType(Scrollable).last);
