@@ -1542,6 +1542,18 @@ class _WorksScreenState extends State<WorksScreen> {
                       onSelected: (_) => redraw(() => snapMm = step),
                     ),
                 ]),
+                if (selectedZone != null)
+                  Wrap(spacing: 5, runSpacing: 5, children: [
+                    for (var index = 0;
+                        index < selectedZone.polygon.length; index++)
+                      ChoiceChip(
+                        label: Text('Точка ' + (index + 1).toString(),
+                          style: const TextStyle(fontSize: 11)),
+                        selected: selectedVertex == index,
+                        onSelected: (_) =>
+                          redraw(() => selectedVertex = index),
+                      ),
+                  ]),
                 if (selectedZone != null && selectedVertex != null)
                   ListTile(
                     contentPadding: EdgeInsets.zero,
