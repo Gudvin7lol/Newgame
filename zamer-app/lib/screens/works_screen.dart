@@ -915,35 +915,111 @@ class _WorksScreenState extends State<WorksScreen> {
                       setSheetState(() => predecessorId = value),
                   ),
                   const SizedBox(height: 12),
-                  Text('Исходные даты сохраняются для сравнения план/факт. '
-                    'Если перенос затрагивает зависимую работу, её нужно '
-                    'перенести отдельно.',
-                    style: const TextStyle(color: _muted, fontSize: 12)),
+                  const Text(
+                    'Последующие работы сдвигаются только после подтверждения. '
+                    'Исходный график сохраняется для сравнения план/факт.',
+                    style: TextStyle(color: _muted, fontSize: 12),
+                  ),
                   const SizedBox(height: 18),
-                  FilledButton(
-                    onPressed: () {
-                      final error = WorkScheduleService.validate(
+                  FilledButton.icon(
+                    icon: const Icon(Icons.account_tree_outlined),
+                    onPressed: () async {
+                      final proposal = WorkSchedulePlanner.preview(
                         board: board,
                         taskId: task.id,
                         start: nextStart,
                         finish: nextFinish,
                         predecessorId: predecessorId,
                       );
-                      if (error != null) {
+                      if (proposal.error != null) {
                         ScaffoldMessenger.of(sheet).showSnackBar(
-                          SnackBar(content: Text(error)),
+                          SnackBar(content: Text(proposal.error!)),
                         );
                         return;
                       }
-                      task.start = nextStart;
-                      task.finish = nextFinish;
-                      task.predecessorId = predecessorId;
-                      board.log('Перенесён график: ${task.title} '
-                        '(${_date(task.start)} — ${_date(task.finish)})',
-                        taskId: task.id);
+                      if (proposal.changes.isEmpty) {
+                        Navigator.pop(sheet, false);
+                        return;
+                      }
+                      final oldFinish = proposal.previousCompletion;
+                      final newFinish = proposal.projectedCompletion;
+                      final approved = await showDialog<bool>(
+                        context: sheet,
+                        builder: (dialog) => AlertDialog(
+                          title: const Text('Проверка изменений графика'),
+                          content: SizedBox(
+                            width: double.maxFinite,
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Затронуто работ: ' +
+                                    proposal.changes.length.toString()),
+                                Text('Сдвинуты следующие этапы: ' +
+                                    proposal.shiftedSuccessors.toString()),
+                                const SizedBox(height: 5),
+                                Text('Завершение объекта: ' +
+                                  (oldFinish == null ? '—' : _date(oldFinish)) +
+                                  ' → ' +
+                                  (newFinish == null ? '—' : _date(newFinish)),
+                                  style: const TextStyle(
+                                    fontSize: 12, color: _muted)),
+                                const SizedBox(height: 12),
+                                SizedBox(
+                                  height: math.min(
+                                    320.0, proposal.changes.length * 70.0),
+                                  child: ListView.builder(
+                                    shrinkWrap: true,
+                                    itemCount: proposal.changes.length,
+                                    itemBuilder: (context, index) {
+                                      final change = proposal.changes[index];
+                                      return ListTile(
+                                        dense: true,
+                                        contentPadding: EdgeInsets.zero,
+                                        title: Text(change.title,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis),
+                                        subtitle: Text(
+                                          _date(change.oldStart) + '–' +
+                                          _date(change.oldFinish) + ' → ' +
+                                          _date(change.start) + '–' +
+                                          _date(change.finish)),
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(dialog, false),
+                              child: const Text('Отмена'),
+                            ),
+                            FilledButton(
+                              onPressed: () => Navigator.pop(dialog, true),
+                              child: const Text('Применить'),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (approved != true || !sheet.mounted) return;
+                      final failure = WorkSchedulePlanner.apply(board, proposal);
+                      if (failure != null) {
+                        ScaffoldMessenger.of(sheet).showSnackBar(
+                          SnackBar(content: Text(failure)),
+                        );
+                        return;
+                      }
+                      for (final change in proposal.changes) {
+                        board.log('График: ' + change.title + ' ' +
+                          _date(change.oldStart) + '–' + _date(change.oldFinish) +
+                          ' → ' + _date(change.start) + '–' +
+                          _date(change.finish), taskId: change.taskId);
+                      }
                       Navigator.pop(sheet, true);
                     },
-                    child: const Text('Сохранить график'),
+                    label: const Text('Проверить перенос сроков'),
                   ),
                 ],
               )),
