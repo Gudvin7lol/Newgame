@@ -1389,6 +1389,13 @@ class _WorksScreenState extends State<WorksScreen> {
           FilledButton(onPressed: () {
             Navigator.pop(sheet); _updateDone(t);
           }, child: const Text('Зафиксировать выполнение')),
+          OutlinedButton(onPressed: () async {
+            Navigator.pop(sheet);
+            setState(() => t.paused = !t.paused);
+            board.log((t.paused ? 'Приостановлена: ' : 'Возобновлена: ') +
+              t.title, taskId: t.id);
+            await _save();
+          }, child: Text(t.paused ? 'Возобновить работу' : 'Приостановить работу')),
           OutlinedButton(onPressed: () {
             Navigator.pop(sheet); _editSchedule(t);
           }, child: const Text('Сроки и зависимости')),
