@@ -6,6 +6,7 @@ import 'package:zamer_app/application/workspace_session.dart';
 import 'package:zamer_app/models/models.dart';
 import 'package:zamer_app/models/work_board.dart';
 import 'package:zamer_app/screens/works_screen.dart';
+import 'package:zamer_app/widgets/zamer_ui_kit_v2.dart';
 
 void main() {
   test('Works is a Measure domain and retains the first six legacy indices', () {
@@ -24,6 +25,33 @@ void main() {
     final shell = File('lib/screens/recovered_project_workspace_screen.dart')
         .readAsStringSync();
     expect(shell, isNot(contains("title: 'Работы • календарь и контроль'")));
+  });
+
+  testWidgets('all five primary Measure modes fit narrow mobile width',
+      (tester) async {
+    tester.view.physicalSize = const Size(360, 740);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    const labels = ['План', 'Пол', 'Объекты', 'Электрика', 'Работы'];
+    await tester.pumpWidget(MaterialApp(home: Scaffold(
+      body: Align(alignment: Alignment.topCenter,
+        child: SizedBox(width: 360, child: Row(children: [
+          for (var index = 0; index < labels.length; index++)
+            Expanded(child: ZamerKitSegment(
+              label: labels[index],
+              icon: Icons.architecture_outlined,
+              stacked: true,
+              selected: index == 4,
+              onTap: () {},
+            )),
+        ]))),
+    )));
+    await tester.pumpAndSettle();
+    for (final label in labels) {
+      expect(find.text(label), findsOneWidget);
+    }
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('small-screen work mode groups tasks and reveals only chosen stage',
