@@ -47,6 +47,7 @@ class _WorksScreenState extends State<WorksScreen> {
   int _tab = 0, _calendar = 0, _control = 0;
   int _compactTab = 0;
   final Set<String> _openGroups = <String>{};
+  final Set<String> _openSubgroups = <String>{};
   DateTime _selected = _day(DateTime.now());
   String? _roomId;
   String? _selectedFloorId;
@@ -119,6 +120,12 @@ class _WorksScreenState extends State<WorksScreen> {
     if (op != null) return WorkOperationTaxonomy.groupOf(op);
     return _workStageOrder.contains(task.category)
         ? task.category : 'Другие работы';
+  }
+
+  String _subgroupFor(WorkTask task) {
+    final op = WorkOperationCatalog.byCode[task.operationCode];
+    return op == null ? 'Прочие работы' :
+      WorkOperationTaxonomy.subgroupOf(op);
   }
 
   List<WorkTask> get _visibleWorks {
@@ -335,7 +342,52 @@ class _WorksScreenState extends State<WorksScreen> {
                 )),
               if (_openGroups.contains(group)) ...[
                 const Divider(height: 1, color: _edge),
-                for (final task in groups[group]!) _compactWorkRow(task),
+                Builder(builder: (_) {
+                  final subgroups = <String, List<WorkTask>>{};
+                  for (final task in groups[group]!) {
+                    (subgroups[_subgroupFor(task)] ??= []).add(task);
+                  }
+                  if (subgroups.length == 1) {
+                    return Column(children: [
+                      for (final task in groups[group]!)
+                        _compactWorkRow(task),
+                    ]);
+                  }
+                  return Column(children: [
+                    for (final part in subgroups.entries) ...[
+                      InkWell(
+                        key: ValueKey('works-subgroup-' + group +
+                            '-' + part.key),
+                        onTap: () => setState(() {
+                          final id = group + '|' + part.key;
+                          if (!_openSubgroups.add(id)) {
+                            _openSubgroups.remove(id);
+                          }
+                        }),
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 10, 12, 10),
+                          child: Row(children: [
+                            Icon(_openSubgroups.contains(
+                                group + '|' + part.key)
+                              ? Icons.keyboard_arrow_down
+                              : Icons.chevron_right,
+                              size: 17, color: _muted),
+                            const SizedBox(width: 9),
+                            Expanded(child: Text(part.key,
+                              style: const TextStyle(fontSize: 12,
+                                fontWeight: FontWeight.w700))),
+                            Text(part.value.length.toString(),
+                              style: const TextStyle(
+                                fontSize: 11, color: _muted)),
+                          ]),
+                        ),
+                      ),
+                      if (_openSubgroups.contains(group + '|' + part.key))
+                        for (final task in part.value)
+                          _compactWorkRow(task),
+                    ],
+                  ]);
+                }),
               ],
             ]),
           ),
