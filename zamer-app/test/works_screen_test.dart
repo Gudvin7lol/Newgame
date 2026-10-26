@@ -88,4 +88,30 @@ void main() {
     expect(project.workBoard.crewDailyHours['бригада а'], 16);
   });
 
+
+  testWidgets('work library can search and select a specialized operation',
+      (tester) async {
+    final project = MeasureProject(
+      id: 'catalogue', name: 'Каталог работ',
+      floors: [FloorPlan(id: 'f', name: 'Этаж 1')],
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: WorksScreen(project: project, onChanged: () async {}),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Добавить работу'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Выбрать операцию из библиотеки'));
+    await tester.pumpAndSettle();
+    expect(find.text('Библиотека работ'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextFormField).last, 'УЗО');
+    await tester.pumpAndSettle();
+    expect(find.text('Проверка УЗО и дифавтоматов'), findsOneWidget);
+    await tester.tap(find.text('Проверка УЗО и дифавтоматов'));
+    await tester.pumpAndSettle();
+    expect(find.text('Проверка УЗО и дифавтоматов'), findsOneWidget);
+    expect(project.workBoard.tasks, isEmpty);
+  });
+
 }
