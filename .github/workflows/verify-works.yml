@@ -8,6 +8,7 @@ on:
       - 'zamer-app/lib/screens/works_screen.dart'
       - 'zamer-app/lib/screens/recovered_project_workspace_screen.dart'
       - 'zamer-app/test/work_board_test.dart'
+      - 'zamer-app/test/works_screen_test.dart'
       - '.github/workflows/verify-works.yml'
   workflow_dispatch:
 
@@ -28,4 +29,4 @@ jobs:
         run: flutter analyze --no-fatal-infos lib/models/models.dart lib/models/work_board.dart lib/screens/works_screen.dart lib/screens/recovered_project_workspace_screen.dart
       - name: Test work-board persistence and progress
         working-directory: zamer-app
-        run: flutter test test/work_board_test.dart
+        run: flutter test test/work_board_test.dart test/works_screen_test.dart
