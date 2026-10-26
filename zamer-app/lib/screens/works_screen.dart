@@ -8,6 +8,8 @@ import '../design_system/zamer_tokens.dart';
 import '../services/geometry_service.dart';
 import '../services/work_schedule_service.dart';
 import '../services/workload_service.dart';
+import '../services/work_generation_service.dart';
+import '../services/work_status_service.dart';
 
 const _bg = ZamerColors.background;
 const _panel = ZamerColors.surface;
@@ -55,22 +57,18 @@ class _WorksScreenState extends State<WorksScreen> {
 
   String _id() => DateTime.now().microsecondsSinceEpoch.toString();
 
-  Color _statusColor(WorkTask task) {
-    if (task.fullyAccepted) return _green;
-    if (task.isDelayed(DateTime.now())) return _red;
-    if (task.paused || task.complete) return _amber;
-    if (task.progress > 0) return _blue;
-    return _muted;
-  }
+  Color _statusColor(WorkTask task) => switch (
+      WorkStatusService.state(board, task)) {
+    WorkState.accepted => _green,
+    WorkState.defect || WorkState.overdue => _red,
+    WorkState.paused || WorkState.awaitingAcceptance => _amber,
+    WorkState.inProgress || WorkState.ready => _blue,
+    WorkState.quantityReview => _amber,
+    WorkState.blocked || WorkState.planned => _muted,
+  };
 
-  String _status(WorkTask task) {
-    if (task.fullyAccepted) return 'Принято';
-    if (task.complete) return 'На приёмке';
-    if (task.isDelayed(DateTime.now())) return 'Просрочено';
-    if (task.paused) return 'Приостановлено';
-    if (task.progress > 0) return 'В работе';
-    return 'В плане';
-  }
+  String _status(WorkTask task) =>
+      WorkStatusService.state(board, task).label;
 
   Color _roomColor(String roomId) {
     final tasks = board.tasks.where((t) => t.roomId == roomId).toList();
@@ -387,6 +385,136 @@ class _WorksScreenState extends State<WorksScreen> {
           valueColor: AlwaysStoppedAnimation(color)),
       );
 
+  Widget _generatorPanel() => _card(
+    child: InkWell(
+      onTap: _generateTasks,
+      child: Row(children: [
+        const Icon(Icons.auto_awesome_outlined, color: _peach, size: 24),
+        const SizedBox(width: 12),
+        const Expanded(child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Сформировать работы из планировки',
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800)),
+          SizedBox(height: 4),
+          Text('Операции, объёмы, предшественники, сроки и помещения',
+            style: TextStyle(color: _muted, fontSize: 11)),
+        ])),
+        const Icon(Icons.chevron_right, color: _peach),
+      ]),
+    ),
+  );
+
+  Future<void> _generateTasks() async {
+    var includeOptional = false;
+    var selectedRoom = _roomId;
+    final result = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: _panel,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheet) => StatefulBuilder(
+        builder: (sheet, redraw) {
+          final plan = WorkGenerationService.preview(
+            widget.project,
+            begin: _selected,
+            includeOptional: includeOptional,
+            roomIds: selectedRoom == null ? null : {selectedRoom!},
+          );
+          return SafeArea(top: false, child: SizedBox(
+            height: MediaQuery.sizeOf(sheet).height * .84,
+            child: ListView(padding: const EdgeInsets.fromLTRB(16, 8, 16, 30),
+              children: [
+                const Text('Формирование графика',
+                  style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 6),
+                const Text('В основе реальные площади комнат и отделка '
+                  'из модели. Уже созданные работы не перезаписываются.',
+                  style: TextStyle(color: _muted, fontSize: 12)),
+                const SizedBox(height: 14),
+                DropdownButtonFormField<String?>(
+                  initialValue: selectedRoom,
+                  decoration: const InputDecoration(labelText: 'Зона генерации'),
+                  isExpanded: true,
+                  items: [
+                    const DropdownMenuItem<String?>(
+                      value: null, child: Text('Все помещения')),
+                    for (final floor in widget.project.floors)
+                      for (final room in floor.roomMetas)
+                        DropdownMenuItem<String?>(
+                          value: room.id,
+                          child: Text('${floor.name} · ${room.name}',
+                            overflow: TextOverflow.ellipsis),
+                        ),
+                  ],
+                  onChanged: (value) => redraw(() => selectedRoom = value),
+                ),
+                const SizedBox(height: 8),
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Добавить дополнительные операции'),
+                  subtitle: const Text('Демонтаж, инженерия, стяжка и другие. '
+                    'Их объёмы нужно проверить вручную.',
+                    style: TextStyle(color: _muted, fontSize: 11)),
+                  value: includeOptional,
+                  onChanged: (value) => redraw(() => includeOptional = value),
+                ),
+                const SizedBox(height: 10),
+                Row(children: [
+                  Expanded(child: _stat('Новых', '${plan.tasks.length}')),
+                  const SizedBox(width: 7),
+                  Expanded(child: _stat('Уже есть', '${plan.skippedExisting}')),
+                  const SizedBox(width: 7),
+                  Expanded(child: _stat('Проверить', '${plan.reviewCount}',
+                    tint: _amber)),
+                ]),
+                Text('Помещений: ${plan.roomsProcessed}. '
+                  'Трудоёмкость: ${plan.totalEstimatedHours.toStringAsFixed(1)} чел·ч. '
+                  'Не распознано комнат: ${plan.skippedRooms}.',
+                  style: const TextStyle(fontSize: 12, color: _muted)),
+                const SizedBox(height: 10),
+                const Text('Предварительный список',
+                  style: TextStyle(fontWeight: FontWeight.w700)),
+                for (final task in plan.tasks.take(45))
+                  ListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(task.title),
+                    subtitle: Text('${task.roomName} · '
+                      '${_number(task.quantity)} ${task.unit} · '
+                      '${_date(task.start)}–${_date(task.finish)}',
+                      maxLines: 2),
+                    trailing: task.needsQuantityReview ?
+                      const Icon(Icons.rule_outlined, color: _amber)
+                      : const Icon(Icons.check_circle_outline, color: _green),
+                  ),
+                if (plan.tasks.length > 45)
+                  Text('Показаны первые 45 из ${plan.tasks.length}.',
+                    style: const TextStyle(fontSize: 12, color: _muted)),
+                const SizedBox(height: 14),
+                FilledButton(
+                  onPressed: plan.tasks.isEmpty ? null : () {
+                    final error = WorkGenerationService.apply(board, plan);
+                    if (error != null) {
+                      ScaffoldMessenger.of(sheet).showSnackBar(
+                        SnackBar(content: Text(error)));
+                      return;
+                    }
+                    Navigator.pop(sheet, true);
+                  },
+                  child: const Text('Добавить задачи в график'),
+                ),
+              ],
+            ),
+          ));
+        },
+      ),
+    );
+    if (result == true) {
+      setState(() { _tab = 0; _calendar = 2; });
+      await _save();
+    }
+  }
+
   Future<void> _calendarSettings() async {
     var weekdaysOnly = board.calendar.weekdaysOnly;
     final daysOff = {...board.calendar.daysOff};
@@ -509,6 +637,7 @@ class _WorksScreenState extends State<WorksScreen> {
       ])),
       _delayedNotice(),
       _workloadPanel(),
+      _generatorPanel(),
       _heading('План работ', trailing: TextButton.icon(
         onPressed: _calendarSettings,
         icon: const Icon(Icons.calendar_month_outlined, size: 17),
@@ -966,6 +1095,9 @@ class _WorksScreenState extends State<WorksScreen> {
         ListTile(leading: const Icon(Icons.add_task, color: _peach),
           title: const Text('Добавить работу'),
           onTap: () { Navigator.pop(context); _addTask(); }),
+        ListTile(leading: const Icon(Icons.auto_awesome_outlined, color: _peach),
+          title: const Text('Сформировать работы по планировке'),
+          onTap: () { Navigator.pop(context); _generateTasks(); }),
         ListTile(leading: const Icon(Icons.note_add_outlined, color: _peach),
           title: const Text('Добавить замечание'),
           onTap: () { Navigator.pop(context); _addIssue(); }),
