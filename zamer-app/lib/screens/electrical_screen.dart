@@ -7,6 +7,7 @@ import '../models/models.dart';
 import '../models/electrical_mounting.dart';
 import '../services/electrical_mounting_service.dart';
 import '../widgets/electrical_mounting_editor.dart';
+import '../widgets/electrical_point_properties.dart';
 import '../services/geometry_service.dart';
 import '../widgets/electrical_plan_painter.dart';
 import '../widgets/cad_plan_painter.dart';
@@ -639,252 +640,155 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     }
   }
 
-  Future<void> _pointSheet(ElectricalPoint p) async {
-    final label = TextEditingController(text: p.label);
-    final circuit = TextEditingController(text: p.circuit);
-    final height = TextEditingController(text: p.heightMm.toString());
-    final power = TextEditingController(text: p.powerW.toString());
-    var localModules = List<ElectricalModuleType>.of(p.modules);
-    var frameVertical = p.frameVertical;
-    var wallSide = p.wallSide;
-    ElectricalMounting? mountingDraft;
-    String? mountingError;
-    if (localModules.isEmpty && _needsWall(p.type))
-      localModules = _defaultModules(p.type);
+  String _mm(double value) => value == value.truncateToDouble()
+      ? value.toStringAsFixed(0)
+      : value.toString();
 
-    final result = await showModalBottomSheet<String>(
+  Future<void> _pointSheet(ElectricalPoint p) async {
+    final canMount =
+        p.isWallDevice || p.type == ElectricalPointType.junctionBox;
+    final issue = canMount
+        ? ElectricalMountingService.problem(widget.floor, p)
+        : null;
+    final mounting = issue == null ? p.mounting : null;
+    final action = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setModal) => Padding(
-          padding: EdgeInsets.fromLTRB(
-            18,
-            0,
-            18,
-            18 + MediaQuery.viewInsetsOf(context).bottom,
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  p.type.label,
-                  style: Theme.of(context).textTheme.titleLarge
-                      ?.copyWith(fontWeight: FontWeight.w800),
-                ),
-                if (p.wallId != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
+      builder: (sheet) => SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(
                     child: Text(
-                      '${p.wallId} · ${p.wallOffsetMm ?? 0} мм от узла A по оси',
-                      style: Theme.of(context).textTheme.bodySmall,
+                      p.label.isEmpty ? p.type.label : p.label,
+                      style: Theme.of(sheet).textTheme.titleLarge,
                     ),
                   ),
-                if (p.isWallDevice || p.type == ElectricalPointType.junctionBox)
-                  OutlinedButton.icon(
-                    key: const ValueKey('edit-mounting'),
-                    icon: const Icon(Icons.straighten),
-                    label: Text(mountingDraft == null ? 'Точная монтажная привязка' : 'Привязка подготовлена'),
-                    onPressed: () async {
-                      final draftPoint = ElectricalPoint.fromJson(p.toJson());
-                      draftPoint.heightMm = double.tryParse(height.text.replaceAll(',', '.')) ?? p.heightMm;
-                      draftPoint.wallSide = wallSide;
-                      if (mountingDraft != null) {
-                        try {
-                          ElectricalMountingService.apply(widget.floor, draftPoint, mountingDraft!);
-                        } on FormatException catch (e) {
-                          setModal(() { mountingDraft = null; mountingError = e.message; });
-                          return;
-                        }
-                      }
-                      final next = await Navigator.of(context).push<ElectricalMounting>(MaterialPageRoute(
-                        builder: (_) => ElectricalMountingEditor(floor: widget.floor, point: draftPoint)));
-                      if (next == null || !context.mounted) return;
-                      setModal(() {
-                        mountingDraft = next;
-                        height.text = next.heightAboveFinishedFloorMm.toString();
-                        wallSide = next.wallSide;
-                        mountingError = null;
-                      });
-                    },
+                  IconButton(
+                    tooltip: 'Закрыть карточку',
+                    onPressed: () => Navigator.pop(sheet),
+                    icon: const Icon(Icons.close),
                   ),
-                if (p.mounting != null && mountingDraft == null)
-                  Text(ElectricalMountingService.problem(widget.floor, p) ?? 'Геометрическая привязка актуальна'),
-                if (p.wallId != null)
-                  SwitchListTile.adaptive(
-                    title: const Text('Обратная сторона стены'),
-                    subtitle: const Text(
-                      'Перенести устройство на другую поверхность',
-                    ),
-                    value: wallSide == -1,
-                    onChanged: (value) =>
-                        setModal(() => wallSide = value ? -1 : 1),
-                  ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: label,
-                  decoration: const InputDecoration(labelText: 'Подпись'),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: circuit,
-                  decoration: const InputDecoration(
-                    labelText: 'Группа / линия',
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: height,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Центр над чистым полом',
-                    suffixText: 'мм',
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: power,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Мощность нагрузки',
-                    suffixText: 'Вт',
-                  ),
-                ),
-                if (_needsWall(p.type)) ...[
-                  const SizedBox(height: 14),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'Рамка',
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(fontWeight: FontWeight.w800),
-                        ),
-                      ),
-                      DropdownButton<int>(
-                        value: localModules.length.clamp(1, 5).toInt(),
-                        items: List.generate(
-                          5,
-                          (i) => DropdownMenuItem(
-                            value: i + 1,
-                            child: Text('${i + 1} пост.'),
-                          ),
-                        ),
-                        onChanged: (count) {
-                          if (count == null) return;
-                          setModal(() {
-                            while (localModules.length < count)
-                              localModules.add(ElectricalModuleType.socket220);
-                            while (localModules.length > count)
-                              localModules.removeLast();
-                          });
-                        },
-                      ),
-                    ],
-                  ),
-                  ...List.generate(
-                    localModules.length,
-                    (i) => Padding(
-                      padding: const EdgeInsets.only(top: 6),
-                      child: DropdownButtonFormField<ElectricalModuleType>(
-                        value: localModules[i],
-                        decoration: InputDecoration(
-                          labelText: 'Модуль ${i + 1}',
-                        ),
-                        items: ElectricalModuleType.values
-                            .map(
-                              (m) => DropdownMenuItem(
-                                value: m,
-                                child: Text(m.label),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (m) {
-                          if (m != null) setModal(() => localModules[i] = m);
-                        },
-                      ),
-                    ),
-                  ),
-                  if (localModules.length > 1)
-                    SwitchListTile.adaptive(
-                      contentPadding: EdgeInsets.zero,
-                      value: frameVertical,
-                      onChanged: (v) => setModal(() => frameVertical = v),
-                      title: const Text('Вертикальная рамка'),
-                      subtitle: Text(
-                        frameVertical
-                            ? 'Модули расположены друг над другом'
-                            : 'Модули расположены в ряд',
-                      ),
-                    ),
                 ],
-                const SizedBox(height: 14),
-                if (mountingError != null) Text(mountingError!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
-                FilledButton(
-                  onPressed: () {
-                    final h = double.tryParse(height.text.replaceAll(',', '.'));
-                    final watts = double.tryParse(power.text.replaceAll(',', '.'));
-                    if (h == null || !h.isFinite || h < 0 || watts == null || !watts.isFinite || watts < 0) {
-                      setModal(() => mountingError = 'Укажите конечные неотрицательные высоту и мощность.');
-                      return;
-                    }
-                    if (mountingDraft != null) {
-                      if (h != mountingDraft!.heightAboveFinishedFloorMm || wallSide != mountingDraft!.wallSide) {
-                        setModal(() => mountingError = 'Высота или сторона изменены. Обновите монтажную привязку.');
-                        return;
-                      }
-                      try {
-                        ElectricalMountingService.apply(widget.floor, ElectricalPoint.fromJson(p.toJson()), mountingDraft!);
-                      } on FormatException catch (e) {
-                        setModal(() => mountingError = e.message);
-                        return;
-                      }
-                    }
-                    Navigator.pop(context, 'save');
-                  },
-                  child: const Text('Сохранить'),
+              ),
+              Text(
+                '${p.circuit.trim().isEmpty ? 'Без группы' : p.circuit} · '
+                'Высота ${_mm(p.heightMm)} мм от чистого пола',
+              ),
+              if (mounting != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    '${_mm(mounting.distanceMm)} мм · ${mounting.datumName}',
+                  ),
                 ),
-                TextButton(
-                  onPressed: () => Navigator.pop(context, 'delete'),
-                  style: TextButton.styleFrom(foregroundColor: Colors.red),
-                  child: const Text('Удалить точку'),
+              if (issue != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    issue,
+                    style: TextStyle(color: p.mounting == null
+                      ? Theme.of(sheet).colorScheme.onSurfaceVariant
+                      : Theme.of(sheet).colorScheme.error),
+                  ),
                 ),
-              ],
-            ),
+              const SizedBox(height: 16),
+              if (canMount)
+                FilledButton.icon(
+                  key: const ValueKey('edit-mounting'),
+                  onPressed: () => Navigator.pop(sheet, 'mount'),
+                  icon: const Icon(Icons.straighten),
+                  label: const Text('Размеры и положение'),
+                ),
+              OutlinedButton.icon(
+                key: const ValueKey('edit-point-properties'),
+                onPressed: () => Navigator.pop(sheet, 'properties'),
+                icon: const Icon(Icons.tune),
+                label: const Text('Свойства и группа'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(sheet, 'delete'),
+                child: const Text('Удалить точку'),
+              ),
+            ],
           ),
         ),
       ),
     );
-
-    if (result == 'delete') {
+    if (!mounted || action == null) return;
+    if (action == 'mount') {
+      final next = await Navigator.of(context).push<ElectricalMounting>(
+        MaterialPageRoute(
+          builder: (_) =>
+              ElectricalMountingEditor(floor: widget.floor, point: p),
+        ),
+      );
+      if (!mounted || next == null) return;
+      // Validate a detached copy before adding an undo entry or changing the project.
+      try {
+        ElectricalMountingService.apply(
+          widget.floor,
+          ElectricalPoint.fromJson(p.toJson()),
+          next,
+        );
+      } on FormatException catch (e) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(e.message)));
+        return;
+      }
+      _pushUndo();
+      ElectricalMountingService.apply(widget.floor, p, next);
+    } else if (action == 'properties') {
+      final next = await showModalBottomSheet<ElectricalPoint>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        builder: (_) => ElectricalPointProperties(
+          point: p,
+          circuits: widget.floor.electricalPoints
+              .map((e) => e.circuit)
+              .toSet()
+              .toList(),
+        ),
+      );
+      if (!mounted || next == null) return;
+      _pushUndo();
+      p.label = next.label;
+      p.circuit = next.circuit;
+      p.powerW = next.powerW;
+      p.heightMm = next.heightMm;
+      p.modules
+        ..clear()
+        ..addAll(next.modules);
+      p.frameVertical = next.frameVertical;
+      p.type = next.type;
+    } else if (action == 'delete') {
       _pushUndo();
       widget.floor.electricalRuns.removeWhere(
         (r) => r.startPointId == p.id || r.endPointId == p.id,
       );
       widget.floor.electricalPoints.removeWhere((e) => e.id == p.id);
-    } else if (result == 'save') {
-      _pushUndo();
-      p.label = label.text.trim();
-      p.circuit = circuit.text.trim().isEmpty
-          ? 'Группа 1'
-          : circuit.text.trim();
-      p.heightMm =
-          double.tryParse(height.text.replaceAll(',', '.')) ?? p.heightMm;
-      p.powerW = double.tryParse(power.text.replaceAll(',', '.')) ?? p.powerW;
-      p.modules
-        ..clear()
-        ..addAll(localModules);
-      p.frameVertical = frameVertical;
-      p.wallSide = wallSide;
-      if (localModules.length > 1) p.type = ElectricalPointType.frame;
-      if (mountingDraft != null) ElectricalMountingService.apply(widget.floor, p, mountingDraft!);
-    } else {
-      return;
     }
     await widget.onChanged();
-    if (mounted) setState(() => _selectedId = result == 'delete' ? null : p.id);
+    if (!mounted) return;
+    setState(() => _selectedId = action == 'delete' ? null : p.id);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          action == 'delete'
+              ? 'Точка удалена вместе с её линиями'
+              : 'Точка сохранена',
+        ),
+        action: SnackBarAction(label: 'Отменить', onPressed: _undoAction),
+      ),
+    );
   }
 
   Future<void> _heightDefaults() async {

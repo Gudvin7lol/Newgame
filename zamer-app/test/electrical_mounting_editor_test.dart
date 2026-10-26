@@ -99,4 +99,42 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+  testWidgets(
+    'save stays above keyboard on a narrow phone; invalid input cannot save',
+    (tester) async {
+      tester.view.physicalSize = const Size(360, 780);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetViewInsets);
+      final f = mountingFixture();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ElectricalMountingEditor(
+            floor: f,
+            point: f.electricalPoints.single,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('mount-wall')), findsNothing);
+      await tester.enterText(
+        find.byKey(const ValueKey('mount-distance')),
+        '700.25',
+      );
+      tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+      await tester.pumpAndSettle();
+      final save = find.byKey(const ValueKey('mount-apply'));
+      expect(tester.getBottomRight(save).dy, lessThanOrEqualTo(480));
+      expect(tester.widget<FilledButton>(save).onPressed, isNotNull);
+      await tester.enterText(
+        find.byKey(const ValueKey('mount-distance')),
+        '-1',
+      );
+      await tester.pumpAndSettle();
+      expect(tester.widget<FilledButton>(save).onPressed, isNull);
+      expect(f.electricalPoints.single.mounting, isNull);
+      expect(tester.takeException(), isNull);
+    },
+  );
 }

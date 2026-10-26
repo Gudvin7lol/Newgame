@@ -81,7 +81,9 @@ class _ElectricalMountingEditorState extends State<ElectricalMountingEditor> {
 
   ElectricalMounting draft() {
     if (wall == null) {
-      throw const FormatException('Сначала привяжите точку к стене на плане.');
+      throw const FormatException(
+        'Выберите стену в разделе «Стена и сторона».',
+      );
     }
     return ElectricalMounting(
       wallId: wall!.id,
@@ -113,6 +115,7 @@ class _ElectricalMountingEditorState extends State<ElectricalMountingEditor> {
       key: ValueKey(key),
       controller: controller,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      textInputAction: TextInputAction.next,
       onChanged: (_) => setState(() => error = null),
       decoration: InputDecoration(
         labelText: label,
@@ -138,31 +141,46 @@ class _ElectricalMountingEditorState extends State<ElectricalMountingEditor> {
       widget.point,
     );
     return Scaffold(
-      appBar: AppBar(title: const Text('Монтажная привязка')),
+      appBar: AppBar(title: const Text('Размеры и положение')),
       bottomNavigationBar: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(18, 8, 18, 12),
+          padding: EdgeInsets.fromLTRB(
+            18,
+            8,
+            18,
+            12 + MediaQuery.viewInsetsOf(context).bottom,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              if ((error ?? invalid) != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    error ?? invalid!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                ),
               FilledButton(
                 key: const ValueKey('mount-apply'),
-                onPressed: () {
-                  try {
-                    final result = draft();
-                    ElectricalMountingService.resolve(widget.floor, result);
-                    Navigator.pop(context, result);
-                  } on FormatException catch (e) {
-                    setState(() => error = e.message);
-                  }
-                },
-                child: const Text('Применить к карточке'),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Изменения запишутся после сохранения карточки точки.',
-                style: TextStyle(fontSize: 12),
+                onPressed: invalid != null
+                    ? null
+                    : () {
+                        try {
+                          final result = draft();
+                          ElectricalMountingService.resolve(
+                            widget.floor,
+                            result,
+                          );
+                          Navigator.pop(context, result);
+                        } on FormatException catch (e) {
+                          setState(() => error = e.message);
+                        }
+                      },
+                child: const Text('Сохранить размеры'),
               ),
             ],
           ),
@@ -175,7 +193,7 @@ class _ElectricalMountingEditorState extends State<ElectricalMountingEditor> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                '${widget.point.label.isEmpty ? widget.point.id : widget.point.label} · ${wall?.id ?? 'Нет стены'}',
+                '${widget.point.label.isEmpty ? widget.point.type.label : widget.point.label} · ${wall == null ? 'Нет стены' : 'Стена ${widget.floor.walls.indexOf(wall!) + 1}'}',
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               const SizedBox(height: 8),
@@ -218,35 +236,6 @@ class _ElectricalMountingEditorState extends State<ElectricalMountingEditor> {
                 ),
                 const SizedBox(height: 16),
               ],
-              DropdownButtonFormField<String>(
-                key: const ValueKey('mount-wall'),
-                isExpanded: true,
-                initialValue: wall?.id,
-                decoration: const InputDecoration(labelText: 'Стена'),
-                items: widget.floor.walls
-                    .map(
-                      (w) => DropdownMenuItem(
-                        value: w.id,
-                        child: Text(
-                          'Стена ${widget.floor.walls.indexOf(w) + 1} · ${n(widget.floor.wallLengthMm(w))} мм',
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (v) {
-                  if (v == null || v == wallId) return;
-                  setState(() {
-                    wallId = v;
-                    datum = wall!.startNodeId;
-                    inset.text = '0';
-                    distance.text = '0';
-                    datumName.text = 'Узел A (ось стены)';
-                    source = MountingSource.unknown;
-                  });
-                },
-              ),
-              const SizedBox(height: 12),
               if (wall != null)
                 DropdownButtonFormField<String>(
                   key: ValueKey('mount-datum-$wallId'),
@@ -294,19 +283,8 @@ class _ElectricalMountingEditorState extends State<ElectricalMountingEditor> {
                 'mount-distance',
               ),
               field(height, 'Центр над чистым полом', 'mount-height'),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                value: side == -1,
-                title: const Text('Обратная сторона стены'),
-                subtitle: Text(
-                  side == 1
-                      ? 'Выбрана сторона +, слева от A → B'
-                      : 'Выбрана сторона −, справа от A → B',
-                ),
-                onChanged: (v) => setState(() => side = v ? -1 : 1),
-              ),
               DropdownButtonFormField<MountingSource>(
-                key: const ValueKey('mount-source'),
+                key: ValueKey('mount-source-$wallId'),
                 initialValue: source,
                 decoration: const InputDecoration(
                   labelText: 'Источник размеров',
@@ -333,6 +311,54 @@ class _ElectricalMountingEditorState extends State<ElectricalMountingEditor> {
                     setState(() => source = v ?? MountingSource.unknown),
               ),
               const SizedBox(height: 12),
+              ExpansionTile(
+                key: const ValueKey('mount-wall-settings'),
+                initiallyExpanded: wall == null,
+                title: const Text('Стена и сторона'),
+                tilePadding: EdgeInsets.zero,
+                children: [
+                  DropdownButtonFormField<String>(
+                    key: const ValueKey('mount-wall'),
+                    isExpanded: true,
+                    initialValue: wall?.id,
+                    decoration: const InputDecoration(labelText: 'Стена'),
+                    items: widget.floor.walls
+                        .map(
+                          (w) => DropdownMenuItem(
+                            value: w.id,
+                            child: Text(
+                              'Стена ${widget.floor.walls.indexOf(w) + 1} · ${n(widget.floor.wallLengthMm(w))} мм',
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (v) {
+                      if (v == null || v == wallId) return;
+                      setState(() {
+                        wallId = v;
+                        datum = wall!.startNodeId;
+                        inset.text = '0';
+                        distance.text = '0';
+                        datumName.text = 'Узел A (ось стены)';
+                        source = MountingSource.unknown;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: side == -1,
+                    title: const Text('Обратная сторона стены'),
+                    subtitle: Text(
+                      side == 1
+                          ? 'Выбрана сторона +, слева от A → B'
+                          : 'Выбрана сторона −, справа от A → B',
+                    ),
+                    onChanged: (v) => setState(() => side = v ? -1 : 1),
+                  ),
+                ],
+              ),
               ExpansionTile(
                 title: const Text('Монтажная база и отметка плиты'),
                 tilePadding: EdgeInsets.zero,
@@ -376,11 +402,6 @@ class _ElectricalMountingEditorState extends State<ElectricalMountingEditor> {
               if (widget.point.modules.length > 1)
                 const Text(
                   'Показан центр рамки. Межосевые размеры и вырезы требуют выбранной серии изделия.',
-                ),
-              if ((error ?? invalid) != null)
-                Text(
-                  error ?? invalid ?? '',
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
               const SizedBox(height: 12),
             ],
