@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../models/models.dart';
 import '../models/work_board.dart';
+import '../models/work_calendar.dart';
 import '../design_system/zamer_tokens.dart';
 import '../services/geometry_service.dart';
 import '../services/work_schedule_service.dart';
@@ -226,6 +227,104 @@ class _WorksScreenState extends State<WorksScreen> {
           valueColor: AlwaysStoppedAnimation(color)),
       );
 
+  Future<void> _calendarSettings() async {
+    var weekdaysOnly = board.calendar.weekdaysOnly;
+    final daysOff = {...board.calendar.daysOff};
+    final saved = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: _panel,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheet) => StatefulBuilder(builder: (sheet, update) {
+        Future<void> addOffDay() async {
+          final picked = await showDatePicker(
+            context: sheet,
+            initialDate: DateTime.now(),
+            firstDate: DateTime(2020),
+            lastDate: DateTime(2100),
+          );
+          if (picked != null) {
+            update(() => daysOff.add(WorkCalendar.key(picked)));
+          }
+        }
+        final sorted = daysOff.toList()..sort();
+        return SafeArea(top: false, child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(sheet).height * .82),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 8, 18, 20),
+            child: SingleChildScrollView(child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text('Рабочий календарь',
+                  style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 8),
+                const Text('Выберите расписание объекта. '
+                  'Праздники не назначаются автоматически.',
+                  style: TextStyle(color: _muted, fontSize: 12)),
+                const SizedBox(height: 14),
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Пятидневная неделя (5/2)'),
+                  subtitle: Text(weekdaysOnly
+                    ? 'Рабочие дни: понедельник–пятница'
+                    : 'Рабочие дни: понедельник–воскресенье',
+                    style: const TextStyle(fontSize: 11, color: _muted)),
+                  value: weekdaysOnly,
+                  onChanged: (value) => update(() => weekdaysOnly = value),
+                  activeTrackColor: _peach,
+                ),
+                const Divider(color: _edge),
+                Row(children: [
+                  const Expanded(child: Text('Дополнительные выходные',
+                    style: TextStyle(fontWeight: FontWeight.w700))),
+                  TextButton.icon(
+                    onPressed: addOffDay,
+                    icon: const Icon(Icons.event_busy_outlined, size: 17),
+                    label: const Text('Добавить'),
+                  ),
+                ]),
+                if (sorted.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 10),
+                    child: Text('Исключений пока нет.',
+                      style: TextStyle(color: _muted, fontSize: 12)),
+                  )
+                else
+                  Wrap(spacing: 6, runSpacing: 6, children: [
+                    for (final day in sorted)
+                      InputChip(
+                        label: Text(day, style: const TextStyle(fontSize: 11)),
+                        onDeleted: () => update(() => daysOff.remove(day)),
+                        deleteIconColor: _peach,
+                      ),
+                  ]),
+                const SizedBox(height: 14),
+                const Text('Изменение календаря не переносит существующие '
+                  'задачи автоматически. Для пересчёта используйте '
+                  '«Сроки и зависимости» в карточке работы.',
+                  style: TextStyle(color: _muted, fontSize: 12)),
+                const SizedBox(height: 14),
+                FilledButton(
+                  onPressed: () => Navigator.pop(sheet, true),
+                  child: const Text('Сохранить календарь'),
+                ),
+              ],
+            )),
+          ),
+        ));
+      }),
+    );
+    if (saved != true) return;
+    board.calendar.weekdaysOnly = weekdaysOnly;
+    board.calendar.daysOff
+      ..clear()
+      ..addAll(daysOff);
+    board.log('Обновлён рабочий календарь объекта');
+    await _save();
+  }
+
   List<Widget> _calendarContent() {
     final actual = board.actualProgress;
     final due = board.tasks.isEmpty ? null :
@@ -249,7 +348,11 @@ class _WorksScreenState extends State<WorksScreen> {
         ])),
       ])),
       _delayedNotice(),
-      _heading('План работ'),
+      _heading('План работ', trailing: TextButton.icon(
+        onPressed: _calendarSettings,
+        icon: const Icon(Icons.calendar_month_outlined, size: 17),
+        label: Text(board.calendar.weekdaysOnly ? '5/2' : '7/7'),
+      )),
       Row(children: [
         for (final entry in ['Неделя', 'Месяц', 'Гант'].asMap().entries) ...[
           Expanded(child: _segment(entry.value, _calendar == entry.key,
@@ -269,7 +372,7 @@ class _WorksScreenState extends State<WorksScreen> {
         const Icon(Icons.link_outlined, color: _peach),
         const SizedBox(width: 10),
         const Expanded(child: Text('Зависимости учитываются при начале работ. '
-          'При переносе сроков проверяются зависимости. Автосдвиг задач пока недоступен.',
+          'Следующие этапы переносятся по рабочему календарю после подтверждения.',
           style: TextStyle(fontSize: 12, color: _muted))),
         Text('${board.tasks.where((t) => t.predecessorId != null).length}',
           style: const TextStyle(fontWeight: FontWeight.bold)),
@@ -294,6 +397,7 @@ class _WorksScreenState extends State<WorksScreen> {
       Row(children: List.generate(7, (i) {
         final d = monday.add(Duration(days: i));
         final active = _day(d) == _day(_selected);
+        final isWorking = board.calendar.isWorkday(d);
         return Expanded(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 2),
           child: InkWell(
             onTap: () => setState(() => _selected = d),
@@ -304,7 +408,8 @@ class _WorksScreenState extends State<WorksScreen> {
                 borderRadius: BorderRadius.circular(12)),
               child: Column(children: [
                 Text(['Пн','Вт','Ср','Чт','Пт','Сб','Вс'][i],
-                  style: TextStyle(color: active ? _bg : _muted, fontSize: 10)),
+                  style: TextStyle(color: active ? _bg :
+                    (isWorking ? _muted : _red.withValues(alpha: .7)), fontSize: 10)),
                 const SizedBox(height: 4),
                 Text('${d.day}', style: TextStyle(color: active ? _bg : Colors.white,
                   fontWeight: FontWeight.w800, fontSize: 15)),
