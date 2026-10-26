@@ -182,7 +182,9 @@ void main() {
     final moved = WorkFloorPolygonService.movedVertex(
       face, f, [a, b], zoneId: a.id, vertexIndex: 1,
       position: P(x.min + 965, y.min + 110), snapMm: 50);
-    expect(moved.first.polygon[1], P(x.min + 950, y.min + 100));
+    final snappedX = ((x.min + 965) / 50).roundToDouble() * 50;
+    final snappedY = ((y.min + 110) / 50).roundToDouble() * 50;
+    expect(moved.first.polygon[1], P(snappedX, snappedY));
     expect(moved.first.id, 'a');
     expect(moved.last.polygon, b.polygon);
     expect(a.polygon[1], P(x.min + 800, y.min + 100));
