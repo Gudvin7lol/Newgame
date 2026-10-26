@@ -43,7 +43,8 @@ class WorkStatusService {
     final byId = {for (final t in board.tasks) t.id: t};
     return [
       for (final id in WorkCoStageService.expandedPredecessors(board, task))
-        if (byId[id] == null || !byId[id]!.fullyAccepted)
+        if (byId[id] == null || !byId[id]!.fullyAccepted ||
+            byId[id]!.needsQuantityReview)
           if (byId[id] != null) byId[id]!,
     ];
   }
@@ -69,11 +70,11 @@ class WorkStatusService {
     if (board.issues.any((issue) => issue.taskId == task.id && issue.open)) {
       return WorkState.defect;
     }
+    if (task.needsQuantityReview) return WorkState.quantityReview;
     if (task.fullyAccepted) return WorkState.accepted;
     if (task.paused) return WorkState.paused;
     if (task.complete) return WorkState.awaitingAcceptance;
     if (task.progress > 0) return WorkState.inProgress;
-    if (task.needsQuantityReview) return WorkState.quantityReview;
     if (!canStart(board, task)) return WorkState.blocked;
     if (task.isDelayed(now)) return WorkState.overdue;
     final today = DateTime(now.year, now.month, now.day);
