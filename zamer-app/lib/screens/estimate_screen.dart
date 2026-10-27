@@ -8,6 +8,7 @@ import '../design_system/zamer_components.dart';
 import '../design_system/zamer_tokens.dart';
 import '../models/models.dart';
 import '../services/estimate_service.dart';
+import 'budget_screen.dart';
 
 class EstimateScreen extends StatefulWidget {
   const EstimateScreen({
@@ -133,6 +134,20 @@ class _EstimateScreenState extends State<EstimateScreen> {
           ],
         ),
         actions: [
+          IconButton(
+            tooltip: 'Бюджет и факт',
+            icon: const Icon(Icons.account_balance_wallet_outlined),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => BudgetScreen(
+                  project: widget.project,
+                  onChanged: widget.onChanged,
+                ),
+              ),
+            ).then((_) {
+              if (mounted) setState(() {});
+            }),
+          ),
           IconButton(
             tooltip: 'Скопировать смету',
             icon: const Icon(Icons.copy_all_outlined),
