@@ -164,6 +164,11 @@ class ElectricalNetworkService {
         issue('mixedCoreRoles',
             'В одной клемме указаны разные назначенные функции жил.', t.id);
       }
+      if (roles.contains(ElectricalCorePurpose.unspecified)) {
+        issue('unknownCoreRoles',
+            'Не у всех жил клеммы указано назначение.', t.id,
+            ElectricalNetworkSeverity.warning);
+      }
     }
 
     final linkedRuns = network.cables
