@@ -4,7 +4,27 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Stable release identity is supplied only by secure CI environment variables.
+// Without it, development APKs remain explicitly DEBUG-key signed.
+val zamerKeystoreFile = System.getenv("ZAMER_RELEASE_KEYSTORE_FILE")
+val zamerKeystorePassword = System.getenv("ZAMER_RELEASE_STORE_PASSWORD")
+val zamerKeyAlias = System.getenv("ZAMER_RELEASE_KEY_ALIAS")
+val zamerKeyPassword = System.getenv("ZAMER_RELEASE_KEY_PASSWORD")
+val stableSigning = listOf(
+    zamerKeystoreFile, zamerKeystorePassword, zamerKeyAlias, zamerKeyPassword
+).all { !it.isNullOrBlank() }
+
 android {
+    signingConfigs {
+        if (stableSigning) {
+            create("zamerStableRelease") {
+                storeFile = file(zamerKeystoreFile!!)
+                storePassword = zamerKeystorePassword
+                keyAlias = zamerKeyAlias
+                keyPassword = zamerKeyPassword
+            }
+        }
+    }
     namespace = "ru.zamer.zamer_app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
@@ -31,9 +51,14 @@ android {
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // Stable signed APKs support in-place updates when versionCode
+            // increases and the same signing key is kept. Ephemeral runner
+            // debug signing is fallback ONLY for installation tests.
+            signingConfig = if (stableSigning) {
+                signingConfigs.getByName("zamerStableRelease")
+            } else {
+                signingConfigs.getByName("debug")
+            }
             // Alpha builds prioritize reliable on-device verification over APK size.
             isMinifyEnabled = false
             isShrinkResources = false
