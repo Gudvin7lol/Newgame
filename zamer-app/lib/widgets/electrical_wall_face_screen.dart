@@ -4,6 +4,7 @@ import '../models/electrical_wall_face.dart';
 import '../models/models.dart';
 import '../services/electrical_mounting_service.dart';
 import '../services/electrical_wall_face_service.dart';
+import 'electrical_wall_datum_screen.dart';
 
 class ElectricalWallFaceScreen extends StatefulWidget {
   const ElectricalWallFaceScreen({
@@ -233,6 +234,22 @@ class _ElectricalWallFaceScreenState extends State<ElectricalWallFaceScreen> {
               if (issue != null)
                 Text(issue,
                     style: TextStyle(color: Theme.of(context).colorScheme.error)),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                key: const ValueKey('wall-datums-open'),
+                onPressed: wall == null ? null : () {
+                  Navigator.of(context).push<void>(
+                    MaterialPageRoute(
+                      builder: (_) => ElectricalWallDatumScreen(
+                        floor: widget.floor,
+                        wallId: wall.id, wallSide: side,
+                      ),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.straighten),
+                label: const Text('Базы от углов и проёмов'),
+              ),
               const SizedBox(height: 15),
               Text('Электроточки на выбранной стороне',
                   style: Theme.of(context).textTheme.titleMedium),
