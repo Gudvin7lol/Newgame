@@ -131,6 +131,7 @@ class ElectricalJunctionEditService {
     }
     final present = <String>{};
     final circuitIds = <String>{};
+    final cableIds = <String>{};
     final purposes = <ElectricalCorePurpose>{};
     for (final ref in members) {
       if (!present.add(ref.key)) {
@@ -151,9 +152,15 @@ class ElectricalJunctionEditService {
         throw const FormatException('Указанная жила кабеля отсутствует.');
       }
       circuitIds.add(cable.circuitId);
+      cableIds.add(cable.id);
       if (core.purpose != ElectricalCorePurpose.unspecified) {
         purposes.add(core.purpose);
       }
+    }
+    if (cableIds.length < 2) {
+      throw const FormatException(
+        'Для этой соединительной клеммы нужны жилы минимум двух кабелей.',
+      );
     }
     if (circuitIds.length != 1) {
       throw const FormatException('Нельзя смешивать цепи в одной клемме.');
