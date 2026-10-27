@@ -403,6 +403,23 @@ class _WorksScreenState extends State<WorksScreen> {
     ]);
   }
 
+  List<Widget> _compactTasksForDay() {
+    final date = _day(_selected);
+    final tasks = _visibleWorks.where((t) =>
+      !date.isBefore(_day(t.start)) && !date.isAfter(_day(t.finish))
+    ).toList();
+    if (tasks.isEmpty) {
+      return [_card(child: const Text('В этот день работ нет.',
+        style: TextStyle(color: _muted, fontSize: 12)))];
+    }
+    final arranged = WorkStagePresentationService.order(tasks);
+    return [
+      _card(padding: EdgeInsets.zero, child: Column(children: [
+        for (final task in arranged) _compactWorkRow(task),
+      ])),
+    ];
+  }
+
   Widget _compactSchedule() => Column(children: [
     Row(children: [
       for (final e in ['Неделя', 'Месяц', 'Гант'].asMap().entries) ...[
@@ -415,7 +432,7 @@ class _WorksScreenState extends State<WorksScreen> {
     if (_calendar == 0) _weekSelector(),
     if (_calendar == 1) _monthSelector(),
     if (_calendar == 2) _gantt(),
-    if (_calendar != 2) ..._tasksOnDate(),
+    if (_calendar != 2) ..._compactTasksForDay(),
   ]);
 
   Widget _compactControl() {
@@ -2135,7 +2152,8 @@ class _WorksScreenState extends State<WorksScreen> {
                   fontWeight: FontWeight.w800, fontSize: 15)),
                 const SizedBox(height: 4),
                 CircleAvatar(radius: 2.5,
-                  backgroundColor: board.tasks.any((t) =>
+                  backgroundColor: (widget.embedded
+                  ? _visibleWorks : board.tasks).any((t) =>
                     !d.isBefore(_day(t.start)) && !d.isAfter(_day(t.finish)))
                     ? (active ? _bg : _peach) : Colors.transparent),
               ]),
@@ -2175,7 +2193,8 @@ class _WorksScreenState extends State<WorksScreen> {
           if (day < 1 || day > days) return const SizedBox.shrink();
           final date = DateTime(first.year, first.month, day);
           final selected = _day(date) == _day(_selected);
-          final busy = board.tasks.any((t) =>
+          final busy = (widget.embedded
+            ? _visibleWorks : board.tasks).any((t) =>
             !date.isBefore(_day(t.start)) && !date.isAfter(_day(t.finish)));
           return InkWell(onTap: () => setState(() => _selected = date),
             child: Container(
@@ -2197,7 +2216,8 @@ class _WorksScreenState extends State<WorksScreen> {
   }
 
   Widget _gantt() {
-    final tasks = [...board.tasks]
+    final tasks = <WorkTask>[...
+      (widget.embedded ? _visibleWorks : board.tasks)]
       ..sort((a, b) => a.start.compareTo(b.start));
     if (tasks.isEmpty) return _empty('Нет работ для диаграммы Ганта.');
 
