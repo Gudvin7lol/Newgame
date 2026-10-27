@@ -14,6 +14,7 @@ class ElectricalWallFaceScreen extends StatefulWidget {
     required this.floor,
     required this.onSaveFace,
     this.onSaveReveal,
+    this.onAssignDatum,
   });
 
   final FloorPlan floor;
@@ -21,6 +22,8 @@ class ElectricalWallFaceScreen extends StatefulWidget {
       String wallId, int side, WallFaceFinish? finish) onSaveFace;
   final Future<void> Function(String wallId, String openingId, int side,
       ElectricalFinishedReveal? reveal)? onSaveReveal;
+  final Future<void> Function(String pointId, String wallId, int side,
+      String? datumId)? onAssignDatum;
 
   @override
   State<ElectricalWallFaceScreen> createState() =>
@@ -269,6 +272,7 @@ class _ElectricalWallFaceScreenState extends State<ElectricalWallFaceScreen> {
                       builder: (_) => ElectricalWallDatumScreen(
                         floor: widget.floor,
                         wallId: wall.id, wallSide: side,
+                        onAssign: widget.onAssignDatum,
                       ),
                     ),
                   );
