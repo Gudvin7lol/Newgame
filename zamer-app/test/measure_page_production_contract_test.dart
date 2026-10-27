@@ -24,7 +24,10 @@ void main() {
     expect(production.contains('PlanEditorMasterV4Screen('), isTrue);
     expect(production.contains('PlanEditorMasterV3Screen('), isFalse);
 
-    expect(measure.contains("modeLabel: 'ЗАМЕР'"), isTrue);
+    // The recovered Measure shell now also hosts the Works mode, while
+    // retaining the original header for all CAD editing layers.
+    expect(measure.contains("modeLabel: _layer == 6 ? 'РАБОТЫ' : 'ЗАМЕР'"),
+        isTrue);
     expect(measure.contains('onUndo: widget.onUndo'), isTrue);
     expect(measure.contains('onRedo: widget.onRedo'), isTrue);
     expect(measure.contains('ZMeasureViewTabs('), isTrue);
