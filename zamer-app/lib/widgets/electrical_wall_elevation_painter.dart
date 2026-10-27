@@ -93,13 +93,8 @@ class ElectricalWallElevationPainter extends CustomPainter {
       canvas.drawCircle(a, 2.5, Paint()..color = color);
       canvas.drawCircle(b, 2.5, Paint()..color = color);
     }
-    // Crossing markers are review items; no fictitious wall cable is drawn.
-    for (final notice in data.crossings) {
-      final world = data.lengthMm; // world dimension does not determine u here
-      if (world < 0) continue;
-      // A crossing marker on the elevation is listed precisely in the
-      // details below; it cannot be projected without the wall origin/axis.
-    }
+    // Perpendicular crossing points remain in the details list; a crossing
+    // must never be painted as an on-wall cable run in this elevation.
     // Points only if assigned to this exact wall by an explicit wallId.
     for (var i = 0; i < data.points.length; i++) {
       final point = data.points[i];
