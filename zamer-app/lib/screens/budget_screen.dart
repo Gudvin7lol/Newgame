@@ -221,7 +221,13 @@ class _BudgetScreenState extends State<BudgetScreen> {
                 Text('Расчётный план: ${review.plannedTotal.toStringAsFixed(0)} ₽',
                     style: ZamerTypography.sectionTitle),
                 const SizedBox(height: 6),
-                if (review.completeEstimate)
+                if (review.plannedPositions == 0)
+                  const Text(
+                    'Смета ещё пуста. Построй помещения и рассчитай '
+                    'объёмы, прежде чем сравнивать бюджет.',
+                    style: ZamerTypography.caption,
+                  )
+                else if (review.completeEstimate)
                   Text(
                     'Остаток плана: '
                     '${review.remainingIfFullyPriced!.toStringAsFixed(0)} ₽',
