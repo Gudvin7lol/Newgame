@@ -159,13 +159,20 @@ class ElectricalCrossingService {
           final overlap = (math.min(1.0, math.max(u1, u2)) -
               math.max(0.0, math.min(u1, u2))) * wallLength;
           if (overlap > 20) {
-            final midT = .5;
+            // Mark the *actual overlap* instead of the centre of the whole
+            // cable leg, which may be far outside this wall's finite axis.
+            final lo = math.max(0.0, math.min(u1, u2));
+            final hi = math.min(1.0, math.max(u1, u2));
+            final midU = (lo + hi) / 2;
+            final x = a.xMm + wx * midU;
+            final y = a.yMm + wy * midU;
+            final t = (((x - p.xMm) * dx + (y - p.yMm) * dy) /
+                (flat * flat)).clamp(0.0, 1.0);
             add(wall, ElectricalCrossingKind.alongWall,
                 'Трасса совпадает с осью стены. Глубина и способ прокладки '
                 'не определены.', ElectricalRouteVertex(
-                  xMm: (p.xMm + q.xMm) * midT,
-                  yMm: (p.yMm + q.yMm) * midT,
-                  zMm: (p.zMm + q.zMm) * midT,
+                  xMm: x, yMm: y,
+                  zMm: p.zMm + (q.zMm - p.zMm) * t,
                 ), segment);
           }
           continue;
