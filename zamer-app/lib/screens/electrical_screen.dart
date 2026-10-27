@@ -8,6 +8,7 @@ import '../models/electrical_mounting.dart';
 import '../services/electrical_mounting_service.dart';
 import '../widgets/electrical_mounting_editor.dart';
 import '../widgets/electrical_point_properties.dart';
+import '../widgets/electrical_junction_connections_sheet.dart';
 import '../services/geometry_service.dart';
 import '../widgets/electrical_plan_painter.dart';
 import '../widgets/cad_plan_painter.dart';
@@ -706,6 +707,13 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                   icon: const Icon(Icons.straighten),
                   label: const Text('Размеры и положение'),
                 ),
+              if (p.type == ElectricalPointType.junctionBox)
+                OutlinedButton.icon(
+                  key: const ValueKey('junction-connections'),
+                  onPressed: () => Navigator.pop(sheet, 'junction'),
+                  icon: const Icon(Icons.account_tree_outlined),
+                  label: const Text('Кабели и клеммы'),
+                ),
               OutlinedButton.icon(
                 key: const ValueKey('edit-point-properties'),
                 onPressed: () => Navigator.pop(sheet, 'properties'),
@@ -769,6 +777,17 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
         ..addAll(next.modules);
       p.frameVertical = next.frameVertical;
       p.type = next.type;
+    } else if (action == 'junction') {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        showDragHandle: true,
+        builder: (_) => ElectricalJunctionConnectionsSheet(
+          floor: widget.floor,
+          junctionPointId: p.id,
+        ),
+      );
+      return; // Inspection never changes the project or adds undo entries.
     } else if (action == 'delete') {
       _pushUndo();
       widget.floor.electricalRuns.removeWhere(
