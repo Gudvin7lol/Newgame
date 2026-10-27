@@ -162,6 +162,12 @@ void main() {
         ElectricalRouteVertex(xMm: 2100, yMm: -1000, zMm: 500),
         ElectricalRouteVertex(xMm: 2100, yMm: 1000, zMm: 500),
       ]);
+    // The physical installation method list is per segment. Replacing three
+    // legs with one leg must update this list, or the route is intentionally
+    // invalidated before the crossing service ever sees it.
+    f.electricalNetwork!.routes3d.single.methods
+      ..clear()
+      ..add(ElectricalInstallationMethod.inWall);
     f.electricalPoints[1].heightMm = 500;
     final data = ElectricalWallElevationService.build(f, 'w');
     expect(data.segments, isEmpty);
