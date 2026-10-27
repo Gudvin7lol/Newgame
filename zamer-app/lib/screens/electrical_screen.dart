@@ -13,6 +13,7 @@ import '../models/electrical_network.dart';
 import '../services/electrical_junction_edit_service.dart';
 import '../services/geometry_service.dart';
 import '../widgets/electrical_plan_painter.dart';
+import '../widgets/electrical_cable_journal_sheet.dart';
 import '../widgets/cad_plan_painter.dart';
 import '../services/plan_visibility_service.dart';
 import '../services/plan_viewport_link.dart';
@@ -50,6 +51,10 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
   String _routeMode = 'orthogonal';
   String? _wireStartId;
   String? _selectedId;
+  /// Physical cable routes and sketch lines are hidden by default.
+  bool _show3dRoutes = false;
+  bool _showLegacyLines = false;
+  String? _routeCircuitFilterId;
   String? _dragPointId;
   bool _dragUndoPushed = false;
   final _undo = <String>[];
@@ -921,6 +926,81 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     if (mounted) setState(() {});
   }
 
+  Future<void> _showCableJournal() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => ElectricalCableJournalSheet(
+        floor: widget.floor,
+        initialCircuitId: _routeCircuitFilterId,
+        onCircuitChanged: (circuitId) {
+          if (!mounted) return;
+          setState(() {
+            _routeCircuitFilterId = circuitId;
+            _show3dRoutes = true;
+          });
+        },
+      ),
+    );
+  }
+
+  Widget _routeControls() {
+    final id = _routeCircuitFilterId;
+    final circuit = widget.floor.electricalNetwork?.circuits
+        .where((c) => c.id == id).firstOrNull;
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Wrap(
+        alignment: WrapAlignment.end, spacing: 2, runSpacing: 0,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          IconButton(
+            key: const ValueKey('electrical-cable-journal'),
+            tooltip: 'Кабельный журнал',
+            icon: const Icon(Icons.inventory_2_outlined),
+            onPressed: _showCableJournal,
+          ),
+          IconButton(
+            key: const ValueKey('electrical-toggle-physical-routes'),
+            tooltip: _show3dRoutes
+                ? 'Скрыть 3D-трассы' : 'Показать 3D-трассы',
+            icon: Icon(_show3dRoutes ? Icons.route : Icons.alt_route),
+            color: _show3dRoutes ? Theme.of(context).colorScheme.primary : null,
+            onPressed: () => setState(() => _show3dRoutes = !_show3dRoutes),
+          ),
+          PopupMenuButton<String>(
+            key: const ValueKey('electrical-plan-layers'),
+            tooltip: 'Слои проводки',
+            icon: const Icon(Icons.layers_outlined),
+            onSelected: (choice) => setState(() {
+              if (choice == 'legacy') _showLegacyLines = !_showLegacyLines;
+              if (choice == 'all') _routeCircuitFilterId = null;
+            }),
+            itemBuilder: (_) => [
+              CheckedPopupMenuItem(
+                value: 'legacy',
+                checked: _showLegacyLines,
+                child: const Text('Черновые линии'),
+              ),
+              if (id != null)
+                const PopupMenuItem(
+                  value: 'all', child: Text('Все группы'),
+                ),
+            ],
+          ),
+          if (id != null)
+            TextButton(
+              key: const ValueKey('electrical-selected-route-group'),
+              onPressed: () => setState(() => _routeCircuitFilterId = null),
+              child: Text(circuit?.name ?? 'Сбросить группу',
+                overflow: TextOverflow.ellipsis),
+            ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _showLoadInventory() async {
     final board = ElectricalBoardDraftService.create(widget.floor);
     final circuits = board.circuits;
@@ -1212,22 +1292,54 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
           ),
         ),
         if (widget.embedded)
-          Align(
-            alignment: Alignment.centerRight,
-            child: Wrap(spacing: 2, children: [
+          Row(
+            children: [
               TextButton.icon(
                 key: const ValueKey('electrical-load-inventory'),
                 onPressed: _showLoadInventory,
                 icon: const Icon(Icons.electric_bolt_outlined, size: 16),
                 label: const Text('Нагрузки / щит'),
               ),
-              TextButton.icon(
+              const Spacer(),
+              IconButton(
+                tooltip: 'Высоты точек',
                 onPressed: _heightDefaults,
-                icon: const Icon(Icons.height, size: 16),
-                label: const Text('Высоты'),
+                icon: const Icon(Icons.height),
               ),
-            ]),
+              IconButton(
+                key: const ValueKey('electrical-cable-journal'),
+                tooltip: 'Кабельный журнал',
+                onPressed: _showCableJournal,
+                icon: const Icon(Icons.inventory_2_outlined),
+              ),
+              IconButton(
+                key: const ValueKey('electrical-toggle-physical-routes'),
+                tooltip: _show3dRoutes ? 'Скрыть 3D-трассы' : 'Показать 3D-трассы',
+                onPressed: () => setState(() => _show3dRoutes = !_show3dRoutes),
+                icon: Icon(_show3dRoutes ? Icons.route : Icons.alt_route),
+              ),
+              PopupMenuButton<String>(
+                key: const ValueKey('electrical-plan-layers'),
+                tooltip: 'Слои проводки',
+                icon: const Icon(Icons.layers_outlined),
+                onSelected: (choice) => setState(() {
+                  if (choice == 'legacy') _showLegacyLines = !_showLegacyLines;
+                  if (choice == 'all') _routeCircuitFilterId = null;
+                }),
+                itemBuilder: (_) => [
+                  CheckedPopupMenuItem(
+                    value: 'legacy', checked: _showLegacyLines,
+                    child: const Text('Черновые линии'),
+                  ),
+                  if (_routeCircuitFilterId != null)
+                    const PopupMenuItem(value: 'all',
+                        child: Text('Все группы')),
+                ],
+              ),
+            ],
           ),
+        if (!widget.embedded)
+          _routeControls(),
         Expanded(
           child: LayoutBuilder(
             builder: (context, c) {
@@ -1264,6 +1376,9 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                     origin: t.origin,
                     selectedPointId: _selectedId,
                     wireStartPointId: _wireStartId,
+                    showLegacyLines: _showLegacyLines,
+                    show3dRoutes: _show3dRoutes,
+                    circuitFilterId: _routeCircuitFilterId,
                   ),
                   foregroundPainter: widget.embedded
                       ? ElectricalPlanPainter(
@@ -1274,6 +1389,9 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                           wireStartPointId: _wireStartId,
                           darkMode: true,
                           overlayOnly: true,
+                          showLegacyLines: _showLegacyLines,
+                          show3dRoutes: _show3dRoutes,
+                          circuitFilterId: _routeCircuitFilterId,
                         ) : null,
                   child: const SizedBox.expand(),
                 ),
