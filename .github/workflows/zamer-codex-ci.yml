@@ -324,6 +324,17 @@ jobs:
           grep -F 'Signer #1 certificate SHA-256 digest:' apk-signature.txt
           grep -Eq '^mode=(temporary-debug|stable-release);' signature-mode.txt
 
+          # Verify that unsigned/untrusted CI outputs can never masquerade
+          # as an in-place update for the production package.
+          aapt="$(dirname "$signer")/aapt"
+          test -x "$aapt"
+          "$aapt" dump badging app-release.apk > apk-package.txt
+          if [[ "$REQUEST_STABLE_RELEASE" == true ]]; then
+            grep -F "package: name='ru.zamer.zamer_app'" apk-package.txt
+          else
+            grep -F "package: name='ru.zamer.zamer_app.preview'" apk-package.txt
+          fi
+
           if [[ "$REQUEST_STABLE_RELEASE" == true ]]; then
             expected="$(printf '%s' "$EXPECTED_RELEASE_CERT_SHA256" | tr -d ':' | tr '[:upper:]' '[:lower:]')"
             actual="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' apk-signature.txt | head -n 1 | tr -d ':' | tr '[:upper:]' '[:lower:]')"
@@ -351,5 +362,6 @@ jobs:
             zamer-app/build/app/outputs/flutter-apk/app-release.apk.sha256
             zamer-app/build/app/outputs/flutter-apk/signature-mode.txt
             zamer-app/build/app/outputs/flutter-apk/apk-signature.txt
+            zamer-app/build/app/outputs/flutter-apk/apk-package.txt
           if-no-files-found: error
           retention-days: 14
