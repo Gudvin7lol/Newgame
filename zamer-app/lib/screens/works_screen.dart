@@ -2754,6 +2754,7 @@ class _WorksScreenState extends State<WorksScreen> {
     String? operationCode;
     final coStageSelection = <String>{};
     var lagDays = 0;
+    var showAdvanced = false;
     void refillFromGeometry() {
       final op = WorkOperationCatalog.byCode[operationCode];
       if (op == null) return;
@@ -2885,6 +2886,16 @@ class _WorksScreenState extends State<WorksScreen> {
                 icon: const Icon(Icons.architecture),
                 label: const Text('Подставить площадь пола из модели'),
               ),
+              TextButton.icon(
+                key: const ValueKey('works-more-details'),
+                onPressed: () => state(() => showAdvanced = !showAdvanced),
+                icon: Icon(showAdvanced
+                    ? Icons.expand_less : Icons.tune_rounded, size: 17),
+                label: Text(showAdvanced
+                    ? 'Скрыть дополнительные параметры'
+                    : 'Дополнительные параметры'),
+              ),
+              if (showAdvanced) ...[
               TextField(controller: hours,
                 keyboardType: const TextInputType.numberWithOptions(decimal:true),
                 decoration: const InputDecoration(labelText: 'Трудоёмкость, чел·ч')),
@@ -2948,6 +2959,7 @@ class _WorksScreenState extends State<WorksScreen> {
                       }),
                     ),
                 ]),
+              ],
               ],
               const SizedBox(height: 11),
               Row(children: [
