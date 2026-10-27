@@ -25,6 +25,14 @@ class ElectricalMountingService {
     final wallGeometry = wall.toJson()
       ..remove('electricalFaceLeft')
       ..remove('electricalFaceRight');
+    for (final opening in wallGeometry['openings'] as List) {
+      if (opening is Map) {
+        // Finished reveal measurements are evidence metadata. The rough
+        // opening shape has NOT changed, so P1 axis mounting stays valid.
+        opening.remove('electricalRevealLeft');
+        opening.remove('electricalRevealRight');
+      }
+    }
     return jsonEncode({
       'wall': wallGeometry,
       'start': floor.nodeById(wall.startNodeId)?.toJson(),

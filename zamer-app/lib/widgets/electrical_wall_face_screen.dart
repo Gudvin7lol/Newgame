@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../models/electrical_wall_face.dart';
+import '../models/electrical_finished_reveal.dart';
+import 'electrical_finished_reveal_screen.dart';
 import '../models/models.dart';
 import '../services/electrical_mounting_service.dart';
 import '../services/electrical_wall_face_service.dart';
@@ -11,11 +13,14 @@ class ElectricalWallFaceScreen extends StatefulWidget {
     super.key,
     required this.floor,
     required this.onSaveFace,
+    this.onSaveReveal,
   });
 
   final FloorPlan floor;
   final Future<void> Function(
       String wallId, int side, WallFaceFinish? finish) onSaveFace;
+  final Future<void> Function(String wallId, String openingId, int side,
+      ElectricalFinishedReveal? reveal)? onSaveReveal;
 
   @override
   State<ElectricalWallFaceScreen> createState() =>
@@ -234,6 +239,27 @@ class _ElectricalWallFaceScreenState extends State<ElectricalWallFaceScreen> {
               if (issue != null)
                 Text(issue,
                     style: TextStyle(color: Theme.of(context).colorScheme.error)),
+              if (widget.onSaveReveal != null &&
+                  wall != null && wall.openings.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  key: const ValueKey('wall-reveals-open'),
+                  onPressed: () async {
+                    await Navigator.of(context).push<void>(
+                      MaterialPageRoute(builder: (_) =>
+                        ElectricalFinishedRevealScreen(
+                          floor: widget.floor,
+                          wallId: wall.id,
+                          wallSide: side,
+                          onSave: widget.onSaveReveal!,
+                        )),
+                    );
+                    if (mounted) setState(() {});
+                  },
+                  icon: const Icon(Icons.meeting_room_outlined),
+                  label: const Text('Чистовые грани проёмов'),
+                ),
+              ],
               const SizedBox(height: 12),
               OutlinedButton.icon(
                 key: const ValueKey('wall-datums-open'),

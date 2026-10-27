@@ -2,11 +2,19 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import '../models/electrical_wall_face.dart';
+import '../models/electrical_finished_reveal.dart';
+import 'electrical_opening_reveal_service.dart';
 import '../models/models.dart';
 import 'electrical_mounting_service.dart';
 import 'electrical_wall_face_service.dart';
 
-enum ElectricalDatumKind { finishedCorner, structuralOpeningStart, structuralOpeningEnd }
+enum ElectricalDatumKind {
+  finishedCorner,
+  structuralOpeningStart,
+  structuralOpeningEnd,
+  finishedOpeningStart,
+  finishedOpeningEnd,
+}
 
 class ElectricalWallDatum {
   const ElectricalWallDatum({
@@ -19,6 +27,7 @@ class ElectricalWallDatum {
     this.neighbourWallId,
     this.openingId,
     this.source,
+    this.revealSource,
   });
 
   final String id, title, description;
@@ -29,6 +38,7 @@ class ElectricalWallDatum {
   final bool finishedReference;
   final String? neighbourWallId, openingId;
   final WallFinishSource? source;
+  final OpeningRevealSource? revealSource;
 }
 
 class ElectricalDatumDimension {
@@ -237,6 +247,43 @@ class ElectricalWallDatumService {
         finishedReference: false,
         description: 'Положение черновой грани в модели стены. '
             'Чистовой откос, коробка и наличник не учтены.',
+      ));
+      // Finished reveal stations are explicit per-face inputs. Never derive
+      // them from the rough opening, and never show a stale value as valid.
+      final reveal = ElectricalOpeningRevealService.saved(opening, side);
+      if (reveal == null) continue;
+      final revealIssue = ElectricalOpeningRevealService.problem(
+          floor, wallId, opening.id, side);
+      if (revealIssue != null) {
+        issues.add('Проём ' + opening.id +
+            ': чистовые грани недостоверны. ' + revealIssue);
+        continue;
+      }
+      datums.add(ElectricalWallDatum(
+        id: 'opening:' + opening.id + ':finished:start',
+        kind: ElectricalDatumKind.finishedOpeningStart,
+        title: 'Проём ' + opening.id + ' · чистовая грань 1',
+        uMm: reveal.startUMm,
+        openingId: opening.id,
+        finishedReference: true,
+        revealSource: reveal.source,
+        description: 'Введённая чистовая грань №1 со стороны ' +
+            (side == 1 ? 'слева' : 'справа') +
+            '. Источник: ' + reveal.source.name +
+            '. Не является автоматически подтверждённой гранью коробки.',
+      ));
+      datums.add(ElectricalWallDatum(
+        id: 'opening:' + opening.id + ':finished:end',
+        kind: ElectricalDatumKind.finishedOpeningEnd,
+        title: 'Проём ' + opening.id + ' · чистовая грань 2',
+        uMm: reveal.endUMm,
+        openingId: opening.id,
+        finishedReference: true,
+        revealSource: reveal.source,
+        description: 'Введённая чистовая грань №2 со стороны ' +
+            (side == 1 ? 'слева' : 'справа') +
+            '. Источник: ' + reveal.source.name +
+            '. Не является автоматически подтверждённой гранью коробки.',
       ));
     }
 
