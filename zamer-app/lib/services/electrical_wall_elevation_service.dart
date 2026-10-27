@@ -94,7 +94,11 @@ class ElectricalWallElevationService {
     FloorPlan floor,
     String wallId, {
     String? circuitId,
+    int? wallSide,
   }) {
+    if (wallSide != null && wallSide != 1 && wallSide != -1) {
+      throw const FormatException('Неизвестная сторона стены.');
+    }
     final wall = floor.wallById(wallId);
     if (wall == null) {
       throw const FormatException('Выбранная стена больше не существует.');
@@ -150,6 +154,7 @@ class ElectricalWallElevationService {
         // Never put nearby sockets on a wall unless the master has explicitly
         // assigned a persistent wallId.
         if (p.wallId != wallId) continue;
+        if (wallSide != null && p.wallSide != wallSide) continue;
         final position = projected(p.xMm, p.yMm);
         if (position.u < -.5 || position.u > length + .5 ||
             !p.heightMm.isFinite || p.heightMm < 0 || p.heightMm > h) {

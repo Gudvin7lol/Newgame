@@ -16,6 +16,9 @@ import '../widgets/electrical_plan_painter.dart';
 import '../widgets/electrical_cable_journal_sheet.dart';
 import '../widgets/electrical_crossing_sheet.dart';
 import '../widgets/electrical_wall_elevation_screen.dart';
+import '../widgets/electrical_wall_face_screen.dart';
+import '../models/electrical_wall_face.dart';
+import '../services/electrical_wall_face_service.dart';
 import '../widgets/cad_plan_painter.dart';
 import '../services/plan_visibility_service.dart';
 import '../services/plan_viewport_link.dart';
@@ -929,6 +932,34 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     if (mounted) setState(() {});
   }
 
+  Future<void> _saveWallFace(
+      String wallId, int side, WallFaceFinish? finish) async {
+    final wall = widget.floor.wallById(wallId);
+    if (wall == null) throw const FormatException('Стена удалена.');
+    ElectricalWallFaceService.validate(widget.floor, wall, side, finish);
+    final previous = ElectricalWallFaceService.saved(wall, side);
+    if (previous?.thicknessMm == finish?.thicknessMm &&
+        previous?.source == finish?.source &&
+        previous?.note == finish?.note &&
+        (finish == null || (
+          previous?.axisStartNodeId == wall.startNodeId &&
+          previous?.axisEndNodeId == wall.endNodeId
+        ))) return;
+    _pushUndo();
+    ElectricalWallFaceService.apply(widget.floor, wallId, side, finish);
+    await widget.onChanged();
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _showWallFaces() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(builder: (_) => ElectricalWallFaceScreen(
+        floor: widget.floor,
+        onSaveFace: _saveWallFace,
+      )),
+    );
+  }
+
   Future<void> _showWallElevation() async {
     await Navigator.of(context).push<void>(
       MaterialPageRoute(builder: (_) => ElectricalWallElevationScreen(
@@ -1005,11 +1036,17 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
             key: const ValueKey('electrical-plan-layers'),
             tooltip: 'Слои проводки',
             icon: const Icon(Icons.layers_outlined),
-            onSelected: (choice) => setState(() {
-              if (choice == 'legacy') _showLegacyLines = !_showLegacyLines;
-              if (choice == 'crossings') _showCrossings = !_showCrossings;
-              if (choice == 'all') _routeCircuitFilterId = null;
-            }),
+            onSelected: (choice) {
+              if (choice == 'faces') {
+                _showWallFaces();
+                return;
+              }
+              setState(() {
+                if (choice == 'legacy') _showLegacyLines = !_showLegacyLines;
+                if (choice == 'crossings') _showCrossings = !_showCrossings;
+                if (choice == 'all') _routeCircuitFilterId = null;
+              });
+            },
             itemBuilder: (_) => [
               CheckedPopupMenuItem(
                 value: 'legacy',
@@ -1020,6 +1057,10 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                 value: 'crossings',
                 checked: _showCrossings,
                 child: const Text('Маркеры пересечений'),
+              ),
+              const PopupMenuItem(
+                value: 'faces',
+                child: Text('Стороны и отделка стен'),
               ),
               PopupMenuItem(
                 value: 'review',
@@ -1373,11 +1414,17 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                 key: const ValueKey('electrical-plan-layers'),
                 tooltip: 'Слои проводки',
                 icon: const Icon(Icons.layers_outlined),
-                onSelected: (choice) => setState(() {
-                  if (choice == 'legacy') _showLegacyLines = !_showLegacyLines;
-                  if (choice == 'crossings') _showCrossings = !_showCrossings;
-                  if (choice == 'all') _routeCircuitFilterId = null;
-                }),
+                onSelected: (choice) {
+                  if (choice == 'faces') {
+                    _showWallFaces();
+                    return;
+                  }
+                  setState(() {
+                    if (choice == 'legacy') _showLegacyLines = !_showLegacyLines;
+                    if (choice == 'crossings') _showCrossings = !_showCrossings;
+                    if (choice == 'all') _routeCircuitFilterId = null;
+                  });
+                },
                 itemBuilder: (_) => [
                   CheckedPopupMenuItem(
                     value: 'legacy', checked: _showLegacyLines,
@@ -1386,6 +1433,10 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                   CheckedPopupMenuItem(
                     value: 'crossings', checked: _showCrossings,
                     child: const Text('Маркеры пересечений'),
+                  ),
+                  const PopupMenuItem(
+                    value: 'faces',
+                    child: Text('Стороны и отделка стен'),
                   ),
                   PopupMenuItem(
                     value: 'review',
