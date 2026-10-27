@@ -4,6 +4,7 @@ import '../models/electrical_network.dart';
 import '../models/electrical_route_3d.dart';
 import '../models/models.dart';
 import '../services/electrical_route_service.dart';
+import 'electrical_route_plan_preview.dart';
 
 class ElectricalRouteEditResult {
   const ElectricalRouteEditResult(this.path, this.reserveMm);
@@ -59,6 +60,16 @@ class _ElectricalRouteEditorState extends State<ElectricalRouteEditor> {
     reserve.dispose();
     super.dispose();
   }
+
+  String methodLabel(ElectricalInstallationMethod m) => switch (m) {
+    ElectricalInstallationMethod.unspecified => 'Способ не указан',
+    ElectricalInstallationMethod.inWall => 'В стене',
+    ElectricalInstallationMethod.aboveCeiling => 'Над потолком',
+    ElectricalInstallationMethod.inFloor => 'В полу',
+    ElectricalInstallationMethod.exposed => 'Открытая прокладка',
+    ElectricalInstallationMethod.conduit => 'В трубе',
+    ElectricalInstallationMethod.tray => 'В лотке',
+  };
 
   String fmt(double n) => n == n.truncateToDouble()
       ? n.toStringAsFixed(0)
@@ -251,6 +262,10 @@ class _ElectricalRouteEditorState extends State<ElectricalRouteEditor> {
                   route.source = v ?? ElectricalPathSource.unspecified),
             ),
             const SizedBox(height: 16),
+            ElectricalRoutePlanPreview(
+              vertices: route.vertices, target: target,
+            ),
+            const SizedBox(height: 14),
             Row(children: [
               Expanded(child: Text('Участки',
                   style: Theme.of(context).textTheme.titleMedium)),
@@ -271,7 +286,7 @@ class _ElectricalRouteEditorState extends State<ElectricalRouteEditor> {
                 leading: Text((i + 1).toString()),
                 title: Text(fmt(route.vertices[i].distanceTo(
                     route.vertices[i + 1])) + ' мм'),
-                subtitle: Text(route.methods[i].name),
+                subtitle: Text(methodLabel(route.methods[i])),
               ),
             if (route.methods.isNotEmpty)
               Align(
