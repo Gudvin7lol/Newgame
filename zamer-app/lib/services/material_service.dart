@@ -7,13 +7,25 @@ class MaterialService {
   static List<MaterialEstimate> roomEstimates(
     FloorPlan floor,
     RoomFace face,
-    RoomMeta meta,
-  ) {
+    RoomMeta meta, {
+    double? laminateAreaM2,
+    double? tileFloorAreaM2,
+    double? paintWallAreaM2,
+    double? tileWallAreaM2,
+  }) {
     final s = meta.materials;
     final result = <MaterialEstimate>[];
     final floorArea = face.areaM2;
     final wallArea = GeometryService.roomNetWallAreaM2(floor, face);
     final skirting = GeometryService.roomSkirtingM(floor, face);
+    // Explicit finish zones are computed by the same geometry services as
+    // WorkGenerationService. Defaults preserve direct legacy callers.
+    final laminateArea = laminateAreaM2 ??
+        ((s.floorMode == 'tile' || s.floorTile) ? 0.0 : floorArea);
+    final tileFloorArea = tileFloorAreaM2 ??
+        ((s.floorMode == 'tile' || s.floorTile) ? floorArea : 0.0);
+    final paintWallArea = paintWallAreaM2 ?? (s.wallPaint ? wallArea : 0.0);
+    final tileWallArea = tileWallAreaM2 ?? (s.wallTile ? wallArea : 0.0);
 
     for (final layer in meta.floorLayers) {
       if (layer.thicknessMm > 0) {
@@ -40,8 +52,8 @@ class MaterialService {
       }
     }
 
-    if (s.floorMode == 'laminate') {
-      final need = floorArea * (1 + s.floorWastePct / 100);
+    if (laminateArea > 0.0001) {
+      final need = laminateArea * (1 + s.floorWastePct / 100);
       final packs = s.floorPackageM2 > 0
           ? (need / s.floorPackageM2).ceil()
           : null;
@@ -55,7 +67,7 @@ class MaterialService {
           note: 'Запас ${s.floorWastePct.toStringAsFixed(0)}%',
         ),
       );
-      final underlayNeed = floorArea * 1.05;
+      final underlayNeed = laminateArea * 1.05;
       result.add(
         MaterialEstimate(
           name: 'Подложка',
@@ -78,8 +90,8 @@ class MaterialService {
       );
     }
 
-    if (s.floorTile) {
-      final need = floorArea * (1 + s.floorTileWastePct / 100);
+    if (tileFloorArea > 0.0001) {
+      final need = tileFloorArea * (1 + s.floorTileWastePct / 100);
       result.add(
         MaterialEstimate(
           name: 'Плитка на пол',
@@ -92,7 +104,7 @@ class MaterialService {
           note: 'Запас ${s.floorTileWastePct.toStringAsFixed(0)}%',
         ),
       );
-      final glueKg = need * s.tileGlueKgM2;
+      final glueKg = tileFloorArea * s.tileGlueKgM2;
       result.add(
         MaterialEstimate(
           name: 'Плиточный клей (пол)',
@@ -120,8 +132,8 @@ class MaterialService {
       );
     }
 
-    if (s.wallPutty) {
-      final kg = wallArea * s.puttyCoats * s.puttyKgM2Coat;
+    if (s.wallPutty && paintWallArea > 0.0001) {
+      final kg = paintWallArea * s.puttyCoats * s.puttyKgM2Coat;
       result.add(
         MaterialEstimate(
           name: 'Шпаклёвка',
@@ -134,10 +146,10 @@ class MaterialService {
       );
     }
 
-    if (s.wallPaint) {
+    if (paintWallArea > 0.0001) {
       final liters = s.paintCoverageM2L <= 0
           ? 0.0
-          : wallArea * s.paintCoats / s.paintCoverageM2L;
+          : paintWallArea * s.paintCoats / s.paintCoverageM2L;
       result.add(
         MaterialEstimate(
           name: 'Краска для стен',
@@ -150,8 +162,8 @@ class MaterialService {
       );
     }
 
-    if (s.wallTile) {
-      final need = wallArea * (1 + s.wallTileWastePct / 100);
+    if (tileWallArea > 0.0001) {
+      final need = tileWallArea * (1 + s.wallTileWastePct / 100);
       result.add(
         MaterialEstimate(
           name: 'Плитка на стены',
@@ -164,7 +176,7 @@ class MaterialService {
           note: 'Запас ${s.wallTileWastePct.toStringAsFixed(0)}%',
         ),
       );
-      final glueKg = need * s.tileGlueKgM2;
+      final glueKg = tileWallArea * s.tileGlueKgM2;
       result.add(
         MaterialEstimate(
           name: 'Плиточный клей (стены)',
