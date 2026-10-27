@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:zamer_app/application/workspace_session.dart';
 import 'package:zamer_app/models/models.dart';
 import 'package:zamer_app/models/work_board.dart';
+import 'package:zamer_app/services/work_status_service.dart';
 import 'package:zamer_app/screens/works_screen.dart';
 import 'package:zamer_app/widgets/zamer_ui_kit_v2.dart';
 
@@ -333,6 +334,24 @@ void main() {
     expect(find.text('Новое замечание'), findsOneWidget);
     expect(find.text('Добавить работу'), findsNothing);
     expect(tester.takeException(), isNull);
+  });
+
+
+  test('a partially completed late job remains visible as overdue', () {
+    final task = WorkTask(
+      id: 'late', title: 'Шпаклёвка',
+      start: DateTime(2026, 10, 1),
+      finish: DateTime(2026, 10, 10),
+      quantity: 30, unit: 'м²', hours: 20, done: 8,
+    );
+    final board = WorkBoard(tasks: [task]);
+    expect(WorkStatusService.state(board, task,
+      at: DateTime(2026, 10, 12)), WorkState.overdue);
+    expect(WorkStatusService.state(board, task,
+      at: DateTime(2026, 10, 9)), WorkState.inProgress);
+    task.done = task.quantity;
+    expect(WorkStatusService.state(board, task,
+      at: DateTime(2026, 10, 12)), WorkState.awaitingAcceptance);
   });
 
 }
