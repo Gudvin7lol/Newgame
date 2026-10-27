@@ -104,7 +104,5 @@ class _ElectricalRoutePreviewPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _ElectricalRoutePreviewPainter old) =>
-      old.vertices != vertices || old.target != target ||
-      old.lineColor != lineColor || old.background != background;
+  bool shouldRepaint(covariant _ElectricalRoutePreviewPainter old) => true;
 }
