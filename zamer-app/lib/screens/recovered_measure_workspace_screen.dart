@@ -445,12 +445,14 @@ class _RecoveredMeasureWorkspaceScreenState
               const SizedBox(height: 12),
               // Retain engineering and materials features without crowding
               // the four approved top-level tabs.
+              // Main workspace modes are already visible in the top bar.
+              // The overflow lists ONLY additional modules, not duplicates.
               ZWorkspaceSubnav(
-                items: _layers,
-                selectedIndex: _layer,
+                items: [_layers[4], _layers[5]],
+                selectedIndex: _layer == 4 ? 0 : _layer == 5 ? 1 : -1,
                 onSelected: (value) {
                   Navigator.pop(ctx);
-                  _selectLayer(value);
+                  _selectLayer(value == 0 ? 4 : 5);
                 },
               ),
               if (overflowTasks.isNotEmpty) ...[
