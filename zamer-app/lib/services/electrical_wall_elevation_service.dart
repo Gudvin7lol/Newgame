@@ -49,6 +49,18 @@ class ElectricalWallElevationSegment {
   final ElectricalPathSource source;
 }
 
+class ElectricalWallElevationCrossingMark {
+  const ElectricalWallElevationCrossingMark({
+    required this.cableId,
+    required this.uMm,
+    required this.zMm,
+    required this.needsReview,
+  });
+  final String cableId;
+  final double uMm, zMm;
+  final bool needsReview;
+}
+
 class ElectricalWallElevationData {
   const ElectricalWallElevationData({
     required this.wallId,
@@ -58,6 +70,7 @@ class ElectricalWallElevationData {
     required this.openings,
     required this.segments,
     required this.crossings,
+    required this.crossingMarks,
     required this.warnings,
     required this.supported,
   });
@@ -67,6 +80,7 @@ class ElectricalWallElevationData {
   final List<ElectricalWallElevationOpening> openings;
   final List<ElectricalWallElevationSegment> segments;
   final List<ElectricalCrossingNotice> crossings;
+  final List<ElectricalWallElevationCrossingMark> crossingMarks;
   final List<String> warnings;
   final bool supported;
 }
@@ -205,6 +219,21 @@ class ElectricalWallElevationService {
             n.wallId == wallId &&
             n.kind != ElectricalCrossingKind.unsupportedWall).toList();
 
+    // Crossings are projected as REVIEW markers only, not on-wall cable
+    // segments. Their U coordinate is derived from the oriented wall axis.
+    final crossingMarks = <ElectricalWallElevationCrossingMark>[];
+    for (final notice in crossing) {
+      final projectedCrossing = projected(notice.xMm, notice.yMm);
+      if (projectedCrossing.u < -.5 ||
+          projectedCrossing.u > length + .5 ||
+          notice.zMm < 0 || notice.zMm > h) continue;
+      crossingMarks.add(ElectricalWallElevationCrossingMark(
+        cableId: notice.cableId,
+        uMm: projectedCrossing.u.clamp(0.0, length),
+        zMm: notice.zMm,
+        needsReview: notice.needsReview,
+      ));
+    }
     if (report.missingRoutes > 0 || report.invalidRoutes > 0) {
       warnings.add('Неполная схема: кабелей без 3D-трассы ' +
           report.missingRoutes.toString() +
@@ -216,6 +245,7 @@ class ElectricalWallElevationService {
       wallId: wallId, lengthMm: length, heightMm: h,
       points: points, openings: openings,
       segments: segments, crossings: crossing,
+      crossingMarks: crossingMarks,
       warnings: warnings, supported: !curved,
     );
   }
