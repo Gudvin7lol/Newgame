@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../models/models.dart';
+import '../models/electrical_route_3d.dart';
 import '../services/electrical_wall_elevation_service.dart';
 import 'electrical_wall_elevation_painter.dart';
 
