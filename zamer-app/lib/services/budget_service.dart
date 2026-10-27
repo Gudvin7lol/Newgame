@@ -12,16 +12,18 @@ class BudgetReview {
     required this.unpricedMaterials,
     required this.unpricedLabor,
     required this.derivedPackagePrices,
+    required this.plannedPositions,
   });
 
   final double plannedMaterials, plannedLabor;
   final double actualMaterials, actualLabor;
   final int unpricedMaterials, unpricedLabor, derivedPackagePrices;
+  final int plannedPositions;
   double get plannedTotal => plannedMaterials + plannedLabor;
   double get actualTotal => actualMaterials + actualLabor;
   int get unpricedCount => unpricedMaterials + unpricedLabor;
-  bool get completeEstimate => unpricedCount == 0 &&
-      derivedPackagePrices == 0;
+  bool get completeEstimate => plannedPositions > 0 &&
+      unpricedCount == 0 && derivedPackagePrices == 0;
   double? get remainingIfFullyPriced =>
       completeEstimate ? plannedTotal - actualTotal : null;
 }
@@ -47,6 +49,7 @@ class BudgetService {
       unpricedMaterials: materials.unpricedCount,
       unpricedLabor: labor.unpricedCount,
       derivedPackagePrices: materials.derivedPriceCount,
+      plannedPositions: materials.lines.length + labor.lines.length,
     );
   }
 
