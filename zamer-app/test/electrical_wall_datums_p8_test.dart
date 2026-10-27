@@ -125,6 +125,17 @@ void main() {
     expect(catalog.issues.any((i) => i.contains('Проём door')), true);
   });
 
+  test('opening beyond wall height never supplies a marking baseline', () {
+    final f = datumFixture();
+    f.walls.first.openings.first
+      ..sillHeightMm = 900
+      ..heightMm = 2100;
+    final catalog = ElectricalWallDatumService.catalog(f, 'primary', 1);
+    expect(catalog.datums.any((d) => d.openingId == 'door'), false);
+    expect(catalog.issues.any((issue) =>
+        issue.contains('Проём door')), true);
+  });
+
   test('old or moved datum is rejected before returning centre dimensions', () {
     final f = datumFixture();
     final previous = ElectricalWallDatumService.catalog(f, 'primary', 1);
