@@ -3263,80 +3263,155 @@ class _WorksScreenState extends State<WorksScreen> {
   }
 
   Future<void> _taskDetail(WorkTask t) async {
-    await showModalBottomSheet<void>(context: context, backgroundColor: _panel,
+    final peers = WorkCoStageService.memberIds(board, t.id);
+    final waiting = WorkStatusService.startBlocker(board, t);
+    final pendingAcceptance = t.done > t.accepted;
+    final accepted = t.fullyAccepted && !t.needsQuantityReview;
+    final primaryText = t.needsQuantityReview
+        ? 'Проверить объём'
+        : pendingAcceptance
+            ? 'Принять выполненное'
+            : t.paused
+                ? 'Возобновить'
+                : 'Добавить объём';
+
+    Future<void> primary() async {
+      if (t.needsQuantityReview) {
+        await _confirmQuantity(t);
+      } else if (pendingAcceptance) {
+        await _accept(t);
+      } else if (t.paused) {
+        setState(() => t.paused = false);
+        board.log('Возобновлена работа: ' + t.title, taskId: t.id);
+        await _save();
+      } else {
+        await _updateDone(t);
+      }
+    }
+
+    await showModalBottomSheet<void>(
+      context: context, backgroundColor: _panel,
       isScrollControlled: true, showDragHandle: true,
-      builder: (sheet) => SafeArea(child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: SingleChildScrollView(child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          Text(t.title, style: const TextStyle(fontSize:19, fontWeight:FontWeight.w800)),
-          const SizedBox(height: 8),
-          Text(t.roomName.isEmpty?'Весь объект':t.roomName,
-            style: const TextStyle(color:_muted)),
-          const SizedBox(height: 12),
-          Text('План: ' + _date(t.start) + ' — ' + _date(t.finish)),
-          Text('Исполнитель: ' + (t.assignee.isEmpty?'Не назначен':t.assignee)),
-          Text('Выполнено: ' + _number(t.done) + '/' + _number(t.quantity) + ' ' + t.unit),
-          Text('Принято: ' + _number(t.accepted) + ' ' + t.unit),
-          const SizedBox(height: 8),
-          Text('Статус: ${_status(t)}',
-            style: TextStyle(color: _statusColor(t), fontSize: 12,
-              fontWeight: FontWeight.w700)),
-          if (WorkStatusService.prerequisites(t).isNotEmpty)
-            Padding(padding: const EdgeInsets.only(top: 6),
-              child: Text('Обязательные предшественники: ' +
-                WorkStatusService.prerequisites(t).map((id) =>
-                  board.tasks.where((p) => p.id == id).map((p) =>
-                    p.title + (p.fullyAccepted ? ' ✓' : ' (не принято)'))
-                    .firstOrNull ?? 'Неизвестная работа')
-                    .join(', '),
-                style: const TextStyle(color: _muted, fontSize: 11))),
-          if (WorkCoStageService.memberIds(board, t.id).length > 1)
-            Padding(padding: const EdgeInsets.only(top: 6),
-              child: Text('Параллельная группа: ' +
-                WorkCoStageService.memberIds(board, t.id)
-                  .where((id) => id != t.id)
-                  .map((id) => board.tasks.where((other) => other.id == id)
-                    .map((other) => other.title).firstOrNull ?? id)
-                  .join(', '),
-                style: const TextStyle(color: _peach, fontSize: 11))),
-          if (t.needsQuantityReview)
-            Padding(padding: const EdgeInsets.only(top: 8),
-              child: FilledButton.tonal(
-                onPressed: () { Navigator.pop(sheet); _confirmQuantity(t); },
-                child: const Text('Проверить и подтвердить объём'))),
-          const SizedBox(height: 10),
-          _meter(t.progress),
-          const SizedBox(height: 16),
-          FilledButton(onPressed: () {
-            Navigator.pop(sheet); _updateDone(t);
-          }, child: const Text('Зафиксировать выполнение')),
-          OutlinedButton(onPressed: () async {
-            Navigator.pop(sheet);
-            setState(() => t.paused = !t.paused);
-            board.log((t.paused ? 'Приостановлена: ' : 'Возобновлена: ') +
-              t.title, taskId: t.id);
-            await _save();
-          }, child: Text(t.paused ? 'Возобновить работу' : 'Приостановить работу')),
-          OutlinedButton(onPressed: () {
-            Navigator.pop(sheet); _manageCoStages(t);
-          }, child: const Text('Созависимые этапы')),
-          OutlinedButton(onPressed: () {
-            Navigator.pop(sheet); _editSchedule(t);
-          }, child: const Text('Сроки и зависимости')),
-          OutlinedButton(onPressed: () {
-            Navigator.pop(sheet); _editResources(t);
-          }, child: const Text('Исполнитель и трудоёмкость')),
-          OutlinedButton(onPressed: () {
-            Navigator.pop(sheet); _addIssue(task:t);
-          }, child: const Text('Создать замечание')),
-          if (t.done > t.accepted)
-            TextButton(onPressed: () {
-              Navigator.pop(sheet); _accept(t);
-            }, child: const Text('Передать / принять выполненный объём')),
-        ])),
-      )));
+      builder: (sheet) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 5, 16, 18),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(t.title,
+                  style: const TextStyle(fontSize: 18,
+                    fontWeight: FontWeight.w800)),
+                const SizedBox(height: 6),
+                Text((t.roomName.isEmpty ? 'Весь объект' : t.roomName) +
+                    '  ·  ' + _date(t.start) + '–' + _date(t.finish),
+                  style: const TextStyle(color: _muted, fontSize: 12)),
+                const SizedBox(height: 10),
+                Text(_status(t),
+                  style: TextStyle(color: _statusColor(t),
+                    fontSize: 12, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 8),
+                Text('Выполнено: ' + _number(t.done) + ' / ' +
+                    _number(t.quantity) + ' ' + t.unit +
+                    '  ·  Принято: ' + _number(t.accepted) + ' ' + t.unit,
+                  style: const TextStyle(fontSize: 12)),
+                const SizedBox(height: 8),
+                _meter(t.progress),
+                if (waiting != null && !pendingAcceptance)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 9),
+                    child: Text(waiting, maxLines: 3,
+                      style: const TextStyle(color: _amber, fontSize: 11)),
+                  ),
+                if (peers.length > 1)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text('Параллельно с ' +
+                      (peers.length - 1).toString() + ' работами',
+                      style: const TextStyle(color: _muted, fontSize: 11)),
+                  ),
+                if (accepted)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 12),
+                    child: Text('Работа полностью принята',
+                      style: TextStyle(color: _green,
+                        fontSize: 12, fontWeight: FontWeight.w700)),
+                  )
+                else if (pendingAcceptance || t.needsQuantityReview ||
+                    t.paused || waiting == null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 13),
+                    child: SizedBox(width: double.infinity,
+                      child: FilledButton(
+                        onPressed: () {
+                          Navigator.pop(sheet);
+                          primary();
+                        },
+                        child: Text(primaryText),
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 8),
+                Row(children: [
+                  Expanded(child: OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(sheet);
+                      _addIssue(task: t);
+                    },
+                    icon: const Icon(Icons.report_problem_outlined,
+                      size: 17),
+                    label: const Text('Замечание'),
+                  )),
+                  const SizedBox(width: 7),
+                  PopupMenuButton<String>(
+                    key: ValueKey('work-options-' + t.id),
+                    tooltip: 'Параметры работы',
+                    onSelected: (value) async {
+                      Navigator.pop(sheet);
+                      if (value == 'schedule') _editSchedule(t);
+                      if (value == 'stages') _manageCoStages(t);
+                      if (value == 'resources') _editResources(t);
+                      if (value == 'pause') {
+                        setState(() => t.paused = !t.paused);
+                        board.log((t.paused
+                          ? 'Приостановлена: ' : 'Возобновлена: ') +
+                          t.title, taskId: t.id);
+                        await _save();
+                      }
+                    },
+                    itemBuilder: (_) => [
+                      const PopupMenuItem(
+                        value: 'schedule',
+                        child: Text('Сроки и зависимости')),
+                      const PopupMenuItem(
+                        value: 'stages',
+                        child: Text('Созависимые этапы')),
+                      const PopupMenuItem(
+                        value: 'resources',
+                        child: Text('Исполнитель и трудоёмкость')),
+                      PopupMenuItem(
+                        value: 'pause',
+                        child: Text(t.paused
+                          ? 'Возобновить работу' : 'Приостановить работу')),
+                    ],
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 9, vertical: 8),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Text('Параметры', style: TextStyle(
+                          color: _peach, fontSize: 12)),
+                        Icon(Icons.more_vert, color: _peach, size: 19),
+                      ]),
+                    ),
+                  ),
+                ]),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _manageCoStages(WorkTask task) async {
