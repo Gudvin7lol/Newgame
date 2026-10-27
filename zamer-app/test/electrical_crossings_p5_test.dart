@@ -245,6 +245,13 @@ void main() {
     expect(find.text('Журнал пересечений'), findsOneWidget);
     await tester.tap(find.text('Маркеры пересечений'));
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('electrical-plan-layers')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Журнал пересечений'));
+    await tester.pumpAndSettle();
+    expect(find.text('Пересечения трасс'), findsOneWidget);
+    expect(find.byKey(const ValueKey('crossings-review-count')),
+        findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }
