@@ -61,6 +61,16 @@ class ElectricalOpeningRevealService {
   static void validate(
       FloorPlan floor, String wallId, String openingId,
       int side, ElectricalFinishedReveal? proposal) {
+    // Clearing stale evidence must remain possible even when the wall finish
+    // was removed or the rough opening became invalid. Never mutate the
+    // structural opening as part of this operation.
+    if (proposal == null) {
+      if (side != 1 && side != -1) {
+        throw const FormatException('Неизвестная сторона проёма.');
+      }
+      _opening(floor, wallId, openingId);
+      return;
+    }
     final wall = floor.wallById(wallId);
     if (wall == null) throw const FormatException('Стена отсутствует.');
     final opening = _opening(floor, wallId, openingId);
