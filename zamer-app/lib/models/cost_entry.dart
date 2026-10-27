@@ -11,6 +11,7 @@ class CostEntry {
     required this.amount,
     this.taskId,
     this.estimateKey,
+    this.reversesId,
   });
 
   final String id;
@@ -22,6 +23,10 @@ class CostEntry {
   final String? taskId;
   /// Link to an estimate row, stable across display-name changes when possible.
   final String? estimateKey;
+  /// Non-null for a compensating record. Paid originals are not rewritten.
+  final String? reversesId;
+  bool get isReversal => reversesId != null;
+  double get signedAmount => isReversal ? -amount : amount;
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -31,6 +36,7 @@ class CostEntry {
     'amount': amount,
     'taskId': taskId,
     'estimateKey': estimateKey,
+    'reversesId': reversesId,
   };
 
   factory CostEntry.fromJson(Map<String, dynamic> json) {
@@ -48,6 +54,7 @@ class CostEntry {
       amount: amount,
       taskId: json['taskId']?.toString(),
       estimateKey: json['estimateKey']?.toString(),
+      reversesId: json['reversesId']?.toString(),
     );
   }
 }
