@@ -18,6 +18,8 @@ import '../widgets/electrical_crossing_sheet.dart';
 import '../widgets/electrical_wall_elevation_screen.dart';
 import '../widgets/electrical_wall_face_screen.dart';
 import '../models/electrical_wall_face.dart';
+import '../models/electrical_finished_reveal.dart';
+import '../services/electrical_opening_reveal_service.dart';
 import '../services/electrical_wall_face_service.dart';
 import '../widgets/cad_plan_painter.dart';
 import '../services/plan_visibility_service.dart';
@@ -951,11 +953,35 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     if (mounted) setState(() {});
   }
 
+  Future<void> _saveFinishedReveal(String wallId, String openingId,
+      int side, ElectricalFinishedReveal? reveal) async {
+    ElectricalOpeningRevealService.validate(
+        widget.floor, wallId, openingId, side, reveal);
+    final wall = widget.floor.wallById(wallId)!;
+    final opening = wall.openings.singleWhere((o) => o.id == openingId);
+    final old = ElectricalOpeningRevealService.saved(opening, side);
+    final existingValid = ElectricalOpeningRevealService.problem(
+        widget.floor, wallId, openingId, side) == null;
+    if ((old == null && reveal == null) ||
+        (existingValid && old != null && reveal != null &&
+          old.startUMm == reveal.startUMm &&
+          old.endUMm == reveal.endUMm &&
+          old.source == reveal.source &&
+          old.uncertaintyMm == reveal.uncertaintyMm &&
+          old.note == reveal.note)) return;
+    _pushUndo();
+    ElectricalOpeningRevealService.apply(
+        widget.floor, wallId, openingId, side, reveal);
+    await widget.onChanged();
+    if (mounted) setState(() {});
+  }
+
   Future<void> _showWallFaces() async {
     await Navigator.of(context).push<void>(
       MaterialPageRoute(builder: (_) => ElectricalWallFaceScreen(
         floor: widget.floor,
         onSaveFace: _saveWallFace,
+        onSaveReveal: _saveFinishedReveal,
       )),
     );
   }
