@@ -7,6 +7,7 @@ on:
       - 'zamer-app/lib/models/electrical_wall_face.dart'
       - 'zamer-app/lib/models/models.dart'
       - 'zamer-app/lib/services/electrical_wall_face_service.dart'
+      - 'zamer-app/lib/services/electrical_mounting_service.dart'
       - 'zamer-app/lib/services/electrical_wall_elevation_service.dart'
       - 'zamer-app/lib/widgets/electrical_wall_face_screen.dart'
       - 'zamer-app/lib/screens/electrical_screen.dart'
@@ -17,6 +18,7 @@ on:
       - 'zamer-app/lib/models/electrical_wall_face.dart'
       - 'zamer-app/lib/models/models.dart'
       - 'zamer-app/lib/services/electrical_wall_face_service.dart'
+      - 'zamer-app/lib/services/electrical_mounting_service.dart'
       - 'zamer-app/lib/services/electrical_wall_elevation_service.dart'
       - 'zamer-app/lib/widgets/electrical_wall_face_screen.dart'
       - 'zamer-app/lib/screens/electrical_screen.dart'
@@ -49,6 +51,7 @@ jobs:
             lib/models/electrical_wall_face.dart \
             lib/models/models.dart \
             lib/services/electrical_wall_face_service.dart \
+            lib/services/electrical_mounting_service.dart \
             lib/services/electrical_wall_elevation_service.dart \
             lib/widgets/electrical_wall_face_screen.dart \
             lib/screens/electrical_screen.dart \
