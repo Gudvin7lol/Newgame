@@ -157,9 +157,10 @@ class ElectricalNetworkService {
         issue('mixedCircuits',
             'В клемме смешаны разные цепи. Проверьте назначение.', t.id);
       }
-      if (roles.contains(ElectricalCorePurpose.phase) &&
-          (roles.contains(ElectricalCorePurpose.neutral) ||
-              roles.contains(ElectricalCorePurpose.protectiveEarth))) {
+      final knownRoles = roles
+          .where((role) => role != ElectricalCorePurpose.unspecified)
+          .toSet();
+      if (knownRoles.length > 1) {
         issue('mixedCoreRoles',
             'В одной клемме указаны разные назначенные функции жил.', t.id);
       }
