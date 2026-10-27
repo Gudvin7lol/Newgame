@@ -1292,7 +1292,10 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
           ),
         ),
         if (widget.embedded)
-          Row(
+          Wrap(
+            alignment: WrapAlignment.end,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 2,
             children: [
               TextButton.icon(
                 key: const ValueKey('electrical-load-inventory'),
@@ -1300,7 +1303,6 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                 icon: const Icon(Icons.electric_bolt_outlined, size: 16),
                 label: const Text('Нагрузки / щит'),
               ),
-              const Spacer(),
               IconButton(
                 tooltip: 'Высоты точек',
                 onPressed: _heightDefaults,
