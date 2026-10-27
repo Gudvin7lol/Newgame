@@ -5,6 +5,8 @@ on:
     branches: ['feature/zamer-portable-all-projects-and-signing-p11']
     paths:
       - 'zamer-app/lib/services/project_portfolio_backup_service.dart'
+      - 'zamer-app/lib/services/project_backup_service.dart'
+      - 'zamer-app/test/project_backup_test.dart'
       - 'zamer-app/lib/screens/projects_screen.dart'
       - 'zamer-app/test/project_portfolio_backup_test.dart'
       - 'zamer-app/pubspec.yaml'
@@ -14,6 +16,8 @@ on:
   pull_request:
     paths:
       - 'zamer-app/lib/services/project_portfolio_backup_service.dart'
+      - 'zamer-app/lib/services/project_backup_service.dart'
+      - 'zamer-app/test/project_backup_test.dart'
       - 'zamer-app/lib/screens/projects_screen.dart'
       - 'zamer-app/test/project_portfolio_backup_test.dart'
       - 'zamer-app/pubspec.yaml'
