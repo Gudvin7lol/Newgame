@@ -146,9 +146,17 @@ class _WorksScreenState extends State<WorksScreen> {
     final tasks = _visibleWorks;
     final accepted = tasks.where((t) =>
       t.fullyAccepted && !t.needsQuantityReview).length;
-    final problems = tasks.where((t) =>
-      t.needsQuantityReview || t.isDelayed(DateTime.now()) ||
-      board.issues.any((i) => i.open && i.taskId == t.id)).length;
+    final visibleIds = tasks.map((t) => t.id).toSet();
+    final problems = tasks.where((t) {
+      final state = WorkStatusService.state(board, t);
+      return state == WorkState.defect ||
+        state == WorkState.quantityReview ||
+        state == WorkState.overdue ||
+        state == WorkState.awaitingAcceptance ||
+        board.issues.any((issue) => issue.open && issue.taskId == t.id);
+    }).length + board.issues.where((issue) =>
+      issue.open && !visibleIds.contains(issue.taskId) &&
+      (_roomId == null || issue.roomId == _roomId)).length;
     final progress = tasks.isEmpty ? 0.0 :
       tasks.fold<double>(0, (sum, t) => sum + t.acceptedProgress) /
       tasks.length;
