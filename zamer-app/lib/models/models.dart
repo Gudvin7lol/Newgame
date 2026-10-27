@@ -1301,14 +1301,19 @@ class MaterialEstimate {
     required this.unit,
     this.packages,
     this.packageLabel,
+    this.packageSize,
     this.note = '',
   });
 
   final String name;
   final double quantity;
   final String unit;
+  /// Rounded packs shown in the room takeoff (not aggregated purchasing).
   final int? packages;
   final String? packageLabel;
+  /// Physical quantity of [unit] contained in one [packageLabel].
+  /// Null means the purchase quantity is not known and must not be guessed.
+  final double? packageSize;
   final String note;
 }
 
