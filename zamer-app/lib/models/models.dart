@@ -4,6 +4,7 @@ import 'electrical_mounting.dart';
 import 'electrical_network.dart';
 import 'electrical_wall_face.dart';
 import 'electrical_finished_reveal.dart';
+import 'electrical_datum_assignment.dart';
 
 class MeasureProject {
   MeasureProject({
@@ -1438,6 +1439,7 @@ class ElectricalPoint {
     List<ElectricalModuleType>? modules,
     this.frameVertical = false,
     this.mounting,
+    this.datumAssignment,
   }) : modules = modules ?? [_defaultModuleFor(type)];
 
   final String id;
@@ -1455,6 +1457,8 @@ class ElectricalPoint {
   final List<ElectricalModuleType> modules;
   bool frameVertical;
   ElectricalMounting? mounting;
+  /// Optional P10 named dimensional reference. Not a positioning constraint.
+  ElectricalDatumAssignment? datumAssignment;
 
   bool get isWallDevice => <ElectricalPointType>{
     ElectricalPointType.wallLight,
@@ -1491,6 +1495,8 @@ class ElectricalPoint {
     'modules': modules.map((e) => e.name).toList(),
     'frameVertical': frameVertical,
     'mounting': mounting?.toJson(),
+    if (datumAssignment != null)
+      'datumAssignment': datumAssignment!.toJson(),
   };
 
   factory ElectricalPoint.fromJson(Map<String, dynamic> json) {
@@ -1526,6 +1532,9 @@ class ElectricalPoint {
       mounting: json['mounting'] is Map
           ? ElectricalMounting.fromJson(Map<String, dynamic>.from(json['mounting'] as Map))
           : null,
+      datumAssignment: json['datumAssignment'] is Map
+          ? ElectricalDatumAssignment.fromJson(Map<String, dynamic>.from(
+              json['datumAssignment'] as Map)) : null,
     );
   }
 }
