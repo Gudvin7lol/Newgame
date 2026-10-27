@@ -238,6 +238,7 @@ class _ElectricalMountingEditorState extends State<ElectricalMountingEditor> {
               ],
               if (wall != null)
                 DropdownButtonFormField<String>(
+                  isExpanded: true,
                   key: ValueKey('mount-datum-$wallId'),
                   initialValue: datum,
                   decoration: const InputDecoration(
@@ -284,6 +285,7 @@ class _ElectricalMountingEditorState extends State<ElectricalMountingEditor> {
               ),
               field(height, 'Центр над чистым полом', 'mount-height'),
               DropdownButtonFormField<MountingSource>(
+                isExpanded: true,
                 key: ValueKey('mount-source-$wallId'),
                 initialValue: source,
                 decoration: const InputDecoration(

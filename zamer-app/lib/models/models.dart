@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'work_board.dart';
 import 'electrical_mounting.dart';
+import 'electrical_network.dart';
 
 class MeasureProject {
   MeasureProject({
@@ -130,6 +131,7 @@ class FloorPlan {
     List<RoomMeta>? roomMetas,
     List<ElectricalPoint>? electricalPoints,
     List<ElectricalRun>? electricalRuns,
+    ElectricalNetwork? electricalNetwork,
     List<ServiceRun>? serviceRuns,
     List<PlanObject>? planObjects,
     Map<String, DimensionRecord>? dimensionRecords,
@@ -145,6 +147,7 @@ class FloorPlan {
        roomMetas = roomMetas ?? [],
        electricalPoints = electricalPoints ?? [],
        electricalRuns = electricalRuns ?? [],
+       electricalNetwork = electricalNetwork,
        serviceRuns = serviceRuns ?? [],
        planObjects = planObjects ?? [],
        dimensionRecords = dimensionRecords ?? {},
@@ -160,6 +163,7 @@ class FloorPlan {
   final List<RoomMeta> roomMetas;
   final List<ElectricalPoint> electricalPoints;
   final List<ElectricalRun> electricalRuns;
+  ElectricalNetwork? electricalNetwork;
   final List<ServiceRun> serviceRuns;
   final List<PlanObject> planObjects;
   final Map<String, DimensionRecord> dimensionRecords;
@@ -231,6 +235,9 @@ class FloorPlan {
       ..addAll(
         other.electricalRuns.map((e) => ElectricalRun.fromJson(e.toJson())),
       );
+    electricalNetwork = other.electricalNetwork == null
+        ? null
+        : ElectricalNetwork.fromJson(other.electricalNetwork!.toJson());
     serviceRuns
       ..clear()
       ..addAll(other.serviceRuns.map((e) => ServiceRun.fromJson(e.toJson())));
@@ -266,6 +273,8 @@ class FloorPlan {
     'roomMetas': roomMetas.map((e) => e.toJson()).toList(),
     'electricalPoints': electricalPoints.map((e) => e.toJson()).toList(),
     'electricalRuns': electricalRuns.map((e) => e.toJson()).toList(),
+    if (electricalNetwork != null)
+      'electricalNetwork': electricalNetwork!.toJson(),
     'serviceRuns': serviceRuns.map((e) => e.toJson()).toList(),
     'planObjects': planObjects.map((e) => e.toJson()).toList(),
     'dimensionRecords': dimensionRecords.map((k, v) => MapEntry(k, v.toJson())),
@@ -304,6 +313,10 @@ class FloorPlan {
     electricalRuns: ((json['electricalRuns'] as List?) ?? const [])
         .map((e) => ElectricalRun.fromJson(Map<String, dynamic>.from(e as Map)))
         .toList(),
+    electricalNetwork: json['electricalNetwork'] is Map
+        ? ElectricalNetwork.fromJson(
+            Map<String, dynamic>.from(json['electricalNetwork'] as Map))
+        : null,
     serviceRuns: ((json['serviceRuns'] as List?) ?? const [])
         .map((e) => ServiceRun.fromJson(Map<String, dynamic>.from(e as Map)))
         .toList(),
