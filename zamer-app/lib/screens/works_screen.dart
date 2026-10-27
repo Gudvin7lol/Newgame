@@ -52,6 +52,7 @@ class _WorksScreenState extends State<WorksScreen> {
   String? _spotlightTaskId;
   bool _showCrewLoad = false;
   bool _showRoomMap = false;
+  bool _showClosedIssues = false;
   final Set<String> _openSubgroups = <String>{};
   DateTime _selected = _day(DateTime.now());
   String? _roomId;
@@ -578,18 +579,102 @@ class _WorksScreenState extends State<WorksScreen> {
     if (_calendar != 2) ..._compactTasksForDay(),
   ]);
 
+  Future<void> _setIssueClosed(WorkIssue issue, bool closed) async {
+    if (issue.open == !closed) return;
+    setState(() {
+      issue.closedAt = closed ? DateTime.now() : null;
+    });
+    board.log((closed ? 'Замечание устранено: ' :
+        'Замечание открыто повторно: ') + issue.title,
+      taskId: issue.taskId);
+    await _save();
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(SnackBar(
+      content: Text(closed ? 'Замечание закрыто' : 'Замечание снова открыто'),
+      duration: const Duration(seconds: 5),
+      action: SnackBarAction(label: 'Отменить', onPressed: () {
+        _setIssueClosed(issue, !closed);
+      }),
+    ));
+  }
+
+  Widget _compactIssueRow(WorkIssue issue) {
+    final task = board.tasks.where((t) =>
+      t.id == issue.taskId).firstOrNull;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(13, 10, 8, 10),
+      child: Row(children: [
+        Icon(issue.open ? Icons.report_problem_outlined :
+          Icons.check_circle_outline,
+          color: issue.open ? _amber : _green, size: 19),
+        const SizedBox(width: 10),
+        Expanded(child: InkWell(
+          onTap: task == null ? null : () => _taskDetail(task),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(issue.title, maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 12.5, fontWeight: FontWeight.w700)),
+              if (task != null || issue.roomName.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 3),
+                  child: Text(task?.title ?? issue.roomName,
+                    maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: _muted,
+                      fontSize: 10.5)),
+                ),
+            ],
+          )),
+        ),
+        TextButton(
+          key: ValueKey('works-issue-action-' + issue.id),
+          onPressed: () => _setIssueClosed(issue, issue.open),
+          style: TextButton.styleFrom(
+            foregroundColor: issue.open ? _peach : _muted,
+            visualDensity: VisualDensity.compact,
+            padding: const EdgeInsets.symmetric(horizontal: 5)),
+          child: Text(issue.open ? 'Устранено' : 'Вернуть',
+            style: const TextStyle(fontSize: 11.5)),
+        ),
+      ]),
+    );
+  }
+
   Widget _compactControl() {
-    final urgent = _visibleWorks.where((t) {
-      final state = WorkStatusService.state(board, t);
-      return state == WorkState.defect ||
+    final current = _visibleWorks;
+    final taskIds = current.map((task) => task.id).toSet();
+    final openIssues = board.issues.where((issue) => issue.open &&
+      (_roomId == null || issue.roomId == _roomId) &&
+      (issue.taskId == null || taskIds.contains(issue.taskId))).toList();
+    final closedIssues = board.issues.where((issue) => !issue.open &&
+      (_roomId == null || issue.roomId == _roomId) &&
+      (issue.taskId == null || taskIds.contains(issue.taskId))).toList();
+    final issueTaskIds = openIssues.map((issue) => issue.taskId).toSet();
+    final urgent = current.where((task) {
+      final state = WorkStatusService.state(board, task);
+      return (state == WorkState.defect && !issueTaskIds.contains(task.id)) ||
           state == WorkState.quantityReview ||
           state == WorkState.overdue ||
           state == WorkState.awaitingAcceptance;
-    }).toList();
-    final issues = board.issues.where((issue) => issue.open &&
-      (_roomId == null || issue.roomId == _roomId)).toList();
+    }).toList()
+      ..sort((a, b) {
+        int priority(WorkTask task) => switch (
+          WorkStatusService.state(board, task)) {
+            WorkState.quantityReview => 0,
+            WorkState.awaitingAcceptance => 1,
+            WorkState.defect => 2,
+            WorkState.overdue => 3,
+            _ => 4,
+          };
+        final byPriority = priority(a).compareTo(priority(b));
+        return byPriority != 0
+          ? byPriority : a.finish.compareTo(b.finish);
+      });
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      if (urgent.isEmpty && issues.isEmpty)
+      if (urgent.isEmpty && openIssues.isEmpty)
         _card(child: const Row(children: [
           Icon(Icons.check_circle_outline, color: _green),
           SizedBox(width: 10),
@@ -598,13 +683,26 @@ class _WorksScreenState extends State<WorksScreen> {
         ])),
       for (final task in urgent)
         _card(padding: EdgeInsets.zero, child: _compactWorkRow(task)),
-      for (final issue in issues)
-        _card(child: Row(children: [
-          const Icon(Icons.report_problem_outlined, color: _amber, size: 20),
-          const SizedBox(width: 9),
-          Expanded(child: Text(issue.title, maxLines: 2,
-            overflow: TextOverflow.ellipsis)),
-        ])),
+      for (final issue in openIssues)
+        _card(padding: EdgeInsets.zero,
+          child: _compactIssueRow(issue)),
+      if (closedIssues.isNotEmpty) ...[
+        TextButton.icon(
+          key: const ValueKey('works-closed-issues-toggle'),
+          onPressed: () => setState(() =>
+            _showClosedIssues = !_showClosedIssues),
+          icon: Icon(_showClosedIssues
+            ? Icons.expand_less : Icons.history, size: 17),
+          label: Text(_showClosedIssues
+            ? 'Скрыть устранённые' :
+              'Устранённые: ' + closedIssues.length.toString()),
+          style: TextButton.styleFrom(foregroundColor: _muted),
+        ),
+        if (_showClosedIssues)
+          for (final issue in closedIssues)
+            _card(padding: EdgeInsets.zero,
+              child: _compactIssueRow(issue)),
+      ],
       if (_activeFloor != null) ...[
         TextButton.icon(
           key: const ValueKey('works-map-toggle'),
@@ -668,8 +766,8 @@ class _WorksScreenState extends State<WorksScreen> {
       key: const ValueKey('works-add'),
       backgroundColor: _peach,
       foregroundColor: _bg,
-      tooltip: _compactTab == 2 ? 'Добавить запись' : 'Добавить работу',
-      onPressed: _compactTab == 2 ? _quickActions : _addTask,
+      tooltip: _compactTab == 2 ? 'Добавить замечание' : 'Добавить работу',
+      onPressed: _compactTab == 2 ? () => _addIssue() : _addTask,
       child: const Icon(Icons.add_rounded),
     ),
   );
