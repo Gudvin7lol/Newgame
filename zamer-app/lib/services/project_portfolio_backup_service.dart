@@ -25,7 +25,7 @@ class PortablePortfolioBackup {
       for (var i = 0; i < projects.length; i++) {
         final id = nextId(i);
         if (id.trim().isEmpty || allocated.contains(id) ||
-            !RegExp(r'^[a-zA-Z0-9_-]+
+            !RegExp(r'^[a-zA-Z0-9_-]+$').hasMatch(id)) {
           throw const FormatException(
             'Идентификатор импортируемого проекта некорректен.',
           );
