@@ -3,6 +3,7 @@ import 'work_board.dart';
 import 'electrical_mounting.dart';
 import 'electrical_network.dart';
 import 'electrical_wall_face.dart';
+import 'electrical_finished_reveal.dart';
 
 class MeasureProject {
   MeasureProject({
@@ -528,6 +529,8 @@ class WallOpening {
     required this.offsetFromStartMm,
     this.sillHeightMm = 0,
     this.doorSwing = DoorSwing.leftIn,
+    this.electricalRevealLeft,
+    this.electricalRevealRight,
   });
 
   final String id;
@@ -537,6 +540,8 @@ class WallOpening {
   double offsetFromStartMm;
   double sillHeightMm;
   DoorSwing doorSwing;
+  /// Per-face finished horizontal stations, not rough opening dimensions.
+  ElectricalFinishedReveal? electricalRevealLeft, electricalRevealRight;
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -546,6 +551,10 @@ class WallOpening {
     'offsetFromStartMm': offsetFromStartMm,
     'sillHeightMm': sillHeightMm,
     'doorSwing': doorSwing.name,
+    if (electricalRevealLeft != null)
+      'electricalRevealLeft': electricalRevealLeft!.toJson(),
+    if (electricalRevealRight != null)
+      'electricalRevealRight': electricalRevealRight!.toJson(),
   };
 
   factory WallOpening.fromJson(Map<String, dynamic> json) => WallOpening(
@@ -562,6 +571,12 @@ class WallOpening {
       (e) => e.name == json['doorSwing'],
       orElse: () => DoorSwing.leftIn,
     ),
+    electricalRevealLeft: json['electricalRevealLeft'] is Map ?
+        ElectricalFinishedReveal.fromJson(Map<String, dynamic>.from(
+          json['electricalRevealLeft'] as Map)) : null,
+    electricalRevealRight: json['electricalRevealRight'] is Map ?
+        ElectricalFinishedReveal.fromJson(Map<String, dynamic>.from(
+          json['electricalRevealRight'] as Map)) : null,
   );
 }
 
