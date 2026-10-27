@@ -1,3 +1,5 @@
+import 'electrical_route_3d.dart';
+
 /// Explicit, provisional electrical topology. Never inferred from positions or
 /// the legacy circuit name stored on ElectricalPoint.
 ///
@@ -90,6 +92,8 @@ class ElectricalCableRecord {
     required this.fromPointId,
     required this.toPointId,
     this.routeRunId,
+    this.route3dId,
+    this.explicitReserveMm,
     List<ElectricalCableCore>? cores,
     this.description = '',
   }) : cores = cores ?? [];
@@ -100,6 +104,10 @@ class ElectricalCableRecord {
   String toPointId;
   /// Refers to a drawn ElectricalRun only when explicitly linked.
   String? routeRunId;
+  /// Independent, explicit world-coordinate path; optional on older projects.
+  String? route3dId;
+  /// Unknown unless provided by the user; never assume zero reserve.
+  double? explicitReserveMm;
   String description;
   final List<ElectricalCableCore> cores;
 
@@ -109,6 +117,8 @@ class ElectricalCableRecord {
     'fromPointId': fromPointId,
     'toPointId': toPointId,
     'routeRunId': routeRunId,
+    'route3dId': route3dId,
+    'explicitReserveMm': explicitReserveMm,
     'description': description,
     'cores': cores.map((e) => e.toJson()).toList(),
   };
@@ -120,6 +130,8 @@ class ElectricalCableRecord {
         fromPointId: json['fromPointId'] as String,
         toPointId: json['toPointId'] as String,
         routeRunId: json['routeRunId'] as String?,
+        route3dId: json['route3dId'] as String?,
+        explicitReserveMm: (json['explicitReserveMm'] as num?)?.toDouble(),
         description: json['description'] as String? ?? '',
         cores: ((json['cores'] as List?) ?? const [])
             .map((e) => ElectricalCableCore.fromJson(
@@ -189,20 +201,25 @@ class ElectricalNetwork {
     List<ElectricalCircuitRecord>? circuits,
     List<ElectricalCableRecord>? cables,
     List<ElectricalTerminalRecord>? terminals,
+    List<ElectricalRoute3d>? routes3d,
   })  : circuits = circuits ?? [],
         cables = cables ?? [],
-        terminals = terminals ?? [];
+        terminals = terminals ?? [],
+        routes3d = routes3d ?? [];
 
   static const int schemaVersion = 1;
   final List<ElectricalCircuitRecord> circuits;
   final List<ElectricalCableRecord> cables;
   final List<ElectricalTerminalRecord> terminals;
+  /// Physical routes may be reused by several cables.
+  final List<ElectricalRoute3d> routes3d;
 
   Map<String, dynamic> toJson() => {
     'version': schemaVersion,
     'circuits': circuits.map((e) => e.toJson()).toList(),
     'cables': cables.map((e) => e.toJson()).toList(),
     'terminals': terminals.map((e) => e.toJson()).toList(),
+    'routes3d': routes3d.map((e) => e.toJson()).toList(),
   };
 
   factory ElectricalNetwork.fromJson(Map<String, dynamic> json) {
@@ -222,6 +239,10 @@ class ElectricalNetwork {
           .toList(),
       terminals: ((json['terminals'] as List?) ?? const [])
           .map((e) => ElectricalTerminalRecord.fromJson(
+              Map<String, dynamic>.from(e as Map)))
+          .toList(),
+      routes3d: ((json['routes3d'] as List?) ?? const [])
+          .map((e) => ElectricalRoute3d.fromJson(
               Map<String, dynamic>.from(e as Map)))
           .toList(),
     );
