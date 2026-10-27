@@ -497,7 +497,9 @@ class _WorksScreenState extends State<WorksScreen> {
                   for (final task in groups[group]!) {
                     (subgroups[_subgroupFor(task)] ??= []).add(task);
                   }
-                  if (subgroups.length == 1) {
+                  // For a small stage, avoid a needless second accordion.
+                  // Subgroups are useful only when the room has many jobs.
+                  if (subgroups.length == 1 || groups[group]!.length <= 6) {
                     return Column(children: [
                       for (final task in groups[group]!)
                         _compactWorkRow(task),
