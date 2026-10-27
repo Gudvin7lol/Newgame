@@ -89,14 +89,19 @@ void main() {
     f.walls.single
       ..startNodeId = 'b'
       ..endNodeId = 'a';
+    expect(before.signedDistanceToFaceMm, -60);
+    expect(before.uMm, 900);
+    expect(() => ElectricalWallFaceService.project(f, 'wall', 1,
+        xMm: 900, yMm: 0), throwsFormatException);
+    expect(ElectricalWallFaceService.orientationProblem(
+        f.walls.single, 1), isNotNull);
+    // A deliberate new confirmation is required: left/right has changed.
+    ElectricalWallFaceService.apply(f, 'wall', 1,
+        const WallFaceFinish(thicknessMm: 10));
     final after = ElectricalWallFaceService.project(f, 'wall', 1,
         xMm: 900, yMm: 0);
-    expect(before.signedDistanceToFaceMm, -60);
     expect(after.signedDistanceToFaceMm, -60);
-    expect(before.uMm, 900);
     expect(after.uMm, 2100);
-    // Side is defined relative to orientation; old saved finish is NOT a
-    // physical survey of left/right after reversing nodes.
   });
 
   test('invalid source dimensions are rejected without mutating wall', () {
