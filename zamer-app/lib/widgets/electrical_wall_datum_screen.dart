@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/models.dart';
 import '../services/electrical_wall_datum_service.dart';
+import '../services/electrical_datum_assignment_service.dart';
 
 /// Read-only reference station catalog. A structural opening edge is never
 /// presented as a measured finished jamb or as an installation approval.
@@ -11,11 +12,15 @@ class ElectricalWallDatumScreen extends StatefulWidget {
     required this.floor,
     required this.wallId,
     required this.wallSide,
+    this.onAssign,
   });
 
   final FloorPlan floor;
   final String wallId;
   final int wallSide;
+  /// Parent owns validation, one undo boundary and persistence.
+  final Future<void> Function(String pointId, String wallId, int side,
+      String? datumId)? onAssign;
 
   @override
   State<ElectricalWallDatumScreen> createState() =>
@@ -24,6 +29,24 @@ class ElectricalWallDatumScreen extends StatefulWidget {
 
 class _ElectricalWallDatumScreenState extends State<ElectricalWallDatumScreen> {
   String? selectedId;
+  String? pendingPointId;
+
+  Future<void> _assign(String pointId, String? datumId) async {
+    final callback = widget.onAssign;
+    if (callback == null || pendingPointId != null) return;
+    setState(() => pendingPointId = pointId);
+    try {
+      await callback(pointId, widget.wallId, widget.wallSide, datumId);
+    } on FormatException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message)),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => pendingPointId = null);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -132,21 +155,7 @@ class _ElectricalWallDatumScreenState extends State<ElectricalWallDatumScreen> {
                   const Text('На этой стороне нет электроточек с '
                       'допустимыми координатами.'),
                 for (final d in dimensions)
-                  Card(
-                    child: ListTile(
-                      key: ValueKey('datum-dimension-' + d.pointId),
-                      title: Text(d.pointName),
-                      subtitle: Text('От базы: ' +
-                          (d.fromDatumMm >= 0 ? '+' : '') +
-                          d.fromDatumMm.toStringAsFixed(1) +
-                          ' мм\nВысота центра: ' +
-                          d.heightMm.toStringAsFixed(1) + ' мм' +
-                          (d.mountingProblem == null ? '' :
-                              '\nМонтажная привязка: ' +
-                                  d.mountingProblem!)),
-                      isThreeLine: true,
-                    ),
-                  ),
+                  _dimensionTile(d, datum),
               ],
               if (catalog.issues.isNotEmpty) ...[
                 const Divider(height: 24),
@@ -171,4 +180,56 @@ class _ElectricalWallDatumScreenState extends State<ElectricalWallDatumScreen> {
       ),
     );
   }
+  Widget _dimensionTile(
+      ElectricalDatumDimension d, ElectricalWallDatum datum) {
+    final point = widget.floor.electricalPoints
+        .where((p) => p.id == d.pointId).firstOrNull;
+    final saved = point?.datumAssignment;
+    final valid = point != null &&
+        saved != null &&
+        ElectricalDatumAssignmentService.problem(
+            widget.floor, point) == null;
+    final selected = valid && saved.datumId == datum.id &&
+        saved.wallId == widget.wallId &&
+        saved.wallSide == widget.wallSide;
+    return Card(
+      child: ListTile(
+        key: ValueKey('datum-dimension-' + d.pointId),
+        title: Text(d.pointName),
+        subtitle: Text(
+          'От выбранной базы: ' +
+          (d.fromDatumMm >= 0 ? '+' : '') +
+          d.fromDatumMm.toStringAsFixed(1) + ' мм' +
+          '\nВысота центра: ' +
+          d.heightMm.toStringAsFixed(1) + ' мм' +
+          (saved == null
+              ? '\nБаза пока не закреплена'
+              : valid
+                  ? '\nЗакреплена: ' + saved.datumTitle
+                  : '\nЗакреплённая база устарела, требуется проверка') +
+          (d.mountingProblem == null
+              ? ''
+              : '\nБаза P1: ' + d.mountingProblem!),
+        ),
+        isThreeLine: true,
+        trailing: widget.onAssign == null
+            ? null
+            : IconButton(
+                key: ValueKey('datum-assign-' + d.pointId),
+                icon: Icon(selected
+                    ? Icons.link_off_outlined : Icons.add_link_outlined),
+                tooltip: selected ? 'Снять привязку'
+                    : datum.finishedReference
+                        ? 'Закрепить выбранную базу'
+                        : 'Черновую грань закреплять нельзя',
+                onPressed: pendingPointId != null ||
+                        (!selected && !datum.finishedReference)
+                    ? null
+                    : () => _assign(
+                        d.pointId, selected ? null : datum.id),
+              ),
+      ),
+    );
+  }
+
 }
