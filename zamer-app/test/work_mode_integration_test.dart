@@ -263,4 +263,76 @@ void main() {
     expect(find.text('Рабочий календарь'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('compact Control closes and reopens issues inline without duplicate defect',
+      (tester) async {
+    tester.view.physicalSize = const Size(393, 820);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final floor = FloorPlan(id: 'f1', name: 'Этаж 1');
+    final project = MeasureProject(id: 'work-demo', name: 'Квартира',
+      floors: [floor]);
+    final work = WorkTask(
+      id: 'tile-task', title: 'Укладка плитки',
+      operationCode: 'floor_tile',
+      floorId: floor.id,
+      start: DateTime(2026, 10, 26),
+      finish: DateTime(2026, 10, 30),
+      quantity: 12, unit: 'м²', hours: 20);
+    project.workBoard.tasks.add(work);
+    project.workBoard.issues.add(WorkIssue(
+      id: 'defect-1', title: 'Исправить уклон',
+      taskId: work.id, createdAt: DateTime(2026, 10, 27)));
+    var saves = 0;
+    await tester.pumpWidget(MaterialApp(home: WorksScreen(
+      project: project, floorId: floor.id, embedded: true,
+      onChanged: () async { saves++; },
+    )));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Контроль'));
+    await tester.pumpAndSettle();
+    expect(find.text('Исправить уклон'), findsOneWidget);
+    // A linked defect is shown once, rather than as a second task card.
+    expect(find.byKey(const ValueKey('work-row-tile-task')),
+      findsNothing);
+    await tester.tap(find.byKey(
+      const ValueKey('works-issue-action-defect-1')));
+    await tester.pumpAndSettle();
+    expect(project.workBoard.issues.single.open, isFalse);
+    expect(saves, 1);
+    expect(find.text('Устранённые: 1'), findsOneWidget);
+    expect(find.text('Исправить уклон'), findsNothing);
+    await tester.tap(find.byKey(
+      const ValueKey('works-closed-issues-toggle')));
+    await tester.pumpAndSettle();
+    expect(find.text('Исправить уклон'), findsOneWidget);
+    await tester.tap(find.byKey(
+      const ValueKey('works-issue-action-defect-1')));
+    await tester.pumpAndSettle();
+    expect(project.workBoard.issues.single.open, isTrue);
+    expect(saves, 2);
+    expect(find.text('Устранённые: 1'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Control add button opens issue editor without another menu',
+      (tester) async {
+    final project = MeasureProject(id: 'p', name: 'Объект',
+      floors: [FloorPlan(id: 'f', name: 'Этаж')]);
+    await tester.pumpWidget(MaterialApp(home: WorksScreen(
+      project: project, floorId: 'f', embedded: true,
+      onChanged: () async {},
+    )));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Контроль'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('works-add')));
+    await tester.pumpAndSettle();
+    expect(find.text('Новое замечание'), findsOneWidget);
+    expect(find.text('Добавить работу'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
 }
