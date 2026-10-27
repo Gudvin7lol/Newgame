@@ -49,6 +49,7 @@ class _WorksScreenState extends State<WorksScreen> {
   int _compactTab = 0;
   String? _openedGroup;
   bool _showCrewLoad = false;
+  bool _showRoomMap = false;
   final Set<String> _openSubgroups = <String>{};
   DateTime _selected = _day(DateTime.now());
   String? _roomId;
@@ -211,7 +212,7 @@ class _WorksScreenState extends State<WorksScreen> {
             ],
           ),
         ]),
-        if (rooms.isNotEmpty)
+        if (rooms.length > 1)
           SizedBox(height: 38, child: ListView(
             scrollDirection: Axis.horizontal,
             children: [
@@ -444,19 +445,23 @@ class _WorksScreenState extends State<WorksScreen> {
           Expanded(child: Text(issue.title, maxLines: 2,
             overflow: TextOverflow.ellipsis)),
         ])),
-      if (_activeFloor != null)
-        _card(child: Column(children: [
-          const Align(alignment: Alignment.centerLeft,
-            child: Text('Контроль помещений',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800))),
-          const SizedBox(height: 9),
-          _PlanView(
+      if (_activeFloor != null) ...[
+        TextButton.icon(
+          key: const ValueKey('works-map-toggle'),
+          onPressed: () => setState(() => _showRoomMap = !_showRoomMap),
+          icon: Icon(_showRoomMap
+            ? Icons.expand_less : Icons.map_outlined, size: 18),
+          label: const Text('Контроль помещений'),
+          style: TextButton.styleFrom(foregroundColor: _muted),
+        ),
+        if (_showRoomMap)
+          _card(child: _PlanView(
             floor: _activeFloor!,
             selected: _roomId,
             onSelect: (id) => setState(() => _roomId = id),
             colorFor: _roomColor,
-          ),
-        ])),
+          )),
+      ],
       Padding(
         padding: const EdgeInsets.only(top: 5),
         child: TextButton.icon(
