@@ -2,6 +2,8 @@ import '../models/models.dart';
 import 'engineering_service.dart';
 import 'geometry_service.dart';
 import 'material_service.dart';
+import 'work_floor_surface_service.dart';
+import 'work_surface_service.dart';
 
 class EstimateLine {
   const EstimateLine(this.name, this.unit, this.quantity, this.unitPrice);
@@ -35,18 +37,26 @@ class EstimateService {
         final s = meta.materials;
         final area = face.areaM2;
         final walls = GeometryService.roomNetWallAreaM2(floor, face);
-        add(
-          s.floorMode == 'tile' || s.floorTile
-              ? 'Укладка плитки пола'
-              : 'Укладка ламината',
-          'м²',
-          area,
-        );
-        add('Укладка подложки', 'м²', area);
+        final floorParts = WorkFloorSurfaceService.areas(
+          project.workBoard, floor, face);
+        final paintWalls = WorkSurfaceService.areaForCode(
+          project.workBoard, floor, face, 'wall_paint');
+        final tileWalls = WorkSurfaceService.areaForCode(
+          project.workBoard, floor, face, 'wall_tile');
+        final assigned = WorkSurfaceService.hasAssignments(
+          project.workBoard, floor, meta);
+        add('Укладка плитки пола', 'м²', floorParts.tileM2);
+        add('Укладка ламината', 'м²', floorParts.laminateM2);
+        // Underlay is not laid beneath a standard bonded-tile finish.
+        add('Укладка подложки', 'м²', floorParts.laminateM2);
         if (s.wallPlaster) add('Штукатурка стен', 'м²', walls);
-        if (s.wallPutty) add('Шпаклёвка стен', 'м²', walls);
-        if (s.wallPaint) add('Покраска стен', 'м²', walls);
-        if (s.wallTile) add('Укладка плитки стен', 'м²', walls);
+        if (s.wallPutty) add('Шпаклёвка стен', 'м²', paintWalls);
+        if (s.wallPaint || assigned) {
+          add('Покраска стен', 'м²', paintWalls);
+        }
+        if (s.wallTile || assigned) {
+          add('Укладка плитки стен', 'м²', tileWalls);
+        }
         add(
           switch (meta.ceiling.finish) {
             'stretch' => 'Монтаж натяжного потолка',
@@ -116,7 +126,23 @@ class EstimateService {
       for (final face in GeometryService.roomFaces(floor)) {
         final meta = floor.roomMetaByKey(face.key);
         if (meta == null) continue;
-        for (final item in MaterialService.roomEstimates(floor, face, meta)) {
+        final floorParts = WorkFloorSurfaceService.areas(
+          project.workBoard, floor, face);
+        final paintWalls = WorkSurfaceService.areaForCode(
+          project.workBoard, floor, face, 'wall_paint');
+        final tileWalls = WorkSurfaceService.areaForCode(
+          project.workBoard, floor, face, 'wall_tile');
+        final assigned = WorkSurfaceService.hasAssignments(
+          project.workBoard, floor, meta);
+        for (final item in MaterialService.roomEstimates(
+          floor, face, meta,
+          laminateAreaM2: floorParts.laminateM2,
+          tileFloorAreaM2: floorParts.tileM2,
+          paintWallAreaM2: (meta.materials.wallPaint || assigned)
+              ? paintWalls : 0,
+          tileWallAreaM2: (meta.materials.wallTile || assigned)
+              ? tileWalls : 0,
+        )) {
           add(item.name, item.unit, item.quantity);
         }
       }
