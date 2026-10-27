@@ -44,7 +44,8 @@ class WorkStatusService {
     return [
       for (final id in WorkCoStageService.expandedPredecessors(board, task))
         if (byId[id] == null || !byId[id]!.fullyAccepted ||
-            byId[id]!.needsQuantityReview)
+            byId[id]!.needsQuantityReview ||
+            board.issues.any((issue) => issue.open && issue.taskId == id))
           if (byId[id] != null) byId[id]!,
     ];
   }
