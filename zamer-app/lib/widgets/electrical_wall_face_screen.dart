@@ -142,6 +142,7 @@ class _ElectricalWallFaceScreenState extends State<ElectricalWallFaceScreen> {
     if (wall != null) {
       try {
         ElectricalWallFaceService.validate(widget.floor, wall, side, finish);
+        issue = ElectricalWallFaceService.orientationProblem(wall, side);
       } on FormatException catch (e) {
         issue = e.message;
       }
