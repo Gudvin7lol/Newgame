@@ -71,6 +71,29 @@ void main() {
     expect(dimensions.single.heightMm, 300);
   });
 
+  test('corner measurements are invariant under plan rotation', () {
+    final f = datumFixture();
+    // Rotate every point and wall around the common origin by +90°.
+    for (final n in f.nodes) {
+      final x = n.xMm, y = n.yMm;
+      n
+        ..xMm = -y
+        ..yMm = x;
+    }
+    for (final p in f.electricalPoints) {
+      final x = p.xMm, y = p.yMm;
+      p
+        ..xMm = -y
+        ..yMm = x;
+    }
+    final catalog = ElectricalWallDatumService.catalog(f, 'primary', 1);
+    final corner = catalog.datums.singleWhere((d) =>
+        d.kind == ElectricalDatumKind.finishedCorner);
+    expect(corner.uMm, closeTo(65, .001));
+    expect(ElectricalWallDatumService.dimensions(
+        f, catalog, corner).single.fromDatumMm, closeTo(835, .001));
+  });
+
   test('opening edges are structural only and retain axis millimetres', () {
     final f = datumFixture();
     final catalog = ElectricalWallDatumService.catalog(f, 'primary', 1);
