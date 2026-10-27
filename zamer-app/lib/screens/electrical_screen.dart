@@ -20,6 +20,7 @@ import '../widgets/electrical_wall_face_screen.dart';
 import '../models/electrical_wall_face.dart';
 import '../models/electrical_finished_reveal.dart';
 import '../services/electrical_opening_reveal_service.dart';
+import '../services/electrical_datum_assignment_service.dart';
 import '../services/electrical_wall_face_service.dart';
 import '../widgets/cad_plan_painter.dart';
 import '../services/plan_visibility_service.dart';
@@ -976,12 +977,38 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     if (mounted) setState(() {});
   }
 
+  Future<void> _assignElectricalDatum(
+      String pointId, String wallId, int side, String? datumId) async {
+    final matches = widget.floor.electricalPoints
+        .where((p) => p.id == pointId).toList();
+    if (matches.length != 1) {
+      throw const FormatException('Электроточка удалена или повторяется.');
+    }
+    final point = matches.single;
+    if (datumId == null && point.datumAssignment == null) return;
+    final detached = datumId == null ? null :
+        ElectricalDatumAssignmentService.prepare(
+            widget.floor, pointId, wallId, side, datumId);
+    final existing = point.datumAssignment;
+    if (existing != null && detached != null &&
+        existing.geometrySnapshot == detached.geometrySnapshot &&
+        existing.datumId == detached.datumId &&
+        existing.pointUMm == detached.pointUMm &&
+        existing.pointHeightMm == detached.pointHeightMm) return;
+    _pushUndo();
+    ElectricalDatumAssignmentService.apply(
+        widget.floor, pointId, detached);
+    await widget.onChanged();
+    if (mounted) setState(() {});
+  }
+
   Future<void> _showWallFaces() async {
     await Navigator.of(context).push<void>(
       MaterialPageRoute(builder: (_) => ElectricalWallFaceScreen(
         floor: widget.floor,
         onSaveFace: _saveWallFace,
         onSaveReveal: _saveFinishedReveal,
+        onAssignDatum: _assignElectricalDatum,
       )),
     );
   }
