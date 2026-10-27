@@ -46,7 +46,8 @@ class WorksScreen extends StatefulWidget {
 class _WorksScreenState extends State<WorksScreen> {
   int _tab = 0, _calendar = 0, _control = 0;
   int _compactTab = 0;
-  final Set<String> _openGroups = <String>{};
+  String? _openedGroup;
+  bool _showCrewLoad = false;
   final Set<String> _openSubgroups = <String>{};
   DateTime _selected = _day(DateTime.now());
   String? _roomId;
@@ -187,7 +188,10 @@ class _WorksScreenState extends State<WorksScreen> {
               if (value == 'split') _chooseFloorFinishes();
               if (value == 'calendar') _calendarSettings();
               if (value == 'workload') {
-                setState(() => _compactTab = 2);
+                setState(() {
+                  _compactTab = 2;
+                  _showCrewLoad = true;
+                });
               }
             },
             itemBuilder: (_) => const [
@@ -317,12 +321,12 @@ class _WorksScreenState extends State<WorksScreen> {
                 key: ValueKey('works-group-' + group),
                 borderRadius: BorderRadius.circular(18),
                 onTap: () => setState(() {
-                  if (!_openGroups.add(group)) _openGroups.remove(group);
+                  _openedGroup = _openedGroup == group ? null : group;
                 }),
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
                   child: Row(children: [
-                    Icon(_openGroups.contains(group)
+                    Icon(_openedGroup == group
                       ? Icons.keyboard_arrow_down : Icons.chevron_right,
                       size: 19, color: _peach),
                     const SizedBox(width: 7),
@@ -340,7 +344,7 @@ class _WorksScreenState extends State<WorksScreen> {
                       groups[group]!.length, height: 4)),
                   ]),
                 )),
-              if (_openGroups.contains(group)) ...[
+              if (_openedGroup == group) ...[
                 const Divider(height: 1, color: _edge),
                 Builder(builder: (_) {
                   final subgroups = <String, List<WorkTask>>{};
@@ -449,7 +453,19 @@ class _WorksScreenState extends State<WorksScreen> {
             colorFor: _roomColor,
           ),
         ])),
-      _workloadPanel(),
+      Padding(
+        padding: const EdgeInsets.only(top: 5),
+        child: TextButton.icon(
+          key: const ValueKey('works-crew-toggle'),
+          onPressed: () => setState(() => _showCrewLoad = !_showCrewLoad),
+          icon: Icon(_showCrewLoad
+            ? Icons.expand_less : Icons.groups_2_outlined, size: 18),
+          label: Text(_showCrewLoad
+            ? 'Скрыть загрузку бригад' : 'Показать загрузку бригад'),
+          style: TextButton.styleFrom(foregroundColor: _muted),
+        ),
+      ),
+      if (_showCrewLoad) _workloadPanel(),
     ]);
   }
 
