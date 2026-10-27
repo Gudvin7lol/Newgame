@@ -94,6 +94,9 @@ void main() {
     expect(find.byKey(const ValueKey('works-group-Электрика')),
       findsOneWidget);
     expect(find.byKey(const ValueKey('work-row-wall')), findsNothing);
+    // One visible shortcut replaces searching through all collapsed stages.
+    expect(find.byKey(const ValueKey('works-current-task')), findsOneWidget);
+    expect(find.textContaining('Далее по плану:'), findsOneWidget);
     expect(find.text('Отделка по отдельным стенам'), findsNothing);
     expect(find.text('Нарисовать зоны пола'), findsNothing);
 
@@ -117,6 +120,29 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('works-map-toggle')));
     await tester.pumpAndSettle();
     expect(find.text('Контроль помещений'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('current work shortcut opens existing task without extra navigation',
+      (tester) async {
+    final project = MeasureProject(id: 'shortcut', name: 'Объект',
+      floors: [FloorPlan(id: 'f', name: 'Этаж')]);
+    final date = DateTime(2026, 10, 26);
+    project.workBoard.tasks.add(WorkTask(
+      id: 'active', title: 'Штукатурка спальни', start: date,
+      finish: date.add(const Duration(days: 4)), quantity: 40,
+      done: 7, unit: 'м²', hours: 16, floorId: 'f',
+    ));
+    await tester.pumpWidget(MaterialApp(home: WorksScreen(
+      project: project, floorId: 'f',
+      embedded: true, onChanged: () async {},
+    )));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('В работе:'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('works-current-task')));
+    await tester.pumpAndSettle();
+    expect(find.text('Штукатурка спальни'), findsWidgets);
+    expect(find.text('Сроки и зависимости'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
