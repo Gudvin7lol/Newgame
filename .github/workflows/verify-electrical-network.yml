@@ -1,0 +1,59 @@
+name: Verify electrical topology P2
+
+on:
+  push:
+    branches: ['feature/zamer-electrical-network-p2']
+    paths:
+      - 'zamer-app/lib/models/electrical_network.dart'
+      - 'zamer-app/lib/models/models.dart'
+      - 'zamer-app/lib/services/electrical_network_service.dart'
+      - 'zamer-app/lib/widgets/electrical_junction_connections_sheet.dart'
+      - 'zamer-app/lib/screens/electrical_screen.dart'
+      - 'zamer-app/test/electrical_network_test.dart'
+      - '.github/workflows/verify-electrical-network.yml'
+  pull_request:
+    paths:
+      - 'zamer-app/lib/models/electrical_network.dart'
+      - 'zamer-app/lib/models/models.dart'
+      - 'zamer-app/lib/services/electrical_network_service.dart'
+      - 'zamer-app/lib/widgets/electrical_junction_connections_sheet.dart'
+      - 'zamer-app/lib/screens/electrical_screen.dart'
+      - 'zamer-app/test/electrical_network_test.dart'
+      - '.github/workflows/verify-electrical-network.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  electrical-network:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CI: 'true'
+      FLUTTER_SUPPRESS_ANALYTICS: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - run: flutter pub get
+        working-directory: zamer-app
+      - name: Analyze changed feature
+        run: |
+          flutter analyze --no-fatal-infos --no-fatal-warnings \
+            lib/models/electrical_network.dart \
+            lib/models/models.dart \
+            lib/services/electrical_network_service.dart \
+            lib/widgets/electrical_junction_connections_sheet.dart \
+            lib/screens/electrical_screen.dart \
+            test/electrical_network_test.dart
+        working-directory: zamer-app
+      - name: Domain and mounting regression tests
+        run: |
+          flutter test test/electrical_network_test.dart \
+            test/electrical_mounting_test.dart \
+            test/electrical_mounting_integration_test.dart \
+            test/electrical_board_draft_v155_test.dart
+        working-directory: zamer-app
