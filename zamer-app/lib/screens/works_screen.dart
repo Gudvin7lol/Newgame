@@ -48,6 +48,7 @@ class _WorksScreenState extends State<WorksScreen> {
   int _tab = 0, _calendar = 0, _control = 0;
   int _compactTab = 0;
   String? _openedGroup;
+  String? _expandedTaskId;
   bool _showCrewLoad = false;
   bool _showRoomMap = false;
   final Set<String> _openSubgroups = <String>{};
@@ -286,44 +287,141 @@ class _WorksScreenState extends State<WorksScreen> {
           (task.progress * 100).round().toString() + '%',
       };
 
+  Widget _compactInlineTaskActions(WorkTask task, WorkState state) {
+    final remaining = (task.quantity - task.done).clamp(0.0, task.quantity)
+        .toDouble();
+    final blocker = WorkStatusService.startBlocker(board, task);
+    final primary = task.needsQuantityReview
+        ? 'Проверить объём'
+        : task.done > task.accepted
+            ? 'Принять выполненное'
+            : task.paused
+                ? 'Возобновить'
+                : 'Добавить объём';
+    final canPerform = task.needsQuantityReview ||
+        task.done > task.accepted ||
+        task.paused ||
+        (!task.fullyAccepted && blocker == null && remaining > 0);
+    Future<void> perform() async {
+      if (task.needsQuantityReview) {
+        await _confirmQuantity(task);
+      } else if (task.done > task.accepted) {
+        await _accept(task);
+      } else if (task.paused) {
+        setState(() => task.paused = false);
+        board.log('Возобновлена работа: ' + task.title,
+          taskId: task.id);
+        await _save();
+      } else {
+        await _updateDone(task);
+      }
+    }
+
+    return Container(
+      key: ValueKey('work-inline-' + task.id),
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(15, 5, 12, 11),
+      decoration: const BoxDecoration(
+        border: Border(top: BorderSide(color: _edge))),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(
+          'Выполнено ' + _number(task.done) + ' из ' +
+          _number(task.quantity) + ' ' + task.unit +
+          '  ·  Принято ' + _number(task.accepted) + ' ' + task.unit,
+          maxLines: 2,
+          style: const TextStyle(fontSize: 11, color: _muted),
+        ),
+        const SizedBox(height: 8),
+        _meter(task.progress, height: 4),
+        if (state == WorkState.blocked && blocker != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(blocker, maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: _amber, fontSize: 11)),
+          ),
+        if (task.fullyAccepted && !task.needsQuantityReview)
+          const Padding(
+            padding: EdgeInsets.only(top: 9),
+            child: Text('Работа принята',
+              style: TextStyle(color: _green, fontSize: 12,
+                fontWeight: FontWeight.w700)),
+          ),
+        const SizedBox(height: 7),
+        Row(children: [
+          if (canPerform) ...[
+            Expanded(child: FilledButton(
+              key: ValueKey('work-primary-' + task.id),
+              onPressed: perform,
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(0, 40),
+                backgroundColor: _peach, foregroundColor: _bg),
+              child: Text(primary, maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 12)),
+            )),
+            const SizedBox(width: 6),
+          ] else if (!task.fullyAccepted && blocker != null)
+            const Expanded(child: Text('Ожидает предыдущие этапы',
+              style: TextStyle(color: _muted, fontSize: 11))),
+          TextButton(
+            key: ValueKey('work-details-' + task.id),
+            onPressed: () => _taskDetail(task),
+            child: const Text('Подробнее',
+              style: TextStyle(fontSize: 12)),
+          ),
+        ]),
+      ]),
+    );
+  }
+
   Widget _compactWorkRow(WorkTask task) {
     final state = WorkStatusService.state(board, task);
     final color = _statusColor(task);
-    return InkWell(
-      key: ValueKey('work-row-' + task.id),
-      onTap: () => _taskDetail(task),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 10, 12, 10),
-        child: Row(children: [
-          Container(width: 4, height: 37,
-            decoration: BoxDecoration(color: color,
-              borderRadius: BorderRadius.circular(5))),
-          const SizedBox(width: 10),
-          Expanded(child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(task.title, maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 13,
-                  fontWeight: FontWeight.w700)),
-              const SizedBox(height: 3),
-              Text((task.roomName.isEmpty ? 'Объект' : task.roomName) +
-                  ' · ' + _number(task.quantity) + ' ' +
-                  task.unit + ' · ' + _date(task.finish),
-                maxLines: 1, overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: _muted, fontSize: 10.5)),
-            ],
-          )),
-          const SizedBox(width: 6),
-          Tooltip(
-            message: state.label,
-            child: Text(_shortWorkStatus(state, task),
-              style: TextStyle(fontWeight: FontWeight.w800,
-                fontSize: 10.5, color: color)),
-          ),
-          const Icon(Icons.chevron_right, color: _muted, size: 18),
-        ]),
+    final expanded = widget.embedded && _expandedTaskId == task.id;
+    return Column(mainAxisSize: MainAxisSize.min, children: [
+      InkWell(
+        key: ValueKey('work-row-' + task.id),
+        onTap: widget.embedded
+          ? () => setState(() {
+              _expandedTaskId = expanded ? null : task.id;
+            })
+          : () => _taskDetail(task),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 10, 12, 10),
+          child: Row(children: [
+            Container(width: 4, height: 37,
+              decoration: BoxDecoration(color: color,
+                borderRadius: BorderRadius.circular(5))),
+            const SizedBox(width: 10),
+            Expanded(child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(task.title, maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 13,
+                    fontWeight: FontWeight.w700)),
+                const SizedBox(height: 3),
+                Text((task.roomName.isEmpty ? 'Объект' : task.roomName) +
+                    ' · ' + _number(task.quantity) + ' ' +
+                    task.unit + ' · ' + _date(task.finish),
+                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: _muted, fontSize: 10.5)),
+              ],
+            )),
+            const SizedBox(width: 6),
+            Tooltip(
+              message: state.label,
+              child: Text(_shortWorkStatus(state, task),
+                style: TextStyle(fontWeight: FontWeight.w800,
+                  fontSize: 10.5, color: color)),
+            ),
+            Icon(expanded ? Icons.keyboard_arrow_up : Icons.chevron_right,
+              color: _muted, size: 18),
+          ]),
+        ),
       ),
-    );
+      if (expanded) _compactInlineTaskActions(task, state),
+    ]);
   }
 
   Widget _compactStages() {
