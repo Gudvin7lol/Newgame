@@ -13,7 +13,10 @@ class WorkStagePresentationService {
     for (final task in tasks) {
       final weight = task.hours.isFinite && task.hours > 0
           ? task.hours : 1.0;
-      final fraction = task.acceptedProgress.clamp(0.0, 1.0);
+      // Geometry changes can invalidate an otherwise accepted quantity.
+      // Do not present unchecked scope as verified completion.
+      final fraction = task.needsQuantityReview
+          ? 0.0 : task.acceptedProgress.clamp(0.0, 1.0);
       total += weight;
       completed += weight * fraction;
     }
