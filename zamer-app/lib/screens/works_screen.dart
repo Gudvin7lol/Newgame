@@ -15,6 +15,7 @@ import '../services/work_floor_surface_service.dart';
 import '../services/work_floor_polygon_service.dart';
 import '../services/work_status_service.dart';
 import '../services/work_co_stage_service.dart';
+import '../services/work_stage_presentation_service.dart';
 
 const _bg = ZamerColors.background;
 const _panel = ZamerColors.surface;
@@ -311,6 +312,9 @@ class _WorksScreenState extends State<WorksScreen> {
     final groups = <String, List<WorkTask>>{};
     for (final task in tasks) {
       (groups[_stageFor(task)] ??= []).add(task);
+    }
+    for (final group in groups.keys.toList()) {
+      groups[group] = WorkStagePresentationService.order(groups[group]!);
     }
     return Column(children: [
       for (final group in _workStageOrder)
