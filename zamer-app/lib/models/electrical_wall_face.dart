@@ -9,15 +9,21 @@ class WallFaceFinish {
     required this.thicknessMm,
     this.source = WallFinishSource.unknown,
     this.note = '',
+    this.axisStartNodeId,
+    this.axisEndNodeId,
   });
   final double thicknessMm;
   final WallFinishSource source;
   final String note;
+  /// Recorded oriented axis; necessary to detect left/right inversion.
+  final String? axisStartNodeId, axisEndNodeId;
 
   Map<String, dynamic> toJson() => {
     'thicknessMm': thicknessMm,
     'source': source.name,
     'note': note,
+    if (axisStartNodeId != null) 'axisStartNodeId': axisStartNodeId,
+    if (axisEndNodeId != null) 'axisEndNodeId': axisEndNodeId,
   };
 
   factory WallFaceFinish.fromJson(Map<String, dynamic> data) =>
@@ -28,5 +34,7 @@ class WallFaceFinish {
           orElse: () => WallFinishSource.unknown,
         ),
         note: data['note'] as String? ?? '',
+        axisStartNodeId: data['axisStartNodeId'] as String?,
+        axisEndNodeId: data['axisEndNodeId'] as String?,
       );
 }
