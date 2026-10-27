@@ -93,8 +93,23 @@ class ElectricalWallElevationPainter extends CustomPainter {
       canvas.drawCircle(a, 2.5, Paint()..color = color);
       canvas.drawCircle(b, 2.5, Paint()..color = color);
     }
-    // Perpendicular crossing points remain in the details list; a crossing
-    // must never be painted as an on-wall cable run in this elevation.
+    // Intersection markers are review notices, NOT additional cable runs.
+    // The indicator's vertical position is the exact Z of the intersection.
+    final marked = <String>{};
+    for (final mark in data.crossingMarks) {
+      final key = mark.uMm.toStringAsFixed(1) + '/' +
+          mark.zMm.toStringAsFixed(1) + '/' + mark.needsReview.toString();
+      if (!marked.add(key)) continue;
+      final at = Offset(x(mark.uMm), y(mark.zMm));
+      final color = mark.needsReview ? amber : mint;
+      canvas.drawCircle(at, 9, Paint()..color = bg);
+      canvas.drawCircle(at, 9,
+          Paint()..color = color..style = PaintingStyle.stroke
+            ..strokeWidth = 2);
+      _text(canvas, mark.needsReview ? '!' : 'i',
+          at + const Offset(-2.5, -7),
+          color: color, fontSize: 12, maxWidth: 10);
+    }
     // Points only if assigned to this exact wall by an explicit wallId.
     for (var i = 0; i < data.points.length; i++) {
       final point = data.points[i];
