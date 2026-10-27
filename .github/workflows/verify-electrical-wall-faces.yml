@@ -1,0 +1,67 @@
+name: Verify electrical wall surfaces P7
+
+on:
+  push:
+    branches: ['feature/zamer-electrical-wall-faces-p7']
+    paths:
+      - 'zamer-app/lib/models/electrical_wall_face.dart'
+      - 'zamer-app/lib/models/models.dart'
+      - 'zamer-app/lib/services/electrical_wall_face_service.dart'
+      - 'zamer-app/lib/services/electrical_wall_elevation_service.dart'
+      - 'zamer-app/lib/widgets/electrical_wall_face_screen.dart'
+      - 'zamer-app/lib/screens/electrical_screen.dart'
+      - 'zamer-app/test/electrical_wall_faces_p7_test.dart'
+      - '.github/workflows/verify-electrical-wall-faces.yml'
+  pull_request:
+    paths:
+      - 'zamer-app/lib/models/electrical_wall_face.dart'
+      - 'zamer-app/lib/models/models.dart'
+      - 'zamer-app/lib/services/electrical_wall_face_service.dart'
+      - 'zamer-app/lib/services/electrical_wall_elevation_service.dart'
+      - 'zamer-app/lib/widgets/electrical_wall_face_screen.dart'
+      - 'zamer-app/lib/screens/electrical_screen.dart'
+      - 'zamer-app/test/electrical_wall_faces_p7_test.dart'
+      - '.github/workflows/verify-electrical-wall-faces.yml'
+permissions:
+  contents: read
+
+jobs:
+  wall-faces:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CI: 'true'
+      FLUTTER_SUPPRESS_ANALYTICS: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Flutter dependencies
+        working-directory: zamer-app
+        run: flutter pub get
+      - name: Analyze P7 wall faces
+        working-directory: zamer-app
+        run: |
+          flutter analyze --no-fatal-warnings --no-fatal-infos \
+            lib/models/electrical_wall_face.dart \
+            lib/models/models.dart \
+            lib/services/electrical_wall_face_service.dart \
+            lib/services/electrical_wall_elevation_service.dart \
+            lib/widgets/electrical_wall_face_screen.dart \
+            lib/screens/electrical_screen.dart \
+            test/electrical_wall_faces_p7_test.dart
+      - name: P1-P7 electrical regression
+        working-directory: zamer-app
+        run: |
+          flutter test test/electrical_wall_faces_p7_test.dart \
+            test/electrical_wall_elevations_p6_test.dart \
+            test/electrical_crossings_p5_test.dart \
+            test/electrical_cable_journal_p4_test.dart \
+            test/electrical_routes_p3_test.dart \
+            test/electrical_network_test.dart \
+            test/electrical_junction_editor_test.dart \
+            test/electrical_mounting_test.dart \
+            test/electrical_floor_camera_v154_test.dart
