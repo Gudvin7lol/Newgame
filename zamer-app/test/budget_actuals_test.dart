@@ -29,6 +29,8 @@ void main() {
   test('new budget ledger defaults to empty and survives project JSON', () {
     final project = MeasureProject(id: 'p', name: 'Квартира');
     expect(BudgetService.review(project).actualTotal, 0);
+    expect(BudgetService.review(project).completeEstimate, isFalse);
+    expect(BudgetService.review(project).remainingIfFullyPriced, isNull);
     final paid = BudgetService.record(
       project,
       category: CostCategory.materials,
