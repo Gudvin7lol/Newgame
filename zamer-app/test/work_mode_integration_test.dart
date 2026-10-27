@@ -142,7 +142,79 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('works-current-task')));
     await tester.pumpAndSettle();
     expect(find.text('Штукатурка спальни'), findsWidgets);
+    expect(find.byKey(const ValueKey('work-inline-active')), findsOneWidget);
+    expect(find.text('Подробнее'), findsOneWidget);
+    expect(find.text('Сроки и зависимости'), findsNothing);
+    await tester.tap(find.text('Подробнее'));
+    await tester.pumpAndSettle();
     expect(find.text('Сроки и зависимости'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('stage task expands inside its group with one primary action',
+      (tester) async {
+    tester.view.physicalSize = const Size(393, 820);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final floor = FloorPlan(id: 'f', name: 'Этаж');
+    final project = MeasureProject(id: 'inline', name: 'Объект',
+      floors: [floor]);
+    project.workBoard.tasks.add(WorkTask(
+      id: 'plaster', title: 'Штукатурка стен',
+      operationCode: 'wall_plaster_gypsum',
+      floorId: floor.id, start: DateTime(2026, 10, 26),
+      finish: DateTime(2026, 10, 30), quantity: 20,
+      unit: 'м²', hours: 30,
+    ));
+    await tester.pumpWidget(MaterialApp(home: WorksScreen(
+      project: project, floorId: floor.id,
+      embedded: true, onChanged: () async {},
+    )));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('works-group-Стены')));
+    await tester.pumpAndSettle();
+    final work = find.byKey(const ValueKey('work-row-plaster'));
+    await tester.ensureVisible(work);
+    await tester.tap(work);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('work-inline-plaster')), findsOneWidget);
+    expect(find.byKey(const ValueKey('work-primary-plaster')), findsOneWidget);
+    expect(find.text('Добавить объём'), findsOneWidget);
+    expect(find.text('Сроки и зависимости'), findsNothing);
+    await tester.tap(work);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('work-inline-plaster')), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('blocked work shows dependency instead of fake start button',
+      (tester) async {
+    final floor = FloorPlan(id: 'f', name: 'Этаж');
+    final project = MeasureProject(id: 'blocks', name: 'Объект',
+      floors: [floor]);
+    final day = DateTime(2026, 10, 27);
+    project.workBoard.tasks.addAll([
+      WorkTask(id: 'rough', title: 'Черновые работы',
+        floorId: floor.id, start: day, finish: day,
+        quantity: 1, unit: 'шт', hours: 8),
+      WorkTask(id: 'finish', title: 'Отделка стен',
+        operationCode: 'wall_paint', floorId: floor.id,
+        start: day, finish: day, quantity: 10, unit: 'м²',
+        predecessorId: 'rough', hours: 14),
+    ]);
+    await tester.pumpWidget(MaterialApp(home: WorksScreen(
+      project: project, floorId: floor.id,
+      embedded: true, onChanged: () async {},
+    )));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('works-group-Стены')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('work-row-finish')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Сначала примите'), findsOneWidget);
+    expect(find.byKey(const ValueKey('work-primary-finish')), findsNothing);
+    expect(find.text('Ожидает предыдущие этапы'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
