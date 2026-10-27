@@ -22,6 +22,7 @@ class WorkSurfaceService {
   static const finishCodes = <String>{
     'wall_paint', 'wall_wallpaper', 'wall_tile', 'tile_wall_porcelain',
     'tile_mosaic', 'tile_large_format', 'wall_paint_extra_coat',
+    'wall_putty',
   };
 
   static bool hasAssignments(WorkBoard board, FloorPlan floor, RoomMeta room) =>
