@@ -170,6 +170,24 @@ void main() {
         f, previous, corner), throwsFormatException);
   });
 
+  test('datum cache expires even if coordinate U happens to stay equal', () {
+    final f = datumFixture();
+    final old = ElectricalWallDatumService.catalog(f, 'primary', 1);
+    final corner = old.datums.firstWhere((d) =>
+        d.kind == ElectricalDatumKind.finishedCorner);
+    // Stretch the adjacent wall: its axis and calculated U of the corner
+    // are unchanged, but it is no longer the same surveyed model geometry.
+    f.nodes.last.yMm = 3200;
+    final updated = ElectricalWallDatumService.catalog(f, 'primary', 1);
+    final refreshed = updated.datums.firstWhere((d) =>
+        d.kind == ElectricalDatumKind.finishedCorner);
+    expect(refreshed.uMm, closeTo(corner.uMm, .001));
+    expect(() => ElectricalWallDatumService.dimensions(f, old, corner),
+        throwsFormatException);
+    expect(ElectricalWallDatumService.dimensions(f, updated, refreshed),
+        isNotEmpty);
+  });
+
   test('read-only stations never modify floor or move outlets', () {
     final f = datumFixture();
     final before = jsonEncode(f.toJson());
