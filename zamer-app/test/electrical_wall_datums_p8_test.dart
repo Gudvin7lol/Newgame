@@ -212,6 +212,14 @@ void main() {
     expect(find.text('Базы монтажной разметки'), findsOneWidget);
     expect(find.byKey(const ValueKey('datum-base-position')),
         findsOneWidget);
+    // The dimensional list is deliberately scrollable at 390 logical px.
+    // The row can be below the viewport and should be scrolled into view.
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('datum-dimension-outlet')),
+      180,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('datum-dimension-outlet')),
         findsOneWidget);
     expect(tester.takeException(), isNull);
