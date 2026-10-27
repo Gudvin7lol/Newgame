@@ -55,7 +55,8 @@ void main() {
     final restoredPath = restored.first.floors.single.roomMetas.single
         .photoPaths.single;
     expect(restoredPath, isNot(photo.path));
-    expect(await File(restoredPath).readAsBytes(), photo.readAsBytes());
+    expect(await File(restoredPath).readAsBytes(),
+        await photo.readAsBytes());
     expect(original.first.floors.single.roomMetas.single.photoPaths.single,
         photo.path);
   });
