@@ -42,8 +42,7 @@ class _ElectricalWallFaceScreenState extends State<ElectricalWallFaceScreen> {
     final wall = widget.floor.wallById(id);
     if (wall == null) return;
     final previous = ElectricalWallFaceService.saved(wall, side);
-    final input = TextEditingController(
-        text: previous?.thicknessMm.toStringAsFixed(1) ?? '');
+    var thicknessText = previous?.thicknessMm.toStringAsFixed(1) ?? '';
     var source = previous?.source ?? WallFinishSource.unknown;
     final decision = await showDialog<_FaceDecision>(
       context: context,
@@ -54,9 +53,10 @@ class _ElectricalWallFaceScreenState extends State<ElectricalWallFaceScreen> {
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               Text(ElectricalWallFaceService.sideLabel(side)),
               const SizedBox(height: 12),
-              TextField(
+              TextFormField(
                 key: const ValueKey('face-thickness-input'),
-                controller: input,
+                initialValue: thicknessText,
+                onChanged: (value) => thicknessText = value,
                 keyboardType: const TextInputType.numberWithOptions(
                     decimal: true),
                 decoration: const InputDecoration(
@@ -98,7 +98,7 @@ class _ElectricalWallFaceScreenState extends State<ElectricalWallFaceScreen> {
             FilledButton(
               key: const ValueKey('face-save'),
               onPressed: () {
-                final amount = double.tryParse(input.text.trim()
+                final amount = double.tryParse(thicknessText.trim()
                     .replaceAll(',', '.'));
                 if (amount == null || !amount.isFinite ||
                     amount < 0 || amount > 500) {
@@ -117,7 +117,6 @@ class _ElectricalWallFaceScreenState extends State<ElectricalWallFaceScreen> {
         ),
       ),
     );
-    input.dispose();
     if (decision == null || !mounted) return;
     try {
       await widget.onSaveFace(id, side, decision.finish);
