@@ -49,6 +49,7 @@ class _WorksScreenState extends State<WorksScreen> {
   int _compactTab = 0;
   String? _openedGroup;
   String? _expandedTaskId;
+  String? _spotlightTaskId;
   bool _showCrewLoad = false;
   bool _showRoomMap = false;
   final Set<String> _openSubgroups = <String>{};
@@ -236,7 +237,11 @@ class _WorksScreenState extends State<WorksScreen> {
             alignment: Alignment.centerLeft,
             child: TextButton.icon(
               key: const ValueKey('works-current-task'),
-              onPressed: () => _taskDetail(current),
+              onPressed: () => setState(() {
+                _spotlightTaskId = _spotlightTaskId == current.id
+                    ? null : current.id;
+                _compactTab = 0;
+              }),
               icon: const Icon(Icons.arrow_forward_rounded, size: 16),
               label: Text(currentLabel + ': ' + current.title,
                 maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -248,6 +253,9 @@ class _WorksScreenState extends State<WorksScreen> {
               ),
             ),
           ),
+        if (current != null && _spotlightTaskId == current.id &&
+            currentState != null)
+          _compactInlineTaskActions(current, currentState),
         if (rooms.length > 1)
           SizedBox(height: 38, child: ListView(
             scrollDirection: Axis.horizontal,
