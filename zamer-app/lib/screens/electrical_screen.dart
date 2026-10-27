@@ -940,7 +940,11 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     final previous = ElectricalWallFaceService.saved(wall, side);
     if (previous?.thicknessMm == finish?.thicknessMm &&
         previous?.source == finish?.source &&
-        previous?.note == finish?.note) return;
+        previous?.note == finish?.note &&
+        (finish == null || (
+          previous?.axisStartNodeId == wall.startNodeId &&
+          previous?.axisEndNodeId == wall.endNodeId
+        ))) return;
     _pushUndo();
     ElectricalWallFaceService.apply(widget.floor, wallId, side, finish);
     await widget.onChanged();
