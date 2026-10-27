@@ -89,6 +89,12 @@ void main() {
     expect(result.points[1].uMm, 4000);
     expect(result.points[1].zMm, 1000);
     expect(result.segments, hasLength(3));
+    expect(result.crossingMarks, isNotEmpty);
+    expect(result.crossingMarks.every((m) =>
+        m.uMm >= 0 && m.uMm <= result.lengthMm &&
+        m.zMm >= 0 && m.zMm <= result.heightMm), true);
+    expect(result.crossingMarks.every((m) => m.needsReview), true);
+
     expect(result.segments[1].fromUMm, 2000);
     expect(result.segments[1].fromZMm, 500);
     expect(result.segments[1].toZMm, 1000);
