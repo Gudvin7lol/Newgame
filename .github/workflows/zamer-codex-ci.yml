@@ -303,11 +303,23 @@ jobs:
           flutter build apk --release
           echo "mode=stable-release; identical keystore required for updates" > build/app/outputs/flutter-apk/signature-mode.txt
 
-      - name: Record APK checksum and signing mode
+      - name: Verify APK certificate, checksum and signing mode
         working-directory: zamer-app
+        shell: bash
         run: |
+          set -euo pipefail
           cd build/app/outputs/flutter-apk
+          test -s app-release.apk
+          test -s signature-mode.txt
           sha256sum app-release.apk > app-release.apk.sha256
+
+          sdk_root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+          test -n "$sdk_root"
+          signer="$(find "$sdk_root/build-tools" -mindepth 2 -maxdepth 2 -type f -name apksigner | sort -V | tail -n 1)"
+          test -x "$signer"
+          "$signer" verify --verbose --print-certs app-release.apk > apk-signature.txt
+          grep -F 'Signer #1 certificate SHA-256 digest:' apk-signature.txt
+          grep -Eq '^mode=(temporary-debug|stable-release);' signature-mode.txt
           cat signature-mode.txt
 
       - name: Upload APK and verification metadata
@@ -318,5 +330,6 @@ jobs:
             zamer-app/build/app/outputs/flutter-apk/app-release.apk
             zamer-app/build/app/outputs/flutter-apk/app-release.apk.sha256
             zamer-app/build/app/outputs/flutter-apk/signature-mode.txt
+            zamer-app/build/app/outputs/flutter-apk/apk-signature.txt
           if-no-files-found: error
           retention-days: 14
