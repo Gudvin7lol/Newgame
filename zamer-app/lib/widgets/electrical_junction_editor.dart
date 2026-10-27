@@ -4,6 +4,8 @@ import '../models/models.dart';
 import '../models/electrical_network.dart';
 import '../services/electrical_network_service.dart';
 import '../services/electrical_junction_edit_service.dart';
+import '../services/electrical_route_service.dart';
+import 'electrical_route_editor.dart';
 
 /// A detached, explicit editor. No writes to FloorPlan before "Save".
 class ElectricalJunctionEditor extends StatefulWidget {
@@ -389,6 +391,97 @@ class _ElectricalJunctionEditorState extends State<ElectricalJunctionEditor> {
     }
   }
 
+  Future<void> editCable(ElectricalCableRecord cable) async {
+    var description = cable.description;
+    var circuitId = cable.circuitId;
+    final result = await showDialog<(String, String)>(
+      context: context,
+      builder: (dialog) => StatefulBuilder(
+        builder: (context, refresh) => AlertDialog(
+          title: const Text('Свойства кабеля'),
+          scrollable: true,
+          content: SizedBox(
+            width: 330,
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              TextFormField(
+                key: ValueKey('junction-edit-cable-name'),
+                initialValue: description,
+                onChanged: (v) => description = v,
+                decoration: const InputDecoration(
+                    labelText: 'Маркировка кабеля'),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                key: const ValueKey('junction-edit-cable-circuit'),
+                initialValue: circuitId,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Цепь'),
+                items: [
+                  for (final c in draft.circuits)
+                    DropdownMenuItem(value: c.id,
+                        child: Text(c.name, overflow: TextOverflow.ellipsis)),
+                ],
+                onChanged: (v) => refresh(() => circuitId = v ?? circuitId),
+              ),
+              const SizedBox(height: 12),
+              const Text('Концы, жилы и клеммы останутся прежними. '
+                  'Смена группы подключённого кабеля блокируется.'),
+            ]),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialog),
+                child: const Text('Отмена')),
+            FilledButton(
+              key: const ValueKey('junction-edit-cable-save'),
+              onPressed: () => Navigator.pop(dialog,
+                  (description, circuitId)),
+              child: const Text('Применить'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || result == null) return;
+    change(() => ElectricalJunctionEditService.editCableDetails(
+      draft, cableId: cable.id, description: result.$1,
+      circuitId: result.$2,
+    ));
+  }
+
+  Future<void> editRoute(ElectricalCableRecord cable) async {
+    final initial = draft.routes3d
+        .where((r) => r.id == cable.route3dId).firstOrNull;
+    final result = await Navigator.of(context).push<ElectricalRouteEditResult>(
+      MaterialPageRoute(
+        builder: (_) => ElectricalRouteEditor(
+          floor: widget.floor, cable: cable, initial: initial,
+        ),
+      ),
+    );
+    if (!mounted || result == null) return;
+    change(() => ElectricalRouteService.upsertForCable(
+      widget.floor, draft, cable.id, result.path,
+      reserveMm: result.reserveMm,
+    ));
+  }
+
+  String routeSummary(ElectricalCableRecord cable) {
+    final route = draft.routes3d
+        .where((r) => r.id == cable.route3dId).firstOrNull;
+    if (route == null) return '3D-трасса не задана';
+    try {
+      final m = ElectricalRouteService.measure(widget.floor, route,
+          reserveMm: cable.explicitReserveMm);
+      final len = (m.geometricMm / 1000).toStringAsFixed(2);
+      return 'Трасса ' + len + ' м · ' +
+          (m.procurementLengthMm == null ? 'запас неизвестен'
+              : 'с запасом ' +
+                (m.procurementLengthMm! / 1000).toStringAsFixed(2) + ' м');
+    } on FormatException {
+      return 'Трасса требует перепроверки';
+    }
+  }
+
   Widget cableTile(ElectricalCableRecord cable) {
     final other = cable.fromPointId == widget.junctionPointId
         ? cable.toPointId : cable.fromPointId;
@@ -404,6 +497,39 @@ class _ElectricalJunctionEditorState extends State<ElectricalJunctionEditor> {
             ' · ' + circuitLabel(cable.circuitId) +
             ' · ' + cable.cores.length.toString() + ' жил'),
         children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(routeSummary(cable),
+                  style: Theme.of(context).textTheme.bodySmall),
+            ),
+          ),
+          Wrap(
+            alignment: WrapAlignment.end,
+            spacing: 4,
+            children: [
+              TextButton.icon(
+                key: ValueKey('junction-edit-cable-' + cable.id),
+                onPressed: () => editCable(cable),
+                icon: const Icon(Icons.edit_outlined),
+                label: const Text('Свойства'),
+              ),
+              TextButton.icon(
+                key: ValueKey('junction-edit-route-' + cable.id),
+                onPressed: () => editRoute(cable),
+                icon: const Icon(Icons.route),
+                label: const Text('Трасса'),
+              ),
+              if (cable.route3dId != null)
+                TextButton(
+                  key: ValueKey('junction-clear-route-' + cable.id),
+                  onPressed: () => change(() =>
+                      ElectricalRouteService.clearCableRoute(draft, cable.id)),
+                  child: const Text('Убрать трассу'),
+                ),
+            ],
+          ),
           for (final core in cable.cores)
             ListTile(
               dense: true,
