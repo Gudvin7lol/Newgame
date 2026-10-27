@@ -206,7 +206,7 @@ class _ElectricalWallFaceScreenState extends State<ElectricalWallFaceScreen> {
                       Text(finish == null
                           ? 'Плоскость чистовой поверхности не рассчитана'
                           : 'Расстояние ось → чистовая плоскость: ' +
-                              mm(wall.thicknessMm / 2 +
+                              mm(wall!.thicknessMm / 2 +
                                   finish.thicknessMm)),
                       Text(finish == null
                           ? 'Источник: не указан'
