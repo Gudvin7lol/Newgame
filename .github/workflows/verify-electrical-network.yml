@@ -7,6 +7,10 @@ on:
       - 'zamer-app/lib/models/electrical_network.dart'
       - 'zamer-app/lib/models/models.dart'
       - 'zamer-app/lib/services/electrical_network_service.dart'
+      - 'zamer-app/lib/services/electrical_junction_edit_service.dart'
+      - 'zamer-app/lib/widgets/electrical_junction_editor.dart'
+      - 'zamer-app/lib/widgets/electrical_mounting_editor.dart'
+      - 'zamer-app/test/electrical_junction_editor_test.dart'
       - 'zamer-app/lib/widgets/electrical_junction_connections_sheet.dart'
       - 'zamer-app/lib/screens/electrical_screen.dart'
       - 'zamer-app/test/electrical_network_test.dart'
@@ -16,6 +20,10 @@ on:
       - 'zamer-app/lib/models/electrical_network.dart'
       - 'zamer-app/lib/models/models.dart'
       - 'zamer-app/lib/services/electrical_network_service.dart'
+      - 'zamer-app/lib/services/electrical_junction_edit_service.dart'
+      - 'zamer-app/lib/widgets/electrical_junction_editor.dart'
+      - 'zamer-app/lib/widgets/electrical_mounting_editor.dart'
+      - 'zamer-app/test/electrical_junction_editor_test.dart'
       - 'zamer-app/lib/widgets/electrical_junction_connections_sheet.dart'
       - 'zamer-app/lib/screens/electrical_screen.dart'
       - 'zamer-app/test/electrical_network_test.dart'
@@ -46,6 +54,9 @@ jobs:
             lib/models/electrical_network.dart \
             lib/models/models.dart \
             lib/services/electrical_network_service.dart \
+            lib/services/electrical_junction_edit_service.dart \
+            lib/widgets/electrical_junction_editor.dart \
+            lib/widgets/electrical_mounting_editor.dart \
             lib/widgets/electrical_junction_connections_sheet.dart \
             lib/screens/electrical_screen.dart \
             test/electrical_network_test.dart
@@ -53,6 +64,8 @@ jobs:
       - name: Domain and mounting regression tests
         run: |
           flutter test test/electrical_network_test.dart \
+            test/electrical_junction_editor_test.dart \
+            test/electrical_mounting_editor_test.dart \
             test/electrical_mounting_test.dart \
             test/electrical_mounting_integration_test.dart \
             test/electrical_board_draft_v155_test.dart
