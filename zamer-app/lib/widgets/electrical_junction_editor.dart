@@ -54,7 +54,7 @@ class _ElectricalJunctionEditorState extends State<ElectricalJunctionEditor> {
   }
 
   Future<void> createCircuit() async {
-    final name = TextEditingController();
+    var name = '';
     var kind = ElectricalCircuitKind.unknown;
     final result = await showDialog<(String, ElectricalCircuitKind)>(
       context: context,
@@ -66,7 +66,7 @@ class _ElectricalJunctionEditorState extends State<ElectricalJunctionEditor> {
             children: [
               TextField(
                 key: const ValueKey('junction-circuit-name'),
-                controller: name,
+                onChanged: (value) => name = value,
                 autofocus: true,
                 textCapitalization: TextCapitalization.sentences,
                 decoration: const InputDecoration(labelText: 'Название группы'),
@@ -107,14 +107,13 @@ class _ElectricalJunctionEditorState extends State<ElectricalJunctionEditor> {
             ),
             FilledButton(
               key: const ValueKey('junction-circuit-create'),
-              onPressed: () => Navigator.pop(dialog, (name.text, kind)),
+              onPressed: () => Navigator.pop(dialog, (name, kind)),
               child: const Text('Создать'),
             ),
           ],
         ),
       ),
     );
-    name.dispose();
     if (!mounted || result == null) return;
     change(() {
       ElectricalJunctionEditService.createCircuit(
@@ -139,7 +138,7 @@ class _ElectricalJunctionEditorState extends State<ElectricalJunctionEditor> {
     var fromBox = false;
     var coreCount = 3;
     String? runId;
-    final description = TextEditingController();
+    var description = '';
     final result = await showDialog<_CableInput>(
       context: context,
       builder: (dialog) => StatefulBuilder(
@@ -240,7 +239,7 @@ class _ElectricalJunctionEditorState extends State<ElectricalJunctionEditor> {
                   const SizedBox(height: 12),
                   TextField(
                     key: const ValueKey('junction-cable-mark'),
-                    controller: description,
+                    onChanged: (value) => description = value,
                     decoration: const InputDecoration(
                       labelText: 'Маркировка кабеля',
                       hintText: 'Необязательно',
@@ -258,7 +257,7 @@ class _ElectricalJunctionEditorState extends State<ElectricalJunctionEditor> {
                 key: const ValueKey('junction-cable-create'),
                 onPressed: () => Navigator.pop(dialog, _CableInput(
                   otherId, circuitId, fromBox, coreCount, runId,
-                  description.text,
+                  description,
                 )),
                 child: const Text('Добавить'),
               ),
@@ -267,7 +266,6 @@ class _ElectricalJunctionEditorState extends State<ElectricalJunctionEditor> {
         },
       ),
     );
-    description.dispose();
     if (!mounted || result == null) return;
     change(() => ElectricalJunctionEditService.createCable(
       widget.floor, draft,
@@ -302,7 +300,7 @@ class _ElectricalJunctionEditorState extends State<ElectricalJunctionEditor> {
       return;
     }
     final selected = <String>{};
-    final mark = TextEditingController();
+    var mark = '';
     final result = await showDialog<List<ElectricalCoreReference>>(
       context: context,
       builder: (dialog) => StatefulBuilder(
@@ -319,7 +317,7 @@ class _ElectricalJunctionEditorState extends State<ElectricalJunctionEditor> {
                 const SizedBox(height: 12),
                 TextField(
                   key: const ValueKey('junction-terminal-mark'),
-                  controller: mark,
+                  onChanged: (value) => mark = value,
                   decoration: const InputDecoration(
                     labelText: 'Маркировка клеммы', hintText: 'Например X1',
                   ),
@@ -370,8 +368,7 @@ class _ElectricalJunctionEditorState extends State<ElectricalJunctionEditor> {
         ),
       ),
     );
-    final label = mark.text;
-    mark.dispose();
+    final label = mark;
     if (!mounted || result == null) return;
     change(() => ElectricalJunctionEditService.createTerminal(
       widget.floor, draft, id: id('terminal'),
