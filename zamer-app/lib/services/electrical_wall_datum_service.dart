@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:math' as math;
 
 import '../models/electrical_wall_face.dart';
@@ -50,12 +51,14 @@ class ElectricalWallDatumCatalog {
     required this.wallId,
     required this.side,
     required this.lengthMm,
+    required this.geometrySnapshot,
     required this.datums,
     required this.issues,
   });
   final String wallId;
   final int side;
   final double lengthMm;
+  final String geometrySnapshot;
   final List<ElectricalWallDatum> datums;
   final List<String> issues;
 }
@@ -73,6 +76,14 @@ class ElectricalWallDatumService {
 
   static double _cross(double ax, double ay, double bx, double by) =>
       ax * by - ay * bx;
+
+  static String _geometrySnapshot(FloorPlan floor) => jsonEncode({
+    // Whole-floor topology is intentionally included: an unrelated wall
+    // change may alter the corner interpretation, so require a refresh.
+    'nodes': floor.nodes.map((n) => n.toJson()).toList(),
+    'walls': floor.walls.map((w) => w.toJson()).toList(),
+    'defaultHeightMm': floor.defaultHeightMm,
+  });
 
   static ElectricalWallDatumCatalog catalog(
       FloorPlan floor, String wallId, int side) {
@@ -235,14 +246,18 @@ class ElectricalWallDatumService {
     });
     return ElectricalWallDatumCatalog(
       wallId: wallId, side: side,
-      lengthMm: length, datums: datums,
-      issues: issues,
+      lengthMm: length, geometrySnapshot: _geometrySnapshot(floor),
+      datums: datums, issues: issues,
     );
   }
 
   static List<ElectricalDatumDimension> dimensions(
       FloorPlan floor, ElectricalWallDatumCatalog catalog,
       ElectricalWallDatum datum) {
+    if (catalog.geometrySnapshot != _geometrySnapshot(floor)) {
+      throw const FormatException(
+          'Геометрия плана изменилась. Пересчитайте монтажные базы.');
+    }
     if (!catalog.datums.any((item) => item.id == datum.id)) {
       throw const FormatException('Выбранная база устарела.');
     }
