@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../models/models.dart';
 import '../services/electrical_mounting_service.dart';
 import '../services/electrical_route_service.dart';
+import '../services/electrical_crossing_service.dart';
 import '../models/electrical_route_3d.dart';
 
 class ElectricalPlanPainter extends CustomPainter {
@@ -17,6 +18,7 @@ class ElectricalPlanPainter extends CustomPainter {
     this.overlayOnly = false,
     this.showLegacyLines = true,
     this.show3dRoutes = false,
+    this.showCrossings = false,
     this.circuitFilterId,
   });
 
@@ -31,6 +33,7 @@ class ElectricalPlanPainter extends CustomPainter {
   /// Legacy drawing is never a proof of physical cable connectivity.
   final bool showLegacyLines;
   final bool show3dRoutes;
+  final bool showCrossings;
   final String? circuitFilterId;
 
   Offset p(double x, double y) => origin + Offset(x * scale, y * scale);
@@ -70,6 +73,7 @@ class ElectricalPlanPainter extends CustomPainter {
     }
 
     if (show3dRoutes) _drawPhysicalRoutes(canvas, size);
+    if (showCrossings) _drawCrossings(canvas, size);
 
     for (final point in floor.electricalPoints) {
       final pos = p(point.xMm, point.yMm);
@@ -148,6 +152,46 @@ class ElectricalPlanPainter extends CustomPainter {
           if (index < points.length - 1) canvas.drawCircle(pb, 2.4, dot);
         }
       }
+    }
+    canvas.restore();
+  }
+
+  void _drawCrossings(Canvas canvas, Size size) {
+    final report = ElectricalCrossingService.inspect(
+      floor, circuitId: circuitFilterId,
+    );
+    canvas.save();
+    canvas.clipRect(Offset.zero & size);
+    // Avoid overprinting shared cable routes with indistinguishable markers.
+    final plotted = <String>{};
+    for (final notice in report.notices) {
+      final key = notice.wallId + '/' + notice.kind.name + '/' +
+          notice.xMm.toStringAsFixed(1) + '/' +
+          notice.yMm.toStringAsFixed(1);
+      if (!plotted.add(key)) continue;
+      if (notice.kind == ElectricalCrossingKind.unsupportedWall) continue;
+      final at = p(notice.xMm, notice.yMm);
+      const warning = Color(0xFFFFA578);
+      const info = Color(0xFF8BD7BC);
+      final color = notice.needsReview ? warning : info;
+      final outer = Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.5;
+      canvas.drawCircle(at, 8.5, Paint()
+        ..color = darkMode ? const Color(0xFF18222C) : Colors.white);
+      canvas.drawCircle(at, 8.5, outer);
+      final tp = TextPainter(
+        text: TextSpan(
+          text: notice.needsReview ? '!' : 'i',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: color, fontSize: 10,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp.paint(canvas, at - Offset(tp.width / 2, tp.height / 2));
     }
     canvas.restore();
   }
