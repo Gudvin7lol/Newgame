@@ -14,6 +14,7 @@ import '../services/electrical_junction_edit_service.dart';
 import '../services/geometry_service.dart';
 import '../widgets/electrical_plan_painter.dart';
 import '../widgets/electrical_cable_journal_sheet.dart';
+import '../widgets/electrical_crossing_sheet.dart';
 import '../widgets/cad_plan_painter.dart';
 import '../services/plan_visibility_service.dart';
 import '../services/plan_viewport_link.dart';
@@ -53,6 +54,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
   String? _selectedId;
   /// Physical cable routes and sketch lines are hidden by default.
   bool _show3dRoutes = false;
+  bool _showCrossings = false;
   bool _showLegacyLines = false;
   String? _routeCircuitFilterId;
   String? _dragPointId;
@@ -926,6 +928,20 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     if (mounted) setState(() {});
   }
 
+  Future<void> _showCrossingsReview() async {
+    await showModalBottomSheet<void>(
+      context: context, isScrollControlled: true, showDragHandle: true,
+      builder: (_) => ElectricalCrossingSheet(
+        floor: widget.floor,
+        initialCircuitId: _routeCircuitFilterId,
+        onCircuitChanged: (id) {
+          if (!mounted) return;
+          setState(() => _routeCircuitFilterId = id);
+        },
+      ),
+    );
+  }
+
   Future<void> _showCableJournal() async {
     await showModalBottomSheet<void>(
       context: context,
@@ -975,6 +991,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
             icon: const Icon(Icons.layers_outlined),
             onSelected: (choice) => setState(() {
               if (choice == 'legacy') _showLegacyLines = !_showLegacyLines;
+              if (choice == 'crossings') _showCrossings = !_showCrossings;
               if (choice == 'all') _routeCircuitFilterId = null;
             }),
             itemBuilder: (_) => [
@@ -982,6 +999,16 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                 value: 'legacy',
                 checked: _showLegacyLines,
                 child: const Text('Черновые линии'),
+              ),
+              CheckedPopupMenuItem(
+                value: 'crossings',
+                checked: _showCrossings,
+                child: const Text('Маркеры пересечений'),
+              ),
+              PopupMenuItem(
+                value: 'review',
+                onTap: _showCrossingsReview,
+                child: const Text('Журнал пересечений'),
               ),
               if (id != null)
                 const PopupMenuItem(
@@ -1326,12 +1353,22 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                 icon: const Icon(Icons.layers_outlined),
                 onSelected: (choice) => setState(() {
                   if (choice == 'legacy') _showLegacyLines = !_showLegacyLines;
+                  if (choice == 'crossings') _showCrossings = !_showCrossings;
                   if (choice == 'all') _routeCircuitFilterId = null;
                 }),
                 itemBuilder: (_) => [
                   CheckedPopupMenuItem(
                     value: 'legacy', checked: _showLegacyLines,
                     child: const Text('Черновые линии'),
+                  ),
+                  CheckedPopupMenuItem(
+                    value: 'crossings', checked: _showCrossings,
+                    child: const Text('Маркеры пересечений'),
+                  ),
+                  PopupMenuItem(
+                    value: 'review',
+                    onTap: _showCrossingsReview,
+                    child: const Text('Журнал пересечений'),
                   ),
                   if (_routeCircuitFilterId != null)
                     const PopupMenuItem(value: 'all',
@@ -1380,6 +1417,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                     wireStartPointId: _wireStartId,
                     showLegacyLines: _showLegacyLines || _mode == ElectricalMode.wire,
                     show3dRoutes: _show3dRoutes,
+                    showCrossings: _showCrossings,
                     circuitFilterId: _routeCircuitFilterId,
                   ),
                   foregroundPainter: widget.embedded
@@ -1393,6 +1431,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                           overlayOnly: true,
                           showLegacyLines: _showLegacyLines || _mode == ElectricalMode.wire,
                           show3dRoutes: _show3dRoutes,
+                    showCrossings: _showCrossings,
                           circuitFilterId: _routeCircuitFilterId,
                         ) : null,
                   child: const SizedBox.expand(),
