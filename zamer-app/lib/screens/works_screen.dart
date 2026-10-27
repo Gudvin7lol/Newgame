@@ -157,9 +157,19 @@ class _WorksScreenState extends State<WorksScreen> {
     }).length + board.issues.where((issue) =>
       issue.open && !visibleIds.contains(issue.taskId) &&
       (_roomId == null || issue.roomId == _roomId)).length;
-    final progress = tasks.isEmpty ? 0.0 :
-      tasks.fold<double>(0, (sum, t) => sum + t.acceptedProgress) /
-      tasks.length;
+    final progress = WorkStagePresentationService.acceptedProgress(tasks);
+    final current = WorkStagePresentationService.currentTask(board, tasks);
+    final currentState = current == null ? null :
+      WorkStatusService.state(board, current);
+    final currentLabel = switch (currentState) {
+      WorkState.inProgress => 'В работе',
+      WorkState.overdue => 'Просрочено',
+      WorkState.ready => 'Можно начать',
+      WorkState.paused => 'Приостановлено',
+      WorkState.planned => 'Далее по плану',
+      WorkState.blocked => 'Ожидает',
+      _ => 'Следующая работа',
+    };
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 8, 8, 7),
       decoration: const BoxDecoration(color: _panel,
@@ -220,6 +230,23 @@ class _WorksScreenState extends State<WorksScreen> {
             ],
           ),
         ]),
+        if (current != null)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              key: const ValueKey('works-current-task'),
+              onPressed: () => _taskDetail(current),
+              icon: const Icon(Icons.arrow_forward_rounded, size: 16),
+              label: Text(currentLabel + ': ' + current.title,
+                maxLines: 1, overflow: TextOverflow.ellipsis),
+              style: TextButton.styleFrom(
+                foregroundColor: _peach,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 3, vertical: 0),
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+          ),
         if (rooms.length > 1)
           SizedBox(height: 38, child: ListView(
             scrollDirection: Axis.horizontal,
