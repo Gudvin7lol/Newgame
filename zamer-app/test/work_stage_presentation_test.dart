@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zamer_app/models/work_board.dart';
 import 'package:zamer_app/services/work_stage_presentation_service.dart';
+import 'package:zamer_app/services/work_status_service.dart';
 
 WorkTask work(String id, int day, {
   String? predecessor,
@@ -49,6 +50,55 @@ void main() {
     final result = WorkStagePresentationService.order([a, b]);
     expect(result.map((t) => t.id).toSet(), {'А', 'Б'});
     expect(result.length, 2);
+  });
+
+  test('compact progress weighs acceptance by expected labor hours', () {
+    final short = work('inspection', 2);
+    final long = work('plaster', 3);
+    short.hours = 2;
+    long.hours = 18;
+    short.quantity = 1;
+    short.done = 1;
+    short.accepted = 1;
+    expect(WorkStagePresentationService.acceptedProgress([short, long]),
+        closeTo(.10, .0001));
+    long.accepted = long.quantity / 2;
+    expect(WorkStagePresentationService.acceptedProgress([short, long]),
+        closeTo(.55, .0001));
+    expect(WorkStagePresentationService.acceptedProgress([]), 0);
+  });
+
+  test('compact current task favors work underway over future plan', () {
+    final now = DateTime(2026, 11, 10);
+    final future = work('next week', 18);
+    final current = work('on site', 9);
+    current.done = 2;
+    final planned = work('planned', 14);
+    final board = WorkBoard(tasks: [planned, future, current]);
+    expect(WorkStagePresentationService.currentTask(
+      board, board.tasks, at: now)?.id, 'on site');
+
+    current.accepted = current.quantity;
+    current.done = current.quantity;
+    expect(WorkStagePresentationService.currentTask(
+      board, board.tasks, at: now)?.id, 'planned');
+    planned.done = planned.quantity;
+    planned.accepted = planned.quantity;
+    future.done = future.quantity;
+    future.accepted = future.quantity;
+    expect(WorkStagePresentationService.currentTask(
+      board, board.tasks, at: now), isNull);
+  });
+
+  test('attention-only tasks are reserved for Control, never shown as next work', () {
+    final review = work('review', 2);
+    review.needsQuantityReview = true;
+    final task = work('electrical', 4);
+    final board = WorkBoard(tasks: [review, task]);
+    expect(WorkStatusService.state(board, review),
+      WorkState.quantityReview);
+    expect(WorkStagePresentationService.currentTask(
+      board, board.tasks, at: DateTime(2026, 11, 4))?.id, 'electrical');
   });
 
   test('preexisting task list is not mutated when calculating display order', () {
