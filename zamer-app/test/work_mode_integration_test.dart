@@ -141,7 +141,7 @@ void main() {
     expect(find.textContaining('В работе:'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('works-current-task')));
     await tester.pumpAndSettle();
-    expect(find.text('Штукатурка спальни'), findsWidgets);
+    expect(find.textContaining('В работе: Штукатурка спальни'), findsOneWidget);
     expect(find.byKey(const ValueKey('work-inline-active')), findsOneWidget);
     expect(find.text('Подробнее'), findsOneWidget);
     expect(find.text('Сроки и зависимости'), findsNothing);
