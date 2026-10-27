@@ -7,6 +7,7 @@ import 'package:zamer_app/models/models.dart';
 import 'package:zamer_app/screens/electrical_screen.dart';
 import 'package:zamer_app/services/electrical_wall_face_service.dart';
 import 'package:zamer_app/services/electrical_wall_elevation_service.dart';
+import 'package:zamer_app/services/electrical_mounting_service.dart';
 import 'package:zamer_app/widgets/electrical_wall_face_screen.dart';
 
 FloorPlan faceFixture() => FloorPlan(
@@ -130,6 +131,18 @@ void main() {
     blank.restoreFrom(restored);
     expect(blank.walls.single.electricalFaceRight?.thicknessMm, 28);
     expect(blank.electricalPoints.first.xMm, 900);
+  });
+
+  test('changing finish does not stale axis-based mounting geometry', () {
+    final f = faceFixture();
+    final wall = f.walls.single;
+    final original = ElectricalMountingService.snapshot(f, wall);
+    ElectricalWallFaceService.apply(f, 'wall', 1,
+        const WallFaceFinish(thicknessMm: 14));
+    expect(ElectricalMountingService.snapshot(f, wall), original);
+    // Unlike cosmetic finish metadata, structural wall width matters.
+    wall.thicknessMm = 150;
+    expect(ElectricalMountingService.snapshot(f, wall), isNot(original));
   });
 
   test('wall elevations filter explicitly assigned points by side', () {
