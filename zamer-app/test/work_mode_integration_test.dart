@@ -354,4 +354,33 @@ void main() {
       at: DateTime(2026, 10, 12)), WorkState.awaitingAcceptance);
   });
 
+
+  test('an accepted prerequisite with an open defect still blocks successors', () {
+    final wiring = WorkTask(
+      id: 'wiring', title: 'Черновая электрика',
+      start: DateTime(2026, 10, 1),
+      finish: DateTime(2026, 10, 2),
+      quantity: 1, unit: 'компл.', hours: 8,
+      done: 1, accepted: 1,
+    );
+    final plaster = WorkTask(
+      id: 'plaster', title: 'Штукатурка стен',
+      start: DateTime(2026, 10, 3),
+      finish: DateTime(2026, 10, 7),
+      quantity: 30, unit: 'м²', hours: 36,
+      predecessorId: wiring.id,
+    );
+    final board = WorkBoard(tasks: [wiring, plaster]);
+    expect(WorkStatusService.canStart(board, plaster), isTrue);
+    final defect = WorkIssue(
+      id: 'check', title: 'Исправить кабельную трассу',
+      taskId: wiring.id, createdAt: DateTime(2026, 10, 2));
+    board.issues.add(defect);
+    expect(WorkStatusService.canStart(board, plaster), isFalse);
+    expect(WorkStatusService.startBlocker(board, plaster),
+      contains('Черновая электрика'));
+    defect.closedAt = DateTime(2026, 10, 3);
+    expect(WorkStatusService.canStart(board, plaster), isTrue);
+  });
+
 }
