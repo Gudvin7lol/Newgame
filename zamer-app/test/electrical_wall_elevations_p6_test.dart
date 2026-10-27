@@ -55,7 +55,7 @@ FloorPlan elevationFixture() {
     routes3d: [
       ElectricalRoute3d(
         id: 'route', fromPointId: 'p', toPointId: 's',
-        vertices: const [
+        vertices: [
           ElectricalRouteVertex(xMm: 100, yMm: 200, zMm: 500),
           ElectricalRouteVertex(xMm: 2100, yMm: 200, zMm: 500),
           ElectricalRouteVertex(xMm: 2100, yMm: 200, zMm: 1000),
