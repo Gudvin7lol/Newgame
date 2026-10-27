@@ -85,6 +85,48 @@ void main() {
     expect(await File(importedPath).readAsBytes(), await photo.readAsBytes());
   });
 
+  test('portable ZIP retains photos in saved project revisions', () async {
+    final origin = await Directory.systemTemp.createTemp('zamer-rev-source-');
+    final target = await Directory.systemTemp.createTemp('zamer-rev-target-');
+    addTearDown(() async {
+      await origin.delete(recursive: true);
+      await target.delete(recursive: true);
+    });
+    final livePhoto = File('${origin.path}/live.jpg');
+    final olderPhoto = File('${origin.path}/older.png');
+    await livePhoto.writeAsBytes([255, 216, 1, 2, 255, 217]);
+    await olderPhoto.writeAsBytes([137, 80, 78, 71, 11, 22, 33]);
+    final project = sample();
+    project.floors.single.roomMetas.add(RoomMeta(
+      id: 'room', faceKey: 'room', name: 'Кухня',
+      photoPaths: [livePhoto.path],
+    ));
+    final oldFloor = FloorPlan.fromJson(
+        Map<String, dynamic>.from(
+          jsonDecode(jsonEncode(project.floors.single.toJson())) as Map));
+    oldFloor.roomMetas.single.photoPaths[0] = olderPhoto.path;
+    project.revisions.add(ProjectRevision(
+      label: 'До ремонта',
+      createdAt: DateTime.utc(2026, 10, 1),
+      floors: [oldFloor],
+    ));
+
+    final backup = ProjectBackupService.decodePortable(
+        await ProjectBackupService.encodePortable(project));
+    final restored = await backup.importAsCopy('recovered', target);
+    final livePath =
+        restored.floors.single.roomMetas.single.photoPaths.single;
+    final oldPath = restored.revisions.single.floors.single
+        .roomMetas.single.photoPaths.single;
+    expect(livePath, isNot(livePhoto.path));
+    expect(oldPath, isNot(olderPhoto.path));
+    expect(oldPath, isNot(livePath));
+    expect(await File(livePath).readAsBytes(),
+        await livePhoto.readAsBytes());
+    expect(await File(oldPath).readAsBytes(),
+        await olderPhoto.readAsBytes());
+  });
+
   test('ZIP backup rejects archive entries outside its photo manifest', () {
     final archive = Archive()
       ..add(ArchiveFile.string('project.json', '{}'))
