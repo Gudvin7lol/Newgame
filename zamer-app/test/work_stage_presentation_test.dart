@@ -65,6 +65,10 @@ void main() {
     long.accepted = long.quantity / 2;
     expect(WorkStagePresentationService.acceptedProgress([short, long]),
         closeTo(.55, .0001));
+    long.needsQuantityReview = true;
+    expect(WorkStagePresentationService.acceptedProgress([short, long]),
+        closeTo(.10, .0001));
+    long.needsQuantityReview = false;
     expect(WorkStagePresentationService.acceptedProgress([]), 0);
   });
 
