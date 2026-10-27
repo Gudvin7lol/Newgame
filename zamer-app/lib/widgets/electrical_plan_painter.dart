@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 
 import '../models/models.dart';
 import '../services/electrical_mounting_service.dart';
+import '../services/electrical_route_service.dart';
+import '../models/electrical_route_3d.dart';
 
 class ElectricalPlanPainter extends CustomPainter {
   ElectricalPlanPainter({
@@ -13,6 +15,9 @@ class ElectricalPlanPainter extends CustomPainter {
     this.wireStartPointId,
     this.darkMode = false,
     this.overlayOnly = false,
+    this.showLegacyLines = true,
+    this.show3dRoutes = false,
+    this.circuitFilterId,
   });
 
   final FloorPlan floor;
@@ -23,6 +28,10 @@ class ElectricalPlanPainter extends CustomPainter {
   final bool darkMode;
   /// Retain CAD flooring, furniture, walls below electrical layer.
   final bool overlayOnly;
+  /// Legacy drawing is never a proof of physical cable connectivity.
+  final bool showLegacyLines;
+  final bool show3dRoutes;
+  final String? circuitFilterId;
 
   Offset p(double x, double y) => origin + Offset(x * scale, y * scale);
 
@@ -44,7 +53,7 @@ class ElectricalPlanPainter extends CustomPainter {
     }
 
     final byId = {for (final e in floor.electricalPoints) e.id: e};
-    for (final run in floor.electricalRuns) {
+    if (showLegacyLines) for (final run in floor.electricalRuns) {
       final a = byId[run.startPointId];
       final b = byId[run.endPointId];
       if (a == null || b == null) continue;
@@ -59,6 +68,8 @@ class ElectricalPlanPainter extends CustomPainter {
       path.lineTo(pb.dx, pb.dy);
       canvas.drawPath(path, paint);
     }
+
+    if (show3dRoutes) _drawPhysicalRoutes(canvas, size);
 
     for (final point in floor.electricalPoints) {
       final pos = p(point.xMm, point.yMm);
@@ -82,6 +93,63 @@ class ElectricalPlanPainter extends CustomPainter {
         tp.paint(canvas, pos + const Offset(9, -18));
       }
     }
+  }
+
+  void _drawPhysicalRoutes(Canvas canvas, Size size) {
+    final network = floor.electricalNetwork;
+    if (network == null) return;
+    final routes = {for (final r in network.routes3d) r.id: r};
+    final drawn = <String>{};
+    const colors = <Color>[
+      Color(0xFFF2AA88), Color(0xFF75BCEF), Color(0xFF9CD5C7),
+      Color(0xFFC7A8EA), Color(0xFFE4C77A), Color(0xFFABCC87),
+    ];
+    canvas.save();
+    canvas.clipRect(Offset.zero & size);
+    for (final cable in network.cables) {
+      if (circuitFilterId != null && cable.circuitId != circuitFilterId) {
+        continue;
+      }
+      final routeId = cable.route3dId;
+      if (routeId == null) continue;
+      final route = routes[routeId];
+      if (route == null) continue;
+      try {
+        ElectricalRouteService.measureCable(floor, cable);
+      } on FormatException {
+        // Invalid, stale or unverified geometry must not masquerade as a valid
+        // physical route on the installation plan.
+        continue;
+      }
+      final dedup = routeId + '/' + cable.circuitId;
+      if (!drawn.add(dedup)) continue;
+      var hash = 0;
+      for (final code in cable.circuitId.codeUnits) {
+        hash = (hash * 31 + code) & 0x7fffffff;
+      }
+      final color = colors[hash % colors.length];
+      final stroke = Paint()
+        ..color = color
+        ..strokeWidth = 2.8
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round;
+      final dot = Paint()..color = color;
+      final points = route.vertices;
+      for (var index = 1; index < points.length; index++) {
+        final a = points[index - 1], b = points[index];
+        final pa = p(a.xMm, a.yMm);
+        final pb = p(b.xMm, b.yMm);
+        if ((pa - pb).distance <= .01) {
+          // Concentric circle: strictly vertical cable leg in XY projection.
+          canvas.drawCircle(pb, 6, stroke);
+          canvas.drawCircle(pb, 2.1, dot);
+        } else {
+          canvas.drawLine(pa, pb, stroke);
+          if (index < points.length - 1) canvas.drawCircle(pb, 2.4, dot);
+        }
+      }
+    }
+    canvas.restore();
   }
 
   void _mountingDimension(Canvas canvas, ElectricalPoint point, Size size) {
