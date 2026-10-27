@@ -79,6 +79,17 @@ class ElectricalWallFaceService {
     }
   }
 
+  static String? orientationProblem(PlanWall wall, int side) {
+    final finish = saved(wall, side);
+    if (finish == null) return null;
+    if (finish.axisStartNodeId != wall.startNodeId ||
+        finish.axisEndNodeId != wall.endNodeId) {
+      return 'Направление стены изменилось или не зафиксировано. '
+          'Подтвердите сторону и толщину отделки заново.';
+    }
+    return null;
+  }
+
   /// Apply ONLY after explicit user save. Existing device XYZ remain unchanged.
   /// Caller owns the single undo boundary and persistence.
   static void apply(FloorPlan floor, String wallId, int side,
@@ -88,10 +99,17 @@ class ElectricalWallFaceService {
       throw const FormatException('Стена больше не существует.');
     }
     validate(floor, wall, side, finish);
+    final stamped = finish == null ? null : WallFaceFinish(
+      thicknessMm: finish.thicknessMm,
+      source: finish.source,
+      note: finish.note,
+      axisStartNodeId: wall.startNodeId,
+      axisEndNodeId: wall.endNodeId,
+    );
     if (side == 1) {
-      wall.electricalFaceLeft = finish;
+      wall.electricalFaceLeft = stamped;
     } else {
-      wall.electricalFaceRight = finish;
+      wall.electricalFaceRight = stamped;
     }
   }
 
@@ -102,6 +120,8 @@ class ElectricalWallFaceService {
     if (wall == null) throw const FormatException('Стена удалена.');
     final finish = saved(wall, side);
     validate(floor, wall, side, finish);
+    final stale = orientationProblem(wall, side);
+    if (stale != null) throw FormatException(stale);
     if (!xMm.isFinite || !yMm.isFinite) {
       throw const FormatException('Положение точки недостоверно.');
     }
