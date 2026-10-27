@@ -306,6 +306,9 @@ jobs:
       - name: Verify APK certificate, checksum and signing mode
         working-directory: zamer-app
         shell: bash
+        env:
+          EXPECTED_RELEASE_CERT_SHA256: ${{ secrets.ZAMER_RELEASE_CERT_SHA256 }}
+          REQUEST_STABLE_RELEASE: ${{ github.event_name == 'workflow_dispatch' && inputs.stable_release }}
         run: |
           set -euo pipefail
           cd build/app/outputs/flutter-apk
@@ -320,6 +323,23 @@ jobs:
           "$signer" verify --verbose --print-certs app-release.apk > apk-signature.txt
           grep -F 'Signer #1 certificate SHA-256 digest:' apk-signature.txt
           grep -Eq '^mode=(temporary-debug|stable-release);' signature-mode.txt
+
+          if [[ "$REQUEST_STABLE_RELEASE" == true ]]; then
+            expected="$(printf '%s' "$EXPECTED_RELEASE_CERT_SHA256" | tr -d ':' | tr '[:upper:]' '[:lower:]')"
+            actual="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' apk-signature.txt | head -n 1 | tr -d ':' | tr '[:upper:]' '[:lower:]')"
+            if [[ ! "$expected" =~ ^[0-9a-f]{64}$ ]]; then
+              echo "::error::Stable signing requires pinned ZAMER_RELEASE_CERT_SHA256 secret (64 hex symbols)."
+              exit 1
+            fi
+            if [[ "$actual" != "$expected" ]]; then
+              echo "::error::Signing identity differs from the pinned release certificate. Refusing APK."
+              exit 1
+            fi
+            grep -q '^mode=stable-release;' signature-mode.txt
+            echo "Stable certificate matches pinned SHA-256."
+          else
+            grep -q '^mode=temporary-debug;' signature-mode.txt
+          fi
           cat signature-mode.txt
 
       - name: Upload APK and verification metadata
