@@ -169,7 +169,9 @@ class ElectricalWallDatumService {
             datums.add(ElectricalWallDatum(
               id: id,
               kind: ElectricalDatumKind.finishedCorner,
-              title: 'Расчётный чистовой угол · ' + adjacent.id,
+              title: 'Расчётный чистовой угол · ' + adjacent.id +
+                  (adjacentSide == 1 ? ' (левая грань)' :
+                      ' (правая грань)'),
               uMm: along.clamp(0.0, length),
               neighbourWallId: adjacent.id,
               finishedReference: true,
@@ -192,11 +194,14 @@ class ElectricalWallDatumService {
     }
 
     for (final opening in wall.openings) {
+      final wallHeight = wall.heightOverrideMm ?? floor.defaultHeightMm;
       final from = opening.offsetFromStartMm;
       final to = from + opening.widthMm;
       if (!from.isFinite || !to.isFinite || !opening.heightMm.isFinite ||
           !opening.sillHeightMm.isFinite || opening.widthMm <= 0 ||
           opening.heightMm <= 0 || opening.sillHeightMm < 0 ||
+          !wallHeight.isFinite ||
+          opening.sillHeightMm + opening.heightMm > wallHeight + .001 ||
           from < 0 || to > length + .001) {
         issues.add('Проём ' + opening.id +
             ': размеры некорректны, база не создана.');
