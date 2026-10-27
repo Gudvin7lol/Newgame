@@ -37,6 +37,9 @@ android {
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "ru.zamer.zamer_app"
+        // Non-stable CI APKs run beside the installed user app.
+        manifestPlaceholders["zamerAppLabel"] =
+            if (stableSigning) "Замер" else "Замер • тест"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
@@ -51,6 +54,11 @@ android {
 
     buildTypes {
         release {
+            if (!stableSigning) {
+                // Keep the main app/data untouched when the runner debug
+                // key changes between CI builds.
+                applicationIdSuffix = ".preview"
+            }
             // Stable signed APKs support in-place updates when versionCode
             // increases and the same signing key is kept. Ephemeral runner
             // debug signing is fallback ONLY for installation tests.
