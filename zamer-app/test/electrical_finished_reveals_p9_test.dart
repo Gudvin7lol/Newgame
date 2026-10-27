@@ -155,6 +155,19 @@ void main() {
         f, 'wall', 'door', 1), isNotNull);
   });
 
+  test('outdated reveal may be cleared after face finish is removed', () {
+    final f = revealFixture();
+    ElectricalOpeningRevealService.apply(f, 'wall', 'door', 1, draft());
+    ElectricalWallFaceService.apply(f, 'wall', 1, null);
+    expect(ElectricalOpeningRevealService.problem(
+        f, 'wall', 'door', 1), isNotNull);
+    expect(() => ElectricalOpeningRevealService.apply(
+        f, 'wall', 'door', 1, draft()), throwsFormatException);
+    ElectricalOpeningRevealService.apply(f, 'wall', 'door', 1, null);
+    expect(f.walls.single.openings.single.electricalRevealLeft, isNull);
+    expect(f.walls.single.openings.single.widthMm, 900);
+  });
+
   test('axis reversal cannot silently reuse saved opening-side dimension', () {
     final f = revealFixture();
     ElectricalOpeningRevealService.apply(f, 'wall', 'door', 1, draft());
