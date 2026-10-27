@@ -15,6 +15,7 @@ import '../services/geometry_service.dart';
 import '../widgets/electrical_plan_painter.dart';
 import '../widgets/electrical_cable_journal_sheet.dart';
 import '../widgets/electrical_crossing_sheet.dart';
+import '../widgets/electrical_wall_elevation_screen.dart';
 import '../widgets/cad_plan_painter.dart';
 import '../services/plan_visibility_service.dart';
 import '../services/plan_viewport_link.dart';
@@ -928,6 +929,15 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     if (mounted) setState(() {});
   }
 
+  Future<void> _showWallElevation() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(builder: (_) => ElectricalWallElevationScreen(
+        floor: widget.floor,
+        initialCircuitId: _routeCircuitFilterId,
+      )),
+    );
+  }
+
   Future<void> _showCrossingsReview() async {
     await showModalBottomSheet<void>(
       context: context, isScrollControlled: true, showDragHandle: true,
@@ -971,6 +981,12 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
         alignment: WrapAlignment.end, spacing: 2, runSpacing: 0,
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
+          IconButton(
+            key: const ValueKey('electrical-wall-elevation'),
+            tooltip: 'Развёртка стены',
+            icon: const Icon(Icons.architecture_outlined),
+            onPressed: _showWallElevation,
+          ),
           IconButton(
             key: const ValueKey('electrical-cable-journal'),
             tooltip: 'Кабельный журнал',
@@ -1334,6 +1350,12 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                 tooltip: 'Высоты точек',
                 onPressed: _heightDefaults,
                 icon: const Icon(Icons.height),
+              ),
+              IconButton(
+                key: const ValueKey('electrical-wall-elevation'),
+                tooltip: 'Развёртка стены',
+                onPressed: _showWallElevation,
+                icon: const Icon(Icons.architecture_outlined),
               ),
               IconButton(
                 key: const ValueKey('electrical-cable-journal'),
