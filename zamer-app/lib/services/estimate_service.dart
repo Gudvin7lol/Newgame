@@ -214,7 +214,7 @@ class EstimateService {
       final packaged = size != null && size.isFinite && size > 0 &&
           packUnit != null && packUnit.isNotEmpty;
       final groupKey = packaged
-          ? '${item.name}|${item.unit}|$packUnit|${size.toStringAsFixed(6)}'
+          ? '${item.name}|${item.unit}|$packUnit|${size!.toStringAsFixed(6)}'
           : '${item.name}|${item.unit}|unpackaged';
       final group = groups.putIfAbsent(groupKey, () => _PurchaseGroup(
         item.name, item.unit,
