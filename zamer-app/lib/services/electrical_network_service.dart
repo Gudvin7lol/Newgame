@@ -1,5 +1,7 @@
 import '../models/models.dart';
 import '../models/electrical_network.dart';
+import '../models/electrical_route_3d.dart';
+import 'electrical_route_service.dart';
 
 enum ElectricalNetworkSeverity { warning, error }
 
@@ -167,6 +169,59 @@ class ElectricalNetworkService {
       if (roles.contains(ElectricalCorePurpose.unspecified)) {
         issue('unknownCoreRoles',
             'Не у всех жил клеммы указано назначение.', t.id,
+            ElectricalNetworkSeverity.warning);
+      }
+    }
+
+    final routeIds = <String>{};
+    final routes = <String, ElectricalRoute3d>{};
+    for (final route in network.routes3d) {
+      if (route.id.trim().isEmpty || !routeIds.add(route.id)) {
+        issue('duplicateRoute3d', 'Пустой или повторный ID трассы.', route.id);
+      }
+      routes[route.id] = route;
+      try {
+        ElectricalRouteService.measure(floor, route);
+      } on FormatException catch (e) {
+        issue('invalidRoute3d', e.message, route.id);
+      }
+    }
+    for (final cable in network.cables) {
+      if (cable.explicitReserveMm != null &&
+          (!cable.explicitReserveMm!.isFinite ||
+           cable.explicitReserveMm! < 0)) {
+        issue('invalidReserve', 'Отрицательный или неверный запас.', cable.id);
+      }
+      if (cable.route3dId != null) {
+        try {
+          final assigned = routes[cable.route3dId];
+          if (assigned == null) {
+            issue('missingRoute3d', 'Не найдена 3D-трасса кабеля.', cable.id);
+          } else {
+            final path = assigned;
+            if (!((path.fromPointId == cable.fromPointId &&
+                   path.toPointId == cable.toPointId) ||
+                  (path.fromPointId == cable.toPointId &&
+                   path.toPointId == cable.fromPointId))) {
+              issue('wrongRoute3d', '3D-трасса ведёт к другим точкам.', cable.id);
+            } else {
+              ElectricalRouteService.measure(
+                floor, path, reserveMm: cable.explicitReserveMm);
+            }
+          }
+        } on FormatException catch (e) {
+          issue('staleRoute3d', e.message, cable.id);
+        }
+      } else if (cable.explicitReserveMm != null) {
+        issue('reserveWithoutRoute', 'Запас задан без маршрута.', cable.id,
+            ElectricalNetworkSeverity.warning);
+      }
+    }
+    final used3d = network.cables.map((c) => c.route3dId)
+        .whereType<String>().toSet();
+    for (final path in network.routes3d) {
+      if (!used3d.contains(path.id)) {
+        issue('orphanRoute3d', 'Трасса не закреплена за кабелем.', path.id,
             ElectricalNetworkSeverity.warning);
       }
     }
