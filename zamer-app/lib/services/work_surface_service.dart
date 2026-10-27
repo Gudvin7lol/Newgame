@@ -152,11 +152,18 @@ class WorkSurfaceService {
     for (final task in board.tasks) {
       if (task.floorId != floor.id || task.roomId != room.id ||
           task.generatedKey == null ||
-          task.done > 0 || task.accepted > 0 ||
           task.operationCode == null ||
           !finishCodes.contains(task.operationCode)) continue;
       final area = areaForCode(
           board, floor, face, task.operationCode!);
+      if (task.done > 0 || task.accepted > 0) {
+        // Preserve accepted history; changed geometry needs explicit review.
+        if ((area - task.quantity).abs() > .02) {
+          task.needsQuantityReview = true;
+          updated++;
+        }
+        continue;
+      }
       if (area <= .0001 || task.quantity <= 0) {
         // Never silently erase a scheduled task that other tasks depend on.
         // Flag it for review and prohibit recording new done quantities until
