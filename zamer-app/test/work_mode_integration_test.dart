@@ -120,6 +120,29 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('new task starts with essentials, advanced fields open inline',
+      (tester) async {
+    final project = MeasureProject(id: 'simple', name: 'Объект',
+      floors: [FloorPlan(id: 'floor', name: 'Этаж')]);
+    await tester.pumpWidget(MaterialApp(home: WorksScreen(
+      project: project, floorId: 'floor',
+      embedded: true, onChanged: () async {},
+    )));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('works-add')));
+    await tester.pumpAndSettle();
+    expect(find.text('Новая работа'), findsOneWidget);
+    expect(find.text('Выбрать операцию из библиотеки'), findsOneWidget);
+    expect(find.text('Дополнительные параметры'), findsOneWidget);
+    expect(find.text('Трудоёмкость, чел·ч'), findsNothing);
+    await tester.ensureVisible(find.byKey(
+      const ValueKey('works-more-details')));
+    await tester.tap(find.byKey(const ValueKey('works-more-details')));
+    await tester.pumpAndSettle();
+    expect(find.text('Трудоёмкость, чел·ч'), findsOneWidget);
+    expect(find.text('Исполнитель / бригада'), findsOneWidget);
+  });
+
   testWidgets('rare work tools are behind one overflow menu', (tester) async {
     final project = MeasureProject(id: 'p', name: 'Объект',
       floors: [FloorPlan(id: 'f', name: 'Этаж 1')]);
