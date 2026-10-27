@@ -1,9 +1,12 @@
+import 'dart:math' as math;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zamer_app/models/models.dart';
 import 'package:zamer_app/models/work_board.dart';
 import 'package:zamer_app/services/estimate_service.dart';
 import 'package:zamer_app/services/geometry_service.dart';
 import 'package:zamer_app/services/work_floor_surface_service.dart';
+import 'package:zamer_app/services/work_floor_polygon_service.dart';
 import 'package:zamer_app/services/work_generation_service.dart';
 import 'package:zamer_app/services/work_surface_service.dart';
 
@@ -156,4 +159,66 @@ void main() {
     expect(laminate.done, recorded);
     expect(laminate.accepted, recorded);
   });
+  test('polygon floor areas are reused by both cost sections', () {
+    final floor = _room();
+    final project = MeasureProject(
+      id: 'polygon', name: 'Зонирование', floors: [floor]);
+    final face = GeometryService.roomFaces(floor).single;
+    final xs = face.innerPolygon.map((p) => p.x).toList();
+    final ys = face.innerPolygon.map((p) => p.y).toList();
+    final minX = xs.reduce(math.min) + 100;
+    final maxX = xs.reduce(math.max) - 100;
+    final minY = ys.reduce(math.min) + 100;
+    final maxY = ys.reduce(math.max) - 100;
+    final halfX = (minX + maxX) / 2;
+    final polygon = [
+      math.Point<double>(minX, minY),
+      math.Point<double>(halfX, minY),
+      math.Point<double>(halfX, maxY),
+      math.Point<double>(minX, maxY),
+    ];
+    WorkFloorPolygonService.save(
+      project.workBoard, floor, face, [
+        WorkFloorFinishZone(
+          id: 'zone-1', floorId: floor.id,
+          roomId: floor.roomMetas.single.id,
+          material: 'tile', polygon: polygon,
+        ),
+      ],
+    );
+    final area = WorkFloorPolygonService.area(polygon);
+    final work = EstimateService.buildWork(project);
+    final materials = EstimateService.build(project);
+    final settings = floor.roomMetas.single.materials;
+    expect(_quantity(work, 'Укладка плитки пола'),
+        closeTo(area, .001));
+    expect(_quantity(materials, 'Плитка на пол'),
+        closeTo(area * (1 + settings.floorTileWastePct / 100), .001));
+    expect(_quantity(work, 'Укладка ламината'),
+        closeTo(face.areaM2 - area, .001));
+  });
+
+  test('accepted wall finish is preserved and marked for review after edit', () {
+    final floor = _room();
+    final project = MeasureProject(
+      id: 'accepted-wall', name: 'Объект', floors: [floor]);
+    final face = GeometryService.roomFaces(floor).single;
+    final board = project.workBoard;
+    expect(WorkGenerationService.apply(
+      board, WorkGenerationService.preview(project)), isNull);
+    final paint = board.tasks.firstWhere(
+        (task) => task.operationCode == 'wall_paint');
+    final quantity = paint.quantity;
+    paint.done = quantity;
+    paint.accepted = quantity;
+    WorkSurfaceService.save(board, floor, face, {
+      'w1': 2700.0, 'w2': 0.0, 'w3': 0.0, 'w4': 0.0,
+    });
+    WorkSurfaceService.refreshUnstartedFinishes(board, floor, face);
+    expect(paint.quantity, quantity);
+    expect(paint.done, quantity);
+    expect(paint.accepted, quantity);
+    expect(paint.needsQuantityReview, isTrue);
+  });
+
 }
