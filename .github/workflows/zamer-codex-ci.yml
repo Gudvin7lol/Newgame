@@ -356,7 +356,7 @@ jobs:
       - name: Upload APK and verification metadata
         uses: actions/upload-artifact@v4
         with:
-          name: Zamer-Codex-APK
+          name: ${{ github.event_name == 'workflow_dispatch' && inputs.stable_release && 'Zamer-Stable-Release-APK' || 'Zamer-P11-Preview-APK' }}
           path: |
             zamer-app/build/app/outputs/flutter-apk/app-release.apk
             zamer-app/build/app/outputs/flutter-apk/app-release.apk.sha256
