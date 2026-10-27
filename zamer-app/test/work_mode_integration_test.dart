@@ -25,6 +25,9 @@ void main() {
     final shell = File('lib/screens/recovered_project_workspace_screen.dart')
         .readAsStringSync();
     expect(shell, isNot(contains("title: 'Работы • календарь и контроль'")));
+    // Overflow contains supplementary domains only: primary five modes
+    // already have large touch targets in the top strip.
+    expect(workspace, contains('items: [_layers[4], _layers[5]]'));
   });
 
   testWidgets('all five primary Measure modes fit narrow mobile width',
@@ -98,10 +101,20 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('work-row-wall')), findsOneWidget);
     expect(find.byKey(const ValueKey('work-row-elec')), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('works-group-Электрика')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('work-row-wall')), findsNothing);
+    expect(find.byKey(const ValueKey('work-row-elec')), findsOneWidget);
     await tester.tap(find.text('График'));
     await tester.pumpAndSettle();
     expect(find.text('Неделя'), findsOneWidget);
     await tester.tap(find.text('Контроль'));
+    await tester.pumpAndSettle();
+    expect(find.text('Контроль помещений'), findsOneWidget);
+    expect(find.byKey(const ValueKey('works-map-toggle')), findsOneWidget);
+    expect(find.text('Показать загрузку бригад'), findsOneWidget);
+    // Large panels do not take over a small screen unless explicitly opened.
+    await tester.tap(find.byKey(const ValueKey('works-map-toggle')));
     await tester.pumpAndSettle();
     expect(find.text('Контроль помещений'), findsOneWidget);
     expect(tester.takeException(), isNull);
