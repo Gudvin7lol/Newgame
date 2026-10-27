@@ -18,12 +18,20 @@ class MountingPosition {
 /// Coordinates remain in world millimetres; no camera or pixel conversion here.
 /// This first slice dimensions the centre projection onto a straight wall axis.
 class ElectricalMountingService {
-  static String snapshot(FloorPlan floor, PlanWall wall) => jsonEncode({
-    'wall': wall.toJson(),
-    'start': floor.nodeById(wall.startNodeId)?.toJson(),
-    'end': floor.nodeById(wall.endNodeId)?.toJson(),
-    'height': floor.defaultHeightMm,
-  });
+  static String snapshot(FloorPlan floor, PlanWall wall) {
+    // Face-finish metadata does not alter the original axis-based mounting
+    // datum. Repainting one side must not stale every point on that wall.
+    // Structural width, wall endpoints and openings remain in the snapshot.
+    final wallGeometry = wall.toJson()
+      ..remove('electricalFaceLeft')
+      ..remove('electricalFaceRight');
+    return jsonEncode({
+      'wall': wallGeometry,
+      'start': floor.nodeById(wall.startNodeId)?.toJson(),
+      'end': floor.nodeById(wall.endNodeId)?.toJson(),
+      'height': floor.defaultHeightMm,
+    });
+  }
 
   static MountingPosition resolve(FloorPlan floor, ElectricalMounting m) {
     final wall = floor.wallById(m.wallId);
