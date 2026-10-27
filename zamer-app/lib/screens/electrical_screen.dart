@@ -8,7 +8,9 @@ import '../models/electrical_mounting.dart';
 import '../services/electrical_mounting_service.dart';
 import '../widgets/electrical_mounting_editor.dart';
 import '../widgets/electrical_point_properties.dart';
-import '../widgets/electrical_junction_connections_sheet.dart';
+import '../widgets/electrical_junction_editor.dart';
+import '../models/electrical_network.dart';
+import '../services/electrical_junction_edit_service.dart';
 import '../services/geometry_service.dart';
 import '../widgets/electrical_plan_painter.dart';
 import '../widgets/cad_plan_painter.dart';
@@ -778,17 +780,56 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
       p.frameVertical = next.frameVertical;
       p.type = next.type;
     } else if (action == 'junction') {
-      await showModalBottomSheet<void>(
-        context: context,
-        isScrollControlled: true,
-        showDragHandle: true,
-        builder: (_) => ElectricalJunctionConnectionsSheet(
-          floor: widget.floor,
-          junctionPointId: p.id,
+      final before = jsonEncode(widget.floor.toJson());
+      final updated = await Navigator.of(context).push<ElectricalNetwork>(
+        MaterialPageRoute(
+          builder: (_) => ElectricalJunctionEditor(
+            floor: widget.floor, junctionPointId: p.id,
+          ),
         ),
       );
-      return; // Inspection never changes the project or adds undo entries.
+      if (!mounted || updated == null) return;
+      if (jsonEncode(widget.floor.toJson()) != before) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Проект изменился. Откройте редактор коробки заново.'),
+        ));
+        return;
+      }
+      try {
+        ElectricalJunctionEditService.validateForSave(
+          widget.floor, p.id, updated,
+        );
+      } on FormatException catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message)),
+        );
+        return;
+      }
+      final serialized = jsonEncode(updated.toJson());
+      if (widget.floor.electricalNetwork != null &&
+          serialized == jsonEncode(widget.floor.electricalNetwork!.toJson())) {
+        return;
+      }
+      _pushUndo();
+      widget.floor.electricalNetwork =
+          ElectricalJunctionEditService.copy(updated);
+      await widget.onChanged();
+      if (!mounted) return;
+      setState(() => _selectedId = p.id);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text('Соединения сохранены как черновая схема'),
+        action: SnackBarAction(label: 'Отменить', onPressed: _undoAction),
+      ));
+      return;
     } else if (action == 'delete') {
+      if (ElectricalJunctionEditService.pointInUse(
+        widget.floor.electricalNetwork, p.id,
+      )) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Точка участвует в схеме. Сначала удалите её связи.'),
+        ));
+        return;
+      }
       _pushUndo();
       widget.floor.electricalRuns.removeWhere(
         (r) => r.startPointId == p.id || r.endPointId == p.id,
