@@ -1,5 +1,6 @@
 import '../models/models.dart';
 import '../models/electrical_network.dart';
+import '../models/electrical_route_3d.dart';
 import 'electrical_route_service.dart';
 
 enum ElectricalNetworkSeverity { warning, error }
@@ -173,7 +174,7 @@ class ElectricalNetworkService {
     }
 
     final routeIds = <String>{};
-    final routes = <String, dynamic>{};
+    final routes = <String, ElectricalRoute3d>{};
     for (final route in network.routes3d) {
       if (route.id.trim().isEmpty || !routeIds.add(route.id)) {
         issue('duplicateRoute3d', 'Пустой или повторный ID трассы.', route.id);
