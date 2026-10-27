@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'work_board.dart';
 import 'electrical_mounting.dart';
 import 'electrical_network.dart';
+import 'electrical_wall_face.dart';
 
 class MeasureProject {
   MeasureProject({
@@ -407,6 +408,8 @@ class PlanWall {
     this.curveRadiusMm,
     this.curveSagittaMm,
     this.curveArcLengthMm,
+    this.electricalFaceLeft,
+    this.electricalFaceRight,
     List<WallOpening>? openings,
   }) : openings = openings ?? [];
 
@@ -424,6 +427,9 @@ class PlanWall {
   double? curveRadiusMm;
   double? curveSagittaMm;
   double? curveArcLengthMm;
+  /// +1 is left and -1 is right when walking from start to end node.
+  WallFaceFinish? electricalFaceLeft;
+  WallFaceFinish? electricalFaceRight;
   final List<WallOpening> openings;
 
   bool get isCurved => curveGroupId != null && curveGroupId!.isNotEmpty;
@@ -444,6 +450,10 @@ class PlanWall {
         curveRadiusMm: curveRadiusMm,
         curveSagittaMm: curveSagittaMm,
         curveArcLengthMm: curveArcLengthMm,
+        electricalFaceLeft: electricalFaceLeft == null ? null :
+            WallFaceFinish.fromJson(electricalFaceLeft!.toJson()),
+        electricalFaceRight: electricalFaceRight == null ? null :
+            WallFaceFinish.fromJson(electricalFaceRight!.toJson()),
         openings: openings
             .map((e) => WallOpening.fromJson(e.toJson()))
             .toList(),
@@ -464,6 +474,10 @@ class PlanWall {
     'curveRadiusMm': curveRadiusMm,
     'curveSagittaMm': curveSagittaMm,
     'curveArcLengthMm': curveArcLengthMm,
+    if (electricalFaceLeft != null)
+      'electricalFaceLeft': electricalFaceLeft!.toJson(),
+    if (electricalFaceRight != null)
+      'electricalFaceRight': electricalFaceRight!.toJson(),
     'openings': openings.map((e) => e.toJson()).toList(),
   };
 
@@ -493,6 +507,12 @@ class PlanWall {
     curveRadiusMm: (json['curveRadiusMm'] as num?)?.toDouble(),
     curveSagittaMm: (json['curveSagittaMm'] as num?)?.toDouble(),
     curveArcLengthMm: (json['curveArcLengthMm'] as num?)?.toDouble(),
+    electricalFaceLeft: json['electricalFaceLeft'] is Map ?
+        WallFaceFinish.fromJson(Map<String, dynamic>.from(
+          json['electricalFaceLeft'] as Map)) : null,
+    electricalFaceRight: json['electricalFaceRight'] is Map ?
+        WallFaceFinish.fromJson(Map<String, dynamic>.from(
+          json['electricalFaceRight'] as Map)) : null,
     openings: ((json['openings'] as List?) ?? const [])
         .map((e) => WallOpening.fromJson(Map<String, dynamic>.from(e as Map)))
         .toList(),
