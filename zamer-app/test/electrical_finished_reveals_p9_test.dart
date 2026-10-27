@@ -35,7 +35,7 @@ FloorPlan revealFixture() {
   );
   ElectricalWallFaceService.apply(floor, 'wall', 1,
     const WallFaceFinish(thicknessMm: 12,
-      source: WallFinishSource.designed));
+      source: WallFinishSource.design));
   ElectricalWallFaceService.apply(floor, 'wall', -1,
     const WallFaceFinish(thicknessMm: 19,
       source: WallFinishSource.measured));
