@@ -64,6 +64,7 @@ class MaterialService {
           unit: 'м²',
           packages: packs,
           packageLabel: 'пач.',
+          packageSize: s.floorPackageM2 > 0 ? s.floorPackageM2 : null,
           note: 'Запас ${s.floorWastePct.toStringAsFixed(0)}%',
         ),
       );
@@ -77,6 +78,7 @@ class MaterialService {
               ? (underlayNeed / s.underlayRollM2).ceil()
               : null,
           packageLabel: 'рул.',
+          packageSize: s.underlayRollM2 > 0 ? s.underlayRollM2 : null,
           note: 'Запас 5%',
         ),
       );
@@ -101,6 +103,7 @@ class MaterialService {
               ? (need / s.floorTileBoxM2).ceil()
               : null,
           packageLabel: 'кор.',
+          packageSize: s.floorTileBoxM2 > 0 ? s.floorTileBoxM2 : null,
           note: 'Запас ${s.floorTileWastePct.toStringAsFixed(0)}%',
         ),
       );
@@ -114,6 +117,7 @@ class MaterialService {
               ? (glueKg / s.tileGlueBagKg).ceil()
               : null,
           packageLabel: 'меш.',
+          packageSize: s.tileGlueBagKg > 0 ? s.tileGlueBagKg : null,
         ),
       );
     }
@@ -127,6 +131,7 @@ class MaterialService {
           unit: 'кг',
           packages: s.plasterBagKg > 0 ? (kg / s.plasterBagKg).ceil() : null,
           packageLabel: 'меш.',
+          packageSize: s.plasterBagKg > 0 ? s.plasterBagKg : null,
           note: 'Слой ${s.plasterThicknessMm.toStringAsFixed(0)} мм',
         ),
       );
@@ -141,6 +146,7 @@ class MaterialService {
           unit: 'кг',
           packages: s.puttyBagKg > 0 ? (kg / s.puttyBagKg).ceil() : null,
           packageLabel: 'меш.',
+          packageSize: s.puttyBagKg > 0 ? s.puttyBagKg : null,
           note: '${s.puttyCoats} слоя',
         ),
       );
@@ -157,6 +163,7 @@ class MaterialService {
           unit: 'л',
           packages: s.paintCanL > 0 ? (liters / s.paintCanL).ceil() : null,
           packageLabel: 'вед.',
+          packageSize: s.paintCanL > 0 ? s.paintCanL : null,
           note: '${s.paintCoats} слоя',
         ),
       );
@@ -173,6 +180,7 @@ class MaterialService {
               ? (need / s.wallTileBoxM2).ceil()
               : null,
           packageLabel: 'кор.',
+          packageSize: s.wallTileBoxM2 > 0 ? s.wallTileBoxM2 : null,
           note: 'Запас ${s.wallTileWastePct.toStringAsFixed(0)}%',
         ),
       );
@@ -186,6 +194,7 @@ class MaterialService {
               ? (glueKg / s.tileGlueBagKg).ceil()
               : null,
           packageLabel: 'меш.',
+          packageSize: s.tileGlueBagKg > 0 ? s.tileGlueBagKg : null,
         ),
       );
     }
