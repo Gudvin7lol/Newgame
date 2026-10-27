@@ -147,7 +147,12 @@ void main() {
     expect(find.text('Сроки и зависимости'), findsNothing);
     await tester.tap(find.text('Подробнее'));
     await tester.pumpAndSettle();
+    expect(find.text('Параметры'), findsOneWidget);
+    expect(find.text('Сроки и зависимости'), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('work-options-active')));
+    await tester.pumpAndSettle();
     expect(find.text('Сроки и зависимости'), findsOneWidget);
+    expect(find.text('Созависимые этапы'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
