@@ -1,6 +1,7 @@
 import '../models/models.dart';
 import '../models/electrical_network.dart';
 import 'electrical_network_service.dart';
+import 'electrical_route_service.dart';
 
 /// Atomic domain mutations for a *detached* network draft. No mutation of the
 /// actual FloorPlan happens until the editor returns a validated snapshot.
@@ -105,12 +106,39 @@ class ElectricalJunctionEditService {
     core.purpose = purpose;
   }
 
+  /// Preserve physical identity, core IDs, terminal references and 3D route.
+  /// Only descriptive metadata and circuit assignment may be changed.
+  static void editCableDetails(
+    ElectricalNetwork draft, {
+    required String cableId,
+    required String description,
+    required String circuitId,
+  }) {
+    final cable = draft.cables.where((c) => c.id == cableId).firstOrNull;
+    if (cable == null) {
+      throw const FormatException('Кабель удалён.');
+    }
+    if (!draft.circuits.any((c) => c.id == circuitId)) {
+      throw const FormatException('Назначенная цепь не существует.');
+    }
+    // Do not silently move a terminal-connected cable between circuits.
+    if (cable.circuitId != circuitId &&
+        draft.terminals.any((t) => t.members.any((m) => m.cableId == cableId))) {
+      throw const FormatException(
+        'Кабель уже подключён к клеммам. Сначала разберите связи.',
+      );
+    }
+    cable.description = description.trim();
+    cable.circuitId = circuitId;
+  }
+
   static void removeCable(ElectricalNetwork draft, String id) {
     if (draft.terminals.any((t) => t.members.any((m) => m.cableId == id))) {
       throw const FormatException(
         'Кабель участвует в клеммах. Сначала удалите его соединения.',
       );
     }
+    ElectricalRouteService.clearCableRoute(draft, id);
     draft.cables.removeWhere((c) => c.id == id);
   }
 
