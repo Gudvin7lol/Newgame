@@ -74,6 +74,9 @@ class WorkStatusService {
     if (task.fullyAccepted) return WorkState.accepted;
     if (task.paused) return WorkState.paused;
     if (task.complete) return WorkState.awaitingAcceptance;
+    // An unfinished job remains overdue even if someone already started it.
+    // Otherwise delayed work disappears from the compact Control view.
+    if (task.progress > 0 && task.isDelayed(now)) return WorkState.overdue;
     if (task.progress > 0) return WorkState.inProgress;
     if (!canStart(board, task)) return WorkState.blocked;
     if (task.isDelayed(now)) return WorkState.overdue;
