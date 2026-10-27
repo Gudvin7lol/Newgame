@@ -14,6 +14,12 @@ on:
       - 'tools/**'
       - '.github/workflows/zamer-codex-ci.yml'
   workflow_dispatch:
+    inputs:
+      stable_release:
+        description: 'Build with GitHub Secrets release keystore (manual only)'
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -256,13 +262,61 @@ jobs:
         continue-on-error: true
         run: flutter test test/workspace_history_test.dart test/v102_screen_smoke_test.dart
 
-      - name: Build release APK
+      # PR builds must NOT receive signing keys. Their APK is for testing.
+      - name: Build test-signed APK (cannot update other runner APKs)
+        if: ${{ github.event_name != 'workflow_dispatch' || !inputs.stable_release }}
         working-directory: zamer-app
-        run: flutter build apk --release
+        run: |
+          flutter build apk --release
+          echo "mode=temporary-debug; in-place update NOT supported" > build/app/outputs/flutter-apk/signature-mode.txt
+          echo "::warning::This APK uses an ephemeral runner debug signing identity."
 
-      - name: Upload APK
+      - name: Restore stable release keystore (manual only)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.stable_release }}
+        env:
+          SIGNING_KEY_B64: ${{ secrets.ZAMER_RELEASE_KEYSTORE_BASE64 }}
+          SIGNING_STORE_PASSWORD: ${{ secrets.ZAMER_RELEASE_STORE_PASSWORD }}
+          SIGNING_KEY_ALIAS: ${{ secrets.ZAMER_RELEASE_KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.ZAMER_RELEASE_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "$SIGNING_KEY_B64" || -z "$SIGNING_STORE_PASSWORD" ||
+                -z "$SIGNING_KEY_ALIAS" || -z "$SIGNING_KEY_PASSWORD" ]]; then
+            echo "::error::Missing one or more ZAMER_RELEASE_* repository secrets"
+            exit 1
+          fi
+          install -m 700 -d "$RUNNER_TEMP/zamer-signing"
+          printf '%s' "$SIGNING_KEY_B64" | base64 --decode > "$RUNNER_TEMP/zamer-signing/release.jks"
+          chmod 600 "$RUNNER_TEMP/zamer-signing/release.jks"
+          test -s "$RUNNER_TEMP/zamer-signing/release.jks"
+          echo "ZAMER_RELEASE_KEYSTORE_FILE=$RUNNER_TEMP/zamer-signing/release.jks" >> "$GITHUB_ENV"
+
+      - name: Build stable-signed release APK (manual only)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.stable_release }}
+        working-directory: zamer-app
+        env:
+          ZAMER_RELEASE_STORE_PASSWORD: ${{ secrets.ZAMER_RELEASE_STORE_PASSWORD }}
+          ZAMER_RELEASE_KEY_ALIAS: ${{ secrets.ZAMER_RELEASE_KEY_ALIAS }}
+          ZAMER_RELEASE_KEY_PASSWORD: ${{ secrets.ZAMER_RELEASE_KEY_PASSWORD }}
+        run: |
+          flutter build apk --release
+          echo "mode=stable-release; identical keystore required for updates" > build/app/outputs/flutter-apk/signature-mode.txt
+
+      - name: Record APK checksum and signing mode
+        working-directory: zamer-app
+        run: |
+          cd build/app/outputs/flutter-apk
+          sha256sum app-release.apk > app-release.apk.sha256
+          cat signature-mode.txt
+
+      - name: Upload APK and verification metadata
         uses: actions/upload-artifact@v4
         with:
           name: Zamer-Codex-APK
-          path: zamer-app/build/app/outputs/flutter-apk/app-release.apk
-          retention-days: 7
+          path: |
+            zamer-app/build/app/outputs/flutter-apk/app-release.apk
+            zamer-app/build/app/outputs/flutter-apk/app-release.apk.sha256
+            zamer-app/build/app/outputs/flutter-apk/signature-mode.txt
+          if-no-files-found: error
+          retention-days: 14
