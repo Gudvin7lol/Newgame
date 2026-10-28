@@ -4,6 +4,7 @@ import 'package:zamer_app/models/models.dart';
 import 'package:zamer_app/screens/procurement_screen.dart';
 import 'package:zamer_app/services/geometry_service.dart';
 import 'package:zamer_app/services/procurement_service.dart';
+import 'package:zamer_app/services/budget_service.dart';
 
 void main() {
   testWidgets('operator can record packs and correct a mistaken receipt', (
@@ -45,11 +46,15 @@ void main() {
     await tester.pumpAndSettle();
     await tester.enterText(
       find.byKey(const Key('purchase-quantity')), '2');
+    await tester.enterText(
+      find.byKey(const Key('purchase-paid')), '1450');
     await tester.tap(find.text('Записать'));
     await tester.pumpAndSettle();
 
     expect(saves, 1);
     expect(project.materialPurchases, hasLength(1));
+    expect(project.costEntries, hasLength(1));
+    expect(BudgetService.review(project).actualMaterials, 1450);
     expect(ProcurementService.purchasedFor(
         project, before.line.key), 2);
     // The history is below the purchase list and is initially off-screen.
@@ -65,6 +70,8 @@ void main() {
 
     expect(saves, 2);
     expect(project.materialPurchases, hasLength(2));
+    // A cancelled receipt does not imply the shop returned the money.
+    expect(BudgetService.review(project).actualMaterials, 1450);
     expect(ProcurementService.purchasedFor(
         project, before.line.key), 0);
   });
