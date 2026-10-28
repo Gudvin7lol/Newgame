@@ -5,6 +5,7 @@ import 'electrical_network.dart';
 import 'electrical_wall_face.dart';
 import 'electrical_finished_reveal.dart';
 import 'electrical_datum_assignment.dart';
+import 'electrical_design_draft.dart';
 
 class MeasureProject {
   MeasureProject({
@@ -135,6 +136,7 @@ class FloorPlan {
     List<ElectricalPoint>? electricalPoints,
     List<ElectricalRun>? electricalRuns,
     ElectricalNetwork? electricalNetwork,
+    ElectricalDesignDraft? electricalDesignDraft,
     List<ServiceRun>? serviceRuns,
     List<PlanObject>? planObjects,
     Map<String, DimensionRecord>? dimensionRecords,
@@ -151,6 +153,7 @@ class FloorPlan {
        electricalPoints = electricalPoints ?? [],
        electricalRuns = electricalRuns ?? [],
        electricalNetwork = electricalNetwork,
+       electricalDesignDraft = electricalDesignDraft,
        serviceRuns = serviceRuns ?? [],
        planObjects = planObjects ?? [],
        dimensionRecords = dimensionRecords ?? {},
@@ -167,6 +170,8 @@ class FloorPlan {
   final List<ElectricalPoint> electricalPoints;
   final List<ElectricalRun> electricalRuns;
   ElectricalNetwork? electricalNetwork;
+  /// Optional engineering assumptions; legacy projects remain readable.
+  ElectricalDesignDraft? electricalDesignDraft;
   final List<ServiceRun> serviceRuns;
   final List<PlanObject> planObjects;
   final Map<String, DimensionRecord> dimensionRecords;
@@ -241,6 +246,9 @@ class FloorPlan {
     electricalNetwork = other.electricalNetwork == null
         ? null
         : ElectricalNetwork.fromJson(other.electricalNetwork!.toJson());
+    electricalDesignDraft = other.electricalDesignDraft == null
+        ? null
+        : ElectricalDesignDraft.fromJson(other.electricalDesignDraft!.toJson());
     serviceRuns
       ..clear()
       ..addAll(other.serviceRuns.map((e) => ServiceRun.fromJson(e.toJson())));
@@ -278,6 +286,8 @@ class FloorPlan {
     'electricalRuns': electricalRuns.map((e) => e.toJson()).toList(),
     if (electricalNetwork != null)
       'electricalNetwork': electricalNetwork!.toJson(),
+    if (electricalDesignDraft != null)
+      'electricalDesignDraft': electricalDesignDraft!.toJson(),
     'serviceRuns': serviceRuns.map((e) => e.toJson()).toList(),
     'planObjects': planObjects.map((e) => e.toJson()).toList(),
     'dimensionRecords': dimensionRecords.map((k, v) => MapEntry(k, v.toJson())),
@@ -320,6 +330,9 @@ class FloorPlan {
         ? ElectricalNetwork.fromJson(
             Map<String, dynamic>.from(json['electricalNetwork'] as Map))
         : null,
+    electricalDesignDraft: json['electricalDesignDraft'] is Map
+        ? ElectricalDesignDraft.fromJson(Map<String, dynamic>.from(
+            json['electricalDesignDraft'] as Map)) : null,
     serviceRuns: ((json['serviceRuns'] as List?) ?? const [])
         .map((e) => ServiceRun.fromJson(Map<String, dynamic>.from(e as Map)))
         .toList(),
