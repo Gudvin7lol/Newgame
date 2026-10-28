@@ -317,22 +317,48 @@ jobs:
           sha256sum app-release.apk > app-release.apk.sha256
 
           sdk_root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
-          test -n "$sdk_root"
-          signer="$(find "$sdk_root/build-tools" -mindepth 2 -maxdepth 2 -type f -name apksigner | sort -V | tail -n 1)"
-          test -x "$signer"
-          "$signer" verify --verbose --print-certs app-release.apk > apk-signature.txt
-          grep -F 'Signer #1 certificate SHA-256 digest:' apk-signature.txt
-          grep -Eq '^mode=(temporary-debug|stable-release);' signature-mode.txt
+          if [[ -z "$sdk_root" || ! -d "$sdk_root/build-tools" ]]; then
+            echo "::error::Android SDK build-tools were not found."
+            exit 1
+          fi
+          signer="$(find "$sdk_root/build-tools" -maxdepth 2 -name apksigner | sort -V | tail -n 1)"
+          if [[ -z "$signer" || ! -x "$signer" ]]; then
+            echo "::error::apksigner unavailable in Android build-tools."
+            ls -l "$sdk_root/build-tools/"*/apksigner || true
+            exit 1
+          fi
+          if ! "$signer" verify --verbose --print-certs app-release.apk > apk-signature.txt 2>&1; then
+            cat apk-signature.txt
+            echo "::error::APK signature validation failed."
+            exit 1
+          fi
+          cat apk-signature.txt
+          if ! grep -Fq 'Signer #1 certificate SHA-256 digest:' apk-signature.txt; then
+            echo "::error::APK certificate fingerprint was not returned by apksigner."
+            exit 1
+          fi
+          grep -Eq '^mode=(temporary-debug|stable-release);' signature-mode.txt || {
+            echo "::error::Missing or unrecognised signing mode."
+            exit 1
+          }
 
-          # Verify that unsigned/untrusted CI outputs can never masquerade
-          # as an in-place update for the production package.
-          aapt="$(dirname "$signer")/aapt"
-          test -x "$aapt"
-          "$aapt" dump badging app-release.apk > apk-package.txt
+          # AAPT2 is supported on modern Android SDK build-tools even
+          # when legacy aapt is absent. Verify exact runtime application ID.
+          aapt2="$(find "$sdk_root/build-tools" -maxdepth 2 -name aapt2 | sort -V | tail -n 1)"
+          if [[ -z "$aapt2" || ! -x "$aapt2" ]]; then
+            echo "::error::aapt2 missing. Cannot inspect APK manifest."
+            exit 1
+          fi
+          "$aapt2" dump packagename app-release.apk > apk-package.txt
+          cat apk-package.txt
           if [[ "$REQUEST_STABLE_RELEASE" == true ]]; then
-            grep -F "package: name='ru.zamer.zamer_app'" apk-package.txt
+            expected_package=ru.zamer.zamer_app
           else
-            grep -F "package: name='ru.zamer.zamer_app.preview'" apk-package.txt
+            expected_package=ru.zamer.zamer_app.preview
+          fi
+          if ! grep -Fxq "$expected_package" apk-package.txt; then
+            echo "::error::Unexpected APK application ID. Expected: $expected_package"
+            exit 1
           fi
 
           if [[ "$REQUEST_STABLE_RELEASE" == true ]]; then
