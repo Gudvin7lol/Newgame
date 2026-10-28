@@ -130,7 +130,7 @@ class ReportService {
 
   static List<String> _wrapFinancialLine(String value) {
     final result = <String>[];
-    var remaining = value.replaceAll(RegExp(r'[\\r\\n]+'), ' ');
+    var remaining = value.replaceAll(RegExp(r'[\r\n]+'), ' ');
     while (remaining.length > 82) {
       var cut = remaining.lastIndexOf(' ', 82);
       if (cut < 40) cut = 82;
