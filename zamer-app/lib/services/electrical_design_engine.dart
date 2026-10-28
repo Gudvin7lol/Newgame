@@ -195,6 +195,16 @@ class ElectricalDesignEngine {
             'В одной линии смешаны несовместимые классы потребителей.',
             subjectId: id));
       }
+      if (list.length > 1 && list.any((p) =>
+          p.isDedicated || p.isNonSwitchable ||
+          p.kind == ElectricalConsumerKind.dedicated ||
+          p.kind == ElectricalConsumerKind.critical)) {
+        issues.add(ElectricalDesignIssue('ERR_DEDICATED_MERGED',
+            ElectricalIssueSeverity.error,
+            'Выделенный или неотключаемый потребитель не должен '
+            'объединяться с другой нагрузкой.',
+            subjectId: id));
+      }
       if (list.any((p) => p.threePhase) &&
           (list.length != 1 || settings.phasesCount != 3)) {
         issues.add(ElectricalDesignIssue('ERR_THREE_PHASE_LINE',
@@ -231,12 +241,31 @@ class ElectricalDesignEngine {
       ));
     }
 
+    final existingLines = {for (final line in lines) line.id: line};
+    for (final entry in design.lineOverrides.entries) {
+      final line = existingLines[entry.key];
+      if (line == null) {
+        issues.add(ElectricalDesignIssue('ORPHAN_LINE_OVERRIDE',
+            ElectricalIssueSeverity.warning,
+            'Ручные настройки относятся к отсутствующей линии.',
+            subjectId: entry.key));
+      } else if (_staleLineOverride(entry.value, line)) {
+        issues.add(ElectricalDesignIssue('ERR_STALE_LINE_OVERRIDE',
+            ElectricalIssueSeverity.error,
+            'Состав линии изменился. Ручные блокировки сохранены, '
+            'но не применяются до подтверждения.',
+            subjectId: entry.key));
+      }
+    }
+
     final phaseWatts = <ElectricalPhase, double>{
       ElectricalPhase.l1: 0, ElectricalPhase.l2: 0, ElectricalPhase.l3: 0,
     };
     // Reserve explicit phase locks before assigning any free line.
     for (final line in lines.where((line) => line.threePhase)) {
-      final manual = design.lineOverrides[line.id];
+      final candidate = design.lineOverrides[line.id];
+      final manual = candidate != null &&
+          !_staleLineOverride(candidate, line) ? candidate : null;
       if (manual != null && manual.locked('phase') &&
           manual.phase != ElectricalPhase.threePhase) {
         issues.add(ElectricalDesignIssue('ERR_PHASE_LOCK',
@@ -253,7 +282,9 @@ class ElectricalDesignEngine {
     }
     final onePhase = lines.where((l) => !l.threePhase).toList();
     for (final line in onePhase) {
-      final manual = design.lineOverrides[line.id];
+      final candidate = design.lineOverrides[line.id];
+      final manual = candidate != null &&
+          !_staleLineOverride(candidate, line) ? candidate : null;
       if (manual != null && manual.locked('phase')) {
         if (manual.phase == ElectricalPhase.unassigned ||
             manual.phase == ElectricalPhase.threePhase ||
@@ -329,7 +360,9 @@ class ElectricalDesignEngine {
     }
 
     for (final line in lines) {
-      final manual = design.lineOverrides[line.id];
+      final candidate = design.lineOverrides[line.id];
+      final manual = candidate != null &&
+          !_staleLineOverride(candidate, line) ? candidate : null;
       final watts = line.demandWatts;
       final amps = watts == null ? null
           : line.threePhase
@@ -440,6 +473,14 @@ class ElectricalDesignEngine {
       demandWatts: demandTotal,
       imbalancePercent: imbalance,
     );
+  }
+
+  static bool _staleLineOverride(
+      ElectricalLineManualDraft manual, ElectricalLineProposal line) {
+    final expected = manual.pointIdsSnapshot;
+    if (expected == null) return false;
+    return expected.toSet().length != line.pointIds.length ||
+        !expected.toSet().containsAll(line.pointIds);
   }
 
   static bool _hasPhase(ElectricalLineManualDraft d) =>
