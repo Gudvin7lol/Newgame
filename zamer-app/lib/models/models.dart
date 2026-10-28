@@ -1,5 +1,10 @@
 import 'dart:math' as math;
 import 'work_board.dart';
+import 'electrical_mounting.dart';
+import 'electrical_network.dart';
+import 'electrical_wall_face.dart';
+import 'electrical_finished_reveal.dart';
+import 'electrical_datum_assignment.dart';
 import 'cost_entry.dart';
 import 'material_purchase.dart';
 
@@ -149,6 +154,7 @@ class FloorPlan {
     List<RoomMeta>? roomMetas,
     List<ElectricalPoint>? electricalPoints,
     List<ElectricalRun>? electricalRuns,
+    ElectricalNetwork? electricalNetwork,
     List<ServiceRun>? serviceRuns,
     List<PlanObject>? planObjects,
     Map<String, DimensionRecord>? dimensionRecords,
@@ -164,6 +170,7 @@ class FloorPlan {
        roomMetas = roomMetas ?? [],
        electricalPoints = electricalPoints ?? [],
        electricalRuns = electricalRuns ?? [],
+       electricalNetwork = electricalNetwork,
        serviceRuns = serviceRuns ?? [],
        planObjects = planObjects ?? [],
        dimensionRecords = dimensionRecords ?? {},
@@ -179,6 +186,7 @@ class FloorPlan {
   final List<RoomMeta> roomMetas;
   final List<ElectricalPoint> electricalPoints;
   final List<ElectricalRun> electricalRuns;
+  ElectricalNetwork? electricalNetwork;
   final List<ServiceRun> serviceRuns;
   final List<PlanObject> planObjects;
   final Map<String, DimensionRecord> dimensionRecords;
@@ -250,6 +258,9 @@ class FloorPlan {
       ..addAll(
         other.electricalRuns.map((e) => ElectricalRun.fromJson(e.toJson())),
       );
+    electricalNetwork = other.electricalNetwork == null
+        ? null
+        : ElectricalNetwork.fromJson(other.electricalNetwork!.toJson());
     serviceRuns
       ..clear()
       ..addAll(other.serviceRuns.map((e) => ServiceRun.fromJson(e.toJson())));
@@ -285,6 +296,8 @@ class FloorPlan {
     'roomMetas': roomMetas.map((e) => e.toJson()).toList(),
     'electricalPoints': electricalPoints.map((e) => e.toJson()).toList(),
     'electricalRuns': electricalRuns.map((e) => e.toJson()).toList(),
+    if (electricalNetwork != null)
+      'electricalNetwork': electricalNetwork!.toJson(),
     'serviceRuns': serviceRuns.map((e) => e.toJson()).toList(),
     'planObjects': planObjects.map((e) => e.toJson()).toList(),
     'dimensionRecords': dimensionRecords.map((k, v) => MapEntry(k, v.toJson())),
@@ -323,6 +336,10 @@ class FloorPlan {
     electricalRuns: ((json['electricalRuns'] as List?) ?? const [])
         .map((e) => ElectricalRun.fromJson(Map<String, dynamic>.from(e as Map)))
         .toList(),
+    electricalNetwork: json['electricalNetwork'] is Map
+        ? ElectricalNetwork.fromJson(
+            Map<String, dynamic>.from(json['electricalNetwork'] as Map))
+        : null,
     serviceRuns: ((json['serviceRuns'] as List?) ?? const [])
         .map((e) => ServiceRun.fromJson(Map<String, dynamic>.from(e as Map)))
         .toList(),
@@ -413,6 +430,8 @@ class PlanWall {
     this.curveRadiusMm,
     this.curveSagittaMm,
     this.curveArcLengthMm,
+    this.electricalFaceLeft,
+    this.electricalFaceRight,
     List<WallOpening>? openings,
   }) : openings = openings ?? [];
 
@@ -430,6 +449,9 @@ class PlanWall {
   double? curveRadiusMm;
   double? curveSagittaMm;
   double? curveArcLengthMm;
+  /// +1 is left and -1 is right when walking from start to end node.
+  WallFaceFinish? electricalFaceLeft;
+  WallFaceFinish? electricalFaceRight;
   final List<WallOpening> openings;
 
   bool get isCurved => curveGroupId != null && curveGroupId!.isNotEmpty;
@@ -450,6 +472,10 @@ class PlanWall {
         curveRadiusMm: curveRadiusMm,
         curveSagittaMm: curveSagittaMm,
         curveArcLengthMm: curveArcLengthMm,
+        electricalFaceLeft: electricalFaceLeft == null ? null :
+            WallFaceFinish.fromJson(electricalFaceLeft!.toJson()),
+        electricalFaceRight: electricalFaceRight == null ? null :
+            WallFaceFinish.fromJson(electricalFaceRight!.toJson()),
         openings: openings
             .map((e) => WallOpening.fromJson(e.toJson()))
             .toList(),
@@ -470,6 +496,10 @@ class PlanWall {
     'curveRadiusMm': curveRadiusMm,
     'curveSagittaMm': curveSagittaMm,
     'curveArcLengthMm': curveArcLengthMm,
+    if (electricalFaceLeft != null)
+      'electricalFaceLeft': electricalFaceLeft!.toJson(),
+    if (electricalFaceRight != null)
+      'electricalFaceRight': electricalFaceRight!.toJson(),
     'openings': openings.map((e) => e.toJson()).toList(),
   };
 
@@ -499,6 +529,12 @@ class PlanWall {
     curveRadiusMm: (json['curveRadiusMm'] as num?)?.toDouble(),
     curveSagittaMm: (json['curveSagittaMm'] as num?)?.toDouble(),
     curveArcLengthMm: (json['curveArcLengthMm'] as num?)?.toDouble(),
+    electricalFaceLeft: json['electricalFaceLeft'] is Map ?
+        WallFaceFinish.fromJson(Map<String, dynamic>.from(
+          json['electricalFaceLeft'] as Map)) : null,
+    electricalFaceRight: json['electricalFaceRight'] is Map ?
+        WallFaceFinish.fromJson(Map<String, dynamic>.from(
+          json['electricalFaceRight'] as Map)) : null,
     openings: ((json['openings'] as List?) ?? const [])
         .map((e) => WallOpening.fromJson(Map<String, dynamic>.from(e as Map)))
         .toList(),
@@ -514,6 +550,8 @@ class WallOpening {
     required this.offsetFromStartMm,
     this.sillHeightMm = 0,
     this.doorSwing = DoorSwing.leftIn,
+    this.electricalRevealLeft,
+    this.electricalRevealRight,
   });
 
   final String id;
@@ -523,6 +561,8 @@ class WallOpening {
   double offsetFromStartMm;
   double sillHeightMm;
   DoorSwing doorSwing;
+  /// Per-face finished horizontal stations, not rough opening dimensions.
+  ElectricalFinishedReveal? electricalRevealLeft, electricalRevealRight;
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -532,6 +572,10 @@ class WallOpening {
     'offsetFromStartMm': offsetFromStartMm,
     'sillHeightMm': sillHeightMm,
     'doorSwing': doorSwing.name,
+    if (electricalRevealLeft != null)
+      'electricalRevealLeft': electricalRevealLeft!.toJson(),
+    if (electricalRevealRight != null)
+      'electricalRevealRight': electricalRevealRight!.toJson(),
   };
 
   factory WallOpening.fromJson(Map<String, dynamic> json) => WallOpening(
@@ -548,6 +592,12 @@ class WallOpening {
       (e) => e.name == json['doorSwing'],
       orElse: () => DoorSwing.leftIn,
     ),
+    electricalRevealLeft: json['electricalRevealLeft'] is Map ?
+        ElectricalFinishedReveal.fromJson(Map<String, dynamic>.from(
+          json['electricalRevealLeft'] as Map)) : null,
+    electricalRevealRight: json['electricalRevealRight'] is Map ?
+        ElectricalFinishedReveal.fromJson(Map<String, dynamic>.from(
+          json['electricalRevealRight'] as Map)) : null,
   );
 }
 
@@ -1328,11 +1378,8 @@ class MaterialEstimate {
   final String name;
   final double quantity;
   final String unit;
-  /// Rounded packs shown in the room takeoff (not aggregated purchasing).
   final int? packages;
   final String? packageLabel;
-  /// Physical quantity of [unit] contained in one [packageLabel].
-  /// Null means the purchase quantity is not known and must not be guessed.
   final double? packageSize;
   final String note;
 }
@@ -1413,6 +1460,8 @@ class ElectricalPoint {
     this.wallSide = 1,
     List<ElectricalModuleType>? modules,
     this.frameVertical = false,
+    this.mounting,
+    this.datumAssignment,
   }) : modules = modules ?? [_defaultModuleFor(type)];
 
   final String id;
@@ -1429,6 +1478,9 @@ class ElectricalPoint {
   int wallSide;
   final List<ElectricalModuleType> modules;
   bool frameVertical;
+  ElectricalMounting? mounting;
+  /// Optional P10 named dimensional reference. Not a positioning constraint.
+  ElectricalDatumAssignment? datumAssignment;
 
   bool get isWallDevice => <ElectricalPointType>{
     ElectricalPointType.wallLight,
@@ -1464,6 +1516,9 @@ class ElectricalPoint {
     'wallSide': wallSide,
     'modules': modules.map((e) => e.name).toList(),
     'frameVertical': frameVertical,
+    'mounting': mounting?.toJson(),
+    if (datumAssignment != null)
+      'datumAssignment': datumAssignment!.toJson(),
   };
 
   factory ElectricalPoint.fromJson(Map<String, dynamic> json) {
@@ -1496,6 +1551,12 @@ class ElectricalPoint {
       wallSide: (json['wallSide'] as num?)?.toInt() == -1 ? -1 : 1,
       modules: modules.isEmpty ? null : modules,
       frameVertical: json['frameVertical'] as bool? ?? false,
+      mounting: json['mounting'] is Map
+          ? ElectricalMounting.fromJson(Map<String, dynamic>.from(json['mounting'] as Map))
+          : null,
+      datumAssignment: json['datumAssignment'] is Map
+          ? ElectricalDatumAssignment.fromJson(Map<String, dynamic>.from(
+              json['datumAssignment'] as Map)) : null,
     );
   }
 }
