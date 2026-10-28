@@ -70,6 +70,28 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
   bool _show3dRoutes = false;
   bool _showCrossings = false;
   bool _showLegacyLines = false;
+  bool _showLights = true;
+  bool _showPower = true;
+  bool _showJunctions = true;
+
+  Set<ElectricalPointType> get _visiblePointTypes {
+    final all = <ElectricalPointType>{};
+    if (_showLights) all.addAll([
+      ElectricalPointType.ceilingLight,
+      ElectricalPointType.wallLight,
+    ]);
+    if (_showPower) all.addAll([
+      ElectricalPointType.socket,
+      ElectricalPointType.switchPoint,
+      ElectricalPointType.tvSocket,
+      ElectricalPointType.dataSocket,
+      ElectricalPointType.frame,
+      ElectricalPointType.appliance,
+      ElectricalPointType.panel,
+    ]);
+    if (_showJunctions) all.add(ElectricalPointType.junctionBox);
+    return all;
+  }
   String? _routeCircuitFilterId;
   String? _dragPointId;
   bool _dragUndoPushed = false;
@@ -258,6 +280,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     ElectricalPoint? best;
     var dBest = thresholdMm;
     for (final e in widget.floor.electricalPoints) {
+      if (!_visiblePointTypes.contains(e.type)) continue;
       final dx = e.xMm - p.x;
       final dy = e.yMm - p.y;
       final d = math.sqrt(dx * dx + dy * dy);
@@ -1086,14 +1109,6 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
             icon: const Icon(Icons.inventory_2_outlined),
             onPressed: _showCableJournal,
           ),
-          IconButton(
-            key: const ValueKey('electrical-toggle-physical-routes'),
-            tooltip: _show3dRoutes
-                ? 'Скрыть 3D-трассы' : 'Показать 3D-трассы',
-            icon: Icon(_show3dRoutes ? Icons.route : Icons.alt_route),
-            color: _show3dRoutes ? Theme.of(context).colorScheme.primary : null,
-            onPressed: () => setState(() => _show3dRoutes = !_show3dRoutes),
-          ),
           PopupMenuButton<String>(
             key: const ValueKey('electrical-plan-layers'),
             tooltip: 'Слои проводки',
@@ -1105,11 +1120,35 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
               }
               setState(() {
                 if (choice == 'legacy') _showLegacyLines = !_showLegacyLines;
+                if (choice == 'physical') _show3dRoutes = !_show3dRoutes;
+                if (choice == 'lights') _showLights = !_showLights;
+                if (choice == 'power') _showPower = !_showPower;
+                if (choice == 'junctions') _showJunctions = !_showJunctions;
                 if (choice == 'crossings') _showCrossings = !_showCrossings;
                 if (choice == 'all') _routeCircuitFilterId = null;
               });
             },
             itemBuilder: (_) => [
+              CheckedPopupMenuItem(
+                value: 'lights',
+                checked: _showLights,
+                child: const Text('Световые точки'),
+              ),
+              CheckedPopupMenuItem(
+                value: 'power',
+                checked: _showPower,
+                child: const Text('Розетки, выключатели, щит'),
+              ),
+              CheckedPopupMenuItem(
+                value: 'junctions',
+                checked: _showJunctions,
+                child: const Text('Распределительные коробки'),
+              ),
+              CheckedPopupMenuItem(
+                value: 'physical',
+                checked: _show3dRoutes,
+                child: const Text('Физические трассы'),
+              ),
               CheckedPopupMenuItem(
                 value: 'legacy',
                 checked: _showLegacyLines,
@@ -1703,6 +1742,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                     show3dRoutes: _show3dRoutes,
                     showCrossings: _showCrossings,
                     circuitFilterId: _routeCircuitFilterId,
+                    visiblePointTypes: _visiblePointTypes,
                   ),
                   foregroundPainter: widget.embedded
                       ? ElectricalPlanPainter(
@@ -1717,6 +1757,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                           show3dRoutes: _show3dRoutes,
                     showCrossings: _showCrossings,
                           circuitFilterId: _routeCircuitFilterId,
+                    visiblePointTypes: _visiblePointTypes,
                         ) : null,
                   child: const SizedBox.expand(),
                 ),
