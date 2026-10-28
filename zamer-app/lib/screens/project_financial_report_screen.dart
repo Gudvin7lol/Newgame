@@ -135,6 +135,22 @@ class ProjectFinancialReportScreen extends StatelessWidget {
                 Text('Без привязанного платежа: '
                     '${report.unpaidLinkedPurchases}',
                     style: ZamerTypography.bodySmall),
+                if (report.unlinkedMaterialPayments > 0)
+                  Text(
+                    'Оплат без связи с закупками: '
+                    '${report.unlinkedMaterialPayments}',
+                    style: const TextStyle(
+                      color: ZamerColors.warning, fontSize: 12,
+                    ),
+                  ),
+                if (report.cancelledPurchasesWithOutstandingPayment > 0)
+                  Text(
+                    'Отменённые закупки с оплатой: '
+                    '${report.cancelledPurchasesWithOutstandingPayment}',
+                    style: const TextStyle(
+                      color: ZamerColors.warning, fontSize: 12,
+                    ),
+                  ),
                 if (report.unlinkedActivePurchases > 0)
                   Text(
                     'Нужно сверить закупки прежней спецификации: '
@@ -149,7 +165,8 @@ class ProjectFinancialReportScreen extends StatelessWidget {
                     padding: const EdgeInsets.only(bottom: 8),
                     child: Text(
                       '${item.name}: ${item.purchased.toStringAsFixed(2)}'
-                      ' из ${item.planned.toStringAsFixed(2)} ${item.unit}',
+                      ' из ${item.planned.toStringAsFixed(2)} ${item.unit}; '
+                      'оплачено ${item.paidLinked.toStringAsFixed(0)} ₽',
                       style: ZamerTypography.caption,
                     ),
                   ),
