@@ -862,6 +862,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
       rcdRatedAmps: current?.rcdRatedAmps,
       moduleRow: current?.moduleRow,
       moduleIndex: current?.moduleIndex,
+      pointIdsSnapshot: List<String>.from(line.pointIds)..sort(),
       lockedFields: locks,
     );
     _pushUndo();
