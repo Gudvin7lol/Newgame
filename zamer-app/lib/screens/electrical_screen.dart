@@ -654,9 +654,10 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     final point = _near(mm, (180 / math.max(0.25, t.scale / 0.08)).toDouble());
     if (point == null) return;
     if (_mode == ElectricalMode.select) {
-      // A tap reveals the inline inspector; detailed editors remain one tap
-      // away rather than immediately covering the drawing with a sheet.
       setState(() => _selectedId = point.id);
+      // Embedded CAD uses a persistent one-row inspector. Keep the legacy
+      // stand-alone editor interaction compatible with existing projects/tests.
+      if (!widget.embedded) await _pointSheet(point);
       return;
     }
     if (_mode == ElectricalMode.wire) {
