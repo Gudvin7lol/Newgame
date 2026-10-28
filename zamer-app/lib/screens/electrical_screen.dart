@@ -1466,7 +1466,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
 
   Offset _placementPreview(Offset raw, Size size) {
     if (!_needsWall(_type)) return raw;
-    final hit = _nearestWall(_screenToMm(raw, size), maxDistanceMm: 700);
+    final hit = _nearestWall(_screenToMm(raw, size), maxDistanceMm: 550);
     if (hit == null) return raw;
     final tx = _tx(size);
     return tx.origin + Offset(hit.point.x * tx.scale,
@@ -1667,7 +1667,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
               final size = Size(c.maxWidth, c.maxHeight);
               _viewportSize = size;
               final t = _tx(size);
-              return Listener(
+              return Stack(children: [Listener(
                 onPointerDown: _touchDown,
                 onPointerMove: _touchMove,
                 onPointerUp: _touchEnd,
@@ -1681,7 +1681,9 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                 onPanUpdate: _mode == ElectricalMode.select
                     ? (d) => _dragUpdate(d, size)
                     : null,
-                onPanEnd: _mode == ElectricalMode.select ? _dragEnd : null,
+                onPanEnd: _mode == ElectricalMode.select ? _dragEnd
+                    : _mode == ElectricalMode.add ? (_) => _placePanEnd(size)
+                    : null,
                 child: CustomPaint(
                   painter: widget.embedded ? CadPlanPainter(
                     floor: widget.floor,
@@ -1719,7 +1721,34 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                   child: const SizedBox.expand(),
                 ),
                 ),
-              );
+              ),
+              if (_placingAt != null && _mode == ElectricalMode.add)
+                Positioned(
+                  left: (_placementPreview(_placingAt!, size).dx - 15)
+                      .clamp(0.0, math.max(0.0, size.width - 30)),
+                  top: (_placementPreview(_placingAt!, size).dy - 15)
+                      .clamp(0.0, math.max(0.0, size.height - 30)),
+                  child: IgnorePointer(
+                    child: Container(
+                      width: 30, height: 30,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primary
+                            .withValues(alpha: .3),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Theme.of(context).colorScheme.primary,
+                          width: 2,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              Positioned(
+                right: 12,
+                bottom: 12,
+                child: _quickFan(),
+              ),
+            ]);
             },
           ),
         ),
