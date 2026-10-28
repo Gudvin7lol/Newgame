@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'work_board.dart';
 import 'cost_entry.dart';
+import 'material_purchase.dart';
 
 class MeasureProject {
   MeasureProject({
@@ -16,7 +17,9 @@ class MeasureProject {
     Map<String, double>? workRates,
     WorkBoard? workBoard,
     List<CostEntry>? costEntries,
-  }) : costEntries = costEntries ?? [],
+    List<MaterialPurchase>? materialPurchases,
+  }) : materialPurchases = materialPurchases ?? [],
+       costEntries = costEntries ?? [],
        workBoard = workBoard ?? WorkBoard(),
        createdAt = createdAt ?? DateTime.now(),
        floors = floors ?? [],
@@ -37,6 +40,8 @@ class MeasureProject {
   final WorkBoard workBoard;
   /// Project-level payment history; persists with the project and backups.
   final List<CostEntry> costEntries;
+  /// Physical material buying history; not a second monetary ledger.
+  final List<MaterialPurchase> materialPurchases;
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -51,6 +56,7 @@ class MeasureProject {
     'workRates': workRates,
     'workBoard': workBoard.toJson(),
     'costEntries': costEntries.map((entry) => entry.toJson()).toList(),
+    'materialPurchases': materialPurchases.map((entry) => entry.toJson()).toList(),
   };
 
   factory MeasureProject.fromJson(Map<String, dynamic> json) => MeasureProject(
@@ -80,6 +86,10 @@ class MeasureProject {
     costEntries: ((json['costEntries'] as List?) ?? const [])
         .whereType<Map>()
         .map((entry) => CostEntry.fromJson(Map<String, dynamic>.from(entry)))
+        .toList(),
+    materialPurchases: ((json['materialPurchases'] as List?) ?? const [])
+        .whereType<Map>()
+        .map((entry) => MaterialPurchase.fromJson(Map<String, dynamic>.from(entry)))
         .toList(),
   );
 }
