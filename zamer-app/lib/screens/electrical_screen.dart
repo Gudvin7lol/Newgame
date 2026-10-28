@@ -8,6 +8,7 @@ import '../models/electrical_mounting.dart';
 import '../services/electrical_mounting_service.dart';
 import '../widgets/electrical_mounting_editor.dart';
 import '../widgets/electrical_point_properties.dart';
+import '../widgets/electrical_compact_inspector.dart';
 import '../widgets/electrical_junction_editor.dart';
 import '../models/electrical_network.dart';
 import '../services/electrical_junction_edit_service.dart';
@@ -28,6 +29,9 @@ import '../services/plan_viewport_link.dart';
 import '../services/electrical_board_draft_service.dart';
 
 enum ElectricalMode { add, wire, select }
+
+/// Three task-level surfaces. Editing action (add/wire/select) stays separate.
+enum ElectricalWorkspaceView { pointsRoutes, loads, board }
 
 class ElectricalScreen extends StatefulWidget {
   const ElectricalScreen({
@@ -54,6 +58,8 @@ class ElectricalScreen extends StatefulWidget {
 
 class _ElectricalScreenState extends State<ElectricalScreen> {
   ElectricalMode _mode = ElectricalMode.add;
+  ElectricalWorkspaceView _workspaceView = ElectricalWorkspaceView.pointsRoutes;
+  bool _addArcOpen = false;
   ElectricalPointType _type = ElectricalPointType.socket;
   String _cable = 'ВВГнг-LS 3×1.5';
   String _routeMode = 'orthogonal';
@@ -613,7 +619,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
       );
       widget.floor.electricalPoints.add(created);
       await widget.onChanged();
-      if (mounted) setState(() {});
+      if (mounted) setState(() => _selectedId = created.id);
       if (_type == ElectricalPointType.frame && mounted)
         await _pointSheet(created);
       return;
@@ -622,8 +628,9 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     final point = _near(mm, (180 / math.max(0.25, t.scale / 0.08)).toDouble());
     if (point == null) return;
     if (_mode == ElectricalMode.select) {
+      // A tap reveals the inline inspector; detailed editors remain one tap
+      // away rather than immediately covering the drawing with a sheet.
       setState(() => _selectedId = point.id);
-      await _pointSheet(point);
       return;
     }
     if (_mode == ElectricalMode.wire) {
@@ -1293,14 +1300,158 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     return base / 1000 * (1 + r.reservePct / 100);
   }
 
+  Widget _workspaceTabs() {
+    final theme = Theme.of(context);
+    const labels = <(ElectricalWorkspaceView, String)>[
+      (ElectricalWorkspaceView.pointsRoutes, 'Точки и трассы'),
+      (ElectricalWorkspaceView.loads, 'Нагрузки'),
+      (ElectricalWorkspaceView.board, 'Щит'),
+    ];
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 6, 8, 3),
+      child: Row(
+        key: const ValueKey('electrical-three-modes'),
+        children: [
+          for (final (value, label) in labels)
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2),
+                child: TextButton(
+                  key: value == ElectricalWorkspaceView.loads
+                      ? const ValueKey('electrical-load-inventory')
+                      : ValueKey('electrical-view-${value.name}'),
+                  onPressed: () => setState(() {
+                    _workspaceView = value;
+                    _addArcOpen = false;
+                  }),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 3, vertical: 9),
+                    backgroundColor: _workspaceView == value
+                        ? theme.colorScheme.primaryContainer
+                        : theme.colorScheme.surfaceContainer,
+                    foregroundColor: _workspaceView == value
+                        ? theme.colorScheme.onPrimaryContainer
+                        : theme.colorScheme.onSurfaceVariant,
+                  ),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(label, style: const TextStyle(
+                        fontSize: 12, fontWeight: FontWeight.w700)),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _loadWorkspace() {
+    final draft = ElectricalBoardDraftService.create(widget.floor);
+    return ListView(
+      key: const ValueKey('electrical-loads-workspace'),
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 18),
+      children: [
+        Text('Группы и нагрузки',
+            style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 4),
+        Text('Известно: ${draft.knownConnectedWatts.toStringAsFixed(0)} Вт • '
+            '${draft.circuits.length} групп. Не является подбором автоматов.'),
+        if (draft.unratedLoads > 0)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text(
+              'Не указана мощность у ${draft.unratedLoads} точек. '
+              'Суммарная нагрузка неполная.',
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ),
+        if (draft.circuits.isEmpty)
+          const ListTile(title: Text('Групп пока нет'),
+              subtitle: Text('Назначь точки группам на плане.')),
+        for (final circuit in draft.circuits)
+          Card(
+            child: ListTile(
+              title: Text(circuit.load.name),
+              subtitle: Text(
+                '${circuit.load.loadCount} точек • '
+                '${circuit.load.connectedWatts.toStringAsFixed(0)} Вт • '
+                '≈${circuit.load.estimatedAmps.toStringAsFixed(1)} А\n'
+                '${circuit.protectiveDeviceStatus}',
+              ),
+              isThreeLine: true,
+              trailing: circuit.incomplete
+                  ? const Icon(Icons.warning_amber_rounded)
+                  : const Icon(Icons.chevron_right),
+              onTap: () => setState(() {
+                _workspaceView = ElectricalWorkspaceView.pointsRoutes;
+                _routeCircuitFilterId = widget.floor.electricalNetwork?.circuits
+                    .where((c) => c.name == circuit.load.name)
+                    .firstOrNull?.id;
+                _show3dRoutes = true;
+              }),
+            ),
+          ),
+        const Padding(
+          padding: EdgeInsets.symmetric(vertical: 10),
+          child: Text('Ток указан только для известных нагрузок. '
+              'Одновременность, фазы и защита требуют отдельных исходных данных.'),
+        ),
+      ],
+    );
+  }
+
+  Widget _boardWorkspace() {
+    final draft = ElectricalBoardDraftService.create(widget.floor);
+    return ListView(
+      key: const ValueKey('electrical-board-workspace'),
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 18),
+      children: [
+        Text('Щит • предварительная компоновка',
+            style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 8),
+        const Text('Пока это схема логических секций. DIN-размеры, '
+            'номиналы аппаратов, шины N/PE и клеммные подключения '
+            'не рассчитаны. По этому эскизу нельзя собирать щит.'),
+        const SizedBox(height: 12),
+        for (final section in draft.sections)
+          Card(
+            child: ListTile(
+              dense: true,
+              leading: const Icon(Icons.view_module_outlined),
+              title: Text(section.label),
+              subtitle: Text(section.role),
+            ),
+          ),
+        const SizedBox(height: 8),
+        FilledButton.tonalIcon(
+          onPressed: _showCableJournal,
+          icon: const Icon(Icons.inventory_2_outlined),
+          label: const Text('Кабельный журнал'),
+        ),
+        const SizedBox(height: 10),
+        Text(draft.protectionStatus,
+            style: TextStyle(color: Theme.of(context).colorScheme.error)),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final selected = widget.floor.electricalPoints
+        .where((p) => p.id == _selectedId).firstOrNull;
     final cableTotals = <String, double>{};
     for (final r in widget.floor.electricalRuns) {
       cableTotals[r.cable] = (cableTotals[r.cable] ?? 0) + _runLength(r);
     }
     return Column(
       children: [
+        _workspaceTabs(),
+        if (_workspaceView != ElectricalWorkspaceView.pointsRoutes)
+          Expanded(child: _workspaceView == ElectricalWorkspaceView.loads
+              ? _loadWorkspace() : _boardWorkspace()),
+        if (_workspaceView == ElectricalWorkspaceView.pointsRoutes)
         if (!widget.embedded) Padding(
           padding: const EdgeInsets.fromLTRB(10, 8, 10, 4),
           child: Card(
@@ -1428,6 +1579,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
             ),
           ),
         ),
+        if (_workspaceView == ElectricalWorkspaceView.pointsRoutes)
         if (widget.embedded)
           Wrap(
             alignment: WrapAlignment.end,
@@ -1503,8 +1655,10 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
               ),
             ],
           ),
+        if (_workspaceView == ElectricalWorkspaceView.pointsRoutes)
         if (!widget.embedded)
           _routeControls(),
+        if (_workspaceView == ElectricalWorkspaceView.pointsRoutes)
         Expanded(
           child: LayoutBuilder(
             builder: (context, c) {
@@ -1567,7 +1721,17 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
             },
           ),
         ),
-        if (!widget.embedded && widget.floor.electricalPoints.isNotEmpty)
+        if (_workspaceView == ElectricalWorkspaceView.pointsRoutes &&
+            selected != null)
+          ElectricalCompactInspector(
+            floor: widget.floor,
+            point: selected,
+            onDatum: () => _pointSheet(selected),
+            onHeight: () => _quickPointHeight(selected),
+            onLoad: () => _pointSheet(selected),
+          ),
+        if (_workspaceView == ElectricalWorkspaceView.pointsRoutes &&
+            !widget.embedded && widget.floor.electricalPoints.isNotEmpty)
           Container(
             width: double.infinity,
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
