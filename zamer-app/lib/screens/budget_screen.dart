@@ -4,6 +4,7 @@ import '../design_system/zamer_components.dart';
 import '../design_system/zamer_tokens.dart';
 import '../models/cost_entry.dart';
 import '../models/models.dart';
+import '../models/work_board.dart';
 import '../services/budget_service.dart';
 import '../services/work_value_service.dart';
 
@@ -23,6 +24,45 @@ class BudgetScreen extends StatefulWidget {
 }
 
 class _BudgetScreenState extends State<BudgetScreen> {
+  Future<void> _setTaskRate(WorkTask task) async {
+    var raw = '';
+    final price = await showDialog<double>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Расценка: ${task.title}'),
+        content: TextField(
+          key: const Key('accepted-task-rate'),
+          autofocus: true,
+          onChanged: (value) => raw = value,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: InputDecoration(
+            labelText: 'Цена за ${task.unit}',
+            suffixText: '₽',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Отмена'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final value = double.tryParse(raw.trim().replaceAll(',', '.'));
+              if (value == null || !value.isFinite ||
+                  value <= 0 || value > 100000000) return;
+              Navigator.pop(dialogContext, value);
+            },
+            child: const Text('Сохранить'),
+          ),
+        ],
+      ),
+    );
+    if (price == null) return;
+    widget.project.workRates['task:${task.id}|${task.unit}'] = price;
+    await widget.onChanged();
+    if (mounted) setState(() {});
+  }
+
   Future<void> _add() async {
     var title = '';
     var amount = '';
@@ -278,6 +318,41 @@ class _BudgetScreenState extends State<BudgetScreen> {
                       ),
                     ),
                   ],
+                  if (acceptedValue.unpricedAcceptedTasks > 0)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: PopupMenuButton<String>(
+                        tooltip: 'Расценить принятые работы',
+                        onSelected: (id) {
+                          final task = widget.project.workBoard.tasks
+                              .firstWhere((task) => task.id == id);
+                          _setTaskRate(task);
+                        },
+                        itemBuilder: (context) => [
+                          for (final task in widget.project.workBoard.tasks)
+                            if (task.accepted > 0 &&
+                                WorkValueService.rateFor(
+                                    widget.project, task) == null)
+                              PopupMenuItem(
+                                value: task.id,
+                                child: Text(
+                                  '${task.title} · ${task.roomName}',
+                                  maxLines: 2,
+                                ),
+                              ),
+                        ],
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 8),
+                          child: Text(
+                            'Задать расценки принятых работ',
+                            style: TextStyle(
+                              color: ZamerColors.accent,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   if (acceptedValue.flaggedAcceptedTasks > 0) ...[
                     const SizedBox(height: ZamerSpace.xs),
                     Text(
