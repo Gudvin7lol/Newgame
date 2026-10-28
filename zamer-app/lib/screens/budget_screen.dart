@@ -5,6 +5,7 @@ import '../design_system/zamer_tokens.dart';
 import '../models/cost_entry.dart';
 import '../models/models.dart';
 import '../services/budget_service.dart';
+import '../services/work_value_service.dart';
 
 /// Separate drill-down rather than another crowded tab on the estimate screen.
 class BudgetScreen extends StatefulWidget {
@@ -181,6 +182,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
   @override
   Widget build(BuildContext context) {
     final review = BudgetService.review(widget.project);
+    final acceptedValue = WorkValueService.review(widget.project);
     final entries = widget.project.costEntries.reversed.toList();
     return Scaffold(
       appBar: AppBar(
@@ -244,6 +246,59 @@ class _BudgetScreenState extends State<BudgetScreen> {
               ],
             ),
           ),
+          if (acceptedValue.acceptedTaskCount > 0) ...[
+            const SizedBox(height: ZamerSpace.md),
+            ZCard(
+              backgroundColor: ZamerColors.surfaceLow,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text('Принято работ и оплачено',
+                      style: ZamerTypography.sectionTitle),
+                  const SizedBox(height: ZamerSpace.sm),
+                  Text(
+                    'Принято по заданным расценкам: '
+                    '${acceptedValue.acceptedPricedValue.toStringAsFixed(0)} ₽',
+                    style: ZamerTypography.body,
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    'Оплата мастерам: '
+                    '${acceptedValue.paidLabor.toStringAsFixed(0)} ₽',
+                    style: ZamerTypography.caption,
+                  ),
+                  if (acceptedValue.unpricedAcceptedTasks > 0) ...[
+                    const SizedBox(height: ZamerSpace.xs),
+                    Text(
+                      'Без расценок: '
+                      '${acceptedValue.unpricedAcceptedTasks} принятых задач. '
+                      'Стоимость принятого объёма неполная.',
+                      style: const TextStyle(
+                        color: ZamerColors.warning, fontSize: 12,
+                      ),
+                    ),
+                  ],
+                  if (acceptedValue.flaggedAcceptedTasks > 0) ...[
+                    const SizedBox(height: ZamerSpace.xs),
+                    Text(
+                      'Изменение геометрии требует сверки: '
+                      '${acceptedValue.flaggedAcceptedTasks} принятых задач.',
+                      style: const TextStyle(
+                        color: ZamerColors.warning, fontSize: 12,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: ZamerSpace.sm),
+                  const Text(
+                    'Принятый объём и фактическая оплата не означают '
+                    'автоматически задолженность: авансы, удержания и '
+                    'согласованные цены учитываются отдельно.',
+                    style: ZamerTypography.caption,
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 18),
           Text('История расходов (${entries.length})',
               style: ZamerTypography.sectionTitle),
