@@ -14,10 +14,166 @@ import 'geometry_service.dart';
 import 'material_service.dart';
 import 'engineering_service.dart';
 import 'estimate_service.dart';
+import 'project_financial_report_service.dart';
 import 'measurement_review_service.dart';
 import 'room_interior_dimensions_service.dart';
 
 class ReportService {
+  /// Financial control report shares the same raster-backed PDF pipeline as
+  /// the measurement sheets, so Russian labels do not depend on PDF core fonts.
+  static Future<void> shareFinancialPdf(MeasureProject project) async {
+    final bytes = await buildFinancialPdf(project);
+    final safe = project.name.replaceAll(
+      RegExp(r'[^a-zA-Zа-яА-Я0-9_-]+'), '_');
+    await Printing.sharePdf(
+      bytes: bytes, filename: 'Замер_отчёт_$safe.pdf');
+  }
+
+  static Future<Uint8List> buildFinancialPdf(
+    MeasureProject project, {DateTime? at}
+  ) async {
+    final r = ProjectFinancialReportService.build(project, at: at);
+    final fmt = (num value) => value.toStringAsFixed(2);
+    final blocks = <(String, List<String>)>[
+      ('Сводка по объекту', [
+        'Отчёт сформирован: ${r.createdAt.toIso8601String()}',
+        'Адрес: ${r.projectAddress}',
+        'План материалов, оценено: ${fmt(r.budget.plannedMaterials)} ₽',
+        'План работ, оценено: ${fmt(r.budget.plannedLabor)} ₽',
+        'План всего, оценено: ${fmt(r.budget.plannedTotal)} ₽',
+        'Оплачено материалов: ${fmt(r.budget.actualMaterials)} ₽',
+        'Оплачено работ: ${fmt(r.budget.actualLabor)} ₽',
+        'Все оплаты, итог: ${fmt(r.budget.actualTotal)} ₽',
+        'Принято работ по известным расценкам: '
+            '${fmt(r.workValue.acceptedPricedValue)} ₽',
+        'Без цены в смете: ${r.budget.unpricedCount}',
+        'Расчётные цены упаковок: ${r.budget.derivedPackagePrices}',
+        'Принятые работы без ставок: '
+            '${r.workValue.unpricedAcceptedTasks}',
+        'Принятые объёмы на проверке: '
+            '${r.workValue.flaggedAcceptedTasks}',
+        'Закупки со старой спецификацией: '
+            '${r.unlinkedActivePurchases}',
+        'Закупки без привязанного платежа: '
+            '${r.unpaidLinkedPurchases}',
+        'Позиции с нехваткой / сверх плана: '
+            '${r.underboughtPositions} / ${r.overboughtPositions}',
+        'Открытых замечаний: ${r.openIssues}',
+        r.budget.completeEstimate
+          ? 'Разница текущего плана и оплат: '
+              '${fmt(r.budget.plannedTotal - r.budget.actualTotal)} ₽'
+          : 'Разница плана и оплат не определена: '
+              'в смете есть позиции без подтверждённой цены',
+        'План рассчитывается по ТЕКУЩЕЙ геометрии и не заморожен.',
+        'Оплата, количество закупок и приёмка работ не суммируются.',
+        'Разница плана и оплат НЕ является прибылью или долгом.',
+        'Полная история и точные численные данные доступны в CSV.',
+      ]),
+      ('Закупленные материалы', [
+        for (final p in r.purchases)
+          '${p.name}: план ${fmt(p.planned)} ${p.unit}; '
+          'куплено ${fmt(p.purchased)}; '
+          'осталось ${fmt(p.remaining)}; избыток ${fmt(p.excess)}'
+          '${p.derivedPrice ? ' (цена упаковки расчётная)' : ''}',
+      ]),
+      ('Работы и приёмка', [
+        for (final w in r.works)
+          '${w.title} (${w.roomName}): '
+          'план ${fmt(w.planned)} ${w.unit}; '
+          'сделано ${fmt(w.done)}; принято ${fmt(w.accepted)}; '
+          'оплачено ${fmt(w.paid)} ₽; '
+          '${w.unitRate == null ? 'нет ставки' : 'оценка принятого ${fmt(w.acceptedValue!)} ₽'}'
+          '${w.needsReview ? ' (нужна сверка)' : ''}',
+      ]),
+      ('Журнал оплат', [
+        for (final e in r.cashEntries)
+          '${e.at.toIso8601String().split('T').first}: '
+          '${e.isReversal ? 'корректировка' : 'оплата'} '
+          '${fmt(e.signedAmount)} ₽; '
+          '${e.description}; '
+          '${e.purchaseId == null ? '' : 'чек ${e.purchaseId}; '}'
+          '${e.taskId == null ? '' : 'работа ${e.taskId}'}',
+      ]),
+      ('Журнал закупленных количеств', [
+        for (final e in r.purchaseEntries)
+          '${e.at.toIso8601String().split('T').first}: '
+          '${e.isReversal ? 'корректировка' : 'закупка'} '
+          '${fmt(e.signedQuantity)} ${e.unit}; '
+          '${e.estimateKey}',
+      ]),
+    ];
+    final doc = pw.Document();
+    var page = 0;
+    for (final block in blocks) {
+      final wrapped = <String>[];
+      for (final line in block.$2) {
+        wrapped.addAll(_wrapFinancialLine(line));
+      }
+      if (wrapped.isEmpty) wrapped.add('Нет записей');
+      for (var start = 0; start < wrapped.length; start += 22) {
+        final title = start == 0
+            ? block.$1 : '${block.$1} (продолжение)';
+        final image = await _renderFinancialPage(
+          r.projectName, title, wrapped.skip(start).take(22).toList(),
+          ++page,
+        );
+        doc.addPage(pw.Page(
+          pageFormat: PdfPageFormat.a4,
+          margin: pw.EdgeInsets.zero,
+          build: (_) =>
+              pw.Image(pw.MemoryImage(image), fit: pw.BoxFit.cover),
+        ));
+      }
+    }
+    return doc.save();
+  }
+
+  static List<String> _wrapFinancialLine(String value) {
+    final result = <String>[];
+    var remaining = value.replaceAll(RegExp(r'[\\r\\n]+'), ' ');
+    while (remaining.length > 82) {
+      var cut = remaining.lastIndexOf(' ', 82);
+      if (cut < 40) cut = 82;
+      result.add(remaining.substring(0, cut));
+      remaining = remaining.substring(cut).trimLeft();
+    }
+    if (remaining.isNotEmpty) result.add(remaining);
+    return result;
+  }
+
+  static Future<Uint8List> _renderFinancialPage(
+      String projectName, String title, List<String> lines, int page) async {
+    const size = Size(1240, 1754);
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    canvas.drawRect(Offset.zero & size, Paint()..color = Colors.white);
+    canvas.drawRect(
+      const Rect.fromLTWH(0, 0, 1240, 22),
+      Paint()..color = const Color(0xFFF1AF91),
+    );
+    _text(canvas, 'ЗАМЕР / ОТЧЁТ ПО ОБЪЕКТУ',
+      const Offset(75, 60), 19, FontWeight.w800);
+    _text(canvas, projectName, const Offset(75, 108),
+      26, FontWeight.w800, maxWidth: 1090);
+    _text(canvas, title, const Offset(75, 175),
+      33, FontWeight.w800, maxWidth: 1090);
+    canvas.drawRect(
+      const Rect.fromLTWH(75, 235, 1090, 2),
+      Paint()..color = const Color(0xFFDFE2E5),
+    );
+    var y = 265.0;
+    for (final line in lines) {
+      _text(canvas, line, Offset(82, y),
+          20, FontWeight.w500, maxWidth: 1080);
+      y += 60;
+    }
+    _text(canvas, 'Текущий расчёт • не акт приёмки и не платёжный документ',
+        const Offset(75, 1642), 16, FontWeight.w400);
+    _textRight(canvas, 'Стр. $page',
+      const Offset(1160, 1687), 16, FontWeight.w600);
+    return _toPng(recorder, size);
+  }
+
   static Future<void> shareFloorPdf(
     MeasureProject project,
     FloorPlan floor,
