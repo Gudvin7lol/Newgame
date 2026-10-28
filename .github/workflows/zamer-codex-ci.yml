@@ -333,8 +333,8 @@ jobs:
             exit 1
           fi
           cat apk-signature.txt
-          if ! grep -Eq '^(V[0-9]+ Signer|Signer #[0-9]+): certificate SHA-256 digest: [0-9a-fA-F]{64}
-            echo "::error::APK certificate fingerprint was not returned in a recognised apksigner format."
+          if ! grep -Eq '^(V[0-9]+ Signer|Signer #[0-9]+): certificate SHA-256 digest: [0-9a-fA-F]{64}$' apk-signature.txt; then
+            echo "::error::APK certificate fingerprint is missing in a recognised apksigner format."
             exit 1
           fi
           grep -Eq '^mode=(temporary-debug|stable-release);' signature-mode.txt || {
@@ -363,65 +363,7 @@ jobs:
 
           if [[ "$REQUEST_STABLE_RELEASE" == true ]]; then
             expected="$(printf '%s' "$EXPECTED_RELEASE_CERT_SHA256" | tr -d ':' | tr '[:upper:]' '[:lower:]')"
-            actual="$(sed -nE 's/^(V[0-9]+ Signer|Signer #[0-9]+): certificate SHA-256 digest: ([0-9a-fA-F]{64})$/\\2/p' apk-signature.txt | head -n 1 | tr '[:upper:]' '[:lower:]')"
-            if [[ ! "$expected" =~ ^[0-9a-f]{64}$ ]]; then
-              echo "::error::Stable signing requires pinned ZAMER_RELEASE_CERT_SHA256 secret (64 hex symbols)."
-              exit 1
-            fi
-            if [[ "$actual" != "$expected" ]]; then
-              echo "::error::Signing identity differs from the pinned release certificate. Refusing APK."
-              exit 1
-            fi
-            grep -q '^mode=stable-release;' signature-mode.txt
-            echo "Stable certificate matches pinned SHA-256."
-          else
-            grep -q '^mode=temporary-debug;' signature-mode.txt
-          fi
-          cat signature-mode.txt
-
-      - name: Upload APK and verification metadata
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ github.event_name == 'workflow_dispatch' && inputs.stable_release && 'Zamer-Stable-Release-APK' || 'Zamer-P11-Preview-APK' }}
-          path: |
-            zamer-app/build/app/outputs/flutter-apk/app-release.apk
-            zamer-app/build/app/outputs/flutter-apk/app-release.apk.sha256
-            zamer-app/build/app/outputs/flutter-apk/signature-mode.txt
-            zamer-app/build/app/outputs/flutter-apk/apk-signature.txt
-            zamer-app/build/app/outputs/flutter-apk/apk-package.txt
-          if-no-files-found: error
-          retention-days: 14
- apk-signature.txt; then
-            echo "::error::APK certificate fingerprint was not returned by apksigner."
-            exit 1
-          fi
-          grep -Eq '^mode=(temporary-debug|stable-release);' signature-mode.txt || {
-            echo "::error::Missing or unrecognised signing mode."
-            exit 1
-          }
-
-          # AAPT2 is supported on modern Android SDK build-tools even
-          # when legacy aapt is absent. Verify exact runtime application ID.
-          aapt2="$(find "$sdk_root/build-tools" -maxdepth 2 -name aapt2 | sort -V | tail -n 1)"
-          if [[ -z "$aapt2" || ! -x "$aapt2" ]]; then
-            echo "::error::aapt2 missing. Cannot inspect APK manifest."
-            exit 1
-          fi
-          "$aapt2" dump packagename app-release.apk > apk-package.txt
-          cat apk-package.txt
-          if [[ "$REQUEST_STABLE_RELEASE" == true ]]; then
-            expected_package=ru.zamer.zamer_app
-          else
-            expected_package=ru.zamer.zamer_app.preview
-          fi
-          if ! grep -Fxq "$expected_package" apk-package.txt; then
-            echo "::error::Unexpected APK application ID. Expected: $expected_package"
-            exit 1
-          fi
-
-          if [[ "$REQUEST_STABLE_RELEASE" == true ]]; then
-            expected="$(printf '%s' "$EXPECTED_RELEASE_CERT_SHA256" | tr -d ':' | tr '[:upper:]' '[:lower:]')"
-            actual="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' apk-signature.txt | head -n 1 | tr -d ':' | tr '[:upper:]' '[:lower:]')"
+            actual="$(sed -nE 's/^(V[0-9]+ Signer|Signer #[0-9]+): certificate SHA-256 digest: ([0-9a-fA-F]{64})$/\2/p' apk-signature.txt | head -n 1 | tr '[:upper:]' '[:lower:]')"
             if [[ ! "$expected" =~ ^[0-9a-f]{64}$ ]]; then
               echo "::error::Stable signing requires pinned ZAMER_RELEASE_CERT_SHA256 secret (64 hex symbols)."
               exit 1
