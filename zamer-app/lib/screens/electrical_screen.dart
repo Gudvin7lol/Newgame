@@ -747,7 +747,12 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     point.frameVertical = next.frameVertical;
     point.type = next.type;
     await widget.onChanged();
-    if (mounted) setState(() => _selectedId = point.id);
+    if (!mounted) return;
+    setState(() => _selectedId = point.id);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: const Text('Точка сохранена'),
+      action: SnackBarAction(label: 'Отменить', onPressed: _undoAction),
+    ));
   }
 
   Future<void> _pointSheet(ElectricalPoint p) async {
@@ -1703,10 +1708,10 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
           Row(
             children: [
               IconButton(
-                tooltip: 'Отменить', onPressed: _undo.isEmpty ? null : _undoAction,
+                tooltip: 'Назад', onPressed: _undo.isEmpty ? null : _undoAction,
                 icon: const Icon(Icons.undo_rounded)),
               IconButton(
-                tooltip: 'Повторить', onPressed: _redo.isEmpty ? null : _redoAction,
+                tooltip: 'Вперёд', onPressed: _redo.isEmpty ? null : _redoAction,
                 icon: const Icon(Icons.redo_rounded)),
               const Spacer(),
               IconButton(
