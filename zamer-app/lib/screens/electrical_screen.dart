@@ -6,6 +6,9 @@ import 'package:flutter/material.dart';
 
 import '../models/models.dart';
 import '../models/electrical_mounting.dart';
+import '../models/electrical_design_draft.dart';
+import '../services/electrical_design_engine.dart';
+import '../widgets/electrical_consumer_draft_editor.dart';
 import '../services/electrical_mounting_service.dart';
 import '../widgets/electrical_mounting_editor.dart';
 import '../widgets/electrical_point_properties.dart';
@@ -33,6 +36,7 @@ enum ElectricalMode { add, wire, select }
 
 /// Three task-level surfaces. Editing action (add/wire/select) stays separate.
 enum ElectricalWorkspaceView { pointsRoutes, loads, board }
+enum ElectricalBoardView { layout, wiring, checks }
 
 class ElectricalScreen extends StatefulWidget {
   const ElectricalScreen({
@@ -60,6 +64,7 @@ class ElectricalScreen extends StatefulWidget {
 class _ElectricalScreenState extends State<ElectricalScreen> {
   ElectricalMode _mode = ElectricalMode.add;
   ElectricalWorkspaceView _workspaceView = ElectricalWorkspaceView.pointsRoutes;
+  ElectricalBoardView _boardView = ElectricalBoardView.layout;
   bool _addArcOpen = false;
   Offset? _placingAt;
   ElectricalPointType _type = ElectricalPointType.socket;
@@ -695,6 +700,177 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
       ? value.toStringAsFixed(0)
       : value.toString();
 
+  Future<void> _editConsumerDraftDirect(ElectricalPoint point) async {
+    final previous = widget.floor.electricalDesignDraft?.consumers[point.id];
+    final next = await showModalBottomSheet<ElectricalConsumerDraft>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => ElectricalConsumerDraftEditor(
+        point: point, initial: previous),
+    );
+    if (!mounted || next == null) return;
+    _pushUndo();
+    final draft = widget.floor.electricalDesignDraft ?? ElectricalDesignDraft();
+    draft.consumers[point.id] = next;
+    widget.floor.electricalDesignDraft = draft;
+    await widget.onChanged();
+    if (mounted) setState(() => _selectedId = point.id);
+  }
+
+  Future<void> _editSupplySettings() async {
+    final initial = widget.floor.electricalDesignDraft?.settings ??
+        const ElectricalSupplyDraft();
+    var phases = initial.phasesCount;
+    final rated = TextEditingController(
+        text: initial.inputBreakerAmps?.toString() ?? '');
+    final allowed = TextEditingController(
+        text: initial.approvedInputPowerKw?.toString() ?? '');
+    final factor = TextEditingController(text: initial.powerFactor.toString());
+    try {
+      final next = await showDialog<ElectricalSupplyDraft>(
+        context: context,
+        builder: (dialog) => StatefulBuilder(
+          builder: (dialog, setDialogState) => AlertDialog(
+            title: const Text('Параметры ввода (проектные)'),
+            content: SingleChildScrollView(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                SegmentedButton<int>(
+                  segments: const [
+                    ButtonSegment(value: 1, label: Text('1 фаза')),
+                    ButtonSegment(value: 3, label: Text('3 фазы')),
+                  ],
+                  selected: {phases},
+                  onSelectionChanged: (v) =>
+                      setDialogState(() => phases = v.first),
+                ),
+                TextField(
+                  controller: allowed,
+                  keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true),
+                  decoration: const InputDecoration(
+                    labelText: 'Подтверждённая выделенная мощность',
+                    suffixText: 'кВт'),
+                ),
+                TextField(
+                  controller: rated,
+                  keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true),
+                  decoration: const InputDecoration(
+                    labelText: 'Вводной аппарат (если известен)',
+                    suffixText: 'А'),
+                ),
+                TextField(
+                  controller: factor,
+                  keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true),
+                  decoration: const InputDecoration(
+                    labelText: 'cos φ (допущение)'),
+                ),
+                const SizedBox(height: 6),
+                const Text('Номинал вводного аппарата не выводится '
+                    'автоматически из выделенной мощности.'),
+              ]),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(dialog),
+                  child: const Text('Отмена')),
+              FilledButton(
+                onPressed: () {
+                  try {
+                    double? optional(TextEditingController c) =>
+                        c.text.trim().isEmpty ? null :
+                        double.tryParse(c.text.replaceAll(',', '.'));
+                    final value = ElectricalSupplyDraft(
+                      phasesCount: phases,
+                      inputBreakerAmps: optional(rated),
+                      approvedInputPowerKw: optional(allowed),
+                      powerFactor:
+                        double.tryParse(factor.text.replaceAll(',', '.')) ??
+                            double.nan,
+                    );
+                    value.validate();
+                    Navigator.pop(dialog, value);
+                  } on FormatException catch (error) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(error.message)));
+                  }
+                },
+                child: const Text('Сохранить'),
+              ),
+            ],
+          ),
+        ),
+      );
+      if (next == null || !mounted) return;
+      _pushUndo();
+      final draft = widget.floor.electricalDesignDraft ??
+          ElectricalDesignDraft();
+      draft.settings = next;
+      widget.floor.electricalDesignDraft = draft;
+      await widget.onChanged();
+      if (mounted) setState(() {});
+    } finally {
+      rated.dispose();
+      allowed.dispose();
+      factor.dispose();
+    }
+  }
+
+  Future<void> _selectManualPhase(ElectricalLineProposal line) async {
+    final draft = widget.floor.electricalDesignDraft;
+    if (draft == null) return;
+    final current = draft.lineOverrides[line.id];
+    final choice = await showModalBottomSheet<ElectricalPhase>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheet) => SafeArea(child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(title: Text('Фаза • ${line.id}')),
+          for (final (phase, label) in const [
+            (ElectricalPhase.unassigned, 'Автобалансировка'),
+            (ElectricalPhase.l1, 'Закрепить L1'),
+            (ElectricalPhase.l2, 'Закрепить L2'),
+            (ElectricalPhase.l3, 'Закрепить L3'),
+          ])
+            ListTile(
+              title: Text(label),
+              trailing: line.phase == phase
+                  ? const Icon(Icons.check) : null,
+              onTap: () => Navigator.pop(sheet, phase),
+            ),
+        ],
+      )),
+    );
+    if (choice == null || !mounted) return;
+    final locks = <String>{...?current?.lockedFields};
+    if (choice == ElectricalPhase.unassigned) {
+      locks.remove('phase');
+    } else {
+      locks.add('phase');
+    }
+    final next = ElectricalLineManualDraft(
+      lineId: line.id,
+      phase: choice,
+      protection: current?.protection ?? ElectricalProtection.unknown,
+      rcdId: current?.rcdId,
+      breakerAmps: current?.breakerAmps,
+      cableSectionMm2: current?.cableSectionMm2,
+      adjustedAmpacityAmps: current?.adjustedAmpacityAmps,
+      rcdLeakageMa: current?.rcdLeakageMa,
+      rcdRatedAmps: current?.rcdRatedAmps,
+      moduleRow: current?.moduleRow,
+      moduleIndex: current?.moduleIndex,
+      pointIdsSnapshot: List<String>.from(line.pointIds)..sort(),
+      lockedFields: locks,
+    );
+    _pushUndo();
+    draft.lineOverrides[line.id] = next;
+    await widget.onChanged();
+    if (mounted) setState(() {});
+  }
+
   Future<void> _editMountingDirect(ElectricalPoint point) async {
     if (point.wallId == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -825,6 +1001,12 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                   label: const Text('Кабели и клеммы'),
                 ),
               OutlinedButton.icon(
+                key: const ValueKey('electrical-consumer-classify'),
+                onPressed: () => Navigator.pop(sheet, 'consumer'),
+                icon: const Icon(Icons.category_outlined),
+                label: const Text('Потребитель и расчёт'),
+              ),
+              OutlinedButton.icon(
                 key: const ValueKey('edit-point-properties'),
                 onPressed: () => Navigator.pop(sheet, 'properties'),
                 icon: const Icon(Icons.tune),
@@ -845,6 +1027,9 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
       return;
     } else if (action == 'properties') {
       await _editPropertiesDirect(p);
+      return;
+    } else if (action == 'consumer') {
+      await _editConsumerDraftDirect(p);
       return;
     } else if (action == 'junction') {
       final before = jsonEncode(widget.floor.toJson());
@@ -1600,91 +1785,252 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
   }
 
   Widget _loadWorkspace() {
-    final draft = ElectricalBoardDraftService.create(widget.floor);
+    final draft = widget.floor.electricalDesignDraft;
+    final result = draft == null
+        ? null : ElectricalDesignEngine.calculate(widget.floor, draft);
     return ListView(
       key: const ValueKey('electrical-loads-workspace'),
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 18),
       children: [
-        Text('Группы и нагрузки',
-            style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 4),
-        Text('Известно: ${draft.knownConnectedWatts.toStringAsFixed(0)} Вт • '
-            '${draft.circuits.length} групп. Не является подбором автоматов.'),
-        if (draft.unratedLoads > 0)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Text(
-              'Не указана мощность у ${draft.unratedLoads} точек. '
-              'Суммарная нагрузка неполная.',
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
-            ),
+        Row(children: [
+          Expanded(child: Text('Линии и нагрузки',
+              style: Theme.of(context).textTheme.titleMedium)),
+          OutlinedButton.icon(
+            key: const ValueKey('electrical-design-settings'),
+            onPressed: _editSupplySettings,
+            icon: const Icon(Icons.tune, size: 17),
+            label: const Text('Ввод'),
           ),
-        if (draft.circuits.isEmpty)
-          const ListTile(title: Text('Групп пока нет'),
-              subtitle: Text('Назначь точки группам на плане.')),
-        for (final circuit in draft.circuits)
-          Card(
-            child: ListTile(
+        ]),
+        if (draft == null) ...[
+          const Card(child: ListTile(
+            title: Text('Инженерный расчёт не настроен'),
+            subtitle: Text('Укажи параметры ввода и назначь приборам '
+                'профили мощности в карточках точек.'),
+          )),
+          for (final circuit in ElectricalBoardDraftService.create(
+              widget.floor).circuits)
+            Card(child: ListTile(
               title: Text(circuit.load.name),
               subtitle: Text(
-                '${circuit.load.loadCount} точек • '
-                '${circuit.load.connectedWatts.toStringAsFixed(0)} Вт • '
-                '≈${circuit.load.estimatedAmps.toStringAsFixed(1)} А\n'
-                '${circuit.protectiveDeviceStatus}',
+                '${circuit.load.connectedWatts.toStringAsFixed(0)} Вт '
+                '(известные нагрузки) • предварительная группа'),
+            )),
+        ],
+        if (result != null) ...[
+          Card(child: ListTile(
+            title: Text('Установленная: ${result.installedWatts == null ? 'неполная' :
+                '${(result.installedWatts! / 1000).toStringAsFixed(2)} кВт'}'),
+            subtitle: Text('Расчётная: ${result.demandWatts == null ? 'неполная' :
+                '${(result.demandWatts! / 1000).toStringAsFixed(2)} кВт'} · '
+                '${draft!.settings.phasesCount}Ф. '
+                'Данные для проектирования, не допуск к монтажу.'),
+          )),
+          if (draft!.settings.phasesCount == 3)
+            Card(child: ListTile(
+              title: Text('Фазы • перекос ${result.imbalancePercent == null ?
+                  'неизвестен' : '${result.imbalancePercent!.toStringAsFixed(1)}%'}'),
+              subtitle: Text(
+                'L1 ${result.phaseWatts[ElectricalPhase.l1]!.toStringAsFixed(0)} Вт • '
+                'L2 ${result.phaseWatts[ElectricalPhase.l2]!.toStringAsFixed(0)} Вт • '
+                'L3 ${result.phaseWatts[ElectricalPhase.l3]!.toStringAsFixed(0)} Вт'),
+            )),
+          for (final line in result.lines)
+            Card(child: ListTile(
+              title: Text(line.id, maxLines: 1,
+                  overflow: TextOverflow.ellipsis),
+              subtitle: Text(
+                '${line.pointIds.length} точек • '
+                '${line.demandWatts == null ? 'мощность не задана' :
+                    '${line.demandWatts!.toStringAsFixed(0)} Вт'} • '
+                '${line.phase.name.toUpperCase()}'
+                '${draft.lineOverrides[line.id]?.locked('phase') == true ?
+                    ' • закреплена' : ''}'),
+              trailing: const Icon(Icons.lock_outline),
+              onTap: () => _selectManualPhase(line),
+            )),
+          if (result.issues.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text('Проверки и недостающие исходные данные',
+                style: Theme.of(context).textTheme.titleMedium),
+            for (final issue in result.issues.take(12))
+              ListTile(
+                dense: true,
+                leading: Icon(
+                  issue.severity == ElectricalIssueSeverity.error
+                      ? Icons.error_outline : Icons.info_outline,
+                  color: issue.severity == ElectricalIssueSeverity.error
+                      ? Theme.of(context).colorScheme.error
+                      : Theme.of(context).colorScheme.tertiary),
+                title: Text(issue.message),
+                subtitle: Text(issue.code),
               ),
-              isThreeLine: true,
-              trailing: circuit.incomplete
-                  ? const Icon(Icons.warning_amber_rounded)
-                  : const Icon(Icons.chevron_right),
-              onTap: () => setState(() {
-                _workspaceView = ElectricalWorkspaceView.pointsRoutes;
-                _routeCircuitFilterId = widget.floor.electricalNetwork?.circuits
-                    .where((c) => c.name == circuit.load.name)
-                    .firstOrNull?.id;
-                _show3dRoutes = true;
-              }),
-            ),
-          ),
-        const Padding(
-          padding: EdgeInsets.symmetric(vertical: 10),
-          child: Text('Ток указан только для известных нагрузок. '
-              'Одновременность, фазы и защита требуют отдельных исходных данных.'),
-        ),
+          ],
+        ],
       ],
     );
   }
 
   Widget _boardWorkspace() {
     final draft = ElectricalBoardDraftService.create(widget.floor);
-    return ListView(
-      key: const ValueKey('electrical-board-workspace'),
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 18),
+    final design = widget.floor.electricalDesignDraft;
+    final checks = design == null
+        ? null : ElectricalDesignEngine.calculate(widget.floor, design);
+    return Column(
       children: [
-        Text('Щит • предварительная компоновка',
-            style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 8),
-        const Text('Пока это схема логических секций. DIN-размеры, '
-            'номиналы аппаратов, шины N/PE и клеммные подключения '
-            'не рассчитаны. По этому эскизу нельзя собирать щит.'),
-        const SizedBox(height: 12),
-        for (final section in draft.sections)
-          Card(
-            child: ListTile(
-              dense: true,
-              leading: const Icon(Icons.view_module_outlined),
-              title: Text(section.label),
-              subtitle: Text(section.role),
-            ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 2),
+          child: Row(
+            key: const ValueKey('electrical-board-three-tabs'),
+            children: [
+              for (final (view, label) in const [
+                (ElectricalBoardView.layout, 'Компоновка'),
+                (ElectricalBoardView.wiring, 'Схема'),
+                (ElectricalBoardView.checks, 'Проверки'),
+              ])
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 2),
+                    child: TextButton(
+                      key: ValueKey('electrical-board-tab-${view.name}'),
+                      onPressed: () => setState(() => _boardView = view),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 4, vertical: 8),
+                        backgroundColor: _boardView == view
+                            ? Theme.of(context).colorScheme.primaryContainer
+                            : Theme.of(context).colorScheme.surfaceContainer,
+                      ),
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(label,
+                            style: const TextStyle(fontSize: 12))),
+                    ),
+                  ),
+                ),
+            ],
           ),
-        const SizedBox(height: 8),
-        FilledButton.tonalIcon(
-          onPressed: _showCableJournal,
-          icon: const Icon(Icons.inventory_2_outlined),
-          label: const Text('Кабельный журнал'),
         ),
-        const SizedBox(height: 10),
-        Text(draft.protectionStatus,
-            style: TextStyle(color: Theme.of(context).colorScheme.error)),
+        Expanded(
+          child: ListView(
+            key: const ValueKey('electrical-board-workspace'),
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 18),
+            children: [
+              if (_boardView == ElectricalBoardView.layout) ...[
+                Text('Щит • предварительная компоновка',
+                    style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 8),
+                const Text('Пока это схема логических секций. DIN-размеры, '
+                    'номиналы аппаратов, шины N/PE и клеммные подключения '
+                    'не рассчитаны. По этому эскизу нельзя собирать щит.'),
+                const SizedBox(height: 12),
+                if (checks != null) ...[
+                  const Card(
+                    child: ListTile(
+                      leading: Icon(Icons.input_outlined),
+                      title: Text('Ввод и защитные аппараты'),
+                      subtitle: Text('Параметры и компоновка ещё не рассчитаны.'),
+                    ),
+                  ),
+                  for (final line in checks.lines)
+                    Card(
+                      child: ListTile(
+                        dense: true,
+                        leading: Icon(
+                          line.kind == ElectricalConsumerKind.lighting
+                              ? Icons.lightbulb_outline
+                              : Icons.power_outlined,
+                        ),
+                        title: Text(
+                          line.kind == ElectricalConsumerKind.lighting
+                              ? 'Свет • ${line.roomId}'
+                              : line.kind == ElectricalConsumerKind.sockets
+                                  ? 'Розетки • ${line.roomId}'
+                                  : line.critical
+                                      ? 'Неотключаемая • ${line.pointIds.first}'
+                                      : 'Отдельная • ${line.pointIds.first}',
+                        ),
+                        subtitle: Text(
+                          'Линия ${line.id} · ${line.phase.name.toUpperCase()} · '
+                          '${line.demandWatts == null ? 'мощность неизвестна' :
+                            '${line.demandWatts!.toStringAsFixed(0)} Вт'} · '
+                          'номинал и DIN-место не подобраны'),
+                      ),
+                    ),
+                ] else
+                  for (final section in draft.sections)
+                    Card(
+                      child: ListTile(
+                        dense: true,
+                        leading: const Icon(Icons.view_module_outlined),
+                        title: Text(section.label),
+                        subtitle: Text(section.role),
+                      ),
+                    ),
+              ],
+              if (_boardView == ElectricalBoardView.wiring) ...[
+                Text('Клеммная ведомость • не сформирована',
+                    style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 10),
+                const Card(
+                  child: ListTile(
+                    leading: Icon(Icons.lock_outline),
+                    title: Text('Монтажные подключения заблокированы'),
+                    subtitle: Text('Пока не выбрана конкретная модель '
+                        'защиты, не проверены шины, топология L/N/PE '
+                        'и схема изготовителя, нельзя выдавать '
+                        'инструкции к клеммам автоматов или УЗО.'),
+                  ),
+                ),
+                if (checks != null)
+                  Text('Открытых замечаний: ${checks.issues.length}'),
+              ],
+              if (_boardView == ElectricalBoardView.checks) ...[
+                Text('Инженерные проверки',
+                    style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 8),
+                if (checks == null)
+                  const Card(
+                    child: ListTile(
+                      title: Text('Нет исходных данных для проверок'),
+                      subtitle: Text('Заполни параметры ввода и '
+                          'потребителей во вкладке «Нагрузки».'),
+                    ),
+                  )
+                else
+                  for (final issue in checks.issues)
+                    Card(
+                      child: ListTile(
+                        leading: Icon(
+                          issue.severity == ElectricalIssueSeverity.error
+                              ? Icons.error_outline
+                              : Icons.info_outline,
+                          color: issue.severity == ElectricalIssueSeverity.error
+                              ? Theme.of(context).colorScheme.error : null,
+                        ),
+                        title: Text(issue.message),
+                        subtitle: Text(issue.code),
+                      ),
+                    ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  child: Text('Даже отсутствие найденных конфликтов '
+                      'не означает, что проект согласован для монтажа.'),
+                ),
+              ],
+              const SizedBox(height: 12),
+              FilledButton.tonalIcon(
+                onPressed: _showCableJournal,
+                icon: const Icon(Icons.inventory_2_outlined),
+                label: const Text('Кабельный журнал'),
+              ),
+              const SizedBox(height: 10),
+              Text(draft.protectionStatus,
+                  style: TextStyle(
+                      color: Theme.of(context).colorScheme.error)),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -1822,7 +2168,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
             point: selected,
             onDatum: () => _editMountingDirect(selected),
             onHeight: () => _quickPointHeight(selected),
-            onLoad: () => _editPropertiesDirect(selected),
+            onLoad: () => _editConsumerDraftDirect(selected),
           ),
         if (_workspaceView == ElectricalWorkspaceView.pointsRoutes &&
             !widget.embedded && widget.floor.electricalPoints.isNotEmpty)

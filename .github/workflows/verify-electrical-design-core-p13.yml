@@ -1,0 +1,45 @@
+name: Verify electrical design core P13
+
+on:
+  push:
+    branches: ['feature/zamer-electrical-design-core-p13']
+  pull_request:
+    paths:
+      - 'zamer-app/lib/models/electrical_design_draft.dart'
+      - 'zamer-app/lib/models/models.dart'
+      - 'zamer-app/lib/services/electrical_design_engine.dart'
+      - 'zamer-app/test/electrical_design_core_p13_test.dart'
+      - '.github/workflows/verify-electrical-design-core-p13.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  electrical-design-core:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Dependencies
+        working-directory: zamer-app
+        run: flutter pub get
+      - name: Analyze P13 domain
+        working-directory: zamer-app
+        run: |
+          flutter analyze --no-fatal-infos --no-fatal-warnings \
+            lib/models/electrical_design_draft.dart \
+            lib/models/models.dart \
+            lib/services/electrical_design_engine.dart \
+            test/electrical_design_core_p13_test.dart
+      - name: Test engineering constraints and P11 migration
+        working-directory: zamer-app
+        run: |
+          flutter test \
+            test/electrical_design_core_p13_test.dart \
+            test/electrical_board_draft_v155_test.dart \
+            test/electrical_assigned_datums_p10_test.dart
