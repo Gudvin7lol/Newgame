@@ -65,6 +65,8 @@ void main() {
     expect(report.works.single.accepted, 4);
     expect(report.works.single.paid, 0);
     expect(report.purchaseEntries, hasLength(1));
+    expect(report.purchases.firstWhere(
+        (p) => p.key == row.line.key).paidLinked, 2400);
     expect(report.cashEntries, hasLength(3));
     expect(report.unpaidLinkedPurchases, 0);
     expect(report.underboughtPositions, greaterThan(0));
@@ -146,4 +148,35 @@ void main() {
     expect(report.budget.actualTotal, 0);
     expect(report.toCsv(), contains('Предварительный'));
   });
+  test('cancelled quantity with paid receipt is flagged until cash correction', () {
+    final project = site();
+    final key = ProcurementService.coverage(project).firstWhere(
+        (item) => item.line.name == 'Ламинат / SPC').line.key;
+    final purchase = ProcurementService.recordWithPayment(
+      project, estimateKey: key, quantity: 2, paidAmount: 1500,
+    );
+    final independent = BudgetService.record(
+      project, category: CostCategory.materials,
+      description: 'Доставка без закупочного чека', amount: 200,
+    );
+    ProcurementService.voidRecord(project, purchase.id);
+    var report = ProjectFinancialReportService.build(project);
+    expect(report.cancelledPurchasesWithOutstandingPayment, 1);
+    expect(report.unlinkedMaterialPayments, 1);
+    expect(report.toCsv(), contains(
+        'Отменённых закупок с неотменённой оплатой;1'));
+    expect(report.budget.actualMaterials, 1700);
+
+    final linked = project.costEntries.firstWhere(
+        (entry) => entry.purchaseId == purchase.id && !entry.isReversal);
+    BudgetService.voidRecord(project, linked.id);
+    BudgetService.voidRecord(project, independent.id);
+    report = ProjectFinancialReportService.build(project);
+    expect(report.cancelledPurchasesWithOutstandingPayment, 0);
+    expect(report.unlinkedMaterialPayments, 0);
+    expect(report.budget.actualMaterials, 0);
+    expect(report.purchases.firstWhere((item) => item.key == key)
+        .paidLinked, 0);
+  });
+
 }
