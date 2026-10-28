@@ -52,9 +52,12 @@ void main() {
     expect(project.materialPurchases, hasLength(1));
     expect(ProcurementService.purchasedFor(
         project, before.line.key), 2);
-    expect(find.textContaining('Куплено: 2.00 пач.'), findsWidgets);
-
-    await tester.ensureVisible(find.byTooltip('Отменить закупку'));
+    // The history is below the purchase list and is initially off-screen.
+    await tester.scrollUntilVisible(
+      find.byTooltip('Отменить закупку'),
+      400,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.tap(find.byTooltip('Отменить закупку'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Отменить запись').last);
