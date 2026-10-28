@@ -11,6 +11,7 @@ class CostEntry {
     required this.amount,
     this.taskId,
     this.estimateKey,
+    this.purchaseId,
     this.reversesId,
   });
 
@@ -23,6 +24,8 @@ class CostEntry {
   final String? taskId;
   /// Link to an estimate row, stable across display-name changes when possible.
   final String? estimateKey;
+  /// Optional physical purchase receipt this payment belongs to.
+  final String? purchaseId;
   /// Non-null for a compensating record. Paid originals are not rewritten.
   final String? reversesId;
   bool get isReversal => reversesId != null;
@@ -36,6 +39,7 @@ class CostEntry {
     'amount': amount,
     'taskId': taskId,
     'estimateKey': estimateKey,
+    'purchaseId': purchaseId,
     'reversesId': reversesId,
   };
 
@@ -54,6 +58,7 @@ class CostEntry {
       amount: amount,
       taskId: json['taskId']?.toString(),
       estimateKey: json['estimateKey']?.toString(),
+      purchaseId: json['purchaseId']?.toString(),
       reversesId: json['reversesId']?.toString(),
     );
   }

@@ -75,6 +75,7 @@ class BudgetService {
     required double amount,
     String? taskId,
     String? estimateKey,
+    String? purchaseId,
     DateTime? at,
   }) {
     if (!amount.isFinite || amount <= 0 || amount > 1000000000000) {
@@ -91,11 +92,31 @@ class BudgetService {
       throw ArgumentError.value(taskId, 'taskId',
           'Связанная работа не найдена в проекте');
     }
+    if (purchaseId != null) {
+      if (category != CostCategory.materials) {
+        throw ArgumentError.value(purchaseId, 'purchaseId',
+            'К закупке можно привязать только расход на материалы');
+      }
+      final purchases = project.materialPurchases.where(
+          (purchase) => purchase.id == purchaseId && !purchase.isReversal);
+      if (purchases.length != 1 || project.materialPurchases.any(
+          (purchase) => purchase.reversesId == purchaseId)) {
+        throw ArgumentError.value(purchaseId, 'purchaseId',
+            'Закупка не найдена или уже отменена');
+      }
+      if (project.costEntries.any((entry) =>
+          entry.purchaseId == purchaseId && !entry.isReversal &&
+          !project.costEntries.any((correction) =>
+              correction.reversesId == entry.id))) {
+        throw StateError('Эта закупка уже имеет активную запись оплаты');
+      }
+    }
     final date = at ?? DateTime.now();
     final entry = CostEntry(
       id: _uniqueId(project, date), at: date, category: category,
       description: title, amount: amount,
       taskId: taskId, estimateKey: estimateKey,
+      purchaseId: purchaseId,
     );
     project.costEntries.add(entry);
     return entry;
@@ -117,6 +138,7 @@ class BudgetService {
       category: entry.category, amount: entry.amount,
       description: 'Отмена: ${entry.description}',
       taskId: entry.taskId, estimateKey: entry.estimateKey,
+      purchaseId: entry.purchaseId,
       reversesId: id,
     );
     project.costEntries.add(correction);

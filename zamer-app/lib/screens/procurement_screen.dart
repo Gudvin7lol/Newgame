@@ -24,10 +24,12 @@ class ProcurementScreen extends StatefulWidget {
 class _ProcurementScreenState extends State<ProcurementScreen> {
   Future<void> _record(EstimateLine line) async {
     var raw = '';
-    final result = await showDialog<double>(
+    var paidRaw = '';
+    final result = await showDialog<({double quantity, double? paid})>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text('Закупка: ${line.name}'),
+        scrollable: true,
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -48,9 +50,20 @@ class _ProcurementScreenState extends State<ProcurementScreen> {
               ),
             ),
             const SizedBox(height: 12),
+            TextField(
+              key: const Key('purchase-paid'),
+              onChanged: (value) => paidRaw = value,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                labelText: 'Оплачено по чеку, ₽ (необязательно)',
+                hintText: 'Оставь пустым, если ещё не оплачено',
+              ),
+            ),
+            const SizedBox(height: 12),
             const Text(
-              'Это учёт количества закупленного материала. '
-              'Деньги записываются отдельно в «Бюджет и факт».',
+              'Количество учитывается в закупках. Указанная оплата '
+              'один раз попадёт в «Бюджет и факт».',
               style: ZamerTypography.caption,
             ),
           ],
@@ -78,7 +91,18 @@ class _ProcurementScreenState extends State<ProcurementScreen> {
                 );
                 return;
               }
-              Navigator.pop(dialogContext, value);
+              final paidText = paidRaw.trim();
+              final paid = paidText.isEmpty
+                  ? null
+                  : double.tryParse(paidText.replaceAll(',', '.'));
+              if (paidText.isNotEmpty && (paid == null ||
+                  !paid.isFinite || paid <= 0 || paid > 1000000000000)) {
+                ScaffoldMessenger.of(dialogContext).showSnackBar(
+                  const SnackBar(content: Text('Проверь оплаченную сумму')),
+                );
+                return;
+              }
+              Navigator.pop(dialogContext, (quantity: value, paid: paid));
             },
             child: const Text('Записать'),
           ),
@@ -86,8 +110,11 @@ class _ProcurementScreenState extends State<ProcurementScreen> {
       ),
     );
     if (result == null) return;
-    ProcurementService.record(
-      widget.project, estimateKey: line.key, quantity: result,
+    ProcurementService.recordWithPayment(
+      widget.project,
+      estimateKey: line.key,
+      quantity: result.quantity,
+      paidAmount: result.paid,
     );
     await widget.onChanged();
     if (mounted) setState(() {});
@@ -103,7 +130,9 @@ class _ProcurementScreenState extends State<ProcurementScreen> {
         content: const Text(
           'Исходная запись останется в истории. '
           'Количество будет скорректировано обратной записью. '
-          'Финансовые расходы это не изменит.',
+          'Связанная оплата останется в финансовом журнале. '
+          'Если деньги возвращены или запись ошибочна, '
+          'отмени оплату отдельно в «Бюджет и факт».',
         ),
         actions: [
           TextButton(
@@ -246,6 +275,14 @@ class _ProcurementScreenState extends State<ProcurementScreen> {
                             '${entry.at.year}',
                             style: ZamerTypography.caption,
                           ),
+                          if (!entry.isReversal &&
+                              ProcurementService.paidForPurchase(
+                                  widget.project, entry.id) > 0)
+                            Text(
+                              'Оплачено: '
+                              '${ProcurementService.paidForPurchase(widget.project, entry.id).toStringAsFixed(0)} ₽',
+                              style: ZamerTypography.caption,
+                            ),
                         ],
                       ),
                     ),

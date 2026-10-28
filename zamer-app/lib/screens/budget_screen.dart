@@ -24,6 +24,14 @@ class BudgetScreen extends StatefulWidget {
 }
 
 class _BudgetScreenState extends State<BudgetScreen> {
+  String _purchaseInfo(String id) {
+    final purchase = widget.project.materialPurchases
+        .where((item) => item.id == id).firstOrNull;
+    if (purchase == null) return 'Связанный чек закупки не найден';
+    return 'Куплено по чеку: '
+        '${purchase.quantity.toStringAsFixed(2)} ${purchase.unit}';
+  }
+
   Future<void> _setTaskRate(WorkTask task) async {
     var raw = '';
     final price = await showDialog<double>(
@@ -411,6 +419,11 @@ class _BudgetScreenState extends State<BudgetScreen> {
                             '${entry.taskId != null ? ' · работа привязана' : ''}',
                             style: ZamerTypography.caption,
                           ),
+                          if (entry.purchaseId != null)
+                            Text(
+                              _purchaseInfo(entry.purchaseId!),
+                              style: ZamerTypography.caption,
+                            ),
                         ],
                       ),
                     ),
