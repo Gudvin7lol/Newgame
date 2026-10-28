@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:math' as math;
+import 'dart:ui' show PointerDeviceKind;
 
 import 'package:flutter/material.dart';
 
@@ -1527,7 +1528,8 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     setState(() => _placingAt = null);
     if (at == null || _pinchingCamera || _touches.length > 1) return;
     // Reuse the same validated placement path as tap-to-add.
-    await _tap(TapUpDetails(localPosition: at), size);
+    await _tap(TapUpDetails(kind: PointerDeviceKind.touch,
+        localPosition: at), size);
   }
 
   Widget _workspaceTabs() {
@@ -1716,10 +1718,10 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                 onTapUp: (d) => _tap(d, size),
                 onPanStart: _mode == ElectricalMode.select
                     ? (d) => _dragStart(d, size)
-                    : null,
+                    : _mode == ElectricalMode.add ? _placePanStart : null,
                 onPanUpdate: _mode == ElectricalMode.select
                     ? (d) => _dragUpdate(d, size)
-                    : null,
+                    : _mode == ElectricalMode.add ? _placePanUpdate : null,
                 onPanEnd: _mode == ElectricalMode.select ? _dragEnd
                     : _mode == ElectricalMode.add ? (_) => _placePanEnd(size)
                     : null,
