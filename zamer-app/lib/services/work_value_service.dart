@@ -74,7 +74,8 @@ class WorkValueService {
       final rate = rateFor(project, task);
       if (accepted > 0) {
         acceptedTasks++;
-        if (task.needsQuantityReview) flagged++;
+        if (task.needsQuantityReview || task.accepted > scope + 0.0001 ||
+            task.accepted < 0) flagged++;
         if (rate == null) unpricedAccepted++;
       }
       if (rate != null) {
