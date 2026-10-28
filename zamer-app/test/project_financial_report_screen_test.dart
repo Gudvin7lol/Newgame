@@ -30,9 +30,10 @@ void main() {
   testWidgets('PDF financial export returns actual PDF bytes for an empty site',
       (tester) async {
     final project = MeasureProject(id: 'pdf', name: 'Тестовый объект');
-    final bytes = await ReportService.buildFinancialPdf(
-      project, at: DateTime(2026, 10, 28, 12));
-    expect(bytes.length, greaterThan(1000));
+    final bytes = await tester.runAsync(() => ReportService.buildFinancialPdf(
+      project, at: DateTime(2026, 10, 28, 12)));
+    expect(bytes, isNotNull);
+    expect(bytes!.length, greaterThan(1000));
     expect(String.fromCharCodes(bytes.take(4)), '%PDF');
   });
 }
