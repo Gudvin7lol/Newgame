@@ -16,7 +16,13 @@ class PortableProjectBackup {
     final directory = Directory('${documents.path}/zamer_photos/$newId');
     await directory.create(recursive: true);
     var serial = 0;
-    for (final floor in copy.floors) {
+    // Revision snapshots can also contain room photo references.
+    // Restore their files too, not just the newest live floor.
+    final allFloors = <FloorPlan>[
+      ...copy.floors,
+      for (final revision in copy.revisions) ...revision.floors,
+    ];
+    for (final floor in allFloors) {
       for (final room in floor.roomMetas) {
         for (var i = 0; i < room.photoPaths.length; i++) {
           final name = room.photoPaths[i];
@@ -96,14 +102,25 @@ class ProjectBackupService {
   /// phone. Missing pictures stop export instead of producing a false backup.
   static Future<Uint8List> encodePortable(MeasureProject project) async {
     final data = project.toJson();
-    final floors = data['floors'] as List;
+    // Flatten live floors + saved revision floors in the SAME order
+    // in both JSON data and the typed project to keep photo slots aligned.
+    final modelFloors = <FloorPlan>[
+      ...project.floors,
+      for (final revision in project.revisions) ...revision.floors,
+    ];
+    final dataFloors = <Map>[
+      for (final item in (data['floors'] as List)) item as Map,
+      for (final revision in (data['revisions'] as List))
+        for (final item in ((revision as Map)['floors'] as List))
+          item as Map,
+    ];
     final archive = Archive();
     var total = 0;
     var count = 0;
-    for (var f = 0; f < project.floors.length; f++) {
-      final rooms = (floors[f] as Map)['roomMetas'] as List;
-      for (var r = 0; r < project.floors[f].roomMetas.length; r++) {
-        final paths = project.floors[f].roomMetas[r].photoPaths;
+    for (var f = 0; f < modelFloors.length; f++) {
+      final rooms = dataFloors[f]['roomMetas'] as List;
+      for (var r = 0; r < modelFloors[f].roomMetas.length; r++) {
+        final paths = modelFloors[f].roomMetas[r].photoPaths;
         final savedPaths = (rooms[r] as Map)['photoPaths'] as List;
         for (var i = 0; i < paths.length; i++) {
           final file = File(paths[i]);
@@ -183,7 +200,11 @@ class ProjectBackupService {
       );
       final photos = <String, Uint8List>{};
       final expected = <String>{};
-      for (final floor in project.floors) {
+      final allFloors = <FloorPlan>[
+        ...project.floors,
+        for (final revision in project.revisions) ...revision.floors,
+      ];
+      for (final floor in allFloors) {
         final ids = floor.nodes.map((e) => e.id).toSet();
         if (floor.walls.any(
           (w) => !ids.contains(w.startNodeId) || !ids.contains(w.endNodeId),
