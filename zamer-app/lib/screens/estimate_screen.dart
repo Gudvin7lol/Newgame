@@ -8,6 +8,8 @@ import '../design_system/zamer_components.dart';
 import '../design_system/zamer_tokens.dart';
 import '../models/models.dart';
 import '../services/estimate_service.dart';
+import 'budget_screen.dart';
+import 'procurement_screen.dart';
 
 class EstimateScreen extends StatefulWidget {
   const EstimateScreen({
@@ -24,7 +26,8 @@ class EstimateScreen extends StatefulWidget {
 }
 
 class _EstimateScreenState extends State<EstimateScreen> {
-  bool _work = false;
+  // 0 = measured consumption, 1 = purchasable packages, 2 = labor.
+  int _section = 0;
 
   Future<void> _price(EstimateLine line) async {
     var raw = line.unitPrice == 0 ? '' : line.unitPrice.toStringAsFixed(2);
@@ -61,26 +64,34 @@ class _EstimateScreenState extends State<EstimateScreen> {
     if (value == null || value < 0 || !value.isFinite || value > 100000000) {
       return;
     }
-    (_work ? widget.project.workRates : widget.project.unitPrices)[line.key] =
+    (_section == 2 ? widget.project.workRates : widget.project.unitPrices)[line.key] =
         value;
     await widget.onChanged();
     if (mounted) setState(() {});
   }
 
-  String _export(ProjectEstimate materials, ProjectEstimate works) => [
+
+  String _export(ProjectEstimate materials, ProjectEstimate purchases,
+      ProjectEstimate works) => [
     '\uFEFFРаздел;Наименование;Количество;Ед.;Цена за ед., ₽;Сумма, ₽',
-    for (final section in [('Материалы', materials), ('Работы', works)]) ...[
+    for (final section in [
+      ('Материалы: расход', materials),
+      ('Закупка', purchases),
+      ('Работы', works),
+    ]) ...[
       for (final line in section.$2.lines)
         '${section.$1};${line.name};${line.quantity.toStringAsFixed(2)};${line.unit};'
             '${line.unitPrice <= 0 ? 'цена не задана' : line.unitPrice.toStringAsFixed(2)};'
             '${line.unitPrice <= 0 ? 'цена не задана' : line.total.toStringAsFixed(2)}',
       '${section.$1};Итого оценённые;;;;${section.$2.pricedTotal.toStringAsFixed(2)}',
     ],
+    'Бюджет закупка + работы;;;;;${(purchases.pricedTotal + works.pricedTotal).toStringAsFixed(2)}',
   ].join('\n');
 
-  Future<void> _copy(ProjectEstimate materials, ProjectEstimate works) async {
+  Future<void> _copy(ProjectEstimate materials, ProjectEstimate purchases,
+      ProjectEstimate works) async {
     await Clipboard.setData(
-      ClipboardData(text: _export(materials, works)),
+      ClipboardData(text: _export(materials, purchases, works)),
     );
     if (!mounted) return;
     ScaffoldMessenger.of(
@@ -88,11 +99,12 @@ class _EstimateScreenState extends State<EstimateScreen> {
     ).showSnackBar(const SnackBar(content: Text('Смета скопирована')));
   }
 
-  void _share(ProjectEstimate materials, ProjectEstimate works) {
+  void _share(ProjectEstimate materials, ProjectEstimate purchases,
+      ProjectEstimate works) {
     Share.shareXFiles(
       [
         XFile.fromData(
-          Uint8List.fromList(utf8.encode(_export(materials, works))),
+          Uint8List.fromList(utf8.encode(_export(materials, purchases, works))),
           mimeType: 'text/csv',
         ),
       ],
@@ -103,9 +115,15 @@ class _EstimateScreenState extends State<EstimateScreen> {
   @override
   Widget build(BuildContext context) {
     final materials = EstimateService.build(widget.project);
+    final purchases = EstimateService.buildPurchases(widget.project);
     final works = EstimateService.buildWork(widget.project);
-    final estimate = _work ? works : materials;
-    final combined = materials.pricedTotal + works.pricedTotal;
+    final estimate = switch (_section) {
+      0 => materials,
+      1 => purchases,
+      _ => works,
+    };
+    // Purchase and consumption represent the same goods, never sum both.
+    final combined = purchases.pricedTotal + works.pricedTotal;
 
     return Scaffold(
       appBar: AppBar(
@@ -117,15 +135,44 @@ class _EstimateScreenState extends State<EstimateScreen> {
           ],
         ),
         actions: [
+          if (_section == 1)
+            IconButton(
+              tooltip: 'Учёт закупок',
+              icon: const Icon(Icons.inventory_outlined),
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => ProcurementScreen(
+                    project: widget.project,
+                    onChanged: widget.onChanged,
+                  ),
+                ),
+              ).then((_) {
+                if (mounted) setState(() {});
+              }),
+            ),
+          IconButton(
+            tooltip: 'Бюджет и факт',
+            icon: const Icon(Icons.account_balance_wallet_outlined),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => BudgetScreen(
+                  project: widget.project,
+                  onChanged: widget.onChanged,
+                ),
+              ),
+            ).then((_) {
+              if (mounted) setState(() {});
+            }),
+          ),
           IconButton(
             tooltip: 'Скопировать смету',
             icon: const Icon(Icons.copy_all_outlined),
-            onPressed: () => _copy(materials, works),
+            onPressed: () => _copy(materials, purchases, works),
           ),
           IconButton(
             tooltip: 'Поделиться сметой',
             icon: const Icon(Icons.ios_share_outlined),
-            onPressed: () => _share(materials, works),
+            onPressed: () => _share(materials, purchases, works),
           ),
           const SizedBox(width: ZamerSpace.xs),
         ],
@@ -141,22 +188,27 @@ class _EstimateScreenState extends State<EstimateScreen> {
             ),
             child: SizedBox(
               width: double.infinity,
-              child: SegmentedButton<bool>(
+              child: SegmentedButton<int>(
                 segments: const [
                   ButtonSegment(
-                    value: false,
-                    icon: Icon(Icons.inventory_2_outlined),
-                    label: Text('Материалы'),
+                    value: 0,
+                    icon: Icon(Icons.straighten_outlined),
+                    label: Text('Расход'),
                   ),
                   ButtonSegment(
-                    value: true,
+                    value: 1,
+                    icon: Icon(Icons.shopping_bag_outlined),
+                    label: Text('Закупка'),
+                  ),
+                  ButtonSegment(
+                    value: 2,
                     icon: Icon(Icons.handyman_outlined),
                     label: Text('Работы'),
                   ),
                 ],
-                selected: {_work},
+                selected: {_section},
                 onSelectionChanged: (value) =>
-                    setState(() => _work = value.first),
+                    setState(() => _section = value.first),
               ),
             ),
           ),
@@ -178,9 +230,11 @@ class _EstimateScreenState extends State<EstimateScreen> {
                           borderRadius: BorderRadius.circular(ZamerRadius.md),
                         ),
                         child: Icon(
-                          _work
+                          _section == 2
                               ? Icons.handyman_outlined
-                              : Icons.inventory_2_outlined,
+                              : _section == 1
+                                  ? Icons.shopping_bag_outlined
+                                  : Icons.inventory_2_outlined,
                           color: ZamerColors.accent,
                           size: 20,
                         ),
@@ -191,9 +245,11 @@ class _EstimateScreenState extends State<EstimateScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              _work
+                              _section == 2
                                   ? 'Работы по всем этажам'
-                                  : 'Материалы по всем этажам',
+                                  : _section == 1
+                                      ? 'Закупка целыми упаковками'
+                                      : 'Расход материалов по всем этажам',
                               style: ZamerTypography.sectionTitle,
                             ),
                             const SizedBox(height: 2),
@@ -248,7 +304,7 @@ class _EstimateScreenState extends State<EstimateScreen> {
                         const SizedBox(width: ZamerSpace.xs),
                         const Expanded(
                           child: Text(
-                            'Материалы + работы',
+                            'Закупка + работы',
                             style: ZamerTypography.caption,
                           ),
                         ),
@@ -347,6 +403,26 @@ class _EstimateLineCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 4),
+                  if (line.detail.isNotEmpty) ...[
+                    Text(
+                      line.detail,
+                      style: const TextStyle(
+                        color: ZamerColors.textMuted,
+                        fontSize: 10.5,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                  ],
+                  if (line.derivedPrice) ...[
+                    const Text(
+                      'Расчётная цена по единице расхода',
+                      style: TextStyle(
+                        color: ZamerColors.warning,
+                        fontSize: 10.5,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                  ],
                   Text(
                     priced
                         ? '${line.quantity.toStringAsFixed(2)} ${line.unit} × ${line.unitPrice.toStringAsFixed(2)} ₽'

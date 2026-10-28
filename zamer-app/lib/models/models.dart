@@ -1,4 +1,7 @@
 import 'dart:math' as math;
+import 'work_board.dart';
+import 'cost_entry.dart';
+import 'material_purchase.dart';
 
 class MeasureProject {
   MeasureProject({
@@ -12,7 +15,13 @@ class MeasureProject {
     List<ProjectRevision>? revisions,
     Map<String, double>? unitPrices,
     Map<String, double>? workRates,
-  }) : createdAt = createdAt ?? DateTime.now(),
+    WorkBoard? workBoard,
+    List<CostEntry>? costEntries,
+    List<MaterialPurchase>? materialPurchases,
+  }) : materialPurchases = materialPurchases ?? [],
+       costEntries = costEntries ?? [],
+       workBoard = workBoard ?? WorkBoard(),
+       createdAt = createdAt ?? DateTime.now(),
        floors = floors ?? [],
        revisions = revisions ?? [],
        unitPrices = unitPrices ?? {},
@@ -28,6 +37,11 @@ class MeasureProject {
   final List<ProjectRevision> revisions;
   final Map<String, double> unitPrices;
   final Map<String, double> workRates;
+  final WorkBoard workBoard;
+  /// Project-level payment history; persists with the project and backups.
+  final List<CostEntry> costEntries;
+  /// Physical material buying history; not a second monetary ledger.
+  final List<MaterialPurchase> materialPurchases;
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -40,6 +54,9 @@ class MeasureProject {
     'revisions': revisions.map((e) => e.toJson()).toList(),
     'unitPrices': unitPrices,
     'workRates': workRates,
+    'workBoard': workBoard.toJson(),
+    'costEntries': costEntries.map((entry) => entry.toJson()).toList(),
+    'materialPurchases': materialPurchases.map((entry) => entry.toJson()).toList(),
   };
 
   factory MeasureProject.fromJson(Map<String, dynamic> json) => MeasureProject(
@@ -63,6 +80,17 @@ class MeasureProject {
     workRates: ((json['workRates'] as Map?) ?? const {}).map(
       (key, value) => MapEntry(key.toString(), (value as num).toDouble()),
     ),
+    workBoard: WorkBoard.fromJson(
+      Map<String, dynamic>.from((json['workBoard'] as Map?) ?? const {}),
+    ),
+    costEntries: ((json['costEntries'] as List?) ?? const [])
+        .whereType<Map>()
+        .map((entry) => CostEntry.fromJson(Map<String, dynamic>.from(entry)))
+        .toList(),
+    materialPurchases: ((json['materialPurchases'] as List?) ?? const [])
+        .whereType<Map>()
+        .map((entry) => MaterialPurchase.fromJson(Map<String, dynamic>.from(entry)))
+        .toList(),
   );
 }
 
@@ -1293,14 +1321,19 @@ class MaterialEstimate {
     required this.unit,
     this.packages,
     this.packageLabel,
+    this.packageSize,
     this.note = '',
   });
 
   final String name;
   final double quantity;
   final String unit;
+  /// Rounded packs shown in the room takeoff (not aggregated purchasing).
   final int? packages;
   final String? packageLabel;
+  /// Physical quantity of [unit] contained in one [packageLabel].
+  /// Null means the purchase quantity is not known and must not be guessed.
+  final double? packageSize;
   final String note;
 }
 

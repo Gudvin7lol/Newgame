@@ -9,7 +9,6 @@ import '../services/equipment_placement_service.dart';
 import '../services/plan_viewport_link.dart';
 import '../widgets/recovered_workspace_navigation.dart';
 import '../widgets/workspace_master_header.dart';
-import '../widgets/workspace_mode_context.dart';
 import '../widgets/workspace_navigation.dart';
 import 'electrical_screen.dart';
 import 'engineering_screen.dart';
@@ -18,6 +17,7 @@ import 'materials_screen.dart';
 import 'measure_floor_plan_layer_screen.dart';
 import 'plan_editor_production_screen.dart';
 import 'planning_objects_screen.dart';
+import 'works_screen.dart';
 import 'measure_plan_tool.dart';
 import '../widgets/zamer_ui_kit_v2.dart';
 import '../widgets/zamer_fan_profiles_v2.dart';
@@ -129,6 +129,7 @@ class _RecoveredMeasureWorkspaceScreenState
     ('Электрика', Icons.electrical_services_outlined),
     ('Инженерия', Icons.plumbing_outlined),
     ('Материалы', Icons.inventory_2_outlined),
+    ('Работы', Icons.handyman_outlined),
   ];
 
   void _selectView(ZMeasureViewMode value) {
@@ -321,13 +322,14 @@ class _RecoveredMeasureWorkspaceScreenState
     padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
     child: Row(
       children: [
-        for (var i = 0; i < 4; i++) ...[
-          if (i > 0) const SizedBox(width: 6),
+        for (final i in const [0, 1, 2, 3, 6]) ...[
+          if (i != 0) const SizedBox(width: 5),
           Expanded(child: KeyedSubtree(
             key: ValueKey('kit-v2-domain-$i'),
             child: ZamerKitSegment(
-              label: ZamerKitNavigation.domains[i],
+              label: _layers[i].$1,
               icon: _layers[i].$2,
+              stacked: true,
               selected: _layer == i,
               onTap: () => _selectLayer(i),
             ),
@@ -443,12 +445,14 @@ class _RecoveredMeasureWorkspaceScreenState
               const SizedBox(height: 12),
               // Retain engineering and materials features without crowding
               // the four approved top-level tabs.
+              // Main workspace modes are already visible in the top bar.
+              // The overflow lists ONLY additional modules, not duplicates.
               ZWorkspaceSubnav(
-                items: _layers,
-                selectedIndex: _layer,
+                items: [_layers[4], _layers[5]],
+                selectedIndex: _layer == 4 ? 0 : _layer == 5 ? 1 : -1,
                 onSelected: (value) {
                   Navigator.pop(ctx);
-                  _selectLayer(value);
+                  _selectLayer(value == 0 ? 4 : 5);
                 },
               ),
               if (overflowTasks.isNotEmpty) ...[
@@ -628,6 +632,13 @@ class _RecoveredMeasureWorkspaceScreenState
         project: widget.project,
         onChanged: _commitChanged,
       ),
+      WorksScreen(
+        key: const ValueKey('works-embedded'),
+        project: widget.project,
+        floorId: widget.floor.id,
+        embedded: true,
+        onChanged: _commitChanged,
+      ),
     ];
 
     return Scaffold(
@@ -635,7 +646,7 @@ class _RecoveredMeasureWorkspaceScreenState
       appBar: ZWorkspaceHeader(
         projectName: widget.project.name,
         floorName: widget.floor.name,
-        modeLabel: 'ЗАМЕР',
+        modeLabel: _layer == 6 ? 'РАБОТЫ' : 'ЗАМЕР',
         onCheck: widget.onOpenReview,
         onUndo: widget.onUndo,
         onRedo: widget.onRedo,
@@ -648,7 +659,7 @@ class _RecoveredMeasureWorkspaceScreenState
           _kitDomains(),
           if (_layer < 4)
             _kitTasks()
-          else
+          else if (_layer != 6)
             Container(
               height: 56,
               alignment: Alignment.centerLeft,

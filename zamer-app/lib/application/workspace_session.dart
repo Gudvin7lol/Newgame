@@ -6,7 +6,7 @@ import 'package:flutter/foundation.dart';
 /// changing the project model. Keeping the interaction state here prevents
 /// the Plan, Floor, Objects and Electrical layers from growing separate
 /// selections and tool histories.
-enum WorkspaceDomain { plan, floor, objects, electrical, engineering, materials }
+enum WorkspaceDomain { plan, floor, objects, electrical, engineering, materials, works }
 
 enum WorkspaceOperationStage {
   idle,

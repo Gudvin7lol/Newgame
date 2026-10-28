@@ -544,11 +544,14 @@ class ZamerKitSegment extends StatelessWidget {
   const ZamerKitSegment({
     super.key, required this.label, required this.icon,
     required this.selected, required this.onTap,
+    this.stacked = false,
   });
   final String label;
   final IconData icon;
   final bool selected;
   final VoidCallback onTap;
+  /// Compact icon-over-label mode for five main Measure destinations.
+  final bool stacked;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
@@ -562,7 +565,8 @@ class ZamerKitSegment extends StatelessWidget {
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 240),
             padding: EdgeInsets.symmetric(
-              horizontal: compact ? 4 : 12, vertical: 9),
+              horizontal: stacked || compact ? 4 : 12,
+              vertical: stacked ? 5 : 9),
             constraints: const BoxConstraints(minHeight: 48),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
@@ -581,7 +585,22 @@ class ZamerKitSegment extends StatelessWidget {
                 color: ZamerKitColors.peach.withValues(alpha:.18),
                 blurRadius: 18)] : null,
             ),
-            child: Row(
+            child: stacked ? Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 17, color: selected
+                  ? ZamerKitColors.ink : ZamerKitColors.peach),
+                const SizedBox(height: 2),
+                Text(label, maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: selected
+                    ? ZamerKitColors.ink : ZamerKitColors.text,
+                    fontSize: 10, fontWeight: selected
+                      ? FontWeight.w700 : FontWeight.w600)),
+              ],
+            ) : Row(
               mainAxisAlignment: MainAxisAlignment.center,
               mainAxisSize: MainAxisSize.min,
               children: [
