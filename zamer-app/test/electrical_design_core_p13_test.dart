@@ -162,6 +162,43 @@ void main() {
     expect(result.approvedForInstallation, isFalse);
   });
 
+  test('unclassified appliance never appears as zero power', () {
+    final floor = FloorPlan(id: 'missing', name: 'Дом');
+    floor.electricalPoints.add(ElectricalPoint(id: 'hob',
+        type: ElectricalPointType.appliance,
+        xMm: 0, yMm: 0));
+    final report = ElectricalDesignEngine.calculate(
+        floor, ElectricalDesignDraft());
+    expect(report.installedWatts, isNull);
+    expect(report.demandWatts, isNull);
+    expect(report.issues.map((e) => e.code),
+        contains('MISSING_CONSUMER_CLASS'));
+  });
+
+  test('cannot lock a three-phase device onto L1', () {
+    final floor = FloorPlan(id: '3ph', name: 'Дом');
+    floor.electricalPoints.add(ElectricalPoint(id: 'hob',
+        type: ElectricalPointType.appliance,
+        xMm: 0, yMm: 0));
+    final draft = ElectricalDesignDraft(
+      settings: const ElectricalSupplyDraft(phasesCount: 3),
+      consumers: {
+        'hob': consumer('hob', ElectricalConsumerKind.dedicated,
+            7000, dedicated: true, threePhase: true),
+      },
+      lineOverrides: {
+        'point:hob': const ElectricalLineManualDraft(
+          lineId: 'point:hob',
+          phase: ElectricalPhase.l1,
+          lockedFields: {'phase'},
+        ),
+      },
+    );
+    final result = ElectricalDesignEngine.calculate(floor, draft);
+    expect(result.lines.single.phase, ElectricalPhase.threePhase);
+    expect(result.issues.map((e) => e.code), contains('ERR_PHASE_LOCK'));
+  });
+
   test('invalid supply and invalid lock payload fail closed', () {
     final design = ElectricalDesignDraft(
       settings: const ElectricalSupplyDraft(phasesCount: 2));
