@@ -1,5 +1,7 @@
 import '../models/models.dart';
 import '../models/material_purchase.dart';
+import '../models/cost_entry.dart';
+import 'budget_service.dart';
 import 'estimate_service.dart';
 
 class PurchaseCoverage {
@@ -89,6 +91,60 @@ class ProcurementService {
     project.materialPurchases.add(entry);
     return entry;
   }
+
+  /// The actual payment belongs to the materials cost ledger, not a second
+  /// balance. One form can capture quantity and optional paid amount together.
+  /// A missing amount means the material was received without a recorded payment.
+  static MaterialPurchase recordWithPayment(
+    MeasureProject project, {
+    required String estimateKey,
+    required double quantity,
+    double? paidAmount,
+    String note = '',
+    DateTime? at,
+  }) {
+    if (paidAmount != null &&
+        (!paidAmount.isFinite || paidAmount <= 0 ||
+            paidAmount > 1000000000000)) {
+      throw ArgumentError.value(
+          paidAmount, 'paidAmount', 'Неверная оплаченная сумма');
+    }
+    final date = at ?? DateTime.now();
+    final purchase = record(
+      project,
+      estimateKey: estimateKey,
+      quantity: quantity,
+      note: note,
+      at: date,
+    );
+    if (paidAmount != null) {
+      try {
+        final lineName = EstimateService.buildPurchases(project).lines
+            .firstWhere((line) => line.key == estimateKey).name;
+        BudgetService.record(
+          project,
+          category: CostCategory.materials,
+          description: 'Закупка: ${lineName.length > 230 ? lineName.substring(0, 230) : lineName}',
+          amount: paidAmount,
+          purchaseId: purchase.id,
+          estimateKey: estimateKey,
+          at: date,
+        );
+      } catch (_) {
+        // Keep both journals consistent when validation fails.
+        project.materialPurchases.remove(purchase);
+        rethrow;
+      }
+    }
+    return purchase;
+  }
+
+  /// Only payments linked to this physical purchase are shown. An independent
+  /// payment recorded in the budget is not implicitly matched by name.
+  static double paidForPurchase(MeasureProject project, String id) =>
+      project.costEntries
+          .where((entry) => entry.purchaseId == id)
+          .fold<double>(0, (sum, entry) => sum + entry.signedAmount);
 
   static MaterialPurchase voidRecord(MeasureProject project, String id,
       {DateTime? at}) {
