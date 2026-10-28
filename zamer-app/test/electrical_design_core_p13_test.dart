@@ -199,6 +199,57 @@ void main() {
     expect(result.issues.map((e) => e.code), contains('ERR_PHASE_LOCK'));
   });
 
+  test('locked dedicated appliances cannot be merged into one circuit', () {
+    final floor = FloorPlan(id: 'd', name: 'Кухня');
+    for (final id in ['hob', 'oven']) {
+      floor.electricalPoints.add(ElectricalPoint(id: id,
+          type: ElectricalPointType.appliance, xMm: 0, yMm: 0));
+    }
+    final draft = ElectricalDesignDraft(consumers: {
+      'hob': consumer('hob', ElectricalConsumerKind.dedicated,
+          7000, dedicated: true, lockedLine: 'manual:same'),
+      'oven': consumer('oven', ElectricalConsumerKind.dedicated,
+          3500, dedicated: true, lockedLine: 'manual:same'),
+    });
+    final result = ElectricalDesignEngine.calculate(floor, draft);
+    expect(result.issues.map((e) => e.code),
+        contains('ERR_DEDICATED_MERGED'));
+    expect(draft.consumers['oven']!.lockedLineId, 'manual:same');
+    expect(result.approvedForInstallation, isFalse);
+  });
+
+  test('stale manual phase lock is saved but not silently transferred', () {
+    final floor = FloorPlan(id: 'r', name: 'Спальня');
+    for (final id in ['a', 'b']) {
+      floor.electricalPoints.add(ElectricalPoint(id: id,
+          type: ElectricalPointType.socket, xMm: 0, yMm: 0));
+    }
+    final draft = ElectricalDesignDraft(
+      settings: const ElectricalSupplyDraft(phasesCount: 3),
+      consumers: {
+        'a': consumer('a', ElectricalConsumerKind.sockets,
+            350, room: 'bed'),
+        'b': consumer('b', ElectricalConsumerKind.sockets,
+            350, room: 'bed'),
+      },
+      lineOverrides: {
+        'auto:sockets:bed:1': const ElectricalLineManualDraft(
+          lineId: 'auto:sockets:bed:1',
+          phase: ElectricalPhase.l2,
+          lockedFields: {'phase'},
+          pointIdsSnapshot: ['a'],
+        ),
+      },
+    );
+    final result = ElectricalDesignEngine.calculate(floor, draft);
+    expect(result.issues.map((e) => e.code),
+        contains('ERR_STALE_LINE_OVERRIDE'));
+    expect(result.lines.single.pointIds, ['a', 'b']);
+    expect(result.lines.single.phase, ElectricalPhase.l1);
+    expect(draft.lineOverrides['auto:sockets:bed:1']!.phase,
+        ElectricalPhase.l2);
+  });
+
   test('invalid supply and invalid lock payload fail closed', () {
     final design = ElectricalDesignDraft(
       settings: const ElectricalSupplyDraft(phasesCount: 2));
