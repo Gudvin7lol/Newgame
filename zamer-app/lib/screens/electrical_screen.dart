@@ -694,6 +694,61 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
       ? value.toStringAsFixed(0)
       : value.toString();
 
+  Future<void> _editMountingDirect(ElectricalPoint point) async {
+    if (point.wallId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Сначала закрепи точку на стене.'),
+      ));
+      return;
+    }
+    final next = await Navigator.of(context).push<ElectricalMounting>(
+      MaterialPageRoute(
+        builder: (_) => ElectricalMountingEditor(
+          floor: widget.floor, point: point),
+      ),
+    );
+    if (!mounted || next == null) return;
+    try {
+      // Verify a detached copy before pushing undo history.
+      ElectricalMountingService.apply(widget.floor,
+          ElectricalPoint.fromJson(point.toJson()), next);
+    } on FormatException catch (error) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error.message)));
+      return;
+    }
+    _pushUndo();
+    ElectricalMountingService.apply(widget.floor, point, next);
+    await widget.onChanged();
+    if (mounted) setState(() => _selectedId = point.id);
+  }
+
+  Future<void> _editPropertiesDirect(ElectricalPoint point) async {
+    final next = await showModalBottomSheet<ElectricalPoint>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => ElectricalPointProperties(
+        point: point,
+        circuits: widget.floor.electricalPoints
+            .map((p) => p.circuit).toSet().toList(),
+      ),
+    );
+    if (!mounted || next == null) return;
+    _pushUndo();
+    point.label = next.label;
+    point.circuit = next.circuit;
+    point.powerW = next.powerW;
+    point.heightMm = next.heightMm;
+    point.modules
+      ..clear()
+      ..addAll(next.modules);
+    point.frameVertical = next.frameVertical;
+    point.type = next.type;
+    await widget.onChanged();
+    if (mounted) setState(() => _selectedId = point.id);
+  }
+
   Future<void> _pointSheet(ElectricalPoint p) async {
     final canMount =
         p.isWallDevice || p.type == ElectricalPointType.junctionBox;
@@ -780,52 +835,11 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     );
     if (!mounted || action == null) return;
     if (action == 'mount') {
-      final next = await Navigator.of(context).push<ElectricalMounting>(
-        MaterialPageRoute(
-          builder: (_) =>
-              ElectricalMountingEditor(floor: widget.floor, point: p),
-        ),
-      );
-      if (!mounted || next == null) return;
-      // Validate a detached copy before adding an undo entry or changing the project.
-      try {
-        ElectricalMountingService.apply(
-          widget.floor,
-          ElectricalPoint.fromJson(p.toJson()),
-          next,
-        );
-      } on FormatException catch (e) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(e.message)));
-        return;
-      }
-      _pushUndo();
-      ElectricalMountingService.apply(widget.floor, p, next);
+      await _editMountingDirect(p);
+      return;
     } else if (action == 'properties') {
-      final next = await showModalBottomSheet<ElectricalPoint>(
-        context: context,
-        isScrollControlled: true,
-        useSafeArea: true,
-        builder: (_) => ElectricalPointProperties(
-          point: p,
-          circuits: widget.floor.electricalPoints
-              .map((e) => e.circuit)
-              .toSet()
-              .toList(),
-        ),
-      );
-      if (!mounted || next == null) return;
-      _pushUndo();
-      p.label = next.label;
-      p.circuit = next.circuit;
-      p.powerW = next.powerW;
-      p.heightMm = next.heightMm;
-      p.modules
-        ..clear()
-        ..addAll(next.modules);
-      p.frameVertical = next.frameVertical;
-      p.type = next.type;
+      await _editPropertiesDirect(p);
+      return;
     } else if (action == 'junction') {
       final before = jsonEncode(widget.floor.toJson());
       final updated = await Navigator.of(context).push<ElectricalNetwork>(
@@ -1800,9 +1814,9 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
           ElectricalCompactInspector(
             floor: widget.floor,
             point: selected,
-            onDatum: () => _pointSheet(selected),
+            onDatum: () => _editMountingDirect(selected),
             onHeight: () => _quickPointHeight(selected),
-            onLoad: () => _pointSheet(selected),
+            onLoad: () => _editPropertiesDirect(selected),
           ),
         if (_workspaceView == ElectricalWorkspaceView.pointsRoutes &&
             !widget.embedded && widget.floor.electricalPoints.isNotEmpty)
