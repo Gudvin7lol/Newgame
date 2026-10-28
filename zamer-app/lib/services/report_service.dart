@@ -59,6 +59,10 @@ class ReportService {
         'Позиции с нехваткой / сверх плана: '
             '${r.underboughtPositions} / ${r.overboughtPositions}',
         'Открытых замечаний: ${r.openIssues}',
+        'Оплат материалов без привязки к закупке: '
+            '${r.unlinkedMaterialPayments}',
+        'Отменённых закупок с действующей оплатой: '
+            '${r.cancelledPurchasesWithOutstandingPayment}',
         r.budget.completeEstimate
           ? 'Разница текущего плана и оплат: '
               '${fmt(r.budget.plannedTotal - r.budget.actualTotal)} ₽'
@@ -73,7 +77,8 @@ class ReportService {
         for (final p in r.purchases)
           '${p.name}: план ${fmt(p.planned)} ${p.unit}; '
           'куплено ${fmt(p.purchased)}; '
-          'осталось ${fmt(p.remaining)}; избыток ${fmt(p.excess)}'
+          'осталось ${fmt(p.remaining)}; избыток ${fmt(p.excess)}; '
+          'оплачено ${fmt(p.paidLinked)} ₽'
           '${p.derivedPrice ? ' (цена упаковки расчётная)' : ''}',
       ]),
       ('Работы и приёмка', [
