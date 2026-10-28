@@ -23,8 +23,8 @@ class BudgetScreen extends StatefulWidget {
 
 class _BudgetScreenState extends State<BudgetScreen> {
   Future<void> _add() async {
-    final title = TextEditingController();
-    final amount = TextEditingController();
+    var title = '';
+    var amount = '';
     var category = CostCategory.materials;
     String? taskId;
     final input = await showDialog<
@@ -59,7 +59,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
                 ),
                 TextField(
                   key: const Key('budget-title'),
-                  controller: title,
+                  onChanged: (value) => title = value,
                   maxLength: 240,
                   decoration: const InputDecoration(
                     labelText: 'На что потрачено',
@@ -68,7 +68,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
                 ),
                 TextField(
                   key: const Key('budget-amount'),
-                  controller: amount,
+                  onChanged: (value) => amount = value,
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
                   decoration: const InputDecoration(
@@ -116,8 +116,8 @@ class _BudgetScreenState extends State<BudgetScreen> {
             FilledButton(
               onPressed: () {
                 final value = double.tryParse(
-                    amount.text.trim().replaceAll(',', '.'));
-                final description = title.text.trim();
+                    amount.trim().replaceAll(',', '.'));
+                final description = title.trim();
                 if (value == null || !value.isFinite || value <= 0 ||
                     value > 1000000000000 || description.isEmpty) {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -137,8 +137,6 @@ class _BudgetScreenState extends State<BudgetScreen> {
         ),
       ),
     );
-    title.dispose();
-    amount.dispose();
     if (input == null) return;
     BudgetService.record(
       widget.project,
