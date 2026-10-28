@@ -29,6 +29,7 @@ class _ProcurementScreenState extends State<ProcurementScreen> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text('Закупка: ${line.name}'),
+        scrollable: true,
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
