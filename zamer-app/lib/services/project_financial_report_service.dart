@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import '../models/models.dart';
 import '../models/cost_entry.dart';
 import '../models/material_purchase.dart';
@@ -32,7 +34,9 @@ class ReportWorkLine {
   final double planned, done, accepted, paid;
   final double? unitRate;
   final bool needsReview;
-  double? get acceptedValue => unitRate == null ? null : accepted * unitRate!;
+  double? get acceptedValue => unitRate == null
+      ? null
+      : math.max(0.0, math.min(math.max(0.0, planned), accepted)) * unitRate!;
 }
 
 class ProjectFinancialReport {
@@ -206,7 +210,9 @@ class ProjectFinancialReportService {
           done: task.done, accepted: task.accepted,
           paid: BudgetService.actualForTask(project, task.id),
           unitRate: WorkValueService.rateFor(project, task),
-          needsReview: task.needsQuantityReview,
+          needsReview: task.needsQuantityReview ||
+              task.accepted > task.quantity + 0.0001 ||
+              task.accepted < -0.0001,
         ),
     ];
     // Reversals don't count as additional purchases still needing review.
