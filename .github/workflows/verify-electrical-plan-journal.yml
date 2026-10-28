@@ -1,0 +1,56 @@
+name: Verify electrical plan and cable journal P4
+on:
+  push:
+    branches: ['feature/zamer-electrical-plan-journal-p4']
+    paths:
+      - 'zamer-app/lib/services/electrical_cable_journal_service.dart'
+      - 'zamer-app/lib/widgets/electrical_cable_journal_sheet.dart'
+      - 'zamer-app/lib/widgets/electrical_plan_painter.dart'
+      - 'zamer-app/lib/screens/electrical_screen.dart'
+      - 'zamer-app/test/electrical_cable_journal_p4_test.dart'
+      - '.github/workflows/verify-electrical-plan-journal.yml'
+  pull_request:
+    paths:
+      - 'zamer-app/lib/services/electrical_cable_journal_service.dart'
+      - 'zamer-app/lib/widgets/electrical_cable_journal_sheet.dart'
+      - 'zamer-app/lib/widgets/electrical_plan_painter.dart'
+      - 'zamer-app/lib/screens/electrical_screen.dart'
+      - 'zamer-app/test/electrical_cable_journal_p4_test.dart'
+      - '.github/workflows/verify-electrical-plan-journal.yml'
+permissions:
+  contents: read
+jobs:
+  journal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CI: 'true'
+      FLUTTER_SUPPRESS_ANALYTICS: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Fetch Flutter dependencies
+        run: flutter pub get
+        working-directory: zamer-app
+      - name: Analyze journal and route overlay
+        run: |
+          flutter analyze --no-fatal-infos --no-fatal-warnings \
+            lib/services/electrical_cable_journal_service.dart \
+            lib/widgets/electrical_cable_journal_sheet.dart \
+            lib/widgets/electrical_plan_painter.dart \
+            lib/screens/electrical_screen.dart \
+            test/electrical_cable_journal_p4_test.dart
+        working-directory: zamer-app
+      - name: Cable journal and engineering regression tests
+        run: |
+          flutter test test/electrical_cable_journal_p4_test.dart \
+            test/electrical_routes_p3_test.dart \
+            test/electrical_network_test.dart \
+            test/electrical_junction_editor_test.dart \
+            test/electrical_mounting_test.dart \
+            test/electrical_floor_camera_v154_test.dart
+        working-directory: zamer-app
