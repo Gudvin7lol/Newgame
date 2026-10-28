@@ -7,6 +7,7 @@ import '../models/models.dart';
 import '../models/work_board.dart';
 import '../services/budget_service.dart';
 import '../services/work_value_service.dart';
+import 'project_financial_report_screen.dart';
 
 /// Separate drill-down rather than another crowded tab on the estimate screen.
 class BudgetScreen extends StatefulWidget {
@@ -235,6 +236,19 @@ class _BudgetScreenState extends State<BudgetScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Бюджет и факт'),
+        actions: [
+          IconButton(
+            tooltip: 'Отчёт по объекту',
+            icon: const Icon(Icons.description_outlined),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => ProjectFinancialReportScreen(
+                  project: widget.project,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _add,
