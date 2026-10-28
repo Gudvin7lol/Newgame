@@ -1,0 +1,60 @@
+name: Verify portable project portfolio P11
+
+on:
+  push:
+    branches: ['feature/zamer-portable-all-projects-and-signing-p11']
+    paths:
+      - 'zamer-app/lib/services/project_portfolio_backup_service.dart'
+      - 'zamer-app/lib/services/project_backup_service.dart'
+      - 'zamer-app/test/project_backup_test.dart'
+      - 'zamer-app/lib/screens/projects_screen.dart'
+      - 'zamer-app/test/project_portfolio_backup_test.dart'
+      - 'zamer-app/pubspec.yaml'
+      - 'zamer-app/android/app/build.gradle.kts'
+      - '.github/workflows/zamer-codex-ci.yml'
+      - '.github/workflows/verify-project-portfolio.yml'
+  pull_request:
+    paths:
+      - 'zamer-app/lib/services/project_portfolio_backup_service.dart'
+      - 'zamer-app/lib/services/project_backup_service.dart'
+      - 'zamer-app/test/project_backup_test.dart'
+      - 'zamer-app/lib/screens/projects_screen.dart'
+      - 'zamer-app/test/project_portfolio_backup_test.dart'
+      - 'zamer-app/pubspec.yaml'
+      - 'zamer-app/android/app/build.gradle.kts'
+      - '.github/workflows/zamer-codex-ci.yml'
+      - '.github/workflows/verify-project-portfolio.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  portfolio-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CI: 'true'
+      FLUTTER_SUPPRESS_ANALYTICS: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Dependencies
+        working-directory: zamer-app
+        run: flutter pub get
+      - name: Analyze portable backups and UI
+        working-directory: zamer-app
+        run: |
+          flutter analyze --no-fatal-infos --no-fatal-warnings \
+            lib/services/project_portfolio_backup_service.dart \
+            lib/screens/projects_screen.dart \
+            test/project_portfolio_backup_test.dart
+      - name: Backup migration and revision tests
+        working-directory: zamer-app
+        run: |
+          flutter test test/project_portfolio_backup_test.dart \
+            test/project_backup_test.dart \
+            test/project_revision_test.dart
