@@ -36,6 +36,7 @@ enum ElectricalMode { add, wire, select }
 
 /// Three task-level surfaces. Editing action (add/wire/select) stays separate.
 enum ElectricalWorkspaceView { pointsRoutes, loads, board }
+enum ElectricalBoardView { layout, wiring, checks }
 
 class ElectricalScreen extends StatefulWidget {
   const ElectricalScreen({
@@ -63,6 +64,7 @@ class ElectricalScreen extends StatefulWidget {
 class _ElectricalScreenState extends State<ElectricalScreen> {
   ElectricalMode _mode = ElectricalMode.add;
   ElectricalWorkspaceView _workspaceView = ElectricalWorkspaceView.pointsRoutes;
+  ElectricalBoardView _boardView = ElectricalBoardView.layout;
   bool _addArcOpen = false;
   Offset? _placingAt;
   ElectricalPointType _type = ElectricalPointType.socket;
@@ -1870,35 +1872,130 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
 
   Widget _boardWorkspace() {
     final draft = ElectricalBoardDraftService.create(widget.floor);
-    return ListView(
-      key: const ValueKey('electrical-board-workspace'),
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 18),
+    final design = widget.floor.electricalDesignDraft;
+    final checks = design == null
+        ? null : ElectricalDesignEngine.calculate(widget.floor, design);
+    return Column(
       children: [
-        Text('Щит • предварительная компоновка',
-            style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 8),
-        const Text('Пока это схема логических секций. DIN-размеры, '
-            'номиналы аппаратов, шины N/PE и клеммные подключения '
-            'не рассчитаны. По этому эскизу нельзя собирать щит.'),
-        const SizedBox(height: 12),
-        for (final section in draft.sections)
-          Card(
-            child: ListTile(
-              dense: true,
-              leading: const Icon(Icons.view_module_outlined),
-              title: Text(section.label),
-              subtitle: Text(section.role),
-            ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 2),
+          child: Row(
+            key: const ValueKey('electrical-board-three-tabs'),
+            children: [
+              for (final (view, label) in const [
+                (ElectricalBoardView.layout, 'Компоновка'),
+                (ElectricalBoardView.wiring, 'Схема'),
+                (ElectricalBoardView.checks, 'Проверки'),
+              ])
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 2),
+                    child: TextButton(
+                      key: ValueKey('electrical-board-tab-${view.name}'),
+                      onPressed: () => setState(() => _boardView = view),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 4, vertical: 8),
+                        backgroundColor: _boardView == view
+                            ? Theme.of(context).colorScheme.primaryContainer
+                            : Theme.of(context).colorScheme.surfaceContainer,
+                      ),
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(label,
+                            style: const TextStyle(fontSize: 12))),
+                    ),
+                  ),
+                ),
+            ],
           ),
-        const SizedBox(height: 8),
-        FilledButton.tonalIcon(
-          onPressed: _showCableJournal,
-          icon: const Icon(Icons.inventory_2_outlined),
-          label: const Text('Кабельный журнал'),
         ),
-        const SizedBox(height: 10),
-        Text(draft.protectionStatus,
-            style: TextStyle(color: Theme.of(context).colorScheme.error)),
+        Expanded(
+          child: ListView(
+            key: const ValueKey('electrical-board-workspace'),
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 18),
+            children: [
+              if (_boardView == ElectricalBoardView.layout) ...[
+                Text('Щит • предварительная компоновка',
+                    style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 8),
+                const Text('Пока это схема логических секций. DIN-размеры, '
+                    'номиналы аппаратов, шины N/PE и клеммные подключения '
+                    'не рассчитаны. По этому эскизу нельзя собирать щит.'),
+                const SizedBox(height: 12),
+                for (final section in draft.sections)
+                  Card(
+                    child: ListTile(
+                      dense: true,
+                      leading: const Icon(Icons.view_module_outlined),
+                      title: Text(section.label),
+                      subtitle: Text(section.role),
+                    ),
+                  ),
+              ],
+              if (_boardView == ElectricalBoardView.wiring) ...[
+                Text('Клеммная ведомость • не сформирована',
+                    style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 10),
+                const Card(
+                  child: ListTile(
+                    leading: Icon(Icons.lock_outline),
+                    title: Text('Монтажные подключения заблокированы'),
+                    subtitle: Text('Пока не выбрана конкретная модель '
+                        'защиты, не проверены шины, топология L/N/PE '
+                        'и схема изготовителя, нельзя выдавать '
+                        'инструкции к клеммам автоматов или УЗО.'),
+                  ),
+                ),
+                if (checks != null)
+                  Text('Открытых замечаний: ${checks.issues.length}'),
+              ],
+              if (_boardView == ElectricalBoardView.checks) ...[
+                Text('Инженерные проверки',
+                    style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 8),
+                if (checks == null)
+                  const Card(
+                    child: ListTile(
+                      title: Text('Нет исходных данных для проверок'),
+                      subtitle: Text('Заполни параметры ввода и '
+                          'потребителей во вкладке «Нагрузки».'),
+                    ),
+                  )
+                else
+                  for (final issue in checks.issues)
+                    Card(
+                      child: ListTile(
+                        leading: Icon(
+                          issue.severity == ElectricalIssueSeverity.error
+                              ? Icons.error_outline
+                              : Icons.info_outline,
+                          color: issue.severity == ElectricalIssueSeverity.error
+                              ? Theme.of(context).colorScheme.error : null,
+                        ),
+                        title: Text(issue.message),
+                        subtitle: Text(issue.code),
+                      ),
+                    ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  child: Text('Даже отсутствие найденных конфликтов '
+                      'не означает, что проект согласован для монтажа.'),
+                ),
+              ],
+              const SizedBox(height: 12),
+              FilledButton.tonalIcon(
+                onPressed: _showCableJournal,
+                icon: const Icon(Icons.inventory_2_outlined),
+                label: const Text('Кабельный журнал'),
+              ),
+              const SizedBox(height: 10),
+              Text(draft.protectionStatus,
+                  style: TextStyle(
+                      color: Theme.of(context).colorScheme.error)),
+            ],
+          ),
+        ),
       ],
     );
   }
