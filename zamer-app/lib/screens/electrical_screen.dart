@@ -1799,12 +1799,21 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
             label: const Text('Ввод'),
           ),
         ]),
-        if (draft == null)
+        if (draft == null) ...[
           const Card(child: ListTile(
             title: Text('Инженерный расчёт не настроен'),
             subtitle: Text('Укажи параметры ввода и назначь приборам '
                 'профили мощности в карточках точек.'),
           )),
+          for (final circuit in ElectricalBoardDraftService.create(
+              widget.floor).circuits)
+            Card(child: ListTile(
+              title: Text(circuit.load.name),
+              subtitle: Text(
+                '${circuit.load.connectedWatts.toStringAsFixed(0)} Вт '
+                '(известные нагрузки) • предварительная группа'),
+            )),
+        ],
         if (result != null) ...[
           Card(child: ListTile(
             title: Text('Установленная: ${result.installedWatts == null ? 'неполная' :
