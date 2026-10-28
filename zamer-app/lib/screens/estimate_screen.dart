@@ -9,6 +9,7 @@ import '../design_system/zamer_tokens.dart';
 import '../models/models.dart';
 import '../services/estimate_service.dart';
 import 'budget_screen.dart';
+import 'procurement_screen.dart';
 
 class EstimateScreen extends StatefulWidget {
   const EstimateScreen({
@@ -134,6 +135,21 @@ class _EstimateScreenState extends State<EstimateScreen> {
           ],
         ),
         actions: [
+          if (_section == 1)
+            IconButton(
+              tooltip: 'Учёт закупок',
+              icon: const Icon(Icons.inventory_outlined),
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => ProcurementScreen(
+                    project: widget.project,
+                    onChanged: widget.onChanged,
+                  ),
+                ),
+              ).then((_) {
+                if (mounted) setState(() {});
+              }),
+            ),
           IconButton(
             tooltip: 'Бюджет и факт',
             icon: const Icon(Icons.account_balance_wallet_outlined),
