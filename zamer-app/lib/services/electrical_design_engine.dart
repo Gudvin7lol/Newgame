@@ -100,8 +100,7 @@ class ElectricalDesignEngine {
       }
       final consumer = _consumer(point, design);
       // Panel, switch, junction and unpowered signal points are not loads.
-      if (consumer.kind == ElectricalConsumerKind.unknown &&
-          !consumer.isDedicated && !consumer.isNonSwitchable) {
+      if (consumer.kind == ElectricalConsumerKind.unknown) {
         if ({ElectricalPointType.panel, ElectricalPointType.junctionBox,
             ElectricalPointType.switchPoint}.contains(point.type)) continue;
         issues.add(ElectricalDesignIssue('MISSING_CONSUMER_CLASS',
@@ -237,6 +236,14 @@ class ElectricalDesignEngine {
     };
     // Reserve explicit phase locks before assigning any free line.
     for (final line in lines.where((line) => line.threePhase)) {
+      final manual = design.lineOverrides[line.id];
+      if (manual != null && manual.locked('phase') &&
+          manual.phase != ElectricalPhase.threePhase) {
+        issues.add(ElectricalDesignIssue('ERR_PHASE_LOCK',
+            ElectricalIssueSeverity.error,
+            'Трёхфазную линию нельзя закрепить за одной фазой.',
+            subjectId: line.id));
+      }
       line.phase = ElectricalPhase.threePhase;
       if (line.demandWatts != null) {
         for (final phase in phaseWatts.keys) {
@@ -295,8 +302,13 @@ class ElectricalDesignEngine {
       }
     }
 
-    final allKnown = lines.every((l) => l.demandWatts != null);
-    final installedKnown = lines.every((l) => l.installedWatts != null);
+    final hasUnclassified = issues.any((issue) =>
+        issue.code == 'MISSING_CONSUMER_CLASS' ||
+        issue.code == 'ERR_DUPLICATE_POINT');
+    final allKnown = !hasUnclassified &&
+        lines.every((l) => l.demandWatts != null);
+    final installedKnown = !hasUnclassified &&
+        lines.every((l) => l.installedWatts != null);
     final demandTotal = allKnown
         ? lines.fold<double>(0, (sum, line) => sum + line.demandWatts!)
         : null;
