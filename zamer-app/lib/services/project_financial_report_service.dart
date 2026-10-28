@@ -15,9 +15,10 @@ class ReportPurchaseLine {
     required this.key, required this.name, required this.unit,
     required this.planned, required this.purchased,
     required this.unitPrice, required this.derivedPrice,
+    required this.paidLinked,
   });
   final String key, name, unit;
-  final double planned, purchased, unitPrice;
+  final double planned, purchased, unitPrice, paidLinked;
   final bool derivedPrice;
   double get remaining => (planned - purchased).clamp(0, double.infinity).toDouble();
   double get excess => (purchased - planned).clamp(0, double.infinity).toDouble();
@@ -63,6 +64,34 @@ class ProjectFinancialReport {
   final List<CostEntry> cashEntries;
   final List<MaterialPurchase> purchaseEntries;
   final int unlinkedActivePurchases, openIssues;
+
+  /// Paid material costs with no link to a physical receipt. Not necessarily
+  /// duplicates: a manual correction, advance or delivery may be legitimate.
+  int get unlinkedMaterialPayments {
+    final reversed = cashEntries
+        .where((e) => e.isReversal).map((e) => e.reversesId).toSet();
+    return cashEntries.where((e) =>
+        e.category == CostCategory.materials &&
+        e.purchaseId == null && !e.isReversal &&
+        !reversed.contains(e.id)).length;
+  }
+
+  /// Cancelling quantities does not cancel a payment. Flag cash that remains
+  /// linked to a cancelled receipt for explicit human reconciliation.
+  int get cancelledPurchasesWithOutstandingPayment {
+    final cancelledIds = purchaseEntries
+        .where((p) => p.isReversal)
+        .map((p) => p.reversesId).toSet();
+    final paid = <String, double>{};
+    for (final cost in cashEntries) {
+      if (cost.purchaseId == null) continue;
+      paid.update(cost.purchaseId!,
+          (value) => value + cost.signedAmount,
+          ifAbsent: () => cost.signedAmount);
+    }
+    return cancelledIds
+        .where((id) => id != null && (paid[id] ?? 0) > 0.001).length;
+  }
 
   int get underboughtPositions =>
       purchases.where((p) => p.remaining > 0.000001).length;
@@ -119,6 +148,10 @@ class ProjectFinancialReport {
     add(['Непривязанных закупок старой спецификации',
         '${unlinkedActivePurchases}']);
     add(['Открытых замечаний', '${openIssues}']);
+    add(['Материальные оплаты без связи с закупкой',
+        '${unlinkedMaterialPayments}']);
+    add(['Отменённых закупок с неотменённой оплатой',
+        '${cancelledPurchasesWithOutstandingPayment}']);
     add(['Позиции закупки с недостачей', '${underboughtPositions}']);
     add(['Позиции закупки со сверхплановым количеством',
         '${overboughtPositions}']);
@@ -133,10 +166,11 @@ class ProjectFinancialReport {
     add([]);
 
     add(['ЗАКУПКА ПО ПОЗИЦИЯМ', 'Наименование', 'Ед.', 'План', 'Куплено',
-        'Осталось', 'Сверх плана', 'Цена за ед., ₽', 'Примечание']);
+        'Осталось', 'Сверх плана', 'Оплачено, ₽', 'Цена за ед., ₽', 'Примечание']);
     for (final p in purchases) {
       add(['Закупка', p.name, p.unit, f(p.planned), f(p.purchased),
-          f(p.remaining), f(p.excess), p.unitPrice > 0 ? f(p.unitPrice) : '',
+          f(p.remaining), f(p.excess), f(p.paidLinked),
+          p.unitPrice > 0 ? f(p.unitPrice) : '',
           p.derivedPrice ? 'Расчётная цена упаковки' : '']);
     }
     add([]);
@@ -192,6 +226,20 @@ class ProjectFinancialReportService {
     final coverage = ProcurementService.coverage(project);
     final budget = BudgetService.review(project);
     final workValue = WorkValueService.review(project);
+    // A linked financial entry is attributed using its historical receipt
+    // key. Do not infer paid amounts from physical quantities or rates.
+    final receiptsById = {
+      for (final p in project.materialPurchases)
+        if (!p.isReversal) p.id: p,
+    };
+    final paidPerKey = <String, double>{};
+    for (final cost in project.costEntries) {
+      final receipt = receiptsById[cost.purchaseId];
+      if (receipt == null || cost.category != CostCategory.materials) continue;
+      paidPerKey.update(receipt.estimateKey,
+          (value) => value + cost.signedAmount,
+          ifAbsent: () => cost.signedAmount);
+    }
 
     final purchaseLines = [
       for (final p in coverage)
@@ -200,6 +248,7 @@ class ProjectFinancialReportService {
           unit: p.line.unit, planned: p.line.quantity,
           purchased: p.purchased, unitPrice: p.line.unitPrice,
           derivedPrice: p.line.derivedPrice,
+          paidLinked: paidPerKey[p.line.key] ?? 0,
         ),
     ];
     final workLines = [
