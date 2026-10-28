@@ -1371,6 +1371,7 @@ class MaterialEstimate {
     required this.unit,
     this.packages,
     this.packageLabel,
+    this.packageSize,
     this.note = '',
   });
 
@@ -1379,6 +1380,7 @@ class MaterialEstimate {
   final String unit;
   final int? packages;
   final String? packageLabel;
+  final double? packageSize;
   final String note;
 }
 
