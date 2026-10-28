@@ -144,6 +144,7 @@ class ElectricalLineManualDraft {
     this.moduleRow,
     this.moduleIndex,
     this.rcdRatedAmps,
+    this.pointIdsSnapshot,
     this.lockedFields = const {},
   });
 
@@ -154,6 +155,8 @@ class ElectricalLineManualDraft {
   final double? breakerAmps, cableSectionMm2, adjustedAmpacityAmps;
   final double? rcdLeakageMa, rcdRatedAmps;
   final int? moduleRow, moduleIndex;
+  /// Optional snapshot prevents a lock applying to changed automatic groups.
+  final List<String>? pointIdsSnapshot;
   final Set<String> lockedFields;
 
   bool locked(String field) => lockedFields.contains(field);
@@ -167,7 +170,10 @@ class ElectricalLineManualDraft {
          rcdLeakageMa, rcdRatedAmps].whereType<double>().any(
           (v) => !v.isFinite || v <= 0) ||
         (moduleRow != null && moduleRow! < 0) ||
-        (moduleIndex != null && moduleIndex! < 0)) {
+        (moduleIndex != null && moduleIndex! < 0) ||
+        (pointIdsSnapshot != null && (pointIdsSnapshot!.isEmpty ||
+            pointIdsSnapshot!.any((id) => id.isEmpty) ||
+            pointIdsSnapshot!.toSet().length != pointIdsSnapshot!.length))) {
       throw const FormatException('Некорректные ручные параметры линии.');
     }
   }
@@ -180,6 +186,7 @@ class ElectricalLineManualDraft {
     'rcdLeakageMa': rcdLeakageMa, 'rcdRatedAmps': rcdRatedAmps,
     'moduleRow': moduleRow, 'moduleIndex': moduleIndex,
     'lockedFields': lockedFields.toList()..sort(),
+    'pointIdsSnapshot': pointIdsSnapshot,
   };
 
   factory ElectricalLineManualDraft.fromJson(Map<String, dynamic> j) =>
@@ -198,6 +205,8 @@ class ElectricalLineManualDraft {
         rcdRatedAmps: (j['rcdRatedAmps'] as num?)?.toDouble(),
         moduleRow: (j['moduleRow'] as num?)?.toInt(),
         moduleIndex: (j['moduleIndex'] as num?)?.toInt(),
+        pointIdsSnapshot: (j['pointIdsSnapshot'] as List?)
+            ?.map((e) => e.toString()).toList(),
         lockedFields: Set<String>.from(
             (j['lockedFields'] as List?)?.map((e) => e.toString()) ??
                 const <String>[]),
