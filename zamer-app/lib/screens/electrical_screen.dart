@@ -1923,15 +1923,49 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                     'номиналы аппаратов, шины N/PE и клеммные подключения '
                     'не рассчитаны. По этому эскизу нельзя собирать щит.'),
                 const SizedBox(height: 12),
-                for (final section in draft.sections)
-                  Card(
+                if (checks != null) ...[
+                  const Card(
                     child: ListTile(
-                      dense: true,
-                      leading: const Icon(Icons.view_module_outlined),
-                      title: Text(section.label),
-                      subtitle: Text(section.role),
+                      leading: Icon(Icons.input_outlined),
+                      title: Text('Ввод и защитные аппараты'),
+                      subtitle: Text('Параметры и компоновка ещё не рассчитаны.'),
                     ),
                   ),
+                  for (final line in checks.lines)
+                    Card(
+                      child: ListTile(
+                        dense: true,
+                        leading: Icon(
+                          line.kind == ElectricalConsumerKind.lighting
+                              ? Icons.lightbulb_outline
+                              : Icons.power_outlined,
+                        ),
+                        title: Text(
+                          line.kind == ElectricalConsumerKind.lighting
+                              ? 'Свет • ${line.roomId}'
+                              : line.kind == ElectricalConsumerKind.sockets
+                                  ? 'Розетки • ${line.roomId}'
+                                  : line.critical
+                                      ? 'Неотключаемая • ${line.pointIds.first}'
+                                      : 'Отдельная • ${line.pointIds.first}',
+                        ),
+                        subtitle: Text(
+                          'Линия ${line.id} · ${line.phase.name.toUpperCase()} · '
+                          '${line.demandWatts == null ? 'мощность неизвестна' :
+                            '${line.demandWatts!.toStringAsFixed(0)} Вт'} · '
+                          'номинал и DIN-место не подобраны'),
+                      ),
+                    ),
+                ] else
+                  for (final section in draft.sections)
+                    Card(
+                      child: ListTile(
+                        dense: true,
+                        leading: const Icon(Icons.view_module_outlined),
+                        title: Text(section.label),
+                        subtitle: Text(section.role),
+                      ),
+                    ),
               ],
               if (_boardView == ElectricalBoardView.wiring) ...[
                 Text('Клеммная ведомость • не сформирована',
