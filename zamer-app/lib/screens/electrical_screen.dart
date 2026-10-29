@@ -10,6 +10,7 @@ import '../models/electrical_design_draft.dart';
 import '../services/electrical_design_engine.dart';
 import '../widgets/electrical_consumer_draft_editor.dart';
 import '../services/electrical_mounting_service.dart';
+import '../services/electrical_frame_geometry.dart';
 import '../widgets/electrical_mounting_editor.dart';
 import '../widgets/electrical_point_properties.dart';
 import '../widgets/electrical_compact_inspector.dart';
@@ -548,29 +549,6 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
         _ => [ElectricalModuleType.socket220],
       };
 
-  bool _canJoinFrame(ElectricalPointType type) => {
-    ElectricalPointType.socket,
-    ElectricalPointType.switchPoint,
-    ElectricalPointType.tvSocket,
-    ElectricalPointType.dataSocket,
-    ElectricalPointType.frame,
-  }.contains(type);
-
-  ElectricalPoint? _frameNeighbor(String wallId, double offsetMm, int side) {
-    ElectricalPoint? best;
-    var distance = 400.0;
-    for (final p in widget.floor.electricalPoints) {
-      if (p.wallId != wallId || p.wallSide != side || !_canJoinFrame(p.type))
-        continue;
-      final d = ((p.wallOffsetMm ?? 0) - offsetMm).abs();
-      if (d < distance && p.modules.length < 5) {
-        best = p;
-        distance = d;
-      }
-    }
-    return best;
-  }
-
   Future<void> _tap(TapUpDetails d, Size size) async {
     if (_pinchingCamera) return;
     final t = _tx(size);
@@ -609,34 +587,6 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
         wallOffset = hit.offsetMm;
         wallSide = _sideOfWall(hit.wall, mm, 1);
       }
-      _pushUndo();
-      if (wallId != null &&
-          wallOffset != null &&
-          _canJoinFrame(_type) &&
-          _type != ElectricalPointType.frame) {
-        final neighbor = _frameNeighbor(wallId, wallOffset, wallSide);
-        if (neighbor != null) {
-          neighbor.modules.addAll(_defaultModules(_type));
-          while (neighbor.modules.length > 5) neighbor.modules.removeLast();
-          neighbor.type = neighbor.modules.length > 1
-              ? ElectricalPointType.frame
-              : _type;
-          neighbor.xMm = (neighbor.xMm + x) / 2;
-          neighbor.yMm = (neighbor.yMm + y) / 2;
-          neighbor.wallOffsetMm =
-              ((neighbor.wallOffsetMm ?? wallOffset) + wallOffset) / 2;
-          await widget.onChanged();
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Устройство добавлено в общую рамку.'),
-              ),
-            );
-            setState(() {});
-          }
-          return;
-        }
-      }
       final created = ElectricalPoint(
         id: _id('ep'),
         type: _type,
@@ -648,6 +598,17 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
         wallSide: wallSide,
         modules: _defaultModules(_type),
       );
+      final frameIssue = ElectricalFrameGeometry.placementIssue(
+          widget.floor, created);
+      if (frameIssue != null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(frameIssue)),
+          );
+        }
+        return;
+      }
+      _pushUndo();
       widget.floor.electricalPoints.add(created);
       await widget.onChanged();
       if (mounted) setState(() => _selectedId = created.id);
@@ -912,6 +873,13 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
       ),
     );
     if (!mounted || next == null) return;
+    final frameIssue = ElectricalFrameGeometry.placementIssue(
+        widget.floor, next);
+    if (frameIssue != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(frameIssue)));
+      return;
+    }
     _pushUndo();
     point.label = next.label;
     point.circuit = next.circuit;
@@ -921,6 +889,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
       ..clear()
       ..addAll(next.modules);
     point.frameVertical = next.frameVertical;
+    point.modulePitchMm = next.modulePitchMm;
     point.type = next.type;
     await widget.onChanged();
     if (!mounted) return;
