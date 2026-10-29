@@ -5,6 +5,7 @@ import 'electrical_network.dart';
 import 'electrical_wall_face.dart';
 import 'electrical_finished_reveal.dart';
 import 'electrical_datum_assignment.dart';
+import 'electrical_design_draft.dart';
 import 'cost_entry.dart';
 import 'material_purchase.dart';
 
@@ -155,6 +156,7 @@ class FloorPlan {
     List<ElectricalPoint>? electricalPoints,
     List<ElectricalRun>? electricalRuns,
     ElectricalNetwork? electricalNetwork,
+    ElectricalDesignDraft? electricalDesignDraft,
     List<ServiceRun>? serviceRuns,
     List<PlanObject>? planObjects,
     Map<String, DimensionRecord>? dimensionRecords,
@@ -171,6 +173,7 @@ class FloorPlan {
        electricalPoints = electricalPoints ?? [],
        electricalRuns = electricalRuns ?? [],
        electricalNetwork = electricalNetwork,
+       electricalDesignDraft = electricalDesignDraft,
        serviceRuns = serviceRuns ?? [],
        planObjects = planObjects ?? [],
        dimensionRecords = dimensionRecords ?? {},
@@ -187,6 +190,8 @@ class FloorPlan {
   final List<ElectricalPoint> electricalPoints;
   final List<ElectricalRun> electricalRuns;
   ElectricalNetwork? electricalNetwork;
+  /// Optional engineering assumptions; legacy projects remain readable.
+  ElectricalDesignDraft? electricalDesignDraft;
   final List<ServiceRun> serviceRuns;
   final List<PlanObject> planObjects;
   final Map<String, DimensionRecord> dimensionRecords;
@@ -261,6 +266,9 @@ class FloorPlan {
     electricalNetwork = other.electricalNetwork == null
         ? null
         : ElectricalNetwork.fromJson(other.electricalNetwork!.toJson());
+    electricalDesignDraft = other.electricalDesignDraft == null
+        ? null
+        : ElectricalDesignDraft.fromJson(other.electricalDesignDraft!.toJson());
     serviceRuns
       ..clear()
       ..addAll(other.serviceRuns.map((e) => ServiceRun.fromJson(e.toJson())));
@@ -298,6 +306,8 @@ class FloorPlan {
     'electricalRuns': electricalRuns.map((e) => e.toJson()).toList(),
     if (electricalNetwork != null)
       'electricalNetwork': electricalNetwork!.toJson(),
+    if (electricalDesignDraft != null)
+      'electricalDesignDraft': electricalDesignDraft!.toJson(),
     'serviceRuns': serviceRuns.map((e) => e.toJson()).toList(),
     'planObjects': planObjects.map((e) => e.toJson()).toList(),
     'dimensionRecords': dimensionRecords.map((k, v) => MapEntry(k, v.toJson())),
@@ -340,6 +350,9 @@ class FloorPlan {
         ? ElectricalNetwork.fromJson(
             Map<String, dynamic>.from(json['electricalNetwork'] as Map))
         : null,
+    electricalDesignDraft: json['electricalDesignDraft'] is Map
+        ? ElectricalDesignDraft.fromJson(Map<String, dynamic>.from(
+            json['electricalDesignDraft'] as Map)) : null,
     serviceRuns: ((json['serviceRuns'] as List?) ?? const [])
         .map((e) => ServiceRun.fromJson(Map<String, dynamic>.from(e as Map)))
         .toList(),
@@ -1460,6 +1473,7 @@ class ElectricalPoint {
     this.wallSide = 1,
     List<ElectricalModuleType>? modules,
     this.frameVertical = false,
+    this.modulePitchMm = 71,
     this.mounting,
     this.datumAssignment,
   }) : modules = modules ?? [_defaultModuleFor(type)];
@@ -1478,6 +1492,8 @@ class ElectricalPoint {
   int wallSide;
   final List<ElectricalModuleType> modules;
   bool frameVertical;
+  /// Nominal centre-to-centre pitch; manufacturer dimensions override 71 mm.
+  double modulePitchMm;
   ElectricalMounting? mounting;
   /// Optional P10 named dimensional reference. Not a positioning constraint.
   ElectricalDatumAssignment? datumAssignment;
@@ -1516,6 +1532,7 @@ class ElectricalPoint {
     'wallSide': wallSide,
     'modules': modules.map((e) => e.name).toList(),
     'frameVertical': frameVertical,
+    'modulePitchMm': modulePitchMm,
     'mounting': mounting?.toJson(),
     if (datumAssignment != null)
       'datumAssignment': datumAssignment!.toJson(),
@@ -1551,6 +1568,7 @@ class ElectricalPoint {
       wallSide: (json['wallSide'] as num?)?.toInt() == -1 ? -1 : 1,
       modules: modules.isEmpty ? null : modules,
       frameVertical: json['frameVertical'] as bool? ?? false,
+      modulePitchMm: (json['modulePitchMm'] as num?)?.toDouble() ?? 71,
       mounting: json['mounting'] is Map
           ? ElectricalMounting.fromJson(Map<String, dynamic>.from(json['mounting'] as Map))
           : null,

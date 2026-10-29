@@ -1,0 +1,52 @@
+name: Verify electrical workspace Stage 1 P12
+
+on:
+  push:
+    branches: ['feature/zamer-electrical-workspace-stage1-p12']
+    paths:
+      - 'zamer-app/lib/screens/electrical_screen.dart'
+      - 'zamer-app/lib/widgets/electrical_compact_inspector.dart'
+      - 'zamer-app/lib/widgets/electrical_plan_painter.dart'
+      - 'zamer-app/test/electrical_workspace_stage1_p12_test.dart'
+      - '.github/workflows/verify-electrical-stage1-p12.yml'
+  pull_request:
+    paths:
+      - 'zamer-app/lib/screens/electrical_screen.dart'
+      - 'zamer-app/lib/widgets/electrical_compact_inspector.dart'
+      - 'zamer-app/lib/widgets/electrical_plan_painter.dart'
+      - 'zamer-app/test/electrical_workspace_stage1_p12_test.dart'
+      - '.github/workflows/verify-electrical-stage1-p12.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  electrical-stage1:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Dependencies
+        working-directory: zamer-app
+        run: flutter pub get
+      - name: Analyze touched electrical files
+        working-directory: zamer-app
+        run: |
+          flutter analyze --no-fatal-infos --no-fatal-warnings \
+            lib/screens/electrical_screen.dart \
+            lib/widgets/electrical_compact_inspector.dart \
+            lib/widgets/electrical_plan_painter.dart \
+            test/electrical_workspace_stage1_p12_test.dart
+      - name: Test UX, mounting and existing electric contracts
+        working-directory: zamer-app
+        run: |
+          flutter test \
+            test/electrical_workspace_stage1_p12_test.dart \
+            test/electrical_mounting_integration_test.dart \
+            test/electrical_assigned_datums_p10_test.dart \
+            test/electrical_floor_camera_v154_test.dart

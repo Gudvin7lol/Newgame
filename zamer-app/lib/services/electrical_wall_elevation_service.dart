@@ -15,9 +15,15 @@ class ElectricalWallElevationPoint {
     required this.uMm,
     required this.zMm,
     required this.offsetFromAxisMm,
+    this.moduleCount = 1,
+    this.frameVertical = false,
+    this.modulePitchMm = 71,
   });
   final String pointId, label;
   final double uMm, zMm, offsetFromAxisMm;
+  final int moduleCount;
+  final bool frameVertical;
+  final double modulePitchMm;
 }
 
 class ElectricalWallElevationOpening {
@@ -170,6 +176,9 @@ class ElectricalWallElevationService {
           uMm: position.u.clamp(0.0, length),
           zMm: p.heightMm,
           offsetFromAxisMm: position.offset,
+          moduleCount: p.modules.length.clamp(1, 5).toInt(),
+          frameVertical: p.frameVertical,
+          modulePitchMm: p.modulePitchMm,
         ));
       }
     }

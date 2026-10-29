@@ -20,6 +20,7 @@ class ElectricalPlanPainter extends CustomPainter {
     this.show3dRoutes = false,
     this.showCrossings = false,
     this.circuitFilterId,
+    this.visiblePointTypes,
   });
 
   final FloorPlan floor;
@@ -35,6 +36,8 @@ class ElectricalPlanPainter extends CustomPainter {
   final bool show3dRoutes;
   final bool showCrossings;
   final String? circuitFilterId;
+  /// Visual-only filter: hidden points remain in the project model.
+  final Set<ElectricalPointType>? visiblePointTypes;
 
   Offset p(double x, double y) => origin + Offset(x * scale, y * scale);
 
@@ -76,6 +79,7 @@ class ElectricalPlanPainter extends CustomPainter {
     if (showCrossings) _drawCrossings(canvas, size);
 
     for (final point in floor.electricalPoints) {
+      if (visiblePointTypes != null && !visiblePointTypes!.contains(point.type)) continue;
       final pos = p(point.xMm, point.yMm);
       final selected = point.id == selectedPointId || point.id == wireStartPointId;
       var angle = 0.0;
@@ -228,52 +232,57 @@ class ElectricalPlanPainter extends CustomPainter {
   }
 
   void _symbol(Canvas canvas, Offset c, ElectricalPoint point, bool selected, {double angle = 0}) {
-    final stroke = Paint()
-      ..color = selected ? const Color(0xFF0D5BD7) :
-        switch (point.type) {
-          ElectricalPointType.ceilingLight ||
-          ElectricalPointType.wallLight => const Color(0xFF317C9A),
-          ElectricalPointType.panel => const Color(0xFF7567AB),
-          ElectricalPointType.switchPoint => const Color(0xFF90622A),
-          _ => const Color(0xFFB24D2B),
-        }
+    // Preserve the six approved symbol shapes and their role colours.
+    // Selection changes the stroke weight, not the semantic colour.
+    final iconColor = switch (point.type) {
+      ElectricalPointType.socket || ElectricalPointType.frame =>
+        const Color(0xFF6C9EF8),
+      ElectricalPointType.switchPoint => const Color(0xFF72C49B),
+      ElectricalPointType.ceilingLight || ElectricalPointType.wallLight =>
+        const Color(0xFFF0A36B),
+      ElectricalPointType.tvSocket => const Color(0xFFB59AED),
+      ElectricalPointType.dataSocket => const Color(0xFF68D1CB),
+      ElectricalPointType.panel => const Color(0xFFE98181),
+      ElectricalPointType.junctionBox => const Color(0xFFD0C48C),
+      ElectricalPointType.appliance => const Color(0xFFAAB2BC),
+    };
+    final stroke = Paint()..color = iconColor
       ..strokeWidth = selected ? 2.8 : 2
       ..style = PaintingStyle.stroke;
-    final fill = Paint()..color = const Color(0xFFFDFDFD);
+    final fill = Paint()..color = darkMode
+        ? const Color(0xFF202631) : const Color(0xFFFDFDFD);
     final type = point.type;
 
     if (type == ElectricalPointType.frame || point.modules.length > 1) {
       final count = point.modules.length.clamp(1, 5).toInt();
-      const moduleStep = 15.0;
+      // Keep symbols legible when zoomed out, but honour real CAD pitch
+      // as soon as the scale supports it. Exact millimetres live in the model.
+      final moduleStep = (point.modulePitchMm * scale)
+          .clamp(12.0, 36.0).toDouble();
       final vertical = point.frameVertical;
+      // Vertically stacked devices share the SAME U in plan and differ in Z.
+      // Do not fake a floor-plane footprint extending through the wall.
+      final visibleCount = vertical ? 1 : count;
       final rect = Rect.fromCenter(
         center: Offset.zero,
-        width: vertical ? 18 : count * moduleStep + 6,
-        height: vertical ? count * moduleStep + 6 : 18,
+        width: visibleCount * moduleStep + 6,
+        height: 18,
       );
       canvas.save();
       canvas.translate(c.dx, c.dy);
       canvas.rotate(angle);
       final housing = RRect.fromRectAndRadius(
         rect, const Radius.circular(5));
-      canvas.drawRRect(housing, Paint()..color = const Color(0xFFF9F9F5));
+      canvas.drawRRect(housing, Paint()..color = darkMode ? const Color(0xFF202631) : const Color(0xFFF9F9F5));
       canvas.drawRRect(housing, stroke);
-      for (var i = 1; i < count; i++) {
-        if (vertical) {
-          final y = rect.top + 3 + moduleStep * i;
-          canvas.drawLine(Offset(rect.left + 2, y),
-              Offset(rect.right - 2, y), stroke);
-        } else {
-          final x = rect.left + 3 + moduleStep * i;
-          canvas.drawLine(Offset(x, rect.top + 2),
-              Offset(x, rect.bottom - 2), stroke);
-        }
+      for (var i = 1; i < visibleCount; i++) {
+        final x = rect.left + 3 + moduleStep * i;
+        canvas.drawLine(Offset(x, rect.top + 2),
+            Offset(x, rect.bottom - 2), stroke);
       }
-      for (var i = 0; i < count; i++) {
+      for (var i = 0; i < visibleCount; i++) {
         final module = point.modules[i];
-        final mc = vertical
-            ? Offset(0, rect.top + 3 + moduleStep * (i + .5))
-            : Offset(rect.left + 3 + moduleStep * (i + .5), 0);
+        final mc = Offset(rect.left + 3 + moduleStep * (i + .5), 0);
         switch (module) {
           case ElectricalModuleType.socket220:
             _socket(canvas, mc, stroke);
@@ -296,6 +305,8 @@ class ElectricalPlanPainter extends CustomPainter {
             break;
         }
       }
+      if (vertical) _text(canvas, '×$count',
+          Offset(rect.right + 13, rect.top + 2), 9);
       canvas.restore();
       return;
     }

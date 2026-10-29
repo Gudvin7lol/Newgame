@@ -17,7 +17,7 @@ class ElectricalPointProperties extends StatefulWidget {
 
 class _ElectricalPointPropertiesState extends State<ElectricalPointProperties> {
   late final ElectricalPoint draft;
-  late final TextEditingController label, circuit, power, height;
+  late final TextEditingController label, circuit, power, height, pitch;
   String? error;
   bool get canMount =>
       draft.isWallDevice || draft.type == ElectricalPointType.junctionBox;
@@ -37,6 +37,7 @@ class _ElectricalPointPropertiesState extends State<ElectricalPointProperties> {
     circuit = TextEditingController(text: draft.circuit);
     power = TextEditingController(text: draft.powerW.toString());
     height = TextEditingController(text: draft.heightMm.toString());
+    pitch = TextEditingController(text: draft.modulePitchMm.toStringAsFixed(0));
     if (canFrame && draft.modules.isEmpty) {
       draft.modules.add(switch (draft.type) {
         ElectricalPointType.switchPoint => ElectricalModuleType.switch1,
@@ -49,7 +50,7 @@ class _ElectricalPointPropertiesState extends State<ElectricalPointProperties> {
 
   @override
   void dispose() {
-    for (final c in [label, circuit, power, height]) {
+    for (final c in [label, circuit, power, height, pitch]) {
       c.dispose();
     }
     super.dispose();
@@ -68,6 +69,14 @@ class _ElectricalPointPropertiesState extends State<ElectricalPointProperties> {
         () => error = 'Высота и мощность должны быть неотрицательными числами.',
       );
       return;
+    }
+    if (canFrame) {
+      final p = double.tryParse(pitch.text.replaceAll(',', '.'));
+      if (p == null || !p.isFinite || p < 40 || p > 150) {
+        setState(() => error = 'Межосевое расстояние: от 40 до 150 мм.');
+        return;
+      }
+      draft.modulePitchMm = p;
     }
     draft.label = label.text.trim();
     draft.circuit = circuit.text
@@ -190,6 +199,19 @@ class _ElectricalPointPropertiesState extends State<ElectricalPointProperties> {
                         title: const Text('Состав рамки'),
                         subtitle: Text('${draft.modules.length} мест'),
                         children: [
+                          TextField(
+                            key: const ValueKey('point-module-pitch'),
+                            controller: pitch,
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            decoration: const InputDecoration(
+                              labelText: 'Межосевое расстояние',
+                              suffixText: 'мм',
+                              helperText: '71 мм по умолчанию. Уточни по рамке производителя.',
+                            ),
+                          ),
+                          const SizedBox(height: 10),
                           DropdownButtonFormField<int>(
                             key: const ValueKey('point-module-count'),
                             initialValue: draft.modules.length
