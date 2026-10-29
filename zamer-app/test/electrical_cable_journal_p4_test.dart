@@ -159,11 +159,28 @@ void main() {
           floor: floor, embedded: true, onChanged: () async {}),
     )));
     await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('electrical-toggle-physical-routes')),
-        findsOneWidget);
+    // P12 moved route visibility out of the crowded toolbar and into layers.
+    expect(find.byKey(const ValueKey('electrical-plan-layers')), findsOneWidget);
     expect(find.byKey(const ValueKey('electrical-cable-journal')),
         findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('electrical-toggle-physical-routes')));
+    await tester.tap(find.byKey(const ValueKey('electrical-plan-layers')));
+    await tester.pumpAndSettle();
+    final physicalRoutes =
+        find.byKey(const ValueKey('electrical-toggle-physical-routes'));
+    expect(physicalRoutes, findsOneWidget);
+    expect(
+      tester.widget<CheckedPopupMenuItem<String>>(physicalRoutes).checked,
+      isFalse,
+    );
+    await tester.tap(physicalRoutes);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('electrical-plan-layers')));
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<CheckedPopupMenuItem<String>>(physicalRoutes).checked,
+      isTrue,
+    );
+    await tester.tap(physicalRoutes);
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('electrical-cable-journal')));
     await tester.pumpAndSettle();
