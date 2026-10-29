@@ -1672,7 +1672,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     final render = _planCanvasKey.currentContext?.findRenderObject();
     if (render is! RenderBox || !render.hasSize) return null;
     final local = render.globalToLocal(global);
-    if (!Offset.zero.and(render.size).contains(local)) return null;
+    if (!(Offset.zero & render.size).contains(local)) return null;
     return local;
   }
 
