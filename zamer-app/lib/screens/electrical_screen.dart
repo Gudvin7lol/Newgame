@@ -68,6 +68,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
   ElectricalWorkspaceView _workspaceView = ElectricalWorkspaceView.pointsRoutes;
   ElectricalBoardView _boardView = ElectricalBoardView.layout;
   bool _addArcOpen = false;
+  bool _selectionActionsOpen = false;
   int _fanOuterIndex = 0;
   double _fanScrollAccumulation = 0;
   final GlobalKey _planCanvasKey = GlobalKey();
@@ -672,10 +673,14 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
       return;
     }
 
-    final point = _near(mm, (180 / math.max(0.25, t.scale / 0.08)).toDouble());
+    final point = _near(mm,
+        ElectricalSnapService.captureMm(t.scale, capturePx: 20));
     if (point == null) return;
     if (_mode == ElectricalMode.select) {
-      setState(() => _selectedId = point.id);
+      setState(() {
+        _selectedId = point.id;
+        _selectionActionsOpen = false;
+      });
       // Embedded CAD uses a persistent one-row inspector. Keep the legacy
       // stand-alone editor interaction compatible with existing projects/tests.
       if (!widget.embedded) await _pointSheet(point);
@@ -1901,7 +1906,8 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
         if ((_addArcOpen && _mode == ElectricalMode.add) ||
-            (selected != null && _mode == ElectricalMode.select))
+            (selected != null && _mode == ElectricalMode.select &&
+                _selectionActionsOpen))
           GestureDetector(
             onVerticalDragUpdate: _mode == ElectricalMode.add
                 ? (details) => _scrollFanOuter(details.delta.dy) : null,
@@ -1936,11 +1942,25 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
             ),
           ),
         Row(mainAxisSize: MainAxisSize.min, children: [
+          if (selected != null && _mode == ElectricalMode.select) ...[
+            IconButton.filledTonal(
+              key: const ValueKey('electrical-selection-actions'),
+              tooltip: _selectionActionsOpen
+                  ? 'Скрыть действия с точкой' : 'Действия с точкой',
+              onPressed: () => setState(
+                () => _selectionActionsOpen = !_selectionActionsOpen),
+              icon: Icon(_selectionActionsOpen
+                  ? Icons.close_rounded : Icons.more_horiz_rounded),
+            ),
+            const SizedBox(width: 5),
+          ],
           IconButton.filledTonal(
             key: const ValueKey('electrical-fan-select'),
             tooltip: 'Выбрать / перетащить',
             onPressed: () => setState(() {
-              _mode = ElectricalMode.select; _addArcOpen = false;
+              _mode = ElectricalMode.select;
+              _addArcOpen = false;
+              _selectionActionsOpen = false;
             }),
             icon: const Icon(Icons.touch_app_outlined)),
           const SizedBox(width: 5),
@@ -1948,7 +1968,9 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
             key: const ValueKey('electrical-fan-wire'),
             tooltip: 'Ручная линия',
             onPressed: () => setState(() {
-              _mode = ElectricalMode.wire; _addArcOpen = false;
+              _mode = ElectricalMode.wire;
+              _addArcOpen = false;
+              _selectionActionsOpen = false;
               _wireStartId = null;
             }),
             icon: const Icon(Icons.polyline_outlined)),
@@ -1959,6 +1981,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
             heroTag: 'zamer-electrical-point-add',
             onPressed: () => setState(() {
               _mode = ElectricalMode.add;
+              _selectionActionsOpen = false;
               _addArcOpen = !_addArcOpen;
             }),
             child: const Icon(Icons.add_rounded),
