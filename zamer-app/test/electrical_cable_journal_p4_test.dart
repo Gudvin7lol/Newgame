@@ -159,11 +159,18 @@ void main() {
           floor: floor, embedded: true, onChanged: () async {}),
     )));
     await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('electrical-toggle-physical-routes')),
+    // P12 hides routing visibility inside the existing plan layers button
+    // instead of adding an extra control to the compact toolbar.
+    expect(find.byKey(const ValueKey('electrical-plan-layers')),
         findsOneWidget);
     expect(find.byKey(const ValueKey('electrical-cable-journal')),
         findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('electrical-toggle-physical-routes')));
+    expect(find.byKey(const ValueKey('electrical-toggle-physical-routes')),
+        findsNothing);
+    await tester.tap(find.byKey(const ValueKey('electrical-plan-layers')));
+    await tester.pumpAndSettle();
+    expect(find.text('Физические трассы'), findsOneWidget);
+    await tester.tap(find.text('Физические трассы'));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('electrical-cable-journal')));
     await tester.pumpAndSettle();
