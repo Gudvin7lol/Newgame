@@ -928,7 +928,8 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     );
     if (!mounted || next == null) return;
     final frameIssue = ElectricalFrameGeometry.placementIssue(
-        widget.floor, next);
+        widget.floor, next) ??
+        ElectricalFrameGeometry.conflictWithFrames(widget.floor, next);
     if (frameIssue != null) {
       ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(frameIssue)));
@@ -1634,6 +1635,20 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
             SnackBar(content: Text(error.message)));
         return;
       }
+    }
+    final proposed = ElectricalPoint.fromJson(point.toJson());
+    if (newMount == null) {
+      proposed.heightMm = value;
+    } else {
+      ElectricalMountingService.apply(widget.floor, proposed, newMount);
+    }
+    final frameIssue = ElectricalFrameGeometry.placementIssue(
+        widget.floor, proposed) ??
+        ElectricalFrameGeometry.conflictWithFrames(widget.floor, proposed);
+    if (frameIssue != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(frameIssue)));
+      return;
     }
     _pushUndo();
     if (newMount == null) {
