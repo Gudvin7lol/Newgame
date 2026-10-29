@@ -71,6 +71,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
   int _fanOuterIndex = 0;
   double _fanScrollAccumulation = 0;
   final GlobalKey _planCanvasKey = GlobalKey();
+  final GlobalKey _fanGeometryKey = GlobalKey();
   Offset? _placingAt;
   ElectricalPointType _type = ElectricalPointType.socket;
   String _cable = 'ВВГнг-LS 3×1.5';
@@ -1673,6 +1674,13 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     if (render is! RenderBox || !render.hasSize) return null;
     final local = render.globalToLocal(global);
     if (!(Offset.zero & render.size).contains(local)) return null;
+    // A long press released on its own tool must not create a point
+    // beneath the overlay controls.
+    final fan = _fanGeometryKey.currentContext?.findRenderObject();
+    if (fan is RenderBox && fan.hasSize &&
+        (Offset.zero & fan.size).contains(fan.globalToLocal(global))) {
+      return null;
+    }
     return local;
   }
 
@@ -1888,6 +1896,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     ];
 
     return Column(
+      key: _fanGeometryKey,
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
