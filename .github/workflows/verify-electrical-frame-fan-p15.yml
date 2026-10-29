@@ -1,0 +1,56 @@
+name: Verify electrical frame and fan P15
+
+on:
+  push:
+    branches:
+      - feature/zamer-electrical-frame-fan-p15
+  pull_request:
+    paths:
+      - 'zamer-app/lib/models/models.dart'
+      - 'zamer-app/lib/services/electrical_frame_geometry.dart'
+      - 'zamer-app/lib/screens/electrical_screen.dart'
+      - 'zamer-app/lib/widgets/electrical_point_properties.dart'
+      - 'zamer-app/lib/widgets/electrical_plan_painter.dart'
+      - 'zamer-app/lib/services/electrical_wall_elevation_service.dart'
+      - 'zamer-app/lib/widgets/electrical_wall_elevation_painter.dart'
+      - 'zamer-app/test/electrical_frame_fan_p15_test.dart'
+      - '.github/workflows/verify-electrical-frame-fan-p15.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  frame-and-fan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Get dependencies
+        working-directory: zamer-app
+        run: flutter pub get
+      - name: Analyze changed sources
+        working-directory: zamer-app
+        run: |
+          flutter analyze --no-fatal-infos --no-fatal-warnings \
+            lib/models/models.dart \
+            lib/services/electrical_frame_geometry.dart \
+            lib/screens/electrical_screen.dart \
+            lib/widgets/electrical_point_properties.dart \
+            lib/widgets/electrical_plan_painter.dart \
+            lib/services/electrical_wall_elevation_service.dart \
+            lib/widgets/electrical_wall_elevation_painter.dart \
+            test/electrical_frame_fan_p15_test.dart
+      - name: Run frame, fan and existing wall geometry tests
+        working-directory: zamer-app
+        run: |
+          flutter test \
+            test/electrical_frame_fan_p15_test.dart \
+            test/electrical_workspace_stage1_p12_test.dart \
+            test/electrical_wall_elevations_p6_test.dart \
+            test/electrical_mounting_test.dart \
+            test/electrical_cable_journal_p4_test.dart
