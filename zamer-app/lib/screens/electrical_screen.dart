@@ -1351,6 +1351,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                 child: const Text('Распределительные коробки'),
               ),
               CheckedPopupMenuItem(
+                key: const ValueKey('electrical-toggle-physical-routes'),
                 value: 'physical',
                 checked: _show3dRoutes,
                 child: const Text('Физические трассы'),
