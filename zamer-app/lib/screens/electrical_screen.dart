@@ -1860,13 +1860,13 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
         .where((p) => p.id == selectedId).firstOrNull;
     if (current == null) return;
     switch (choice) {
-      case 'properties': await _editPropertiesDirect(current);
-      case 'datum': await _editMountingDirect(current);
-      case 'load': await _editConsumerDraftDirect(current);
-      case 'elevation': await _showWallElevation();
-      case 'duplicate': await _duplicatePoint(current);
-      case 'side': await _flipWallSide(current);
-      case 'delete': await _deleteSelectedPoint(current);
+      case 'properties': await _editPropertiesDirect(current); return;
+      case 'datum': await _editMountingDirect(current); return;
+      case 'load': await _editConsumerDraftDirect(current); return;
+      case 'elevation': await _showWallElevation(); return;
+      case 'duplicate': await _duplicatePoint(current); return;
+      case 'side': await _flipWallSide(current); return;
+      case 'delete': await _deleteSelectedPoint(current); return;
     }
   }
 
