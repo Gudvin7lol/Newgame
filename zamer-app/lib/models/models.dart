@@ -1451,6 +1451,7 @@ class ElectricalPoint {
     this.wallSide = 1,
     List<ElectricalModuleType>? modules,
     this.frameVertical = false,
+    this.modulePitchMm = 71,
     this.mounting,
     this.datumAssignment,
   }) : modules = modules ?? [_defaultModuleFor(type)];
@@ -1469,6 +1470,8 @@ class ElectricalPoint {
   int wallSide;
   final List<ElectricalModuleType> modules;
   bool frameVertical;
+  /// Nominal centre-to-centre pitch; manufacturer dimensions override 71 mm.
+  double modulePitchMm;
   ElectricalMounting? mounting;
   /// Optional P10 named dimensional reference. Not a positioning constraint.
   ElectricalDatumAssignment? datumAssignment;
@@ -1507,6 +1510,7 @@ class ElectricalPoint {
     'wallSide': wallSide,
     'modules': modules.map((e) => e.name).toList(),
     'frameVertical': frameVertical,
+    'modulePitchMm': modulePitchMm,
     'mounting': mounting?.toJson(),
     if (datumAssignment != null)
       'datumAssignment': datumAssignment!.toJson(),
@@ -1542,6 +1546,7 @@ class ElectricalPoint {
       wallSide: (json['wallSide'] as num?)?.toInt() == -1 ? -1 : 1,
       modules: modules.isEmpty ? null : modules,
       frameVertical: json['frameVertical'] as bool? ?? false,
+      modulePitchMm: (json['modulePitchMm'] as num?)?.toDouble() ?? 71,
       mounting: json['mounting'] is Map
           ? ElectricalMounting.fromJson(Map<String, dynamic>.from(json['mounting'] as Map))
           : null,
