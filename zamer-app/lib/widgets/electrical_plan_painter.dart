@@ -248,7 +248,10 @@ class ElectricalPlanPainter extends CustomPainter {
 
     if (type == ElectricalPointType.frame || point.modules.length > 1) {
       final count = point.modules.length.clamp(1, 5).toInt();
-      const moduleStep = 15.0;
+      // Keep symbols legible when zoomed out, but honour real CAD pitch
+      // as soon as the scale supports it. Exact millimetres live in the model.
+      final moduleStep = (point.modulePitchMm * scale)
+          .clamp(12.0, 36.0).toDouble();
       final vertical = point.frameVertical;
       final rect = Rect.fromCenter(
         center: Offset.zero,
