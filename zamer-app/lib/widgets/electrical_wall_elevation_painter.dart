@@ -114,12 +114,42 @@ class ElectricalWallElevationPainter extends CustomPainter {
     for (var i = 0; i < data.points.length; i++) {
       final point = data.points[i];
       final px = x(point.uMm), py = y(point.zMm);
-      canvas.drawCircle(Offset(px, py), 6.8,
-          Paint()..color = bg);
-      canvas.drawCircle(Offset(px, py), 6.8,
-          Paint()..color = peach..style = PaintingStyle.stroke
-            ..strokeWidth = 2.3);
-      canvas.drawCircle(Offset(px, py), 2.4, Paint()..color = peach);
+      if (point.moduleCount > 1 && point.modulePitchMm.isFinite &&
+          point.modulePitchMm > 0) {
+        // Physical centre spacing in U/Z, not equal-width decorative pixels.
+        // 80 mm is a nominal face envelope, NOT a manufacturer specification.
+        final totalMm = (point.moduleCount - 1) * point.modulePitchMm + 80;
+        final rect = Rect.fromCenter(
+          center: Offset(px, py),
+          width: point.frameVertical ? x(80) - x(0) :
+              x(totalMm) - x(0),
+          height: point.frameVertical ? y(0) - y(totalMm) :
+              y(0) - y(80),
+        );
+        canvas.drawRRect(RRect.fromRectAndRadius(rect,
+            const Radius.circular(3)),
+            Paint()..color = bg);
+        canvas.drawRRect(RRect.fromRectAndRadius(rect,
+            const Radius.circular(3)),
+            Paint()..color = peach..style = PaintingStyle.stroke
+              ..strokeWidth = 1.6);
+        for (var module = 0; module < point.moduleCount; module++) {
+          final delta = (module - (point.moduleCount - 1) / 2) *
+              point.modulePitchMm;
+          final position = point.frameVertical
+              ? Offset(px, y(point.zMm + delta))
+              : Offset(x(point.uMm + delta), py);
+          canvas.drawCircle(position, 3.8,
+              Paint()..color = peach);
+        }
+      } else {
+        canvas.drawCircle(Offset(px, py), 6.8,
+            Paint()..color = bg);
+        canvas.drawCircle(Offset(px, py), 6.8,
+            Paint()..color = peach..style = PaintingStyle.stroke
+              ..strokeWidth = 2.3);
+        canvas.drawCircle(Offset(px, py), 2.4, Paint()..color = peach);
+      }
       final label = point.label.length > 17
           ? point.label.substring(0, 16) + '…' : point.label;
       // Alternate rows so closely spaced points remain navigable in a list.
