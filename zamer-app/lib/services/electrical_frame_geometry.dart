@@ -55,6 +55,35 @@ class ElectricalFrameGeometry {
       isMultiPost(point) && point.frameVertical
           ? getSpanMm(point) / 2 : nominalFaceHalfMm;
 
+  /// A single socket must not silently be placed on top of an existing
+  /// multi-post frame. Non-frame devices remain governed by their own
+  /// mounting requirements; this is only an additional collision guard.
+  static String? conflictWithFrames(FloorPlan floor, ElectricalPoint point) {
+    if (isMultiPost(point) || point.wallId == null ||
+        point.wallOffsetMm == null) return null;
+    if (!point.wallOffsetMm!.isFinite || !point.heightMm.isFinite) {
+      return 'Проверь положение электроточки.';
+    }
+    final x0 = point.wallOffsetMm! - halfWidthMm(point);
+    final x1 = point.wallOffsetMm! + halfWidthMm(point);
+    final y0 = point.heightMm - halfHeightMm(point);
+    final y1 = point.heightMm + halfHeightMm(point);
+    for (final frame in floor.electricalPoints) {
+      if (frame.id == point.id || !isMultiPost(frame) ||
+          frame.wallId != point.wallId ||
+          frame.wallSide != point.wallSide ||
+          frame.wallOffsetMm == null) continue;
+      final ox0 = frame.wallOffsetMm! - halfWidthMm(frame);
+      final ox1 = frame.wallOffsetMm! + halfWidthMm(frame);
+      final oy0 = frame.heightMm - halfHeightMm(frame);
+      final oy1 = frame.heightMm + halfHeightMm(frame);
+      if (x0 < ox1 && x1 > ox0 && y0 < oy1 && y1 > oy0) {
+        return 'Электроточка пересекает рамку ${frame.id}.';
+      }
+    }
+    return null;
+  }
+
   /// Null means the nominal envelope fits known wall geometry.
   /// This does not verify actual box diameters, finishing layers or devices.
   static String? placementIssue(FloorPlan floor, ElectricalPoint point) {
