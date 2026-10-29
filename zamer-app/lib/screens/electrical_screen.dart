@@ -1286,6 +1286,8 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
       MaterialPageRoute(builder: (_) => ElectricalWallElevationScreen(
         floor: widget.floor,
         initialCircuitId: _routeCircuitFilterId,
+        initialWallId: widget.floor.electricalPoints
+            .where((p) => p.id == _selectedId).firstOrNull?.wallId,
       )),
     );
   }
