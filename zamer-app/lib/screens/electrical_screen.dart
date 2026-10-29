@@ -11,6 +11,7 @@ import '../services/electrical_design_engine.dart';
 import '../widgets/electrical_consumer_draft_editor.dart';
 import '../services/electrical_mounting_service.dart';
 import '../services/electrical_frame_geometry.dart';
+import '../services/electrical_snap_service.dart';
 import '../widgets/electrical_mounting_editor.dart';
 import '../widgets/electrical_point_properties.dart';
 import '../widgets/electrical_compact_inspector.dart';
@@ -102,6 +103,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
   String? _routeCircuitFilterId;
   String? _dragPointId;
   bool _dragUndoPushed = false;
+  String? _dragProblem;
   final _undo = <String>[];
   final _redo = <String>[];
   PlanViewportSnapshot? _camera;
@@ -172,6 +174,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     }
     _dragPointId = null;
     _dragUndoPushed = false;
+    _dragProblem = null;
     _placingAt = null;
     _wireStartId = null;
   }
@@ -393,39 +396,39 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     );
   }
 
-  math.Point<double> _snapLightGuide(
-    ElectricalPoint? moving,
-    math.Point<double> raw,
-  ) {
-    var x = raw.x;
-    var y = raw.y;
-    var bestX = 240.0;
-    var bestY = 240.0;
-    for (final p in widget.floor.electricalPoints) {
-      if (moving != null && p.id == moving.id) continue;
-      if (p.type != ElectricalPointType.ceilingLight &&
-          p.type != ElectricalPointType.wallLight)
-        continue;
-      final dx = (p.xMm - raw.x).abs();
-      final dy = (p.yMm - raw.y).abs();
-      if (dx < bestX) {
-        bestX = dx;
-        x = p.xMm;
-      }
-      if (dy < bestY) {
-        bestY = dy;
-        y = p.yMm;
-      }
-    }
-    return math.Point<double>(x, y);
+  double _activePlanScale() => _viewportSize.isEmpty
+      ? .08 : _tx(_viewportSize).scale;
+
+  _WallHit _snapWallHit(_WallHit hit) {
+    final wall = hit.wall;
+    final a = widget.floor.nodeById(wall.startNodeId);
+    final b = widget.floor.nodeById(wall.endNodeId);
+    if (a == null || b == null) return hit;
+    final length = widget.floor.wallLengthMm(wall);
+    final station = ElectricalSnapService.wallOffset(
+        widget.floor, wall, hit.offsetMm, _activePlanScale());
+    if (length <= 0) return hit;
+    final t = station / length;
+    return _WallHit(
+      wall: wall,
+      point: math.Point<double>(
+        a.xMm + (b.xMm - a.xMm) * t,
+        a.yMm + (b.yMm - a.yMm) * t,
+      ),
+      offsetMm: station,
+      distanceMm: hit.distanceMm,
+    );
   }
 
   void _movePoint(ElectricalPoint point, math.Point<double> raw) {
     if (_needsWall(point.type) || (point.type == ElectricalPointType.junctionBox && point.wallId != null)) {
-      final rawHit = _nearestWall(raw, maxDistanceMm: 700);
+      final rawHit = _nearestWall(raw,
+          maxDistanceMm: ElectricalSnapService.captureMm(
+              _activePlanScale(), capturePx: 32));
       final hit = rawHit == null
           ? null
-          : _clearOfDoor(rawHit, _hasSwitch(point.type, point.modules));
+          : _clearOfDoor(_snapWallHit(rawHit),
+              _hasSwitch(point.type, point.modules));
       if (hit != null) {
         point.wallSide = _sideOfWall(hit.wall, raw, point.wallSide);
         point.xMm = hit.point.x;
@@ -436,10 +439,15 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
       return;
     }
     final guided = point.type == ElectricalPointType.ceilingLight
-        ? _snapLightGuide(point, raw)
+        ? ElectricalSnapService.light(
+            widget.floor, raw, _activePlanScale(),
+            movingPointId: point.id).position
         : raw;
-    point.xMm = (guided.x / 10).round() * 10.0;
-    point.yMm = (guided.y / 10).round() * 10.0;
+    final step = ElectricalSnapService.stepMm(_activePlanScale());
+    point.xMm = point.type == ElectricalPointType.ceilingLight
+        ? guided.x : (guided.x / step).round() * step;
+    point.yMm = point.type == ElectricalPointType.ceilingLight
+        ? guided.y : (guided.y / step).round() * step;
     point.wallId = null;
     point.wallOffsetMm = null;
   }
@@ -477,33 +485,68 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
       _dragPointId = point?.id;
       _selectedId = point?.id;
       _dragUndoPushed = false;
+      _dragProblem = null;
     });
   }
 
   void _dragUpdate(DragUpdateDetails d, Size size) {
-    if (_pinchingCamera) return;
+    if (_pinchingCamera || _touches.length > 1) return;
     if (_mode != ElectricalMode.select || _dragPointId == null) return;
-    ElectricalPoint? point;
-    for (final p in widget.floor.electricalPoints) {
-      if (p.id == _dragPointId) point = p;
-    }
+    final point = widget.floor.electricalPoints
+        .where((p) => p.id == _dragPointId).firstOrNull;
     if (point == null) return;
+    // Evaluate a detached point: invalid drag frames must never mutate plan.
+    final proposed = ElectricalPoint.fromJson(point.toJson());
+    _movePoint(proposed, _screenToMm(d.localPosition, size));
+    final issue = ElectricalFrameGeometry.placementIssue(
+        widget.floor, proposed) ??
+        ElectricalFrameGeometry.conflictWithFrames(widget.floor, proposed);
+    if (issue != null) {
+      setState(() => _dragProblem = issue);
+      return;
+    }
+    final changed = proposed.xMm != point.xMm ||
+        proposed.yMm != point.yMm ||
+        proposed.wallId != point.wallId ||
+        proposed.wallSide != point.wallSide ||
+        proposed.wallOffsetMm != point.wallOffsetMm;
+    if (!changed) {
+      if (_dragProblem != null) setState(() => _dragProblem = null);
+      return;
+    }
     if (!_dragUndoPushed) {
       _pushUndo();
       _dragUndoPushed = true;
     }
-    _movePoint(point, _screenToMm(d.localPosition, size));
-    setState(() {});
+    point.xMm = proposed.xMm;
+    point.yMm = proposed.yMm;
+    point.wallId = proposed.wallId;
+    point.wallOffsetMm = proposed.wallOffsetMm;
+    point.wallSide = proposed.wallSide;
+    setState(() => _dragProblem = null);
   }
 
   Future<void> _dragEnd(DragEndDetails d) async {
     if (_mode != ElectricalMode.select || _dragPointId == null) return;
-    if (_dragUndoPushed) await widget.onChanged();
-    if (mounted)
+    final error = _dragProblem;
+    if (error != null && _dragUndoPushed && _undo.isNotEmpty) {
+      final snapshot = jsonDecode(_undo.removeLast()) as Map;
+      widget.floor.restoreFrom(
+          FloorPlan.fromJson(Map<String, dynamic>.from(snapshot)));
+    } else if (error == null && _dragUndoPushed) {
+      await widget.onChanged();
+    }
+    if (mounted) {
       setState(() {
         _dragPointId = null;
         _dragUndoPushed = false;
+        _dragProblem = null;
       });
+      if (error != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Перемещение отменено: $error')));
+      }
+    }
   }
 
   bool _needsWall(ElectricalPointType type) => {
@@ -557,19 +600,26 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
       (d.localPosition.dy - t.origin.dy) / t.scale,
     );
     if (_mode == ElectricalMode.add) {
+      final scale = _activePlanScale();
       final guided = _type == ElectricalPointType.ceilingLight
-          ? _snapLightGuide(null, mm)
+          ? ElectricalSnapService.light(widget.floor, mm, scale).position
           : mm;
-      var x = ((guided.x / 10).round() * 10).toDouble();
-      var y = ((guided.y / 10).round() * 10).toDouble();
+      final step = ElectricalSnapService.stepMm(scale);
+      var x = _type == ElectricalPointType.ceilingLight
+          ? guided.x : ((guided.x / step).round() * step).toDouble();
+      var y = _type == ElectricalPointType.ceilingLight
+          ? guided.y : ((guided.y / step).round() * step).toDouble();
       String? wallId;
       double? wallOffset;
       var wallSide = 1;
       if (_needsWall(_type)) {
-        final rawHit = _nearestWall(mm);
+        final rawHit = _nearestWall(mm,
+            maxDistanceMm: ElectricalSnapService.captureMm(
+                scale, capturePx: 32));
         final hit = rawHit == null
             ? null
-            : _clearOfDoor(rawHit, _hasSwitch(_type, _defaultModules(_type)));
+            : _clearOfDoor(_snapWallHit(rawHit),
+                _hasSwitch(_type, _defaultModules(_type)));
         if (hit == null) {
           if (mounted)
             ScaffoldMessenger.of(context).showSnackBar(
@@ -599,7 +649,8 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
         modules: _defaultModules(_type),
       );
       final frameIssue = ElectricalFrameGeometry.placementIssue(
-          widget.floor, created);
+          widget.floor, created) ??
+          ElectricalFrameGeometry.conflictWithFrames(widget.floor, created);
       if (frameIssue != null) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -1714,11 +1765,14 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
 
   Offset _placementPreview(Offset raw, Size size) {
     if (!_needsWall(_type)) return raw;
-    final hit = _nearestWall(_screenToMm(raw, size), maxDistanceMm: 550);
+    final hit = _nearestWall(_screenToMm(raw, size),
+        maxDistanceMm: ElectricalSnapService.captureMm(
+            _activePlanScale(), capturePx: 32));
     if (hit == null) return raw;
+    final snapped = _snapWallHit(hit);
     final tx = _tx(size);
-    return tx.origin + Offset(hit.point.x * tx.scale,
-                             hit.point.y * tx.scale);
+    return tx.origin + Offset(snapped.point.x * tx.scale,
+                             snapped.point.y * tx.scale);
   }
 
   void _placePanStart(DragStartDetails d) {
