@@ -96,9 +96,15 @@ void main() {
     final drawing = tester.getSize(
         find.byKey(const ValueKey('wall-elevation-drawing')));
     expect(drawing.width, closeTo(362, 1));
-    await tester.tap(find.byKey(
-        const ValueKey('wall-elevation-zoom-toggle')));
+    // We scrolled down to the lazily built device list above. Return to
+    // the chart controls before tapping: offscreen taps are not interactions.
+    final zoom = find.byKey(const ValueKey('wall-elevation-zoom-toggle'));
+    await tester.ensureVisible(zoom);
     await tester.pumpAndSettle();
+    await tester.tap(zoom);
+    await tester.pumpAndSettle();
+    final zoomButton = tester.widget<TextButton>(zoom);
+    expect(zoomButton.onPressed, isNotNull);
     expect(find.text('Вписать'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
