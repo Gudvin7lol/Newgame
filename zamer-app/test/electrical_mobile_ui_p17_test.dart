@@ -40,7 +40,9 @@ void main() {
     expect(editor, contains('electrical-three-modes'));
     expect(editor, contains('electrical-fan-add'));
     expect(editor, contains('electrical-selection-actions'));
-    expect(editor, contains('_selectionActionsOpen = false'));
+    expect(editor, contains('_showPointActions(selected)'));
+    expect(editor, contains('showModalBottomSheet<String>'));
+    expect(editor, isNot(contains('_selectionActionsOpen')));
   });
 
   testWidgets('elevation selects a wall containing the electrical point',
