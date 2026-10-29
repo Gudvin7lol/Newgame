@@ -68,6 +68,9 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
   ElectricalWorkspaceView _workspaceView = ElectricalWorkspaceView.pointsRoutes;
   ElectricalBoardView _boardView = ElectricalBoardView.layout;
   bool _addArcOpen = false;
+  int _fanOuterIndex = 0;
+  double _fanScrollAccumulation = 0;
+  final GlobalKey _planCanvasKey = GlobalKey();
   Offset? _placingAt;
   ElectricalPointType _type = ElectricalPointType.socket;
   String _cable = 'ВВГнг-LS 3×1.5';
@@ -1642,92 +1645,270 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     if (mounted) setState(() {});
   }
 
+  void _scrollFanOuter(double delta) {
+    _fanScrollAccumulation += delta;
+    if (_fanScrollAccumulation.abs() < 28) return;
+    final step = _fanScrollAccumulation > 0 ? 1 : -1;
+    _fanScrollAccumulation = 0;
+    setState(() => _fanOuterIndex = (_fanOuterIndex + step + 6) % 6);
+  }
+
+  Offset? _planLocalFromGlobal(Offset global) {
+    final render = _planCanvasKey.currentContext?.findRenderObject();
+    if (render is! RenderBox || !render.hasSize) return null;
+    final local = render.globalToLocal(global);
+    if (!Offset.zero.and(render.size).contains(local)) return null;
+    return local;
+  }
+
+  void _fanLongPressMove(Offset global) {
+    final local = _planLocalFromGlobal(global);
+    if (_placingAt != local) setState(() => _placingAt = local);
+  }
+
+  void _fanLongPressDrop(ElectricalPointType type, Offset global) {
+    final local = _planLocalFromGlobal(global);
+    setState(() => _placingAt = null);
+    if (local == null || _viewportSize.isEmpty) return;
+    setState(() {
+      _type = type;
+      _mode = ElectricalMode.add;
+      _addArcOpen = false;
+    });
+    _tap(TapUpDetails(kind: PointerDeviceKind.touch,
+        localPosition: local), _viewportSize);
+  }
+
+  Future<void> _duplicatePoint(ElectricalPoint original) async {
+    final raw = Map<String, dynamic>.from(original.toJson())
+      ..['id'] = _id('ep')
+      ..['mounting'] = null
+      ..remove('datumAssignment');
+    final copy = ElectricalPoint.fromJson(raw);
+    final wallId = original.wallId;
+    if (wallId != null && original.wallOffsetMm != null) {
+      final wall = widget.floor.wallById(wallId);
+      final a = wall == null ? null : widget.floor.nodeById(wall.startNodeId);
+      final b = wall == null ? null : widget.floor.nodeById(wall.endNodeId);
+      if (wall == null || a == null || b == null) return;
+      final length = widget.floor.wallLengthMm(wall);
+      final distance = ElectricalFrameGeometry.halfWidthMm(original) * 2 + 60;
+      bool accepted = false;
+      for (final signedDistance in <double>[distance, -distance]) {
+        final station = original.wallOffsetMm! + signedDistance;
+        if (station < 0 || station > length) continue;
+        final t = station / length;
+        copy.wallOffsetMm = station;
+        copy.xMm = a.xMm + (b.xMm - a.xMm) * t;
+        copy.yMm = a.yMm + (b.yMm - a.yMm) * t;
+        if (ElectricalFrameGeometry.placementIssue(widget.floor, copy) ==
+                null &&
+            ElectricalFrameGeometry.conflictWithFrames(
+                widget.floor, copy) == null) {
+          accepted = true;
+          break;
+        }
+      }
+      if (!accepted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Нет свободного места для копии на стене.')));
+        return;
+      }
+    } else {
+      copy.xMm += 500;
+      copy.yMm += 500;
+    }
+    _pushUndo();
+    widget.floor.electricalPoints.add(copy);
+    await widget.onChanged();
+    if (mounted) setState(() => _selectedId = copy.id);
+  }
+
+  Future<void> _flipWallSide(ElectricalPoint point) async {
+    final wallId = point.wallId;
+    if (wallId == null) return;
+    final roomSides = GeometryService.roomFaces(widget.floor)
+        .expand((room) => room.edges)
+        .where((edge) => edge.wallId == wallId).length;
+    if (roomSides < 2) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('У этой стены нет второй внутренней стороны.')));
+      return;
+    }
+    final proposed = ElectricalPoint.fromJson(point.toJson())
+      ..wallSide = -point.wallSide;
+    final problem = ElectricalFrameGeometry.placementIssue(
+        widget.floor, proposed) ??
+        ElectricalFrameGeometry.conflictWithFrames(widget.floor, proposed);
+    if (problem != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(problem)));
+      return;
+    }
+    _pushUndo();
+    point.wallSide = proposed.wallSide;
+    // Opposite face means the old named datum / mounting face is not valid.
+    point.mounting = null;
+    point.datumAssignment = null;
+    await widget.onChanged();
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _deleteSelectedPoint(ElectricalPoint point) async {
+    if (ElectricalJunctionEditService.pointInUse(
+        widget.floor.electricalNetwork, point.id)) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Точка подключена к сети. Сначала убери связи.')));
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Удалить электроточку?'),
+        content: const Text('Ручные линии, подключённые к точке, будут удалены.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false),
+              child: const Text('Отмена')),
+          FilledButton(onPressed: () => Navigator.pop(context, true),
+              child: const Text('Удалить')),
+        ],
+      ),
+    );
+    if (!mounted || confirmed != true) return;
+    _pushUndo();
+    widget.floor.electricalRuns.removeWhere((run) =>
+        run.startPointId == point.id || run.endPointId == point.id);
+    widget.floor.electricalPoints.removeWhere((p) => p.id == point.id);
+    await widget.onChanged();
+    if (mounted) setState(() {
+      _selectedId = null;
+      _addArcOpen = false;
+    });
+  }
+
   Widget _quickFan() {
     final selected = widget.floor.electricalPoints
         .where((p) => p.id == _selectedId).firstOrNull;
-    const types = <(ElectricalPointType, IconData, String)>[
+    const inner = <(ElectricalPointType, IconData, String)>[
       (ElectricalPointType.socket, Icons.power_outlined, 'Розетка'),
       (ElectricalPointType.switchPoint, Icons.toggle_on_outlined, 'Выкл.'),
       (ElectricalPointType.ceilingLight, Icons.lightbulb_outline, 'Свет'),
       (ElectricalPointType.junctionBox, Icons.account_tree_outlined, 'Коробка'),
+    ];
+    const outer = <(ElectricalPointType, IconData, String)>[
       (ElectricalPointType.panel, Icons.electric_meter_outlined, 'Щит'),
       (ElectricalPointType.appliance, Icons.cable_outlined, 'Вывод'),
       (ElectricalPointType.frame, Icons.view_module_outlined, 'Рамка'),
+      (ElectricalPointType.wallLight, Icons.wb_incandescent_outlined, 'Бра'),
+      (ElectricalPointType.tvSocket, Icons.tv_outlined, 'ТВ'),
+      (ElectricalPointType.dataSocket, Icons.wifi_outlined, 'Интернет'),
     ];
-    // Seven touch-friendly tools on two concentric arcs. Both arcs remain
-    // visible while adding; context actions do not obscure the working plan.
     const positions = <(double, double)>[
       (20, 149), (53, 79), (127, 21), (217, 2),
       (113, 146), (167, 96), (229, 67),
     ];
+    final visibleTypes = <(ElectricalPointType, IconData, String)>[
+      ...inner,
+      for (var i = 0; i < 3; i++) outer[(_fanOuterIndex + i) % outer.length],
+    ];
     final theme = Theme.of(context);
+    Widget arcTile(String key, IconData icon, String label,
+        VoidCallback action, int i, {bool active = false,
+        ElectricalPointType? draggableType}) {
+      return Positioned(
+        left: positions[i].$1, top: positions[i].$2,
+        child: Tooltip(
+          message: draggableType == null ? label
+              : '$label · удерживай и перетащи на план',
+          child: Material(
+            color: active ? theme.colorScheme.primaryContainer
+                : theme.colorScheme.surfaceContainerHigh,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(color: active ? theme.colorScheme.primary
+                  : theme.colorScheme.outlineVariant),
+            ),
+            child: GestureDetector(
+              key: ValueKey(key),
+              behavior: HitTestBehavior.opaque,
+              onTap: action,
+              onLongPressMoveUpdate: draggableType == null ? null
+                  : (d) => _fanLongPressMove(d.globalPosition),
+              onLongPressEnd: draggableType == null ? null
+                  : (d) => _fanLongPressDrop(draggableType, d.globalPosition),
+              child: SizedBox(
+                width: 54, height: 55,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(icon, size: 21, color: theme.colorScheme.onSurface),
+                    const SizedBox(height: 2),
+                    Text(label, maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 9)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    final contextActions = <(String, IconData, String, VoidCallback)>[
+      ('properties', Icons.tune_rounded, 'Свойства',
+          () => _editPropertiesDirect(selected!)),
+      ('datum', Icons.straighten, 'Привязка',
+          () => _editMountingDirect(selected!)),
+      ('line', Icons.bolt_outlined, 'Нагрузка',
+          () => _editConsumerDraftDirect(selected!)),
+      ('elevation', Icons.architecture_outlined, 'Развёртка',
+          _showWallElevation),
+      ('duplicate', Icons.copy_outlined, 'Копия',
+          () => _duplicatePoint(selected!)),
+      ('side', Icons.flip_outlined, 'Сторона',
+          () => _flipWallSide(selected!)),
+      ('delete', Icons.delete_outline, 'Удалить',
+          () => _deleteSelectedPoint(selected!)),
+    ];
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        if (_addArcOpen && _mode == ElectricalMode.add)
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 180),
+        if ((_addArcOpen && _mode == ElectricalMode.add) ||
+            (selected != null && _mode == ElectricalMode.select))
+          GestureDetector(
+            onVerticalDragUpdate: _mode == ElectricalMode.add
+                ? (details) => _scrollFanOuter(details.delta.dy) : null,
             child: SizedBox(
-              key: const ValueKey('electrical-two-ring-fan'),
+              key: ValueKey(_mode == ElectricalMode.add
+                  ? 'electrical-two-ring-fan'
+                  : 'electrical-context-fan'),
               width: 290, height: 212,
               child: CustomPaint(
                 painter: _ElectricalFanArcs(
-                  color: theme.colorScheme.primary.withValues(alpha: .35)),
+                    color: theme.colorScheme.primary.withValues(alpha: .35)),
                 child: Stack(children: [
-                  for (var i = 0; i < types.length; i++)
-                    Positioned(
-                      left: positions[i].$1, top: positions[i].$2,
-                      child: Tooltip(
-                        message: types[i].$3,
-                        child: Material(
-                          color: _type == types[i].$1
-                              ? theme.colorScheme.primaryContainer
-                              : theme.colorScheme.surfaceContainerHigh,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            side: BorderSide(
-                              color: _type == types[i].$1
-                                  ? theme.colorScheme.primary
-                                  : theme.colorScheme.outlineVariant),
-                          ),
-                          child: InkWell(
-                            key: ValueKey('electrical-add-${types[i].$1.name}'),
-                            borderRadius: BorderRadius.circular(16),
-                            onTap: () => setState(() {
-                              _type = types[i].$1;
-                              _mode = ElectricalMode.add;
-                              _addArcOpen = false;
-                            }),
-                            child: SizedBox(
-                              width: 54, height: 55,
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(types[i].$2, size: 21,
-                                      color: theme.colorScheme.onSurface),
-                                  const SizedBox(height: 2),
-                                  Text(types[i].$3, maxLines: 1,
-                                      style: const TextStyle(fontSize: 9)),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
+                  if (_mode == ElectricalMode.add)
+                    for (var i = 0; i < visibleTypes.length; i++)
+                      arcTile('electrical-add-${visibleTypes[i].$1.name}',
+                          visibleTypes[i].$2, visibleTypes[i].$3, () {
+                        setState(() {
+                          _type = visibleTypes[i].$1;
+                          _mode = ElectricalMode.add;
+                          _addArcOpen = false;
+                        });
+                      }, i,
+                      active: _type == visibleTypes[i].$1,
+                      draggableType: visibleTypes[i].$1),
+                  if (_mode == ElectricalMode.select && selected != null)
+                    for (var i = 0; i < contextActions.length; i++)
+                      arcTile('electrical-context-${contextActions[i].$1}',
+                          contextActions[i].$2, contextActions[i].$3,
+                          contextActions[i].$4, i),
                 ]),
               ),
-            ),
-          ),
-        if (selected != null && _mode == ElectricalMode.select)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 5),
-            child: FilledButton.tonalIcon(
-              key: const ValueKey('electrical-selected-edit'),
-              onPressed: () => _pointSheet(selected),
-              icon: const Icon(Icons.tune_rounded, size: 18),
-              label: const Text('Свойства точки'),
             ),
           ),
         Row(mainAxisSize: MainAxisSize.min, children: [
@@ -2131,7 +2312,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
               final size = Size(c.maxWidth, c.maxHeight);
               _viewportSize = size;
               final t = _tx(size);
-              return Stack(children: [Listener(
+              return Stack(key: _planCanvasKey, children: [Listener(
                 onPointerDown: _touchDown,
                 onPointerMove: _touchMove,
                 onPointerUp: _touchEnd,
