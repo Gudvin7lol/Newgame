@@ -59,6 +59,13 @@ void main() {
     final dropdown = tester.widget<DropdownButtonFormField<String>>(
         find.byKey(const ValueKey('wall-elevation-wall-with-point')));
     expect(dropdown.initialValue, 'with-point');
+    // Device tiles are intentionally lazy below the drawing; scroll the
+    // page before asserting the row, not just the selected wall data.
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('wall-elevation-device-socket')),
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.byKey(const ValueKey('wall-elevation-device-socket')),
         findsOneWidget);
     expect(find.text('Розетка'), findsWidgets);
@@ -79,6 +86,11 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('wall-elevation-wall-empty')),
         findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.textContaining('Выбери другую стену'),
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.textContaining('Выбери другую стену'),
         findsWidgets);
     final drawing = tester.getSize(
