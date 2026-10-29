@@ -657,7 +657,7 @@ class _RecoveredMeasureWorkspaceScreenState
       body: Column(
         children: [
           _kitDomains(),
-          if (_layer < 4)
+          if (_layer < 3)
             _kitTasks()
           else if (_layer != 6)
             Container(
@@ -669,6 +669,9 @@ class _RecoveredMeasureWorkspaceScreenState
                 style: const TextStyle(color: ZamerKitColors.muted,
                   fontWeight: FontWeight.w600)),
             ),
+          // The electrical editor owns its three workspaces and its fan.
+          // Do NOT place the generic task strip and a second fan over it.
+          // Keep the real CAD/objects drawing unchanged.
           // Keep the actual production canvases. Nothing in the UI Kit
           // redraws or flattens the user's persisted 2D floor plan.
           Expanded(child: Stack(
@@ -676,7 +679,7 @@ class _RecoveredMeasureWorkspaceScreenState
               Positioned.fill(
                 child: IndexedStack(index: _layer, children: pages),
               ),
-              if (_layer < 4)
+              if (_layer < 3)
                 Positioned(
                   // Keep the dial thumb-reachable without obscuring the drawing.
                   right: 4, bottom: 8,
