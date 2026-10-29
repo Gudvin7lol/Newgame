@@ -10,9 +10,12 @@ import 'electrical_wall_elevation_painter.dart';
 class ElectricalWallElevationScreen extends StatefulWidget {
   const ElectricalWallElevationScreen({
     super.key, required this.floor, this.initialCircuitId,
+    this.initialWallId,
   });
   final FloorPlan floor;
   final String? initialCircuitId;
+  /// Prefer the currently selected point's wall when opened from the plan.
+  final String? initialWallId;
 
   @override
   State<ElectricalWallElevationScreen> createState() =>
@@ -23,14 +26,26 @@ class _ElectricalWallElevationScreenState
     extends State<ElectricalWallElevationScreen> {
   String? wallId;
   String? circuitId;
+  bool _detailZoom = false;
 
   @override
   void initState() {
     super.initState();
-    wallId = widget.floor.walls
-        .where((w) => !w.demolition &&
-            w.projectLayer != ProjectLayer.demolition)
-        .firstOrNull?.id;
+    final candidates = widget.floor.walls.where((wall) =>
+        !wall.demolition && wall.projectLayer != ProjectLayer.demolition)
+        .toList();
+    // Opening an elevation from a selected device must never silently
+    // show an unrelated (and apparently empty) first wall.
+    wallId = candidates.any((wall) => wall.id == widget.initialWallId)
+        ? widget.initialWallId
+        : (candidates.isEmpty ? null :
+            (candidates..sort((a, b) {
+              final aCount = widget.floor.electricalPoints
+                  .where((p) => p.wallId == a.id).length;
+              final bCount = widget.floor.electricalPoints
+                  .where((p) => p.wallId == b.id).length;
+              return bCount.compareTo(aCount);
+            })).first.id);
     circuitId = widget.initialCircuitId;
   }
 
@@ -59,11 +74,14 @@ class _ElectricalWallElevationScreenState
     }
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textTheme = Theme.of(context).textTheme;
-    final drawWidth = data == null ? 640.0 :
-        math.max(640.0, math.min(1900.0, data.lengthMm * .16 + 130));
-    final drawHeight = data == null ? 390.0 :
-        math.max(380.0, math.min(580.0,
-          data.heightMm * ((drawWidth - 94) / data.lengthMm) + 115));
+    // Fit the ENTIRE wall by default. A fixed minimum of 640px used to
+    // crop most of the chart on a narrow Android screen (390px viewport).
+    final viewWidth = math.max(240.0, MediaQuery.sizeOf(context).width - 28);
+    final drawWidth = _detailZoom && data != null
+        ? math.max(viewWidth, math.min(1800.0, data.lengthMm * .23 + 140))
+        : viewWidth;
+    final drawHeight = math.max(300.0,
+        math.min(440.0, viewWidth * .82 + 55));
 
     return Scaffold(
       appBar: AppBar(title: const Text('Развёртка электрики')),
@@ -137,12 +155,24 @@ class _ElectricalWallElevationScreenState
                   )),
                 ]),
                 const SizedBox(height: 12),
-                Text('Развёртка по оси стены',
-                    style: textTheme.titleMedium),
-                const SizedBox(height: 7),
-                const Text('Чертёж прокручивается горизонтально. '
-                    'Показаны только точки, явно закреплённые за стеной, '
-                    'и участки трасс на её оси.'),
+                Row(children: [
+                  Expanded(child: Text('Развёртка по оси стены',
+                      style: textTheme.titleMedium)),
+                  TextButton.icon(
+                    key: const ValueKey('wall-elevation-zoom-toggle'),
+                    onPressed: () => setState(() => _detailZoom = !_detailZoom),
+                    icon: Icon(_detailZoom ? Icons.fit_screen_rounded :
+                        Icons.zoom_in_rounded, size: 18),
+                    label: Text(_detailZoom ? 'Вписать' : 'Увеличить'),
+                  ),
+                ]),
+                const SizedBox(height: 4),
+                Text(
+                  _detailZoom
+                    ? 'Увеличенный чертёж: пролистай вправо для остальных размеров.'
+                    : 'Вся стена показана целиком. Увеличь для подробных размеров.',
+                  style: textTheme.bodySmall,
+                ),
                 const SizedBox(height: 8),
                 SizedBox(
                   height: drawHeight,
@@ -165,7 +195,8 @@ class _ElectricalWallElevationScreenState
                 Text('Привязки электроточек',
                     style: textTheme.titleMedium),
                 if (data.points.isEmpty)
-                  const Text('На эту стену электроточки не назначены.')
+                  const Text('На этой стене нет закреплённых электроточек. '
+                    'Выбери другую стену выше или проверь привязку точки на плане.')
                 else
                   for (final p in data.points)
                     ListTile(

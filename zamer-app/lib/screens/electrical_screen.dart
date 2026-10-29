@@ -672,10 +672,13 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
       return;
     }
 
-    final point = _near(mm, (180 / math.max(0.25, t.scale / 0.08)).toDouble());
+    final point = _near(mm,
+        ElectricalSnapService.captureMm(t.scale, capturePx: 20));
     if (point == null) return;
     if (_mode == ElectricalMode.select) {
-      setState(() => _selectedId = point.id);
+      setState(() {
+        _selectedId = point.id;
+        });
       // Embedded CAD uses a persistent one-row inspector. Keep the legacy
       // stand-alone editor interaction compatible with existing projects/tests.
       if (!widget.embedded) await _pointSheet(point);
@@ -952,7 +955,8 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     setState(() => _selectedId = point.id);
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: const Text('Точка сохранена'),
-      action: SnackBarAction(label: 'Отменить', onPressed: _undoAction),
+      action: SnackBarAction(label: 'Отменить',
+          textColor: const Color(0xFFF1AF91), onPressed: _undoAction),
     ));
   }
 
@@ -1095,7 +1099,8 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
       setState(() => _selectedId = p.id);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: const Text('Соединения сохранены как черновая схема'),
-        action: SnackBarAction(label: 'Отменить', onPressed: _undoAction),
+        action: SnackBarAction(label: 'Отменить',
+          textColor: const Color(0xFFF1AF91), onPressed: _undoAction),
       ));
       return;
     } else if (action == 'delete') {
@@ -1123,7 +1128,8 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
               ? 'Точка удалена вместе с её линиями'
               : 'Точка сохранена',
         ),
-        action: SnackBarAction(label: 'Отменить', onPressed: _undoAction),
+        action: SnackBarAction(label: 'Отменить',
+          textColor: const Color(0xFFF1AF91), onPressed: _undoAction),
       ),
     );
   }
@@ -1281,6 +1287,8 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
       MaterialPageRoute(builder: (_) => ElectricalWallElevationScreen(
         floor: widget.floor,
         initialCircuitId: _routeCircuitFilterId,
+        initialWallId: widget.floor.electricalPoints
+            .where((p) => p.id == _selectedId).firstOrNull?.wallId,
       )),
     );
   }
@@ -1809,6 +1817,62 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     });
   }
 
+  Future<void> _showPointActions(ElectricalPoint point) async {
+    final selectedId = point.id;
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (sheet) => SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 14),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  title: Text(point.label.isEmpty
+                      ? point.type.label : point.label),
+                  subtitle: const Text('Действия с электроточкой'),
+                ),
+                for (final action in const <(String, IconData, String)>[
+                  ('properties', Icons.tune_rounded, 'Свойства и рамка'),
+                  ('datum', Icons.straighten, 'Монтажная привязка'),
+                  ('load', Icons.bolt_outlined, 'Группа и нагрузка'),
+                  ('elevation', Icons.architecture_outlined, 'Развёртка стены'),
+                  ('duplicate', Icons.copy_outlined, 'Создать копию'),
+                  ('side', Icons.flip_outlined, 'Сторона стены'),
+                  ('delete', Icons.delete_outline, 'Удалить'),
+                ])
+                  ListTile(
+                    key: ValueKey('electrical-context-${action.$1}'),
+                    leading: Icon(action.$2),
+                    title: Text(action.$3),
+                    onTap: () => Navigator.pop(sheet, action.$1),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    if (!mounted || choice == null) return;
+    final current = widget.floor.electricalPoints
+        .where((p) => p.id == selectedId).firstOrNull;
+    if (current == null) return;
+    switch (choice) {
+      case 'properties': await _editPropertiesDirect(current); return;
+      case 'datum': await _editMountingDirect(current); return;
+      case 'load': await _editConsumerDraftDirect(current); return;
+      case 'elevation': await _showWallElevation(); return;
+      case 'duplicate': await _duplicatePoint(current); return;
+      case 'side': await _flipWallSide(current); return;
+      case 'delete': await _deleteSelectedPoint(current); return;
+    }
+  }
+
   Widget _quickFan() {
     final selected = widget.floor.electricalPoints
         .where((p) => p.id == _selectedId).firstOrNull;
@@ -1878,30 +1942,12 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
       );
     }
 
-    final contextActions = <(String, IconData, String, VoidCallback)>[
-      ('properties', Icons.tune_rounded, 'Свойства',
-          () => _editPropertiesDirect(selected!)),
-      ('datum', Icons.straighten, 'Привязка',
-          () => _editMountingDirect(selected!)),
-      ('line', Icons.bolt_outlined, 'Нагрузка',
-          () => _editConsumerDraftDirect(selected!)),
-      ('elevation', Icons.architecture_outlined, 'Развёртка',
-          _showWallElevation),
-      ('duplicate', Icons.copy_outlined, 'Копия',
-          () => _duplicatePoint(selected!)),
-      ('side', Icons.flip_outlined, 'Сторона',
-          () => _flipWallSide(selected!)),
-      ('delete', Icons.delete_outline, 'Удалить',
-          () => _deleteSelectedPoint(selected!)),
-    ];
-
     return Column(
       key: _fanGeometryKey,
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        if ((_addArcOpen && _mode == ElectricalMode.add) ||
-            (selected != null && _mode == ElectricalMode.select))
+        if (_addArcOpen && _mode == ElectricalMode.add)
           GestureDetector(
             onVerticalDragUpdate: _mode == ElectricalMode.add
                 ? (details) => _scrollFanOuter(details.delta.dy) : null,
@@ -1926,30 +1972,36 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                       }, i,
                       active: _type == visibleTypes[i].$1,
                       draggableType: visibleTypes[i].$1),
-                  if (_mode == ElectricalMode.select && selected != null)
-                    for (var i = 0; i < contextActions.length; i++)
-                      arcTile('electrical-context-${contextActions[i].$1}',
-                          contextActions[i].$2, contextActions[i].$3,
-                          contextActions[i].$4, i),
                 ]),
               ),
             ),
           ),
         Row(mainAxisSize: MainAxisSize.min, children: [
+          if (selected != null && _mode == ElectricalMode.select) ...[
+            IconButton.filledTonal(
+              key: const ValueKey('electrical-selection-actions'),
+              tooltip: 'Действия с выбранной точкой',
+              onPressed: () => _showPointActions(selected),
+              icon: const Icon(Icons.more_horiz_rounded),
+            ),
+            const SizedBox(width: 5),
+          ],
           IconButton.filledTonal(
             key: const ValueKey('electrical-fan-select'),
             tooltip: 'Выбрать / перетащить',
             onPressed: () => setState(() {
-              _mode = ElectricalMode.select; _addArcOpen = false;
-            }),
+              _mode = ElectricalMode.select;
+              _addArcOpen = false;
+                    }),
             icon: const Icon(Icons.touch_app_outlined)),
           const SizedBox(width: 5),
           IconButton.filledTonal(
             key: const ValueKey('electrical-fan-wire'),
             tooltip: 'Ручная линия',
             onPressed: () => setState(() {
-              _mode = ElectricalMode.wire; _addArcOpen = false;
-              _wireStartId = null;
+              _mode = ElectricalMode.wire;
+              _addArcOpen = false;
+                      _wireStartId = null;
             }),
             icon: const Icon(Icons.polyline_outlined)),
           const SizedBox(width: 5),
@@ -1959,7 +2011,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
             heroTag: 'zamer-electrical-point-add',
             onPressed: () => setState(() {
               _mode = ElectricalMode.add;
-              _addArcOpen = !_addArcOpen;
+                      _addArcOpen = !_addArcOpen;
             }),
             child: const Icon(Icons.add_rounded),
           ),

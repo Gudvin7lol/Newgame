@@ -1,0 +1,48 @@
+name: Verify electrical mobile UI P17
+
+on:
+  push:
+    branches: ['fix/zamer-electrical-ux-p17']
+  pull_request:
+    paths:
+      - 'zamer-app/lib/screens/recovered_measure_workspace_screen.dart'
+      - 'zamer-app/lib/screens/electrical_screen.dart'
+      - 'zamer-app/lib/widgets/electrical_wall_elevation_screen.dart'
+      - 'zamer-app/test/electrical_mobile_ui_p17_test.dart'
+      - '.github/workflows/verify-electrical-mobile-ui-p17.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  mobile-electrical:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.5'
+          channel: stable
+          cache: true
+      - name: Dependencies
+        working-directory: zamer-app
+        run: flutter pub get
+      - name: Analyze modified UI sources
+        working-directory: zamer-app
+        run: |
+          flutter analyze --no-fatal-warnings --no-fatal-infos \
+            lib/screens/recovered_measure_workspace_screen.dart \
+            lib/screens/electrical_screen.dart \
+            lib/widgets/electrical_wall_elevation_screen.dart \
+            test/electrical_mobile_ui_p17_test.dart
+      - name: Run UI, elevation and existing electrical regressions
+        working-directory: zamer-app
+        run: |
+          flutter test \
+            test/electrical_mobile_ui_p17_test.dart \
+            test/electrical_frame_fan_p15_test.dart \
+            test/electrical_precision_p16_test.dart \
+            test/electrical_wall_elevations_p6_test.dart \
+            test/electrical_workspace_stage1_p12_test.dart \
+            test/unified_workspace_recovery_contract_test.dart
