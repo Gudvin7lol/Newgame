@@ -955,7 +955,8 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     setState(() => _selectedId = point.id);
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: const Text('Точка сохранена'),
-      action: SnackBarAction(label: 'Отменить', onPressed: _undoAction),
+      action: SnackBarAction(label: 'Отменить',
+          textColor: const Color(0xFFF1AF91), onPressed: _undoAction),
     ));
   }
 
@@ -1098,7 +1099,8 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
       setState(() => _selectedId = p.id);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: const Text('Соединения сохранены как черновая схема'),
-        action: SnackBarAction(label: 'Отменить', onPressed: _undoAction),
+        action: SnackBarAction(label: 'Отменить',
+          textColor: const Color(0xFFF1AF91), onPressed: _undoAction),
       ));
       return;
     } else if (action == 'delete') {
@@ -1126,7 +1128,8 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
               ? 'Точка удалена вместе с её линиями'
               : 'Точка сохранена',
         ),
-        action: SnackBarAction(label: 'Отменить', onPressed: _undoAction),
+        action: SnackBarAction(label: 'Отменить',
+          textColor: const Color(0xFFF1AF91), onPressed: _undoAction),
       ),
     );
   }
