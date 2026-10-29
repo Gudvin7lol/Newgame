@@ -248,12 +248,18 @@ class ElectricalPlanPainter extends CustomPainter {
 
     if (type == ElectricalPointType.frame || point.modules.length > 1) {
       final count = point.modules.length.clamp(1, 5).toInt();
-      const moduleStep = 15.0;
+      // Keep symbols legible when zoomed out, but honour real CAD pitch
+      // as soon as the scale supports it. Exact millimetres live in the model.
+      final moduleStep = (point.modulePitchMm * scale)
+          .clamp(12.0, 36.0).toDouble();
       final vertical = point.frameVertical;
+      // Vertically stacked devices share the SAME U in plan and differ in Z.
+      // Do not fake a floor-plane footprint extending through the wall.
+      final visibleCount = vertical ? 1 : count;
       final rect = Rect.fromCenter(
         center: Offset.zero,
-        width: vertical ? 18 : count * moduleStep + 6,
-        height: vertical ? count * moduleStep + 6 : 18,
+        width: visibleCount * moduleStep + 6,
+        height: 18,
       );
       canvas.save();
       canvas.translate(c.dx, c.dy);
@@ -262,22 +268,14 @@ class ElectricalPlanPainter extends CustomPainter {
         rect, const Radius.circular(5));
       canvas.drawRRect(housing, Paint()..color = const Color(0xFFF9F9F5));
       canvas.drawRRect(housing, stroke);
-      for (var i = 1; i < count; i++) {
-        if (vertical) {
-          final y = rect.top + 3 + moduleStep * i;
-          canvas.drawLine(Offset(rect.left + 2, y),
-              Offset(rect.right - 2, y), stroke);
-        } else {
-          final x = rect.left + 3 + moduleStep * i;
-          canvas.drawLine(Offset(x, rect.top + 2),
-              Offset(x, rect.bottom - 2), stroke);
-        }
+      for (var i = 1; i < visibleCount; i++) {
+        final x = rect.left + 3 + moduleStep * i;
+        canvas.drawLine(Offset(x, rect.top + 2),
+            Offset(x, rect.bottom - 2), stroke);
       }
-      for (var i = 0; i < count; i++) {
+      for (var i = 0; i < visibleCount; i++) {
         final module = point.modules[i];
-        final mc = vertical
-            ? Offset(0, rect.top + 3 + moduleStep * (i + .5))
-            : Offset(rect.left + 3 + moduleStep * (i + .5), 0);
+        final mc = Offset(rect.left + 3 + moduleStep * (i + .5), 0);
         switch (module) {
           case ElectricalModuleType.socket220:
             _socket(canvas, mc, stroke);
@@ -300,6 +298,8 @@ class ElectricalPlanPainter extends CustomPainter {
             break;
         }
       }
+      if (vertical) _text(canvas, '×$count',
+          Offset(rect.right + 13, rect.top + 2), 9);
       canvas.restore();
       return;
     }
