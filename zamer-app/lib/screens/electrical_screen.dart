@@ -1596,11 +1596,18 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
         .where((p) => p.id == _selectedId).firstOrNull;
     const types = <(ElectricalPointType, IconData, String)>[
       (ElectricalPointType.socket, Icons.power_outlined, 'Розетка'),
-      (ElectricalPointType.switchPoint, Icons.toggle_on_outlined, 'Выключатель'),
+      (ElectricalPointType.switchPoint, Icons.toggle_on_outlined, 'Выкл.'),
       (ElectricalPointType.ceilingLight, Icons.lightbulb_outline, 'Свет'),
       (ElectricalPointType.junctionBox, Icons.account_tree_outlined, 'Коробка'),
       (ElectricalPointType.panel, Icons.electric_meter_outlined, 'Щит'),
       (ElectricalPointType.appliance, Icons.cable_outlined, 'Вывод'),
+      (ElectricalPointType.frame, Icons.view_module_outlined, 'Рамка'),
+    ];
+    // Seven touch-friendly tools on two concentric arcs. Both arcs remain
+    // visible while adding; context actions do not obscure the working plan.
+    const positions = <(double, double)>[
+      (20, 149), (53, 79), (127, 21), (217, 2),
+      (113, 146), (167, 96), (229, 67),
     ];
     final theme = Theme.of(context);
     return Column(
@@ -1608,33 +1615,59 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
         if (_addArcOpen && _mode == ElectricalMode.add)
-          Container(
-            constraints: const BoxConstraints(maxWidth: 275),
-            margin: const EdgeInsets.only(bottom: 7),
-            padding: const EdgeInsets.all(7),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.surface.withValues(alpha: .95),
-              borderRadius: BorderRadius.circular(18),
-              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .3),
-                  blurRadius: 14)],
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 180),
+            child: SizedBox(
+              key: const ValueKey('electrical-two-ring-fan'),
+              width: 290, height: 212,
+              child: CustomPaint(
+                painter: _ElectricalFanArcs(
+                  color: theme.colorScheme.primary.withValues(alpha: .35)),
+                child: Stack(children: [
+                  for (var i = 0; i < types.length; i++)
+                    Positioned(
+                      left: positions[i].$1, top: positions[i].$2,
+                      child: Tooltip(
+                        message: types[i].$3,
+                        child: Material(
+                          color: _type == types[i].$1
+                              ? theme.colorScheme.primaryContainer
+                              : theme.colorScheme.surfaceContainerHigh,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            side: BorderSide(
+                              color: _type == types[i].$1
+                                  ? theme.colorScheme.primary
+                                  : theme.colorScheme.outlineVariant),
+                          ),
+                          child: InkWell(
+                            key: ValueKey('electrical-add-${types[i].$1.name}'),
+                            borderRadius: BorderRadius.circular(16),
+                            onTap: () => setState(() {
+                              _type = types[i].$1;
+                              _mode = ElectricalMode.add;
+                              _addArcOpen = false;
+                            }),
+                            child: SizedBox(
+                              width: 54, height: 55,
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(types[i].$2, size: 21,
+                                      color: theme.colorScheme.onSurface),
+                                  const SizedBox(height: 2),
+                                  Text(types[i].$3, maxLines: 1,
+                                      style: const TextStyle(fontSize: 9)),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ]),
+              ),
             ),
-            child: Wrap(spacing: 4, runSpacing: 4,
-              children: [
-                for (final (type, icon, label) in types)
-                  ActionChip(
-                    key: ValueKey('electrical-add-${type.name}'),
-                    label: Text(label,
-                        style: const TextStyle(fontSize: 11)),
-                    avatar: Icon(icon, size: 16),
-                    backgroundColor: _type == type
-                        ? theme.colorScheme.primaryContainer : null,
-                    onPressed: () => setState(() {
-                      _type = type;
-                      _mode = ElectricalMode.add;
-                      _addArcOpen = false;
-                    }),
-                  ),
-              ]),
           ),
         if (selected != null && _mode == ElectricalMode.select)
           Padding(
@@ -2198,4 +2231,25 @@ class _Tx {
   const _Tx({required this.scale, required this.origin});
   final double scale;
   final Offset origin;
+}
+
+/// Purely visual fan guides, no geometry or project state is changed here.
+class _ElectricalFanArcs extends CustomPainter {
+  const _ElectricalFanArcs({required this.color});
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = color
+        ..strokeWidth = 1.2..style = PaintingStyle.stroke;
+    final center = Offset(size.width - 3, size.height - 2);
+    for (final radius in <double>[143, 220]) {
+      canvas.drawArc(Rect.fromCircle(center: center, radius: radius),
+          math.pi, math.pi / 2, false, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _ElectricalFanArcs oldDelegate) =>
+      oldDelegate.color != color;
 }
