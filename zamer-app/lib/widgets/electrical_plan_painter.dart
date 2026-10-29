@@ -20,6 +20,7 @@ class ElectricalPlanPainter extends CustomPainter {
     this.show3dRoutes = false,
     this.showCrossings = false,
     this.circuitFilterId,
+    this.visiblePointTypes,
   });
 
   final FloorPlan floor;
@@ -35,6 +36,8 @@ class ElectricalPlanPainter extends CustomPainter {
   final bool show3dRoutes;
   final bool showCrossings;
   final String? circuitFilterId;
+  /// Visual-only filter: hidden points remain in the project model.
+  final Set<ElectricalPointType>? visiblePointTypes;
 
   Offset p(double x, double y) => origin + Offset(x * scale, y * scale);
 
@@ -76,6 +79,7 @@ class ElectricalPlanPainter extends CustomPainter {
     if (showCrossings) _drawCrossings(canvas, size);
 
     for (final point in floor.electricalPoints) {
+      if (visiblePointTypes != null && !visiblePointTypes!.contains(point.type)) continue;
       final pos = p(point.xMm, point.yMm);
       final selected = point.id == selectedPointId || point.id == wireStartPointId;
       var angle = 0.0;

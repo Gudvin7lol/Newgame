@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:math' as math;
+import 'dart:ui' show PointerDeviceKind;
 
 import 'package:flutter/material.dart';
 
@@ -8,6 +9,7 @@ import '../models/electrical_mounting.dart';
 import '../services/electrical_mounting_service.dart';
 import '../widgets/electrical_mounting_editor.dart';
 import '../widgets/electrical_point_properties.dart';
+import '../widgets/electrical_compact_inspector.dart';
 import '../widgets/electrical_junction_editor.dart';
 import '../models/electrical_network.dart';
 import '../services/electrical_junction_edit_service.dart';
@@ -28,6 +30,9 @@ import '../services/plan_viewport_link.dart';
 import '../services/electrical_board_draft_service.dart';
 
 enum ElectricalMode { add, wire, select }
+
+/// Three task-level surfaces. Editing action (add/wire/select) stays separate.
+enum ElectricalWorkspaceView { pointsRoutes, loads, board }
 
 class ElectricalScreen extends StatefulWidget {
   const ElectricalScreen({
@@ -54,6 +59,9 @@ class ElectricalScreen extends StatefulWidget {
 
 class _ElectricalScreenState extends State<ElectricalScreen> {
   ElectricalMode _mode = ElectricalMode.add;
+  ElectricalWorkspaceView _workspaceView = ElectricalWorkspaceView.pointsRoutes;
+  bool _addArcOpen = false;
+  Offset? _placingAt;
   ElectricalPointType _type = ElectricalPointType.socket;
   String _cable = 'ВВГнг-LS 3×1.5';
   String _routeMode = 'orthogonal';
@@ -63,6 +71,28 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
   bool _show3dRoutes = false;
   bool _showCrossings = false;
   bool _showLegacyLines = false;
+  bool _showLights = true;
+  bool _showPower = true;
+  bool _showJunctions = true;
+
+  Set<ElectricalPointType> get _visiblePointTypes {
+    final all = <ElectricalPointType>{};
+    if (_showLights) all.addAll([
+      ElectricalPointType.ceilingLight,
+      ElectricalPointType.wallLight,
+    ]);
+    if (_showPower) all.addAll([
+      ElectricalPointType.socket,
+      ElectricalPointType.switchPoint,
+      ElectricalPointType.tvSocket,
+      ElectricalPointType.dataSocket,
+      ElectricalPointType.frame,
+      ElectricalPointType.appliance,
+      ElectricalPointType.panel,
+    ]);
+    if (_showJunctions) all.add(ElectricalPointType.junctionBox);
+    return all;
+  }
   String? _routeCircuitFilterId;
   String? _dragPointId;
   bool _dragUndoPushed = false;
@@ -136,6 +166,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     }
     _dragPointId = null;
     _dragUndoPushed = false;
+    _placingAt = null;
     _wireStartId = null;
   }
 
@@ -250,6 +281,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     ElectricalPoint? best;
     var dBest = thresholdMm;
     for (final e in widget.floor.electricalPoints) {
+      if (!_visiblePointTypes.contains(e.type)) continue;
       final dx = e.xMm - p.x;
       final dy = e.yMm - p.y;
       final d = math.sqrt(dx * dx + dy * dy);
@@ -613,7 +645,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
       );
       widget.floor.electricalPoints.add(created);
       await widget.onChanged();
-      if (mounted) setState(() {});
+      if (mounted) setState(() => _selectedId = created.id);
       if (_type == ElectricalPointType.frame && mounted)
         await _pointSheet(created);
       return;
@@ -623,7 +655,9 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     if (point == null) return;
     if (_mode == ElectricalMode.select) {
       setState(() => _selectedId = point.id);
-      await _pointSheet(point);
+      // Embedded CAD uses a persistent one-row inspector. Keep the legacy
+      // stand-alone editor interaction compatible with existing projects/tests.
+      if (!widget.embedded) await _pointSheet(point);
       return;
     }
     if (_mode == ElectricalMode.wire) {
@@ -660,6 +694,66 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
   String _mm(double value) => value == value.truncateToDouble()
       ? value.toStringAsFixed(0)
       : value.toString();
+
+  Future<void> _editMountingDirect(ElectricalPoint point) async {
+    if (point.wallId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Сначала закрепи точку на стене.'),
+      ));
+      return;
+    }
+    final next = await Navigator.of(context).push<ElectricalMounting>(
+      MaterialPageRoute(
+        builder: (_) => ElectricalMountingEditor(
+          floor: widget.floor, point: point),
+      ),
+    );
+    if (!mounted || next == null) return;
+    try {
+      // Verify a detached copy before pushing undo history.
+      ElectricalMountingService.apply(widget.floor,
+          ElectricalPoint.fromJson(point.toJson()), next);
+    } on FormatException catch (error) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error.message)));
+      return;
+    }
+    _pushUndo();
+    ElectricalMountingService.apply(widget.floor, point, next);
+    await widget.onChanged();
+    if (mounted) setState(() => _selectedId = point.id);
+  }
+
+  Future<void> _editPropertiesDirect(ElectricalPoint point) async {
+    final next = await showModalBottomSheet<ElectricalPoint>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => ElectricalPointProperties(
+        point: point,
+        circuits: widget.floor.electricalPoints
+            .map((p) => p.circuit).toSet().toList(),
+      ),
+    );
+    if (!mounted || next == null) return;
+    _pushUndo();
+    point.label = next.label;
+    point.circuit = next.circuit;
+    point.powerW = next.powerW;
+    point.heightMm = next.heightMm;
+    point.modules
+      ..clear()
+      ..addAll(next.modules);
+    point.frameVertical = next.frameVertical;
+    point.type = next.type;
+    await widget.onChanged();
+    if (!mounted) return;
+    setState(() => _selectedId = point.id);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: const Text('Точка сохранена'),
+      action: SnackBarAction(label: 'Отменить', onPressed: _undoAction),
+    ));
+  }
 
   Future<void> _pointSheet(ElectricalPoint p) async {
     final canMount =
@@ -747,52 +841,11 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     );
     if (!mounted || action == null) return;
     if (action == 'mount') {
-      final next = await Navigator.of(context).push<ElectricalMounting>(
-        MaterialPageRoute(
-          builder: (_) =>
-              ElectricalMountingEditor(floor: widget.floor, point: p),
-        ),
-      );
-      if (!mounted || next == null) return;
-      // Validate a detached copy before adding an undo entry or changing the project.
-      try {
-        ElectricalMountingService.apply(
-          widget.floor,
-          ElectricalPoint.fromJson(p.toJson()),
-          next,
-        );
-      } on FormatException catch (e) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(e.message)));
-        return;
-      }
-      _pushUndo();
-      ElectricalMountingService.apply(widget.floor, p, next);
+      await _editMountingDirect(p);
+      return;
     } else if (action == 'properties') {
-      final next = await showModalBottomSheet<ElectricalPoint>(
-        context: context,
-        isScrollControlled: true,
-        useSafeArea: true,
-        builder: (_) => ElectricalPointProperties(
-          point: p,
-          circuits: widget.floor.electricalPoints
-              .map((e) => e.circuit)
-              .toSet()
-              .toList(),
-        ),
-      );
-      if (!mounted || next == null) return;
-      _pushUndo();
-      p.label = next.label;
-      p.circuit = next.circuit;
-      p.powerW = next.powerW;
-      p.heightMm = next.heightMm;
-      p.modules
-        ..clear()
-        ..addAll(next.modules);
-      p.frameVertical = next.frameVertical;
-      p.type = next.type;
+      await _editPropertiesDirect(p);
+      return;
     } else if (action == 'junction') {
       final before = jsonEncode(widget.floor.toJson());
       final updated = await Navigator.of(context).push<ElectricalNetwork>(
@@ -1077,14 +1130,6 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
             icon: const Icon(Icons.inventory_2_outlined),
             onPressed: _showCableJournal,
           ),
-          IconButton(
-            key: const ValueKey('electrical-toggle-physical-routes'),
-            tooltip: _show3dRoutes
-                ? 'Скрыть 3D-трассы' : 'Показать 3D-трассы',
-            icon: Icon(_show3dRoutes ? Icons.route : Icons.alt_route),
-            color: _show3dRoutes ? Theme.of(context).colorScheme.primary : null,
-            onPressed: () => setState(() => _show3dRoutes = !_show3dRoutes),
-          ),
           PopupMenuButton<String>(
             key: const ValueKey('electrical-plan-layers'),
             tooltip: 'Слои проводки',
@@ -1096,11 +1141,35 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
               }
               setState(() {
                 if (choice == 'legacy') _showLegacyLines = !_showLegacyLines;
+                if (choice == 'physical') _show3dRoutes = !_show3dRoutes;
+                if (choice == 'lights') _showLights = !_showLights;
+                if (choice == 'power') _showPower = !_showPower;
+                if (choice == 'junctions') _showJunctions = !_showJunctions;
                 if (choice == 'crossings') _showCrossings = !_showCrossings;
                 if (choice == 'all') _routeCircuitFilterId = null;
               });
             },
             itemBuilder: (_) => [
+              CheckedPopupMenuItem(
+                value: 'lights',
+                checked: _showLights,
+                child: const Text('Световые точки'),
+              ),
+              CheckedPopupMenuItem(
+                value: 'power',
+                checked: _showPower,
+                child: const Text('Розетки, выключатели, щит'),
+              ),
+              CheckedPopupMenuItem(
+                value: 'junctions',
+                checked: _showJunctions,
+                child: const Text('Распределительные коробки'),
+              ),
+              CheckedPopupMenuItem(
+                value: 'physical',
+                checked: _show3dRoutes,
+                child: const Text('Физические трассы'),
+              ),
               CheckedPopupMenuItem(
                 value: 'legacy',
                 checked: _showLegacyLines,
@@ -1293,225 +1362,373 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     return base / 1000 * (1 + r.reservePct / 100);
   }
 
+  Future<void> _quickPointHeight(ElectricalPoint point) async {
+    final oldProblem = ElectricalMountingService.problem(widget.floor, point);
+    if (point.mounting != null && oldProblem != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Сначала обнови монтажную базу: $oldProblem')));
+      return;
+    }
+    final controller = TextEditingController(text: _mm(point.heightMm));
+    final value = await showDialog<double>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: const Text('Высота центра от чистого пола'),
+        content: TextField(
+          key: const ValueKey('electrical-quick-height-input'),
+          autofocus: true,
+          controller: controller,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(suffixText: 'мм'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialog),
+              child: const Text('Отмена')),
+          FilledButton(onPressed: () => Navigator.pop(dialog,
+              double.tryParse(controller.text.replaceAll(',', '.'))),
+              child: const Text('Применить')),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (value == null || !mounted) return;
+    final wall = point.wallId == null
+        ? null : widget.floor.wallById(point.wallId!);
+    final limit = wall?.heightOverrideMm ?? widget.floor.defaultHeightMm;
+    if (!value.isFinite || value < 0 || value > limit) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Высота должна быть от 0 до ${_mm(limit)} мм.')));
+      return;
+    }
+    if ((point.heightMm - value).abs() < .001) return;
+    final oldMount = point.mounting;
+    ElectricalMounting? newMount;
+    if (oldMount != null) {
+      newMount = ElectricalMounting(
+        wallId: oldMount.wallId,
+        datumNodeId: oldMount.datumNodeId,
+        datumName: oldMount.datumName,
+        datumInsetMm: oldMount.datumInsetMm,
+        distanceMm: oldMount.distanceMm,
+        heightAboveFinishedFloorMm: value,
+        wallSide: oldMount.wallSide,
+        geometrySnapshot: oldMount.geometrySnapshot,
+        source: oldMount.source,
+        finishedFloorAboveSlabMm: oldMount.finishedFloorAboveSlabMm,
+        measurementUncertaintyMm: oldMount.measurementUncertaintyMm,
+      );
+      try {
+        ElectricalMountingService.apply(widget.floor,
+            ElectricalPoint.fromJson(point.toJson()), newMount);
+      } on FormatException catch (error) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(error.message)));
+        return;
+      }
+    }
+    _pushUndo();
+    if (newMount == null) {
+      point.heightMm = value;
+    } else {
+      ElectricalMountingService.apply(widget.floor, point, newMount);
+    }
+    await widget.onChanged();
+    if (mounted) setState(() {});
+  }
+
+  Widget _quickFan() {
+    final selected = widget.floor.electricalPoints
+        .where((p) => p.id == _selectedId).firstOrNull;
+    const types = <(ElectricalPointType, IconData, String)>[
+      (ElectricalPointType.socket, Icons.power_outlined, 'Розетка'),
+      (ElectricalPointType.switchPoint, Icons.toggle_on_outlined, 'Выключатель'),
+      (ElectricalPointType.ceilingLight, Icons.lightbulb_outline, 'Свет'),
+      (ElectricalPointType.junctionBox, Icons.account_tree_outlined, 'Коробка'),
+      (ElectricalPointType.panel, Icons.electric_meter_outlined, 'Щит'),
+      (ElectricalPointType.appliance, Icons.cable_outlined, 'Вывод'),
+    ];
+    final theme = Theme.of(context);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        if (_addArcOpen && _mode == ElectricalMode.add)
+          Container(
+            constraints: const BoxConstraints(maxWidth: 275),
+            margin: const EdgeInsets.only(bottom: 7),
+            padding: const EdgeInsets.all(7),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface.withValues(alpha: .95),
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .3),
+                  blurRadius: 14)],
+            ),
+            child: Wrap(spacing: 4, runSpacing: 4,
+              children: [
+                for (final (type, icon, label) in types)
+                  ActionChip(
+                    key: ValueKey('electrical-add-${type.name}'),
+                    label: Text(label,
+                        style: const TextStyle(fontSize: 11)),
+                    avatar: Icon(icon, size: 16),
+                    backgroundColor: _type == type
+                        ? theme.colorScheme.primaryContainer : null,
+                    onPressed: () => setState(() {
+                      _type = type;
+                      _mode = ElectricalMode.add;
+                      _addArcOpen = false;
+                    }),
+                  ),
+              ]),
+          ),
+        if (selected != null && _mode == ElectricalMode.select)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 5),
+            child: FilledButton.tonalIcon(
+              key: const ValueKey('electrical-selected-edit'),
+              onPressed: () => _pointSheet(selected),
+              icon: const Icon(Icons.tune_rounded, size: 18),
+              label: const Text('Свойства точки'),
+            ),
+          ),
+        Row(mainAxisSize: MainAxisSize.min, children: [
+          IconButton.filledTonal(
+            key: const ValueKey('electrical-fan-select'),
+            tooltip: 'Выбрать / перетащить',
+            onPressed: () => setState(() {
+              _mode = ElectricalMode.select; _addArcOpen = false;
+            }),
+            icon: const Icon(Icons.touch_app_outlined)),
+          const SizedBox(width: 5),
+          IconButton.filledTonal(
+            key: const ValueKey('electrical-fan-wire'),
+            tooltip: 'Ручная линия',
+            onPressed: () => setState(() {
+              _mode = ElectricalMode.wire; _addArcOpen = false;
+              _wireStartId = null;
+            }),
+            icon: const Icon(Icons.polyline_outlined)),
+          const SizedBox(width: 5),
+          FloatingActionButton.small(
+            key: const ValueKey('electrical-fan-add'),
+            tooltip: 'Добавить электроточку',
+            heroTag: 'zamer-electrical-point-add',
+            onPressed: () => setState(() {
+              _mode = ElectricalMode.add;
+              _addArcOpen = !_addArcOpen;
+            }),
+            child: const Icon(Icons.add_rounded),
+          ),
+        ]),
+      ],
+    );
+  }
+
+  Offset _placementPreview(Offset raw, Size size) {
+    if (!_needsWall(_type)) return raw;
+    final hit = _nearestWall(_screenToMm(raw, size), maxDistanceMm: 550);
+    if (hit == null) return raw;
+    final tx = _tx(size);
+    return tx.origin + Offset(hit.point.x * tx.scale,
+                             hit.point.y * tx.scale);
+  }
+
+  void _placePanStart(DragStartDetails d) {
+    if (_pinchingCamera || _touches.length > 1) return;
+    setState(() => _placingAt = d.localPosition);
+  }
+
+  void _placePanUpdate(DragUpdateDetails d) {
+    if (_pinchingCamera || _touches.length > 1) return;
+    setState(() => _placingAt = d.localPosition);
+  }
+
+  Future<void> _placePanEnd(Size size) async {
+    final at = _placingAt;
+    setState(() => _placingAt = null);
+    if (at == null || _pinchingCamera || _touches.length > 1) return;
+    // Reuse the same validated placement path as tap-to-add.
+    await _tap(TapUpDetails(kind: PointerDeviceKind.touch,
+        localPosition: at), size);
+  }
+
+  Widget _workspaceTabs() {
+    final theme = Theme.of(context);
+    const labels = <(ElectricalWorkspaceView, String)>[
+      (ElectricalWorkspaceView.pointsRoutes, 'Точки и трассы'),
+      (ElectricalWorkspaceView.loads, 'Нагрузки'),
+      (ElectricalWorkspaceView.board, 'Щит'),
+    ];
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 6, 8, 3),
+      child: Row(
+        key: const ValueKey('electrical-three-modes'),
+        children: [
+          for (final (value, label) in labels)
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2),
+                child: TextButton(
+                  key: value == ElectricalWorkspaceView.loads
+                      ? const ValueKey('electrical-load-inventory')
+                      : ValueKey('electrical-view-${value.name}'),
+                  onPressed: () => setState(() {
+                    _workspaceView = value;
+                    _addArcOpen = false;
+                  }),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 3, vertical: 9),
+                    backgroundColor: _workspaceView == value
+                        ? theme.colorScheme.primaryContainer
+                        : theme.colorScheme.surfaceContainer,
+                    foregroundColor: _workspaceView == value
+                        ? theme.colorScheme.onPrimaryContainer
+                        : theme.colorScheme.onSurfaceVariant,
+                  ),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(label, style: const TextStyle(
+                        fontSize: 12, fontWeight: FontWeight.w700)),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _loadWorkspace() {
+    final draft = ElectricalBoardDraftService.create(widget.floor);
+    return ListView(
+      key: const ValueKey('electrical-loads-workspace'),
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 18),
+      children: [
+        Text('Группы и нагрузки',
+            style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 4),
+        Text('Известно: ${draft.knownConnectedWatts.toStringAsFixed(0)} Вт • '
+            '${draft.circuits.length} групп. Не является подбором автоматов.'),
+        if (draft.unratedLoads > 0)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text(
+              'Не указана мощность у ${draft.unratedLoads} точек. '
+              'Суммарная нагрузка неполная.',
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ),
+        if (draft.circuits.isEmpty)
+          const ListTile(title: Text('Групп пока нет'),
+              subtitle: Text('Назначь точки группам на плане.')),
+        for (final circuit in draft.circuits)
+          Card(
+            child: ListTile(
+              title: Text(circuit.load.name),
+              subtitle: Text(
+                '${circuit.load.loadCount} точек • '
+                '${circuit.load.connectedWatts.toStringAsFixed(0)} Вт • '
+                '≈${circuit.load.estimatedAmps.toStringAsFixed(1)} А\n'
+                '${circuit.protectiveDeviceStatus}',
+              ),
+              isThreeLine: true,
+              trailing: circuit.incomplete
+                  ? const Icon(Icons.warning_amber_rounded)
+                  : const Icon(Icons.chevron_right),
+              onTap: () => setState(() {
+                _workspaceView = ElectricalWorkspaceView.pointsRoutes;
+                _routeCircuitFilterId = widget.floor.electricalNetwork?.circuits
+                    .where((c) => c.name == circuit.load.name)
+                    .firstOrNull?.id;
+                _show3dRoutes = true;
+              }),
+            ),
+          ),
+        const Padding(
+          padding: EdgeInsets.symmetric(vertical: 10),
+          child: Text('Ток указан только для известных нагрузок. '
+              'Одновременность, фазы и защита требуют отдельных исходных данных.'),
+        ),
+      ],
+    );
+  }
+
+  Widget _boardWorkspace() {
+    final draft = ElectricalBoardDraftService.create(widget.floor);
+    return ListView(
+      key: const ValueKey('electrical-board-workspace'),
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 18),
+      children: [
+        Text('Щит • предварительная компоновка',
+            style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 8),
+        const Text('Пока это схема логических секций. DIN-размеры, '
+            'номиналы аппаратов, шины N/PE и клеммные подключения '
+            'не рассчитаны. По этому эскизу нельзя собирать щит.'),
+        const SizedBox(height: 12),
+        for (final section in draft.sections)
+          Card(
+            child: ListTile(
+              dense: true,
+              leading: const Icon(Icons.view_module_outlined),
+              title: Text(section.label),
+              subtitle: Text(section.role),
+            ),
+          ),
+        const SizedBox(height: 8),
+        FilledButton.tonalIcon(
+          onPressed: _showCableJournal,
+          icon: const Icon(Icons.inventory_2_outlined),
+          label: const Text('Кабельный журнал'),
+        ),
+        const SizedBox(height: 10),
+        Text(draft.protectionStatus,
+            style: TextStyle(color: Theme.of(context).colorScheme.error)),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final selected = widget.floor.electricalPoints
+        .where((p) => p.id == _selectedId).firstOrNull;
     final cableTotals = <String, double>{};
     for (final r in widget.floor.electricalRuns) {
       cableTotals[r.cable] = (cableTotals[r.cable] ?? 0) + _runLength(r);
     }
     return Column(
       children: [
-        if (!widget.embedded) Padding(
-          padding: const EdgeInsets.fromLTRB(10, 8, 10, 4),
-          child: Card(
-            child: Padding(
-              padding: const EdgeInsets.all(10),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      IconButton(
-                        tooltip: 'Назад',
-                        onPressed: _undo.isEmpty ? null : _undoAction,
-                        icon: const Icon(Icons.undo),
-                      ),
-                      IconButton(
-                        tooltip: 'Вперёд',
-                        onPressed: _redo.isEmpty ? null : _redoAction,
-                        icon: const Icon(Icons.redo),
-                      ),
-                      const Spacer(),
-                      OutlinedButton.icon(
-                        onPressed: _heightDefaults,
-                        icon: const Icon(Icons.height),
-                        label: const Text('Высоты'),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  SegmentedButton<ElectricalMode>(
-                    segments: const [
-                      ButtonSegment(
-                        value: ElectricalMode.add,
-                        icon: Icon(Icons.add_circle_outline),
-                        label: Text('Точка'),
-                      ),
-                      ButtonSegment(
-                        value: ElectricalMode.wire,
-                        icon: Icon(Icons.polyline_outlined),
-                        label: Text('Проводка'),
-                      ),
-                      ButtonSegment(
-                        value: ElectricalMode.select,
-                        icon: Icon(Icons.touch_app_outlined),
-                        label: Text('Правка'),
-                      ),
-                    ],
-                    selected: {_mode},
-                    onSelectionChanged: (v) => setState(() {
-                      _mode = v.first;
-                      _wireStartId = null;
-                    }),
-                  ),
-                  const SizedBox(height: 8),
-                  if (_mode == ElectricalMode.add)
-                    DropdownButtonFormField<ElectricalPointType>(
-                      value: _type,
-                      decoration: const InputDecoration(
-                        labelText: 'Что поставить на план',
-                      ),
-                      items: ElectricalPointType.values
-                          .map(
-                            (e) => DropdownMenuItem(
-                              value: e,
-                              child: Text(e.label),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (v) => setState(() => _type = v ?? _type),
-                    ),
-                  if (_mode == ElectricalMode.select)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 6),
-                      child: Text(
-                        'Перетаскивай точки пальцем. Потолочные светильники автоматически цепляются к общей прямой.',
-                      ),
-                    ),
-                  if (_mode == ElectricalMode.wire)
-                    Row(
-                      children: [
-                        Expanded(
-                          child: DropdownButtonFormField<String>(
-                            value: _cable,
-                            decoration: const InputDecoration(
-                              labelText: 'Кабель',
-                            ),
-                            items:
-                                const [
-                                      'ВВГнг-LS 3×1.5',
-                                      'ВВГнг-LS 3×2.5',
-                                      'ВВГнг-LS 5×4',
-                                      'UTP Cat.6',
-                                      'Коаксиал TV',
-                                    ]
-                                    .map(
-                                      (e) => DropdownMenuItem(
-                                        value: e,
-                                        child: Text(e),
-                                      ),
-                                    )
-                                    .toList(),
-                            onChanged: (v) =>
-                                setState(() => _cable = v ?? _cable),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        DropdownButton<String>(
-                          value: _routeMode,
-                          items: const [
-                            DropdownMenuItem(
-                              value: 'orthogonal',
-                              child: Text('90°'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'direct',
-                              child: Text('Прямая'),
-                            ),
-                          ],
-                          onChanged: (v) =>
-                              setState(() => _routeMode = v ?? _routeMode),
-                        ),
-                      ],
-                    ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        if (widget.embedded)
-          Wrap(
-            alignment: WrapAlignment.end,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: 2,
+        _workspaceTabs(),
+        if (_workspaceView != ElectricalWorkspaceView.pointsRoutes)
+          Expanded(child: _workspaceView == ElectricalWorkspaceView.loads
+              ? _loadWorkspace() : _boardWorkspace()),
+        if (_workspaceView == ElectricalWorkspaceView.pointsRoutes &&
+            !widget.embedded)
+          Row(
             children: [
-              TextButton.icon(
-                key: const ValueKey('electrical-load-inventory'),
-                onPressed: _showLoadInventory,
-                icon: const Icon(Icons.electric_bolt_outlined, size: 16),
-                label: const Text('Нагрузки / щит'),
-              ),
               IconButton(
-                tooltip: 'Высоты точек',
-                onPressed: _heightDefaults,
-                icon: const Icon(Icons.height),
-              ),
+                tooltip: 'Назад', onPressed: _undo.isEmpty ? null : _undoAction,
+                icon: const Icon(Icons.undo_rounded)),
               IconButton(
-                key: const ValueKey('electrical-wall-elevation'),
-                tooltip: 'Развёртка стены',
-                onPressed: _showWallElevation,
-                icon: const Icon(Icons.architecture_outlined),
-              ),
+                tooltip: 'Вперёд', onPressed: _redo.isEmpty ? null : _redoAction,
+                icon: const Icon(Icons.redo_rounded)),
+              const Spacer(),
               IconButton(
-                key: const ValueKey('electrical-cable-journal'),
-                tooltip: 'Кабельный журнал',
-                onPressed: _showCableJournal,
-                icon: const Icon(Icons.inventory_2_outlined),
-              ),
-              IconButton(
-                key: const ValueKey('electrical-toggle-physical-routes'),
-                tooltip: _show3dRoutes ? 'Скрыть 3D-трассы' : 'Показать 3D-трассы',
-                onPressed: () => setState(() => _show3dRoutes = !_show3dRoutes),
-                icon: Icon(_show3dRoutes ? Icons.route : Icons.alt_route),
-              ),
-              PopupMenuButton<String>(
-                key: const ValueKey('electrical-plan-layers'),
-                tooltip: 'Слои проводки',
-                icon: const Icon(Icons.layers_outlined),
-                onSelected: (choice) {
-                  if (choice == 'faces') {
-                    _showWallFaces();
-                    return;
-                  }
-                  setState(() {
-                    if (choice == 'legacy') _showLegacyLines = !_showLegacyLines;
-                    if (choice == 'crossings') _showCrossings = !_showCrossings;
-                    if (choice == 'all') _routeCircuitFilterId = null;
-                  });
-                },
-                itemBuilder: (_) => [
-                  CheckedPopupMenuItem(
-                    value: 'legacy', checked: _showLegacyLines,
-                    child: const Text('Черновые линии'),
-                  ),
-                  CheckedPopupMenuItem(
-                    value: 'crossings', checked: _showCrossings,
-                    child: const Text('Маркеры пересечений'),
-                  ),
-                  const PopupMenuItem(
-                    value: 'faces',
-                    child: Text('Стороны и отделка стен'),
-                  ),
-                  PopupMenuItem(
-                    value: 'review',
-                    onTap: _showCrossingsReview,
-                    child: const Text('Журнал пересечений'),
-                  ),
-                  if (_routeCircuitFilterId != null)
-                    const PopupMenuItem(value: 'all',
-                        child: Text('Все группы')),
-                ],
-              ),
+                tooltip: 'Высоты по умолчанию',
+                onPressed: _heightDefaults, icon: const Icon(Icons.height)),
             ],
           ),
-        if (!widget.embedded)
+        if (_workspaceView == ElectricalWorkspaceView.pointsRoutes)
           _routeControls(),
+        if (_workspaceView == ElectricalWorkspaceView.pointsRoutes)
         Expanded(
           child: LayoutBuilder(
             builder: (context, c) {
               final size = Size(c.maxWidth, c.maxHeight);
               _viewportSize = size;
               final t = _tx(size);
-              return Listener(
+              return Stack(children: [Listener(
                 onPointerDown: _touchDown,
                 onPointerMove: _touchMove,
                 onPointerUp: _touchEnd,
@@ -1521,11 +1738,13 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                 onTapUp: (d) => _tap(d, size),
                 onPanStart: _mode == ElectricalMode.select
                     ? (d) => _dragStart(d, size)
-                    : null,
+                    : _mode == ElectricalMode.add ? _placePanStart : null,
                 onPanUpdate: _mode == ElectricalMode.select
                     ? (d) => _dragUpdate(d, size)
+                    : _mode == ElectricalMode.add ? _placePanUpdate : null,
+                onPanEnd: _mode == ElectricalMode.select ? _dragEnd
+                    : _mode == ElectricalMode.add ? (_) => _placePanEnd(size)
                     : null,
-                onPanEnd: _mode == ElectricalMode.select ? _dragEnd : null,
                 child: CustomPaint(
                   painter: widget.embedded ? CadPlanPainter(
                     floor: widget.floor,
@@ -1545,6 +1764,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                     show3dRoutes: _show3dRoutes,
                     showCrossings: _showCrossings,
                     circuitFilterId: _routeCircuitFilterId,
+                    visiblePointTypes: _visiblePointTypes,
                   ),
                   foregroundPainter: widget.embedded
                       ? ElectricalPlanPainter(
@@ -1559,15 +1779,53 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                           show3dRoutes: _show3dRoutes,
                     showCrossings: _showCrossings,
                           circuitFilterId: _routeCircuitFilterId,
+                    visiblePointTypes: _visiblePointTypes,
                         ) : null,
                   child: const SizedBox.expand(),
                 ),
                 ),
-              );
+              ),
+              if (_placingAt != null && _mode == ElectricalMode.add)
+                Positioned(
+                  left: (_placementPreview(_placingAt!, size).dx - 15)
+                      .clamp(0.0, math.max(0.0, size.width - 30)),
+                  top: (_placementPreview(_placingAt!, size).dy - 15)
+                      .clamp(0.0, math.max(0.0, size.height - 30)),
+                  child: IgnorePointer(
+                    child: Container(
+                      width: 30, height: 30,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primary
+                            .withValues(alpha: .3),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Theme.of(context).colorScheme.primary,
+                          width: 2,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              Positioned(
+                right: 12,
+                bottom: 12,
+                child: _quickFan(),
+              ),
+            ]);
             },
           ),
         ),
-        if (!widget.embedded && widget.floor.electricalPoints.isNotEmpty)
+        if (_workspaceView == ElectricalWorkspaceView.pointsRoutes &&
+            selected != null)
+          ElectricalCompactInspector(
+            floor: widget.floor,
+            point: selected,
+            onDatum: () => _editMountingDirect(selected),
+            onHeight: () => _quickPointHeight(selected),
+            onLoad: () => _editPropertiesDirect(selected),
+          ),
+        if (_workspaceView == ElectricalWorkspaceView.pointsRoutes &&
+            !widget.embedded && widget.floor.electricalPoints.isNotEmpty)
           Container(
             width: double.infinity,
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
