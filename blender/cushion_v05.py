@@ -292,7 +292,8 @@ bpy.context.view_layer.cycles.use_denoising=False
 scene.render.resolution_x=1160
 scene.render.resolution_y=880
 scene.render.resolution_percentage=100
-scene.world.color=(.09,.09,.09)\nscene.view_settings.exposure=-0.9
+scene.world.color=(.09,.09,.09)
+scene.view_settings.exposure=-0.9
 scene.render.image_settings.file_format="PNG"
 scene.render.filepath=str(OUT/"cushion_v05_cycles.png")
 bpy.ops.wm.save_as_mainfile(filepath=str(OUT/"cushion_v05.blend"))
