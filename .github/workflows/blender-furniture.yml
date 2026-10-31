@@ -36,7 +36,7 @@ jobs:
           BLENDER_OUT: out/blender
         run: |
           mkdir -p out/blender
-          blender -b -t 2 --python-exit-code 3 --python blender/cushion_v07.py
+          blender -b -t 2 --python-exit-code 3 --python blender/cushion_v08.py
 
       - name: Inspect exported GLB and output files
         run: |
@@ -45,11 +45,11 @@ jobs:
           import struct
           from pathlib import Path
           output = Path("out/blender")
-          for name in ("cushion_v07.blend", "cushion_v07.glb", "cushion_v07_cycles.png", "linen05_basecolor.png", "linen05_normal.png"):
+          for name in ("cushion_v08.blend", "cushion_v08.glb", "cushion_v08_cycles.png", "linen05_basecolor.png", "linen05_normal.png", "cushion_v08_detail.png"):
               p = output / name
               assert p.is_file() and p.stat().st_size > 1000, f"Missing or empty: {p}"
               print(name, p.stat().st_size, "bytes")
-          raw = (output / "cushion_v07.glb").read_bytes()
+          raw = (output / "cushion_v08.glb").read_bytes()
           assert raw[:4] == b"glTF"
           version, total = struct.unpack_from("<II", raw, 4)
           assert version == 2 and total == len(raw)
@@ -65,7 +65,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: blender-cushion-v07
+          name: blender-cushion-v08
           path: out/blender/
           if-no-files-found: warn
           retention-days: 7
