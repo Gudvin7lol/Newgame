@@ -133,7 +133,7 @@ def simplemat(name,rgba,roughness=0.9):
 cordmat=simplemat("Cotton welt seam",(.58,.51,.43,1))
 threadmat=simplemat("Warm seam thread",(.52,.45,.36,1))
 foam=simplemat("Internal foam | hidden under fabric",(.82,.79,.68,1))
-ground=simplemat("Studio charcoal floor",(.085,.089,.092,1))
+ground=simplemat("Studio charcoal floor",(.052,.057,.060,1))
 
 # Top panel: quad topology, genuinely curved and asymmetric profile.
 nxg,nyg=144,124
@@ -277,9 +277,9 @@ camera.rotation_euler=(look-camera.location).to_track_quat("-Z","Y").to_euler()
 camera.data.type="ORTHO";camera.data.ortho_scale=1.14
 scene=bpy.context.scene;scene.camera=camera
 for name,loc,energy,size in [
-    ("Key softbox",(-.38,-.66,1.22),380,1.4),
-    ("Fill softbox",(.75,.10,.92),260,1.5),
-    ("Rim softbox",(-.12,.80,.95),190,1.0),
+    ("Key softbox",(-.38,-.66,1.22),185,1.4),
+    ("Fill softbox",(.75,.10,.92),95,1.5),
+    ("Rim softbox",(-.12,.80,.95),75,1.0),
 ]:
     bpy.ops.object.light_add(type="AREA",location=loc)
     ob=bpy.context.object;ob.name=name;ob.data.energy=energy
@@ -292,7 +292,7 @@ bpy.context.view_layer.cycles.use_denoising=False
 scene.render.resolution_x=1160
 scene.render.resolution_y=880
 scene.render.resolution_percentage=100
-scene.world.color=(.22,.22,.22)
+scene.world.color=(.09,.09,.09)\nscene.view_settings.exposure=-0.9
 scene.render.image_settings.file_format="PNG"
 scene.render.filepath=str(OUT/"cushion_v05_cycles.png")
 bpy.ops.wm.save_as_mainfile(filepath=str(OUT/"cushion_v05.blend"))
