@@ -126,6 +126,8 @@ for name, loc, power, size in [
 scene = bpy.context.scene
 scene.render.engine = "CYCLES"
 scene.cycles.samples = 20
+scene.cycles.use_denoising = False
+bpy.context.view_layer.cycles.use_denoising = False
 scene.render.resolution_x, scene.render.resolution_y = 900, 650
 scene.render.resolution_percentage = 100
 scene.render.image_settings.file_format = "PNG"
