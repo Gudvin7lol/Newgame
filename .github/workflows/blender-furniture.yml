@@ -1,0 +1,70 @@
+name: Blender furniture lab
+
+on:
+  push:
+    branches:
+      - feat/blender-furniture-lab
+    paths:
+      - "blender/**"
+      - ".github/workflows/blender-furniture.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: blender-lab-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  make-3d-model:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Install actual Blender
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y blender
+          blender --version
+
+      - name: Create editable BLEND, textured GLB, Cycles render
+        env:
+          BLENDER_OUT: out/blender
+        run: |
+          mkdir -p out/blender
+          blender -b -t 2 --python blender/smoke_test.py
+
+      - name: Inspect exported GLB and output files
+        run: |
+          python3 - <<'PY'
+          import json
+          import struct
+          from pathlib import Path
+          output = Path("out/blender")
+          for name in ("pillow_study.blend", "pillow_study.glb", "pillow_render.png", "linen_basecolor.png", "linen_normal.png"):
+              p = output / name
+              assert p.is_file() and p.stat().st_size > 1000, f"Missing or empty: {p}"
+              print(name, p.stat().st_size, "bytes")
+          raw = (output / "pillow_study.glb").read_bytes()
+          assert raw[:4] == b"glTF"
+          version, total = struct.unpack_from("<II", raw, 4)
+          assert version == 2 and total == len(raw)
+          n, kind = struct.unpack_from("<II", raw, 12)
+          assert kind == 0x4E4F534A
+          gltf = json.loads(raw[20:20+n])
+          assert len(gltf.get("meshes", [])) >= 1, "No 3D mesh"
+          assert len(gltf.get("images", [])) >= 2, "PBR textures not embedded"
+          print("GLB_OK meshes=", len(gltf["meshes"]), "images=", len(gltf["images"]))
+          PY
+
+      - name: Upload downloadable Blender files
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: blender-smoke-artifacts
+          path: out/blender/
+          if-no-files-found: warn
+          retention-days: 7
