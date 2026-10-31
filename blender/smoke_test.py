@@ -2,7 +2,6 @@ import math
 import os
 from pathlib import Path
 import bpy
-import numpy as np
 from mathutils import Vector
 
 OUT = Path(os.environ.get("BLENDER_OUT", "out/blender")).resolve()
@@ -12,21 +11,26 @@ bpy.ops.object.delete(use_global=False)
 
 # Small image-based linen material: this tests GLB texture embedding.
 n = 256
-y, x = np.mgrid[0:n, 0:n].astype(np.float32)
-weave = 0.5 * np.sin(x * 2 * np.pi / 7.0) + 0.5 * np.sin(y * 2 * np.pi / 7.0)
-height = 0.15 * weave + 0.08 * np.sin(x * 0.21 + np.sin(y * 0.08))
-color = np.empty((n, n, 4), dtype=np.float32)
-for k, base in enumerate((0.60, 0.52, 0.42)):
-    color[:, :, k] = np.clip(base + weave * 0.025, 0, 1)
-color[:, :, 3] = 1.0
-gy, gx = np.gradient(height)
-normal = np.stack((-gx * 2, -gy * 2, np.ones_like(gx)), axis=2)
-normal /= np.linalg.norm(normal, axis=2, keepdims=True)
-normal = np.concatenate(((normal + 1) / 2, np.ones((n, n, 1), dtype=np.float32)), axis=2)
+color, normal = [], []
+
+def relief(x, y):
+    w = 0.5 * math.sin(x * 2 * math.pi / 7.0) + 0.5 * math.sin(y * 2 * math.pi / 7.0)
+    return 0.15 * w + 0.08 * math.sin(x * 0.21 + math.sin(y * 0.08))
+
+for iy in range(n):
+    for ix in range(n):
+        weave = 0.5 * math.sin(ix * 2 * math.pi / 7.0) + 0.5 * math.sin(iy * 2 * math.pi / 7.0)
+        color.extend([max(0.0, min(1.0, base + weave * 0.025)) for base in (0.60, 0.52, 0.42)] + [1.0])
+        gx = (relief(ix + 1, iy) - relief(ix - 1, iy)) * 0.5
+        gy = (relief(ix, iy + 1) - relief(ix, iy - 1)) * 0.5
+        nx, ny, nz = -2 * gx, -2 * gy, 1.0
+        invlen = 1.0 / math.sqrt(nx * nx + ny * ny + nz * nz)
+        normal.extend(((nx * invlen + 1) * 0.5, (ny * invlen + 1) * 0.5,
+                       (nz * invlen + 1) * 0.5, 1.0))
 
 def save_image(name, pixels, is_data=False):
     image = bpy.data.images.new(name, width=n, height=n, alpha=True)
-    image.pixels.foreach_set(pixels.ravel().tolist())
+    image.pixels.foreach_set(pixels)
     image.filepath_raw = str(OUT / (name + ".png"))
     image.file_format = "PNG"
     if is_data:
