@@ -201,7 +201,7 @@ for j in range(97):
     for i in range(97):
         u=2*i/96-1
         x,y=xy(u,v)
-        depressed=max(0,1-(x/A)**2)*max(0,1-(y/B)**2)
+        depressed=max(0,1-(x/A)**2)*max(0,1-(y/B)**2)*min(1,max(0,-sdrounded(x,y)/.055))
         verts.append((x,y,-.051-.007*depressed))
         uvs.append(((x+A)/.12,(y+B)/.12))
 for j in range(96):
