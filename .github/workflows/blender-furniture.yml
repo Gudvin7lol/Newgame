@@ -27,15 +27,16 @@ jobs:
       - name: Install actual Blender
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y blender
+          sudo apt-get install -y blender python3-numpy
           blender --version
+          blender -b --python-exit-code 3 --python-expr 'import numpy; print("NumPy available", numpy.__version__)'
 
       - name: Create editable BLEND, textured GLB, Cycles render
         env:
           BLENDER_OUT: out/blender
         run: |
           mkdir -p out/blender
-          blender -b -t 2 --python blender/smoke_test.py
+          blender -b -t 2 --python-exit-code 3 --python blender/smoke_test.py
 
       - name: Inspect exported GLB and output files
         run: |
