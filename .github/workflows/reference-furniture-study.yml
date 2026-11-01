@@ -1,0 +1,117 @@
+name: Reference Furniture Study - CC0 Chair 2K vs Android 1K
+
+on:
+  push:
+    branches: [feat/blender-furniture-lab]
+    paths:
+      - 'blender/reference_chair/**'
+      - '.github/workflows/reference-furniture-study.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: reference-furniture-study-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install glTF tools and Blender Cycles
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y blender python3-pil python3-numpy
+          npm install -g @gltf-transform/cli
+          gltf-transform --version
+          blender --version
+
+      - name: Download licensed original GLTF + verified textures
+        env:
+          CHAIR_OUT: out/reference_chair
+        run: python3 blender/reference_chair/download_official.py
+
+      - name: Pack original 2K GLB and two Android-friendly alternatives
+        run: |
+          set -euo pipefail
+          cd out/reference_chair
+          gltf-transform copy source/modern_arm_chair_01_2k.gltf modern_arm_chair_reference_2k.glb
+          gltf-transform resize modern_arm_chair_reference_2k.glb modern_arm_chair_mobile_1k.glb --width 1024 --height 1024
+          gltf-transform resize modern_arm_chair_reference_2k.glb modern_arm_chair_lite_512.glb --width 512 --height 512
+          ls -lh *.glb
+
+      - name: Actual Cycles renders of professionally modeled source
+        env:
+          CHAIR_OUT: out/reference_chair
+        run: |
+          blender -b -t 2 --python-exit-code 3 --python blender/reference_chair/render_reference.py
+
+      - name: Inspect PBR texture linkage, mesh integrity and mobile compatibility
+        run: |
+          python3 - <<'PY'
+          import json,struct
+          from pathlib import Path
+          from PIL import Image
+          out=Path('out/reference_chair')
+          names=['modern_arm_chair_reference_2k.glb','modern_arm_chair_mobile_1k.glb','modern_arm_chair_lite_512.glb']
+          records={}
+          for name in names:
+              src=(out/name).read_bytes()
+              assert src[:4]==b'glTF' and struct.unpack_from('<I',src,8)[0]==len(src)
+              n,kind=struct.unpack_from('<II',src,12)
+              assert kind==0x4E4F534A
+              doc=json.loads(src[20:20+n])
+              pbr=[m for m in doc.get('materials',[]) if m.get('normalTexture') and m.get('pbrMetallicRoughness',{}).get('metallicRoughnessTexture') and m.get('pbrMetallicRoughness',{}).get('baseColorTexture')]
+              assert pbr,'Missing true base+rough+normal'
+              assert len(doc.get('meshes',[]))>=1,'Missing 3D geometry'
+              assert len(doc.get('images',[]))>=4,'Insufficient material maps'
+              forbidden={'KHR_draco_mesh_compression','EXT_meshopt_compression','EXT_texture_webp','KHR_texture_basisu'}
+              assert not (set(doc.get('extensionsRequired',[])) & forbidden),'Mobile decoder extension required'
+              assert all('POSITION' in p.get('attributes',{}) for m in doc['meshes'] for p in m.get('primitives',[]))
+              records[name]={'bytes':len(src),'meshes':len(doc['meshes']),
+                             'materials':len(doc.get('materials',[])),
+                             'embedded_images':len(doc['images']),
+                             'fully_pbr_materials':len(pbr),
+                             'required_extensions':doc.get('extensionsRequired',[])}
+              print('GLB_VALID',name,records[name])
+          ref=records[names[0]]
+          one=records[names[1]]
+          lite=records[names[2]]
+          assert one['bytes']<ref['bytes'],'1K not smaller than 2K'
+          assert lite['bytes']<=one['bytes'],'512 not smaller than 1K'
+          assert one['meshes']==ref['meshes']==lite['meshes'],'Different geometry from source'
+          for img in ('source_cycles.png','source_back.png'):
+              with Image.open(out/img) as im:
+                  assert im.width>=900 and im.height>=800
+          provenance=json.loads((out/'source_provenance.json').read_text())
+          assert provenance['download_verified_md5'] and provenance['license']=='CC0'
+          report={'source':'https://polyhaven.com/a/modern_arm_chair_01',
+                  'license':'CC0',
+                  'purpose':'Compare same real 3D furniture geometry at two mobile texture budgets',
+                  'notes':'No neural image-to-3D was run; this requires GPU/API funding',
+                  'models':records,'relative_size_savings_pct':round(100*(1-one['bytes']/ref['bytes']),1),
+                  'mobile_viewer_verified':False}
+          (out/'comparison_report.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
+          print('PROFESSIONAL_ASSET_COMPARISON_OK',report)
+          PY
+
+      - name: Publish real original/mobile GLBs, renders and validation
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: polyhaven-chair-pro-reference-mobile
+          path: |
+            out/reference_chair/modern_arm_chair_reference_2k.glb
+            out/reference_chair/modern_arm_chair_mobile_1k.glb
+            out/reference_chair/modern_arm_chair_lite_512.glb
+            out/reference_chair/source_cycles.png
+            out/reference_chair/source_back.png
+            out/reference_chair/reference_geometry_report.json
+            out/reference_chair/comparison_report.json
+            out/reference_chair/source_provenance.json
+          if-no-files-found: warn
+          retention-days: 14
