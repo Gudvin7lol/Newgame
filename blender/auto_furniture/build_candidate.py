@@ -424,8 +424,8 @@ for name,loc,energy,size in [
     ob.rotation_euler=(look-ob.location).to_track_quat("-Z","Y").to_euler()
 scene.render.engine="CYCLES"
 scene.cycles.samples=RENDER_SAMPLES
-scene.cycles.use_denoising=True
-bpy.context.view_layer.cycles.use_denoising=True
+scene.cycles.use_denoising=False # Ubuntu apt Blender 4.0.2 built without OpenImageDenoiser
+bpy.context.view_layer.cycles.use_denoising=False
 scene.render.resolution_x=840
 scene.render.resolution_y=620
 scene.render.resolution_percentage=100
