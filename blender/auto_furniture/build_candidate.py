@@ -14,6 +14,8 @@ OUT.mkdir(parents=True, exist_ok=True)
 TEXTURE_TILE_M=float(os.environ.get("TEXTURE_TILE_M","0.30"))
 NORMAL_STRENGTH=float(os.environ.get("NORMAL_STRENGTH","0.75"))
 RENDER_SAMPLES=int(os.environ.get("RENDER_SAMPLES","18"))
+SHAPE_LOOSENESS=float(os.environ.get("SHAPE_LOOSENESS","1.0"))
+assert 0.55<=SHAPE_LOOSENESS<=1.65, "Unreasonable upholstery looseness"
 assert 0.12<=TEXTURE_TILE_M<=0.70, "UV physical scale out of range"
 assert 0.2<=NORMAL_STRENGTH<=1.6, "Normal strength out of range"
 random.seed(50)
@@ -36,13 +38,25 @@ def xy(u,v):
         if sdrounded(A*ux*mid, B*vy*mid)>0: hi=mid
         else: lo=mid
     scale=(lo+hi)*0.5
-    return A*u*scale, B*v*scale
+    # Small independent fluctuations in the cutting line: actual cushions do not
+    # retain a mathematically perfect superellipse once stuffed and compressed.
+    x,y=A*u*scale,B*v*scale
+    a=math.atan2(y/B,x/A)
+    edge_weight=max(abs(u),abs(v))**2.5
+    ripple=(.0025*math.sin(3*a+.37)+.0017*math.sin(7*a-1.14)
+            +.0009*math.sin(11*a+.55))
+    ripple*=SHAPE_LOOSENESS*edge_weight
+    radius=max(.001,math.hypot(x,y))
+    return x+ripple*x/radius, y+ripple*y/radius
 
 def top_height(x,y):
     # Filled foam distends the broad centre, not the entire edge uniformly.
     ux,vy=abs(x/A),abs(y/B)
     crown=max(0,1-ux**2.5)**1.2 * max(0,1-vy**2.5)**1.2
-    z=0.059 + 0.041*crown
+    # Flatter, compressed foam crest. The old 41mm dome looked inflated and rigid.
+    z=.064+( .027-.004*(SHAPE_LOOSENESS-1.0))*crown
+    # Uneven upholstery tension; small broad depressions, not repeating stripes.
+    z+=.0028*SHAPE_LOOSENESS*math.sin(7.5*x+1.8*y+.6)*math.cos(4.6*y-1.2*x)*crown
     z+=0.0045*exp(-((x+0.086)/0.12)**2 - ((y-0.047)/0.17)**2)
     z+=0.0025*exp(-((x-0.17)/0.07)**2 - ((y+0.09)/0.15)**2)
     z-=0.002*exp(-((x+0.21)/0.075)**2 - ((y+0.15)/0.06)**2)
@@ -59,7 +73,7 @@ def top_height(x,y):
         if t>-0.015 and t<L*2.0:
             envelope=exp(-((t-L*0.67)/(L*0.7))**2)
             # asymmetric crease with adjacent lifted ridge
-            z+=amp*envelope*(exp(-((p-w*0.53)/w)**2)-0.72*exp(-((p+w*0.42)/(w*0.72))**2))
+            z+=SHAPE_LOOSENESS*amp*envelope*(exp(-((p-w*.53)/w)**2)-.72*exp(-((p+w*.42)/(w*.72))**2))
     return z
 
 def mesh_obj(name, verts, faces, uvs, material):
@@ -173,16 +187,19 @@ for h in range(23):
     for k,(x,y) in enumerate(perimeter):
         radial=math.hypot(x/A,y/B)
         # Side bulges outward near central height; ends are pulled into stitched seams.
-        bulge=.015*math.sin(pi*t)**1.2
+        bulge=(.015+.008*(SHAPE_LOOSENESS-1))*math.sin(pi*t)**1.2
         ang=math.atan2(y/B,x/A)
-        bulge*=1+.10*math.sin(3*ang+.4)
+        bulge*=1+.14*math.sin(3*ang+.4)+.06*math.sin(7*ang-1.6)
+        # Settled side fabric forms a few non-uniform tension bands.
+        bulge+=SHAPE_LOOSENESS*.0032*math.sin(8*ang+3.1*t+.7)*math.sin(pi*t)**1.35
+        bulge+=SHAPE_LOOSENESS*.0014*math.sin(13*ang-5*t)*math.sin(pi*t)**1.8
         xx=x+bulge*x/(math.hypot(x,y)+.0001)
         yy=y+bulge*y/(math.hypot(x,y)+.0001)
         z=top_height(x,y)*(1-t) + (-.051)*t
         # Local compression only at selected seam anchor points.
         for ai,atk in [(44,.0030),(68,.0025),(150,.0035),(265,.0020),(328,.0028)]:
             d=min(abs(k-ai),count-abs(k-ai))
-            z+=atk*math.exp(-(d/7.5)**2)*math.sin(2*pi*t)*math.exp(-((t-.24)/.25)**2)
+            z+=SHAPE_LOOSENESS*atk*math.exp(-(d/7.5)**2)*math.sin(2*pi*t)*math.exp(-((t-.24)/.25)**2)
         verts.append((xx,yy,z))
         uvs.append((arclens[k]/TEXTURE_TILE_M,t*.13/TEXTURE_TILE_M))
 for h in range(22):
@@ -262,7 +279,7 @@ sub.levels=2;bpy.ops.object.modifier_apply(modifier=sub.name)
 for v in foamobj.data.vertices:
     x,y=v.co.x,v.co.y
     crown=max(0,1-(x/.355)**2)*max(0,1-(y/.305)**2)
-    if v.co.z>0:v.co.z+=.034*crown
+    if v.co.z>0:v.co.z+=.022*crown
 foamobj.location.z += .0035
 foamobj.data.materials.append(foam)
 for p in foamobj.data.polygons:p.use_smooth=True
@@ -331,6 +348,36 @@ for j in range(nyg+1):
             u,v=(2*i/nxg-1),(2*j/nyg-1)
             ex,ey=xy(u,v)
             top.data.vertices[idx].co=(ex,ey,top_height(ex,ey))
+# Preserve localized crease relief AFTER physical settling. Ordinary smooth cloth
+# simulation flattens all seam wrinkles; these are modest 1-4mm geometric details.
+creases=[
+    (-.245,-.223,.78,.62,.115,.0048,.011),
+    (-.207,-.258,.48,.88,.091,.0036,.010),
+    ( .238,-.219,-.73,.68,.108,.0050,.013),
+    ( .281,-.124,-.91,.36,.087,.0042,.009),
+    (-.286, .151,.90,-.43,.074,.0035,.009),
+]
+max_detail=0.0
+for v in top.data.vertices:
+    x,y=v.co.x,v.co.y
+    inner=max(0.0,-sdrounded(x,y))
+    smooth=max(0.,min(1.,inner/.022))
+    smooth=smooth*smooth*(3-2*smooth)
+    dz=0.0
+    for ax,ay,dx,dy,extent,amplitude,w in creases:
+        t=(x-ax)*dx+(y-ay)*dy
+        p=-(x-ax)*dy+(y-ay)*dx
+        if -.015<t<extent*1.45:
+            strength=math.exp(-((t-extent*.42)/(extent*.54))**2)
+            bend=.004*math.sin(t*32+ax*9)
+            valley=math.exp(-((p-bend+.001)/(w*.57))**2)
+            ridge=math.exp(-((p-bend-w*.74)/(w*1.05))**2)
+            dz+=amplitude*strength*(ridge-.95*valley)
+    dz*=smooth*SHAPE_LOOSENESS
+    v.co.z+=dz
+    max_detail=max(max_detail,abs(dz))
+print("RELIEF_QA",round(max_detail,5),"m", "shape_looseness",SHAPE_LOOSENESS)
+assert .001<max_detail<.018,"Unreasonable/missing seam-relief geometry"
 top.data.update()
 simscene.frame_set(1)
 
@@ -413,10 +460,11 @@ bpy.ops.render.render(write_still=True)
 import json as _json
 (OUT/"candidate_settings.json").write_text(_json.dumps({
     "normal_strength":NORMAL_STRENGTH,
+    "shape_looseness":SHAPE_LOOSENESS,
     "texture_tile_m":TEXTURE_TILE_M,
     "render_samples":RENDER_SAMPLES,
     "source":"Poly Haven rough linen CC0 / fixed 3D geometry v14",
-    "physics":"Blender pinned cloth (not physically stitched panels)"
+    "physics":"Blender pinned cloth; shaped contour and preserved seam-relief geometry; sewing springs not implemented"
 },indent=2),encoding="utf-8")
 for fn in ("cushion_v14.blend","cushion_v14.glb","cushion_v14_cycles.png","cushion_v14_detail.png"):
     f=OUT/fn
