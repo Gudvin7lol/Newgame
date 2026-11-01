@@ -133,7 +133,8 @@ void main() {
     await tester.tap(find.byKey(
         const ValueKey('route-auto-accept-preview')));
     await tester.pumpAndSettle();
-    expect(find.textContaining('Длина трассы:'), findsWidgets);
+    expect(tester.widget<OutlinedButton>(find.byKey(
+        const ValueKey('route-auto-propose'))).onPressed, isNull);
     expect(floor.toJson().toString(), snapshot);
     expect(cable.route3dId, isNull);
     expect(tester.takeException(), isNull);
