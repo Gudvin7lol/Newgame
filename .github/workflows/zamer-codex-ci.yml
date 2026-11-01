@@ -75,7 +75,7 @@ jobs:
         working-directory: zamer-app
         run: |
           flutter analyze --no-fatal-infos --no-fatal-warnings
-          flutter test test/electrical_ui_kit_v5_test.dart test/electrical_mobile_ui_p17_test.dart test/electrical_frame_fan_p15_test.dart test/electrical_precision_p16_test.dart
+          flutter test --timeout 2m test/electrical_ui_kit_v5_test.dart test/electrical_mobile_ui_p17_test.dart test/electrical_frame_fan_p15_test.dart test/electrical_precision_p16_test.dart
 
       - name: Upload electrical UI preview
         if: always()

@@ -186,7 +186,7 @@ class ElectricalPlanPainter extends CustomPainter {
         canvas.drawRRect(rr, Paint()..color = color.withValues(alpha: .5)
           ..style = PaintingStyle.stroke..strokeWidth = .7);
         final tp = TextPainter(text: TextSpan(text: label.$2,
-          style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w600)),
+          style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
           textDirection: TextDirection.ltr, maxLines: 1, ellipsis: '…')
           ..layout(maxWidth: label.$1.width - 12);
         tp.paint(canvas, label.$1.center - Offset(tp.width / 2, tp.height / 2));

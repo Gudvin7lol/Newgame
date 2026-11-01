@@ -41,6 +41,10 @@ void main() {
     expect(next.xMm, 1322);
     expect(next.datumAssignment!.fromDatumMm, -600);
     expect(next.heightMm, 300);
+    final raised = ElectricalDimensionEdit.propose(f, point, finishStart, -572, heightMm: 600);
+    expect(raised.xMm, point.xMm);
+    expect(raised.heightMm, 600);
+    expect(raised.datumAssignment!.pointHeightMm, 600);
     expect(jsonEncode(f.toJson()), before);
     expect(() => ElectricalDimensionEdit.propose(f, point, finishStart, 100), throwsFormatException);
     expect(jsonEncode(f.toJson()), before);
@@ -89,6 +93,11 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('electrical-fan-add')));
     await tester.pumpAndSettle();
+    for (var i = 0; i < 10 && find.byKey(const ValueKey('electrical-add-appliance')).evaluate().isEmpty; i++) {
+      final fan = tester.getRect(find.byKey(const ValueKey('electrical-two-ring-fan')));
+      await tester.dragFrom(fan.topLeft + const Offset(67, 192), const Offset(0, 32));
+      await tester.pumpAndSettle();
+    }
     expect(find.byKey(const ValueKey('electrical-add-appliance')), findsOneWidget);
     expect(find.byKey(const ValueKey('electrical-fan-add')), findsOneWidget);
     expect(tester.takeException(), isNull);

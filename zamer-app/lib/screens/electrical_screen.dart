@@ -158,9 +158,9 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
   }
 
   Rect _fanRect(Size size) => Rect.fromLTWH(
-    size.width - (_addArcOpen ? 302 : 212),
-    size.height - (_addArcOpen ? 276 : 64),
-    _addArcOpen ? 302 : 212, _addArcOpen ? 276 : 64);
+    size.width - (_addArcOpen ? 296 : 180),
+    size.height - (_addArcOpen ? 292 : 180),
+    _addArcOpen ? 296 : 180, _addArcOpen ? 292 : 180);
 
   @override
   void didUpdateWidget(covariant ElectricalScreen oldWidget) {
@@ -1468,6 +1468,10 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
             tooltip: 'Слои проводки',
             icon: const Icon(Icons.layers_outlined),
             onSelected: (choice) {
+              if (choice == 'manual') {
+                setState(() { _mode = ElectricalMode.wire; _addArcOpen = false; _wireStartId = null; });
+                return;
+              }
               if (choice == 'faces') {
                 _showWallFaces();
                 return;
@@ -1484,6 +1488,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
               });
             },
             itemBuilder: (_) => [
+              const PopupMenuItem(value: 'manual', child: Text('Нарисовать черновую линию')),
               CheckedPopupMenuItem(
                 value: 'dimensions', checked: _showMountingDimensions,
                 child: const Text('Монтажные размеры'),
@@ -1740,6 +1745,23 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
       return;
     }
     if ((point.heightMm - value).abs() < .001) return;
+    final assignment = point.datumAssignment;
+    if (assignment != null) {
+      try {
+        final issue = ElectricalDatumAssignmentService.problem(widget.floor, point);
+        if (issue != null) throw FormatException(issue);
+        final next = ElectricalDimensionEdit.propose(widget.floor, point,
+          assignment.datumId, assignment.fromDatumMm, heightMm: value);
+        _pushUndo();
+        final index = widget.floor.electricalPoints.indexWhere((p) => p.id == point.id);
+        widget.floor.electricalPoints[index] = next;
+        await widget.onChanged();
+        if (mounted) setState(() {});
+      } on FormatException catch (error) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+      }
+      return;
+    }
     final oldMount = point.mounting;
     ElectricalMounting? newMount;
     if (oldMount != null) {
@@ -1794,7 +1816,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     if (_fanScrollAccumulation.abs() < 28) return;
     final step = _fanScrollAccumulation > 0 ? 1 : -1;
     _fanScrollAccumulation = 0;
-    setState(() => _fanOuterIndex = (_fanOuterIndex + step + 6) % 6);
+    setState(() => _fanOuterIndex = (_fanOuterIndex + step + 10) % 10);
   }
 
   Offset? _planLocalFromGlobal(Offset global) {
@@ -1964,7 +1986,6 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                   ('elevation', Icons.architecture_outlined, 'Развёртка стены'),
                   ('duplicate', Icons.copy_outlined, 'Создать копию'),
                   ('side', Icons.flip_outlined, 'Сторона стены'),
-                  ('delete', Icons.delete_outline, 'Удалить'),
                 ])
                   ListTile(
                     key: ValueKey('electrical-context-${action.$1}'),
@@ -1996,147 +2017,104 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
   Widget _quickFan() {
     final selected = widget.floor.electricalPoints
         .where((p) => p.id == _selectedId).firstOrNull;
-    const inner = <(ElectricalPointType, IconData, String)>[
-      (ElectricalPointType.socket, Icons.power_outlined, 'Розетка'),
-      (ElectricalPointType.switchPoint, Icons.toggle_on_outlined, 'Выкл.'),
-      (ElectricalPointType.ceilingLight, Icons.lightbulb_outline, 'Свет'),
-      (ElectricalPointType.junctionBox, Icons.account_tree_outlined, 'Коробка'),
+    const categories = <(ElectricalPointType, String)>[
+      (ElectricalPointType.socket, 'Розетка'),
+      (ElectricalPointType.switchPoint, 'Выключ.'),
+      (ElectricalPointType.ceilingLight, 'Свет'),
+      (ElectricalPointType.tvSocket, 'ТВ'),
+      (ElectricalPointType.dataSocket, 'Интернет'),
+      (ElectricalPointType.panel, 'Щит'),
+      (ElectricalPointType.junctionBox, 'Коробка'),
+      (ElectricalPointType.appliance, 'Вывод'),
+      (ElectricalPointType.frame, 'Рамка'),
+      (ElectricalPointType.wallLight, 'Бра'),
     ];
-    const outer = <(ElectricalPointType, IconData, String)>[
-      (ElectricalPointType.panel, Icons.electric_meter_outlined, 'Щит'),
-      (ElectricalPointType.appliance, Icons.cable_outlined, 'Вывод'),
-      (ElectricalPointType.frame, Icons.view_module_outlined, 'Рамка'),
-      (ElectricalPointType.wallLight, Icons.wb_incandescent_outlined, 'Бра'),
-      (ElectricalPointType.tvSocket, Icons.tv_outlined, 'ТВ'),
-      (ElectricalPointType.dataSocket, Icons.wifi_outlined, 'Интернет'),
-    ];
-    const positions = <(double, double)>[
-      (20, 149), (53, 79), (127, 21), (217, 2),
-      (113, 146), (167, 96), (229, 67),
-    ];
-    final visibleTypes = <(ElectricalPointType, IconData, String)>[
-      ...inner,
-      for (var i = 0; i < 3; i++) outer[(_fanOuterIndex + i) % outer.length],
-    ];
-    final theme = Theme.of(context);
-    Widget arcTile(String key, IconData icon, String label,
-        VoidCallback action, int i, {bool active = false,
-        ElectricalPointType? draggableType}) {
-      return Positioned(
-        left: positions[i].$1, top: positions[i].$2,
-        child: Tooltip(
-          message: draggableType == null ? label
-              : '$label · удерживай и перетащи на план',
-          child: ZamerGlassSurface(
+    final expanded = _addArcOpen && _mode == ElectricalMode.add;
+    final center = expanded ? const Offset(244, 240) : const Offset(128, 128);
+    final size = expanded ? const Size(284, 280) : const Size(168, 168);
+    final innerRadius = expanded ? 66.0 : 48.0;
+    final actionRadius = expanded ? 132.0 : 116.0;
+    Widget sector({required String key, required int slot,
+        required double inner, required double outer, required Widget icon,
+        required String label, required VoidCallback? onTap,
+        bool active = false, ElectricalPointType? draggable}) {
+      final angle = math.pi + (slot + .5) * math.pi / 6;
+      final position = center + Offset(math.cos(angle), math.sin(angle)) * ((inner + outer) / 2);
+      return Positioned.fill(child: ClipPath(
+        clipper: _ElectricalFanSectorClipper(center, inner, outer, slot),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          onVerticalDragUpdate: draggable == null ? null
+              : (details) => _scrollFanOuter(details.delta.dy),
+          onLongPressMoveUpdate: draggable == null ? null
+              : (d) => _fanLongPressMove(d.globalPosition),
+          onLongPressEnd: draggable == null ? null
+              : (d) => _fanLongPressDrop(draggable, d.globalPosition),
+          child: Semantics(button: true, enabled: onTap != null, label: label,
             selected: active,
-            radius: 16,
-            padding: EdgeInsets.zero,
-            child: GestureDetector(
-              key: ValueKey(key),
-              behavior: HitTestBehavior.opaque,
-              onTap: action,
-              onLongPressMoveUpdate: draggableType == null ? null
-                  : (d) => _fanLongPressMove(d.globalPosition),
-              onLongPressEnd: draggableType == null ? null
-                  : (d) => _fanLongPressDrop(draggableType, d.globalPosition),
-              child: SizedBox(
-                width: 54, height: 55,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    if (draggableType != null && draggableType != ElectricalPointType.frame)
-                      ZamerElectricIcon(kind: electricIconKind(draggableType),
-                        state: ZamerElectricIconState.fan, size: 30)
-                    else Icon(icon, size: 28, color: const Color(0xFFFFC28C)),
-                    const SizedBox(height: 2),
-                    Text(label, maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 9, color: Color(0xFFF4EDE5))),
-                  ],
-                ),
-              ),
-            ),
-          ),
+            child: CustomPaint(painter: _ElectricalFanSectorPainter(
+                center, inner, outer, slot, active),
+              child: Stack(children: [Positioned(
+                left: position.dx - 34, top: position.dy - 26,
+                child: Opacity(opacity: onTap == null ? .35 : 1,
+                  child: SizedBox(key: ValueKey(key), width: 68, height: 52, child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [icon, const SizedBox(height: 3),
+                      Text(label, maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 10, color: Color(0xFFF4EDE5)))],
+                  ))),
+              )]),
+            )),
         ),
-      );
+      ));
     }
-
-    return Column(
-      key: _fanGeometryKey,
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        if (_addArcOpen && _mode == ElectricalMode.add)
-          GestureDetector(
-            onVerticalDragUpdate: _mode == ElectricalMode.add
-                ? (details) => _scrollFanOuter(details.delta.dy) : null,
-            child: SizedBox(
-              key: ValueKey(_mode == ElectricalMode.add
-                  ? 'electrical-two-ring-fan'
-                  : 'electrical-context-fan'),
-              width: 290, height: 212,
-              child: CustomPaint(
-                painter: _ElectricalFanArcs(
-                    color: theme.colorScheme.primary.withValues(alpha: .35)),
-                child: Stack(children: [
-                  if (_mode == ElectricalMode.add)
-                    for (var i = 0; i < visibleTypes.length; i++)
-                      arcTile('electrical-add-${visibleTypes[i].$1.name}',
-                          visibleTypes[i].$2, visibleTypes[i].$3, () {
-                        setState(() {
-                          _type = visibleTypes[i].$1;
-                          _mode = ElectricalMode.add;
-                          _addArcOpen = false;
-                        });
-                      }, i,
-                      active: _type == visibleTypes[i].$1,
-                      draggableType: visibleTypes[i].$1),
-                ]),
-              ),
-            ),
-          ),
-        Row(mainAxisSize: MainAxisSize.min, children: [
-          if (selected != null && _mode == ElectricalMode.select) ...[
-            IconButton.filledTonal(
-              key: const ValueKey('electrical-selection-actions'),
-              tooltip: 'Действия с выбранной точкой',
-              onPressed: () => _showPointActions(selected),
-              icon: const Icon(Icons.more_horiz_rounded),
-            ),
-            const SizedBox(width: 5),
-          ],
-          IconButton.filledTonal(
-            key: const ValueKey('electrical-fan-select'),
-            tooltip: 'Выбрать / перетащить',
-            onPressed: () => setState(() {
-              _mode = ElectricalMode.select;
-              _addArcOpen = false;
-                    }),
-            icon: const Icon(Icons.touch_app_outlined)),
-          const SizedBox(width: 5),
-          IconButton.filledTonal(
-            key: const ValueKey('electrical-fan-wire'),
-            tooltip: 'Ручная линия',
-            onPressed: () => setState(() {
-              _mode = ElectricalMode.wire;
-              _addArcOpen = false;
-                      _wireStartId = null;
-            }),
-            icon: const Icon(Icons.polyline_outlined)),
-          const SizedBox(width: 5),
-          FloatingActionButton.small(
-            key: const ValueKey('electrical-fan-add'),
-            tooltip: 'Добавить электроточку',
-            heroTag: 'zamer-electrical-point-add',
-            onPressed: () => setState(() {
-              _mode = ElectricalMode.add;
-                      _addArcOpen = !_addArcOpen;
-            }),
-            child: const Icon(Icons.add_rounded),
-          ),
-        ]),
-      ],
-    );
+    return SizedBox(key: _fanGeometryKey, width: size.width, height: size.height,
+      child: Stack(children: [
+        if (expanded) Positioned.fill(child: SizedBox(
+          key: const ValueKey('electrical-two-ring-fan'),
+          child: Stack(children: [for (var i = 0; i < 3; i++)
+            sector(key: 'electrical-add-${categories[(_fanOuterIndex + i) % categories.length].$1.name}',
+              slot: i, inner: 140, outer: 230,
+              label: categories[(_fanOuterIndex + i) % categories.length].$2,
+              icon: categories[(_fanOuterIndex + i) % categories.length].$1 == ElectricalPointType.frame
+                  ? const Icon(Icons.view_module_outlined, color: Color(0xFFFFC28C), size: 30)
+                  : ZamerElectricIcon(kind: electricIconKind(categories[(_fanOuterIndex + i) % categories.length].$1),
+                      state: ZamerElectricIconState.fan, size: 30),
+              active: _type == categories[(_fanOuterIndex + i) % categories.length].$1,
+              draggable: categories[(_fanOuterIndex + i) % categories.length].$1,
+              onTap: () => setState(() {
+                _type = categories[(_fanOuterIndex + i) % categories.length].$1;
+                _mode = ElectricalMode.add;
+                _addArcOpen = false;
+              })),
+          ]))),
+        sector(key: 'electrical-fan-add', slot: 0, inner: innerRadius,
+          outer: actionRadius, icon: const Icon(Icons.add_rounded, color: Color(0xFFFFC28C), size: 27),
+          label: 'Добавить', active: _mode == ElectricalMode.add,
+          onTap: () => setState(() { _mode = ElectricalMode.add; _addArcOpen = !expanded; })),
+        sector(key: 'electrical-fan-select', slot: 1, inner: innerRadius,
+          outer: actionRadius, icon: const Icon(Icons.near_me_outlined, color: Color(0xFFF4EDE5), size: 25),
+          label: 'Выбрать', active: _mode == ElectricalMode.select,
+          onTap: () => setState(() { _mode = ElectricalMode.select; _addArcOpen = false; })),
+        sector(key: 'electrical-fan-delete', slot: 2, inner: innerRadius,
+          outer: actionRadius, icon: const Icon(Icons.delete_outline, color: Color(0xFFFF967C), size: 25),
+          label: 'Удалить', onTap: selected == null ? null : () => _deleteSelectedPoint(selected)),
+        Positioned(left: center.dx - 32, top: center.dy - 32,
+          child: SizedBox(width: 64, height: 64,
+            child: ZamerGlassSurface(primary: true, radius: 32, padding: EdgeInsets.zero,
+              child: IconButton(
+                key: ValueKey(selected != null && !expanded
+                    ? 'electrical-selection-actions' : 'electrical-fan-collapse'),
+                tooltip: expanded ? 'Свернуть веер' : selected != null ? 'Действия с выбранной точкой' : 'Открыть категории',
+                onPressed: () {
+                  if (selected != null && !expanded) { _showPointActions(selected); }
+                  else { setState(() { _mode = ElectricalMode.add; _addArcOpen = !expanded; }); }
+                },
+                icon: Icon(expanded ? Icons.keyboard_arrow_down : selected != null ? Icons.more_horiz : Icons.keyboard_arrow_up,
+                  color: const Color(0xFF251C16), size: 30),
+              )))),
+      ]));
   }
 
   Offset _placementPreview(Offset raw, Size size) {
@@ -2675,24 +2653,41 @@ class _Tx {
   final Offset origin;
 }
 
-/// Purely visual fan guides, no geometry or project state is changed here.
-class _ElectricalFanArcs extends CustomPainter {
-  const _ElectricalFanArcs({required this.color});
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = color
-        ..strokeWidth = 1.2..style = PaintingStyle.stroke;
-    final center = Offset(size.width - 3, size.height - 2);
-    for (final radius in <double>[143, 220]) {
-      canvas.drawArc(Rect.fromCircle(center: center, radius: radius),
-          math.pi, math.pi / 2, false, paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _ElectricalFanArcs oldDelegate) =>
-      oldDelegate.color != color;
+Path _electricalSector(Offset center, double inner, double outer, int slot) {
+  final start = math.pi + slot * math.pi / 6 + .018;
+  final sweep = math.pi / 6 - .036;
+  return Path()
+    ..arcTo(Rect.fromCircle(center: center, radius: outer), start, sweep, true)
+    ..arcTo(Rect.fromCircle(center: center, radius: inner), start + sweep, -sweep, false)
+    ..close();
 }
 
+class _ElectricalFanSectorClipper extends CustomClipper<Path> {
+  const _ElectricalFanSectorClipper(this.center, this.inner, this.outer, this.slot);
+  final Offset center;
+  final double inner, outer;
+  final int slot;
+  @override
+  Path getClip(Size size) => _electricalSector(center, inner, outer, slot);
+  @override
+  bool shouldReclip(covariant _ElectricalFanSectorClipper old) =>
+    center != old.center || inner != old.inner || outer != old.outer || slot != old.slot;
+}
+
+class _ElectricalFanSectorPainter extends CustomPainter {
+  const _ElectricalFanSectorPainter(this.center, this.inner, this.outer, this.slot, this.active);
+  final Offset center;
+  final double inner, outer;
+  final int slot;
+  final bool active;
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = _electricalSector(center, inner, outer, slot);
+    canvas.drawPath(path, Paint()..shader = ZamerGlassSurface.surface.createShader(path.getBounds()));
+    canvas.drawPath(path, Paint()..color = active ? ZamerGlassSurface.peach : const Color(0xFF636264)
+      ..strokeWidth = active ? 2 : 1.3..style = PaintingStyle.stroke);
+  }
+  @override
+  bool shouldRepaint(covariant _ElectricalFanSectorPainter old) =>
+    center != old.center || inner != old.inner || outer != old.outer || slot != old.slot || active != old.active;
+}

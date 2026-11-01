@@ -126,6 +126,11 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('electrical-two-ring-fan')),
         findsOneWidget);
+    for (var i = 0; i < 10 && find.byKey(const ValueKey('electrical-add-frame')).evaluate().isEmpty; i++) {
+      final fan = tester.getRect(find.byKey(const ValueKey('electrical-two-ring-fan')));
+      await tester.dragFrom(fan.topLeft + const Offset(67, 192), const Offset(0, 32));
+      await tester.pumpAndSettle();
+    }
     expect(find.byKey(const ValueKey('electrical-add-frame')),
         findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('electrical-add-frame')));
@@ -162,3 +167,4 @@ void main() {
     expect(p.modulePitchMm, 74);
   });
 }
+

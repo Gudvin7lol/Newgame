@@ -8,7 +8,7 @@ import 'electrical_frame_geometry.dart';
 /// Validate a detached floor before the editor records undo or persists.
 class ElectricalDimensionEdit {
   static ElectricalPoint propose(FloorPlan floor, ElectricalPoint point,
-      String datumId, double signedDistanceMm) {
+      String datumId, double signedDistanceMm, {double? heightMm}) {
     final assigned = point.datumAssignment;
     if (assigned == null) throw const FormatException('Чистовая база не задана.');
     if (!signedDistanceMm.isFinite) throw const FormatException('Введите число.');
@@ -23,7 +23,7 @@ class ElectricalDimensionEdit {
     ElectricalMountingService.apply(copy, next, ElectricalMounting(
       wallId: wall.id, datumNodeId: wall.startNodeId, datumName: 'Узел A (ось стены)',
       datumInsetMm: 0, distanceMm: station,
-      heightAboveFinishedFloorMm: point.heightMm, wallSide: assigned.wallSide,
+      heightAboveFinishedFloorMm: heightMm ?? point.heightMm, wallSide: assigned.wallSide,
       geometrySnapshot: ElectricalMountingService.snapshot(copy, wall),
       source: MountingSource.designed,
       finishedFloorAboveSlabMm: point.mounting?.finishedFloorAboveSlabMm,
