@@ -215,6 +215,9 @@ for k in range(count):
         p=(cloth.data.vertices[a].co+cloth.data.vertices[b].co)*.5
         cloth.data.vertices[a].co=p
         cloth.data.vertices[b].co=p
+# Capture rim coordinates before bmesh welding, which renumbers vertices.
+# Reusing old index values after welding caused X-shaped fake piping in v18.
+real_seam_path=[cloth.data.vertices[index].co.copy() for index in ringidx]
 bm=bmesh.new();bm.from_mesh(cloth.data)
 # Remove loose spring edges (they exist for physics only, not final GLB).
 loose=[e for e in bm.edges if len(e.link_faces)==0]
@@ -237,7 +240,7 @@ curve=bpy.data.curves.new("Sewn edge welt","CURVE")
 curve.dimensions="3D";curve.bevel_depth=.0011;curve.bevel_resolution=3
 spline=curve.splines.new("POLY");spline.points.add(count-1)
 for k,index in enumerate(ringidx):
-    v=newmesh.vertices[index].co
+    v=real_seam_path[k]
     spline.points[k].co=(v.x*1.003,v.y*1.003,v.z+.0004,1)
 spline.use_cyclic_u=True
 welt=bpy.data.objects.new("Cloth wrapped piping",curve)
