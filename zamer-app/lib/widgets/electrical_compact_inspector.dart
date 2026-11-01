@@ -88,9 +88,22 @@ class ElectricalCompactInspector extends StatelessWidget {
     final group = point.circuit.trim().isEmpty
         ? 'Без группы'
         : point.circuit.trim();
-    final load = point.powerW > 0
-        ? '${(point.powerW / 1000).toStringAsFixed(1)} кВт'
-        : '? кВт';
+    final consumer = floor.electricalDesignDraft?.consumers[point.id];
+    final watts = consumer?.installedWatts ??
+        (point.powerW > 0 ? point.powerW : null);
+    final unpowered = <ElectricalPointType>{
+      ElectricalPointType.switchPoint,
+      ElectricalPointType.tvSocket,
+      ElectricalPointType.dataSocket,
+      ElectricalPointType.panel,
+      ElectricalPointType.junctionBox,
+    }.contains(point.type) ||
+        (point.type == ElectricalPointType.frame &&
+         point.modules.every((m) => m != ElectricalModuleType.socket220));
+    final load = watts == null
+        ? (unpowered ? 'без нагрузки 230 В' : 'не задана')
+        : '${consumer?.catalogId == null ? '' : '≈'}'
+          '${(watts / 1000).toStringAsFixed(2)} кВт';
     return Semantics(
       label: 'Быстрые размеры и нагрузка выбранной электроточки',
       child: Padding(
