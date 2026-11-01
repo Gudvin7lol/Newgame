@@ -86,6 +86,18 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+      - name: Preserve synthetic UI preview in build log
+        run: |
+          python3 - <<'PY'
+          import base64
+          from pathlib import Path
+          image = Path('zamer-app/build/ui-kit-v5/electrical-390.png')
+          if image.exists():
+              print('ZAMER_PREVIEW_BEGIN')
+              print(base64.b64encode(image.read_bytes()).decode())
+              print('ZAMER_PREVIEW_END')
+          PY
+
       - name: Generate featured 3D models
         shell: bash
         run: |

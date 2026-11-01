@@ -963,7 +963,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     final before = jsonEncode(widget.floor.toJson());
     ElectricalPoint? next;
     try {
-      next = await showDialog<ElectricalPoint>(context: context,
+      final route = DialogRoute<ElectricalPoint>(context: context,
         builder: (context) => StatefulBuilder(builder: (context, update) => AlertDialog(
           title: const Text('Размер до центра'),
           content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -989,6 +989,8 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
               } on FormatException catch (e) { update(() => error = e.message); }
             }, child: const Text('Применить'))],
         )));
+      next = await Navigator.of(context).push(route);
+      await route.completed;
     } finally { input.dispose(); }
     if (!mounted || next == null) return;
     if (before != jsonEncode(widget.floor.toJson())) {
@@ -1716,7 +1718,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
       return;
     }
     final controller = TextEditingController(text: _mm(point.heightMm));
-    final value = await showDialog<double>(
+    final route = DialogRoute<double>(
       context: context,
       builder: (dialog) => AlertDialog(
         title: const Text('Высота центра от чистого пола'),
@@ -1736,6 +1738,8 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
         ],
       ),
     );
+    final value = await Navigator.of(context).push(route);
+    await route.completed;
     controller.dispose();
     if (value == null || !mounted) return;
     final wall = point.wallId == null
