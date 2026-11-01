@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/models.dart';
+import '../design_system/zamer_electric_glass.dart';
 import '../services/electrical_datum_assignment_service.dart';
 import '../services/electrical_mounting_service.dart';
 
@@ -47,7 +48,7 @@ class ElectricalCompactInspector extends StatelessWidget {
       return ElectricalDatumAssignmentService.problem(floor, point) == null
           ? 'От чистовой базы' : 'База устарела';
     }
-    return 'От оси стены';
+    return point.mounting?.datumName ?? 'Привязка не задана';
   }
 
   Widget _field(
@@ -59,23 +60,19 @@ class ElectricalCompactInspector extends StatelessWidget {
         key: ValueKey(key),
         borderRadius: BorderRadius.circular(12),
         onTap: onTap,
-        child: Container(
-          constraints: const BoxConstraints(minHeight: 54),
-          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surfaceContainerHighest,
-            borderRadius: BorderRadius.circular(12),
-          ),
+        child: ZamerGlassSurface(
+          radius: 12,
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 10),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(label, maxLines: 1, overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.labelSmall),
+                  style: theme.textTheme.labelSmall?.copyWith(color: const Color(0xFFB6B8BE))),
               const SizedBox(height: 2),
               Text(value, maxLines: 1, overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.labelMedium?.copyWith(
-                      fontWeight: FontWeight.w800)),
+                      fontWeight: FontWeight.w800, color: const Color(0xFFF4EDE5))),
             ],
           ),
         ),
@@ -101,7 +98,7 @@ class ElectricalCompactInspector extends StatelessWidget {
             _field(context, datumLabel, datumTitle, onDatum,
                 'electrical-inspector-datum'),
             const SizedBox(width: 6),
-            _field(context, 'Высота H', millimeters(point.heightMm), onHeight,
+            _field(context, 'h от чистого пола', millimeters(point.heightMm), onHeight,
                 'electrical-inspector-height'),
             const SizedBox(width: 6),
             _field(context, 'Линия / нагрузка', '$group · $load', onLoad,
@@ -112,3 +109,4 @@ class ElectricalCompactInspector extends StatelessWidget {
     );
   }
 }
+

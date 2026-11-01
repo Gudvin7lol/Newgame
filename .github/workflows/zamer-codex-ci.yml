@@ -71,6 +71,21 @@ jobs:
         working-directory: zamer-app
         run: flutter pub get
 
+      - name: Validate electrical UI Kit before asset generation
+        working-directory: zamer-app
+        run: |
+          flutter analyze --no-fatal-infos --no-fatal-warnings
+          flutter test test/electrical_ui_kit_v5_test.dart test/electrical_mobile_ui_p17_test.dart test/electrical_frame_fan_p15_test.dart test/electrical_precision_p16_test.dart
+
+      - name: Upload electrical UI preview
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Zamer-Electrical-UI-Kit-v5-Preview
+          path: zamer-app/build/ui-kit-v5/*.png
+          if-no-files-found: ignore
+          retention-days: 14
+
       - name: Generate featured 3D models
         shell: bash
         run: |
@@ -382,7 +397,7 @@ jobs:
       - name: Upload APK and verification metadata
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ github.event_name == 'workflow_dispatch' && inputs.stable_release && 'Zamer-Stable-Release-APK' || 'Zamer-P11-Preview-APK' }}
+          name: ${{ github.event_name == 'workflow_dispatch' && inputs.stable_release && 'Zamer-Stable-Release-APK' || 'Zamer-P18-UI-Kit-v5-APK' }}
           path: |
             zamer-app/build/app/outputs/flutter-apk/app-release.apk
             zamer-app/build/app/outputs/flutter-apk/app-release.apk.sha256
@@ -391,3 +406,4 @@ jobs:
             zamer-app/build/app/outputs/flutter-apk/apk-package.txt
           if-no-files-found: error
           retention-days: 14
+

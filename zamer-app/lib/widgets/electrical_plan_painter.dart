@@ -2,7 +2,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../models/models.dart';
-import '../services/electrical_mounting_service.dart';
+import '../services/electrical_plan_dimension.dart';
+import 'electrical_icon_assets.dart';
 import '../services/electrical_route_service.dart';
 import '../services/electrical_crossing_service.dart';
 import '../models/electrical_route_3d.dart';
@@ -21,8 +22,14 @@ class ElectricalPlanPainter extends CustomPainter {
     this.showCrossings = false,
     this.circuitFilterId,
     this.visiblePointTypes,
+    this.iconAssets,
+    this.showMountingDimensions = false,
+    this.reservedRect,
   });
 
+  final ElectricalIconAssets? iconAssets;
+  final bool showMountingDimensions;
+  final Rect? reservedRect;
   final FloorPlan floor;
   final double scale;
   final Offset origin;
@@ -90,8 +97,8 @@ class ElectricalPlanPainter extends CustomPainter {
         if (a != null && b != null) angle = math.atan2(b.yMm - a.yMm, b.xMm - a.xMm);
       }
       _symbol(canvas, pos, point, selected, angle: angle);
-      if (point.id == selectedPointId) _mountingDimension(canvas, point, size);
-      if (point.label.isNotEmpty) {
+
+      if (point.label.isNotEmpty && point.id != selectedPointId && !showMountingDimensions) {
         final tp = TextPainter(
           text: TextSpan(text: point.label, style: TextStyle(fontSize: 10,
             color: darkMode ? const Color(0xFFF0E6D8) : const Color(0xFF1E2329),
@@ -99,6 +106,90 @@ class ElectricalPlanPainter extends CustomPainter {
           textDirection: TextDirection.ltr,
         )..layout(maxWidth: 120);
         tp.paint(canvas, pos + const Offset(9, -18));
+      }
+    }
+    _drawDimensions(canvas, size);
+  }
+
+  /// Shared by painting and tap handling: the visible number is the hit target.
+  List<ElectricalDimensionLayout> dimensionLayouts(Size size) {
+    final result = <ElectricalDimensionLayout>[];
+    final occupied = <Rect>[if (reservedRect != null) reservedRect!];
+    final points = floor.electricalPoints.toList()
+      ..sort((a, b) => a.id == selectedPointId ? -1 : b.id == selectedPointId ? 1 : 0);
+    for (final point in points) {
+      if (point.id != selectedPointId && !showMountingDimensions) continue;
+      if (visiblePointTypes != null && !visiblePointTypes!.contains(point.type)) continue;
+      final d = ElectricalPlanDimension.resolve(floor, point);
+      final center = p(point.xMm, point.yMm);
+      final a = d == null ? center : p(d.base.dx, d.base.dy);
+      final b = d == null ? center : p(d.center.dx, d.center.dy);
+      final delta = b - a;
+      final normal = delta.distance < .01 ? const Offset(0, -1)
+          : Offset(delta.dy, -delta.dx) / delta.distance;
+      final shift = normal * 42;
+      Rect place(Offset at, double width) {
+        final w = math.min(width, math.max(1.0, size.width - 8));
+        Rect fit(Offset pos) => Rect.fromLTWH(
+          (pos.dx - w / 2).clamp(4.0, math.max(4.0, size.width - w - 4)).toDouble(),
+          (pos.dy - 12).clamp(4.0, math.max(4.0, size.height - 28)).toDouble(), w, 24);
+        var rect = fit(at);
+        for (var step = 0; step < 24 && occupied.any((r) => r.overlaps(rect.inflate(3))); step++) {
+          final direction = step.isEven ? -1.0 : 1.0;
+          rect = fit(at + Offset(0, direction * ((step ~/ 2) + 1) * 29));
+        }
+        if (occupied.any((r) => r.overlaps(rect.inflate(3)))) return Rect.zero;
+        occupied.add(rect);
+        return rect;
+      }
+      final valid = d != null && d.problem == null;
+      final distanceText = valid ? '${d.distanceMm.round()} мм'
+          : d?.problem != null ? 'Привязка устарела' : 'Задать привязку';
+      final name = point.label.isEmpty ? point.id : point.label;
+      final target = point.modules.length > 1 ? 'центр рамки' : 'центр';
+      result.add(ElectricalDimensionLayout(pointId: point.id, a: a, b: b,
+        lineA: a + shift, lineB: b + shift, valid: valid,
+        distanceText: distanceText,
+        distanceRect: place((a + b) / 2 + shift, valid ? 96 : 170),
+        heightText: 'h = ${point.heightMm.round()} мм · ЧП',
+        heightRect: place(center + const Offset(0, 36), 150),
+        baseText: valid ? '$name · ${d.baseName} → $target${d.finished ? " · чистовая" : " · ось"}' : '$name · $target',
+        baseRect: place(center + const Offset(0, 66), 235)));
+    }
+    return result;
+  }
+
+  void _drawDimensions(Canvas canvas, Size size) {
+    for (final d in dimensionLayouts(size)) {
+      final color = d.valid ? const Color(0xFFFFC28C) : const Color(0xFFFF967C);
+      final stroke = Paint()..color = color..strokeWidth = 1.3;
+      if (d.valid) {
+        canvas.drawLine(d.a, d.lineA, stroke);
+        canvas.drawLine(d.b, d.lineB, stroke);
+        canvas.drawLine(d.lineA, d.lineB, stroke);
+        for (final at in [d.lineA, d.lineB]) {
+          canvas.drawLine(at + const Offset(-3, 4), at + const Offset(3, -4), stroke);
+        }
+        canvas.drawCircle(d.b, 3, Paint()..color = color);
+        if (d.distanceRect != Rect.zero) {
+          final mid = (d.lineA + d.lineB) / 2;
+          if ((d.distanceRect.center - mid).distance > 30) {
+            canvas.drawLine(mid, d.distanceRect.center, stroke..color = color.withValues(alpha: .5));
+          }
+        }
+      }
+      for (final label in [(d.distanceRect, d.distanceText),
+          (d.heightRect, d.heightText), (d.baseRect, d.baseText)]) {
+        if (label.$1 == Rect.zero) continue;
+        final rr = RRect.fromRectAndRadius(label.$1, const Radius.circular(7));
+        canvas.drawRRect(rr, Paint()..color = const Color(0xF0222428));
+        canvas.drawRRect(rr, Paint()..color = color.withValues(alpha: .5)
+          ..style = PaintingStyle.stroke..strokeWidth = .7);
+        final tp = TextPainter(text: TextSpan(text: label.$2,
+          style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w600)),
+          textDirection: TextDirection.ltr, maxLines: 1, ellipsis: '…')
+          ..layout(maxWidth: label.$1.width - 12);
+        tp.paint(canvas, label.$1.center - Offset(tp.width / 2, tp.height / 2));
       }
     }
   }
@@ -200,51 +291,20 @@ class ElectricalPlanPainter extends CustomPainter {
     canvas.restore();
   }
 
-  void _mountingDimension(Canvas canvas, ElectricalPoint point, Size size) {
-    final m = point.mounting;
-    if (m == null) return;
-    final issue = ElectricalMountingService.problem(floor, point);
-    final color = issue == null
-        ? (darkMode ? const Color(0xFFFFBD88) : const Color(0xFF6A3E1C))
-        : const Color(0xFFE16F52);
-    String caption;
-    if (issue != null) {
-      caption = issue;
-    } else {
-      final resolved = ElectricalMountingService.resolve(floor, m);
-      final a = p(resolved.datumXMm, resolved.datumYMm);
-      final b = p(resolved.xMm, resolved.yMm);
-      final delta = b - a;
-      final normal = delta.distance < .001 ? const Offset(0, -1) : Offset(delta.dy, -delta.dx) / delta.distance;
-      final lift = normal * 36;
-      final paint = Paint()..color = color..strokeWidth = 1.3;
-      canvas.drawLine(a, a + lift + normal * 4, paint);
-      canvas.drawLine(b, b + lift + normal * 4, paint);
-      canvas.drawLine(a + lift, b + lift, paint);
-      caption = '${point.label.isEmpty ? point.id : point.label} · ${m.datumName} → центр: ${m.distanceMm} мм · h ${point.heightMm} от ЧП';
-    }
-    final tp = TextPainter(text: TextSpan(text: caption,
-      style: TextStyle(fontSize: 11, color: color, backgroundColor: darkMode ? const Color(0xFF142027) : Colors.white)),
-      textDirection: TextDirection.ltr)..layout(maxWidth: 235);
-    final anchor = p(point.xMm, point.yMm) + const Offset(12, 18);
-    tp.paint(canvas, Offset(anchor.dx.clamp(4, math.max(4, size.width - tp.width - 4)).toDouble(),
-      anchor.dy.clamp(4, math.max(4, size.height - tp.height - 4)).toDouble()));
-  }
-
   void _symbol(Canvas canvas, Offset c, ElectricalPoint point, bool selected, {double angle = 0}) {
     // Preserve the six approved symbol shapes and their role colours.
     // Selection changes the stroke weight, not the semantic colour.
     final iconColor = switch (point.type) {
       ElectricalPointType.socket || ElectricalPointType.frame =>
-        const Color(0xFF6C9EF8),
-      ElectricalPointType.switchPoint => const Color(0xFF72C49B),
+        const Color(0xFF0760FD),
+      ElectricalPointType.switchPoint => const Color(0xFF00BB6D),
       ElectricalPointType.ceilingLight || ElectricalPointType.wallLight =>
-        const Color(0xFFF0A36B),
-      ElectricalPointType.tvSocket => const Color(0xFFB59AED),
-      ElectricalPointType.dataSocket => const Color(0xFF68D1CB),
-      ElectricalPointType.panel => const Color(0xFFE98181),
-      ElectricalPointType.junctionBox => const Color(0xFFD0C48C),
-      ElectricalPointType.appliance => const Color(0xFFAAB2BC),
+        const Color(0xFFFF9E0D),
+      ElectricalPointType.tvSocket => const Color(0xFF7030FC),
+      ElectricalPointType.dataSocket => const Color(0xFF02BED1),
+      ElectricalPointType.panel => const Color(0xFFFF3435),
+      ElectricalPointType.junctionBox => const Color(0xFFB8BCC4),
+      ElectricalPointType.appliance => const Color(0xFFDDB58C),
     };
     final stroke = Paint()..color = iconColor
       ..strokeWidth = selected ? 2.8 : 2
@@ -311,6 +371,15 @@ class ElectricalPlanPainter extends CustomPainter {
       return;
     }
 
+    final image = iconAssets?.images[electricIconKind(type)];
+    if (image != null) {
+      if (selected) canvas.drawRRect(RRect.fromRectAndRadius(
+        Rect.fromCenter(center: c, width: 34, height: 34), const Radius.circular(10)),
+        Paint()..color = const Color(0xFFFFC28C)..style = PaintingStyle.stroke..strokeWidth = 2);
+      canvas.drawImageRect(image, Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
+        Rect.fromCenter(center: c, width: 28, height: 28), Paint()..filterQuality = FilterQuality.high);
+      return;
+    }
     final radius = 7.0;
     canvas.drawCircle(c, selected ? radius + 2 : radius, fill);
     canvas.drawCircle(c, selected ? radius + 2 : radius, stroke);
@@ -367,4 +436,16 @@ class ElectricalPlanPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant ElectricalPlanPainter oldDelegate) => true;
+}
+
+
+class ElectricalDimensionLayout {
+  const ElectricalDimensionLayout({required this.pointId, required this.a,
+    required this.b, required this.lineA, required this.lineB, required this.valid,
+    required this.distanceText, required this.distanceRect, required this.heightText,
+    required this.heightRect, required this.baseText, required this.baseRect});
+  final String pointId, distanceText, heightText, baseText;
+  final Offset a, b, lineA, lineB;
+  final Rect distanceRect, heightRect, baseRect;
+  final bool valid;
 }

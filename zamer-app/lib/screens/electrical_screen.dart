@@ -20,6 +20,8 @@ import '../models/electrical_network.dart';
 import '../services/electrical_junction_edit_service.dart';
 import '../services/geometry_service.dart';
 import '../widgets/electrical_plan_painter.dart';
+import '../widgets/electrical_icon_assets.dart';
+import '../design_system/zamer_electric_glass.dart';
 import '../widgets/electrical_cable_journal_sheet.dart';
 import '../widgets/electrical_crossing_sheet.dart';
 import '../widgets/electrical_wall_elevation_screen.dart';
@@ -28,6 +30,8 @@ import '../models/electrical_wall_face.dart';
 import '../models/electrical_finished_reveal.dart';
 import '../services/electrical_opening_reveal_service.dart';
 import '../services/electrical_datum_assignment_service.dart';
+import '../services/electrical_dimension_edit.dart';
+import '../services/electrical_wall_datum_service.dart';
 import '../services/electrical_wall_face_service.dart';
 import '../widgets/cad_plan_painter.dart';
 import '../services/plan_visibility_service.dart';
@@ -79,6 +83,8 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
   String? _wireStartId;
   String? _selectedId;
   /// Physical cable routes and sketch lines are hidden by default.
+  final _iconAssets = ElectricalIconAssets();
+  bool _showMountingDimensions = false;
   bool _show3dRoutes = false;
   bool _showCrossings = false;
   bool _showLegacyLines = false;
@@ -121,10 +127,40 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
   @override
   void initState() {
     super.initState();
+    _loadIcons();
     _mode = widget.requestedMode ?? _mode;
     _type = widget.requestedType ?? _type;
     if (widget.embedded && widget.viewportActive) _camera = widget.sharedViewport?.value;
   }
+
+  Future<void> _loadIcons() async {
+    try {
+      await _iconAssets.load();
+      if (mounted) setState(() {});
+    } catch (error, stack) {
+      FlutterError.reportError(FlutterErrorDetails(exception: error, stack: stack,
+        library: 'zamer electrical icons'));
+    }
+  }
+
+  @override
+  void dispose() {
+    _iconAssets.dispose();
+    super.dispose();
+  }
+
+  ElectricalPlanPainter _dimensionPainter(Size size) {
+    final tx = _tx(size);
+    return ElectricalPlanPainter(floor: widget.floor, scale: tx.scale,
+      origin: tx.origin, selectedPointId: _selectedId,
+      showMountingDimensions: _showMountingDimensions,
+      visiblePointTypes: _visiblePointTypes, reservedRect: _fanRect(size));
+  }
+
+  Rect _fanRect(Size size) => Rect.fromLTWH(
+    size.width - (_addArcOpen ? 302 : 212),
+    size.height - (_addArcOpen ? 276 : 64),
+    _addArcOpen ? 302 : 212, _addArcOpen ? 276 : 64);
 
   @override
   void didUpdateWidget(covariant ElectricalScreen oldWidget) {
@@ -598,6 +634,19 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
 
   Future<void> _tap(TapUpDetails d, Size size) async {
     if (_pinchingCamera) return;
+    if (_mode == ElectricalMode.select) {
+      for (final label in _dimensionPainter(size).dimensionLayouts(size)) {
+        final heightHit = label.heightRect != Rect.zero && label.heightRect.contains(d.localPosition);
+        final distanceHit = label.distanceRect != Rect.zero && label.distanceRect.contains(d.localPosition);
+        if (!heightHit && !distanceHit) continue;
+        final point = widget.floor.electricalPoints.where((p) => p.id == label.pointId).firstOrNull;
+        if (point == null) continue;
+        setState(() => _selectedId = point.id);
+        if (heightHit) { await _quickPointHeight(point); }
+        else { await _editMountingDirect(point); }
+        return;
+      }
+    }
     final t = _tx(size);
     final mm = math.Point<double>(
       (d.localPosition.dx - t.origin.dx) / t.scale,
@@ -890,7 +939,73 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     if (mounted) setState(() {});
   }
 
+  Future<void> _editFinishedDimension(ElectricalPoint point) async {
+    final assignment = point.datumAssignment!;
+    List<ElectricalWallDatum> bases;
+    try {
+      bases = ElectricalWallDatumService.catalog(widget.floor,
+          assignment.wallId, assignment.wallSide).datums
+          .where((d) => d.finishedReference).toList();
+    } on FormatException catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      return;
+    }
+    if (bases.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Чистовые базы недоступны. Проверь стороны и отделку стен.')));
+      return;
+    }
+    var baseId = bases.any((d) => d.id == assignment.datumId)
+        ? assignment.datumId : bases.first.id;
+    final input = TextEditingController(text: assignment.fromDatumMm.toStringAsFixed(0));
+    String? error;
+    final before = jsonEncode(widget.floor.toJson());
+    ElectricalPoint? next;
+    try {
+      next = await showDialog<ElectricalPoint>(context: context,
+        builder: (context) => StatefulBuilder(builder: (context, update) => AlertDialog(
+          title: const Text('Размер до центра'),
+          content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+            DropdownButtonFormField<String>(value: baseId, isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Чистовая база'),
+              items: [for (final d in bases) DropdownMenuItem(value: d.id,
+                child: Text(d.title, maxLines: 2, overflow: TextOverflow.ellipsis))],
+              onChanged: (value) { if (value != null) update(() => baseId = value); }),
+            const SizedBox(height: 12),
+            TextField(key: const ValueKey('electrical-finished-distance'),
+              controller: input, keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+              decoration: InputDecoration(labelText: 'От базы до центра, мм', errorText: error)),
+            const SizedBox(height: 8),
+            const Text('Знак «−» — в сторону начала стены, «+» — конца. Высота задаётся отдельно от чистого пола.'),
+          ])),
+          actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Отмена')),
+            FilledButton(onPressed: () {
+              try {
+                final distance = double.tryParse(input.text.trim().replaceAll(',', '.'));
+                if (distance == null) throw const FormatException('Введите расстояние в мм.');
+                final proposed = ElectricalDimensionEdit.propose(widget.floor, point, baseId, distance);
+                Navigator.pop(context, proposed);
+              } on FormatException catch (e) { update(() => error = e.message); }
+            }, child: const Text('Применить'))],
+        )));
+    } finally { input.dispose(); }
+    if (!mounted || next == null) return;
+    if (before != jsonEncode(widget.floor.toJson())) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('План изменился. Открой размер заново.')));
+      return;
+    }
+    _pushUndo();
+    final index = widget.floor.electricalPoints.indexWhere((p) => p.id == point.id);
+    widget.floor.electricalPoints[index] = next;
+    await widget.onChanged();
+    if (mounted) setState(() {});
+  }
+
   Future<void> _editMountingDirect(ElectricalPoint point) async {
+    if (point.datumAssignment != null) {
+      await _editFinishedDimension(point);
+      return;
+    }
     if (point.wallId == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('Сначала закрепи точку на стене.'),
@@ -1358,6 +1473,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                 return;
               }
               setState(() {
+                if (choice == 'dimensions') _showMountingDimensions = !_showMountingDimensions;
                 if (choice == 'legacy') _showLegacyLines = !_showLegacyLines;
                 if (choice == 'physical') _show3dRoutes = !_show3dRoutes;
                 if (choice == 'lights') _showLights = !_showLights;
@@ -1368,6 +1484,10 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
               });
             },
             itemBuilder: (_) => [
+              CheckedPopupMenuItem(
+                value: 'dimensions', checked: _showMountingDimensions,
+                child: const Text('Монтажные размеры'),
+              ),
               CheckedPopupMenuItem(
                 value: 'lights',
                 checked: _showLights,
@@ -1907,14 +2027,10 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
         child: Tooltip(
           message: draggableType == null ? label
               : '$label · удерживай и перетащи на план',
-          child: Material(
-            color: active ? theme.colorScheme.primaryContainer
-                : theme.colorScheme.surfaceContainerHigh,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-              side: BorderSide(color: active ? theme.colorScheme.primary
-                  : theme.colorScheme.outlineVariant),
-            ),
+          child: ZamerGlassSurface(
+            selected: active,
+            radius: 16,
+            padding: EdgeInsets.zero,
             child: GestureDetector(
               key: ValueKey(key),
               behavior: HitTestBehavior.opaque,
@@ -1928,11 +2044,14 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(icon, size: 21, color: theme.colorScheme.onSurface),
+                    if (draggableType != null && draggableType != ElectricalPointType.frame)
+                      ZamerElectricIcon(kind: electricIconKind(draggableType),
+                        state: ZamerElectricIconState.fan, size: 30)
+                    else Icon(icon, size: 28, color: const Color(0xFFFFC28C)),
                     const SizedBox(height: 2),
                     Text(label, maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 9)),
+                        style: const TextStyle(fontSize: 9, color: Color(0xFFF4EDE5))),
                   ],
                 ),
               ),
@@ -2052,7 +2171,6 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
   }
 
   Widget _workspaceTabs() {
-    final theme = Theme.of(context);
     const labels = <(ElectricalWorkspaceView, String)>[
       (ElectricalWorkspaceView.pointsRoutes, 'Точки и трассы'),
       (ElectricalWorkspaceView.loads, 'Нагрузки'),
@@ -2067,7 +2185,11 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 2),
-                child: TextButton(
+                child: ZamerGlassSurface(
+                  selected: _workspaceView == value,
+                  primary: _workspaceView == value,
+                  padding: EdgeInsets.zero, radius: 13,
+                  child: TextButton(
                   key: value == ElectricalWorkspaceView.loads
                       ? const ValueKey('electrical-load-inventory')
                       : ValueKey('electrical-view-${value.name}'),
@@ -2078,18 +2200,17 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                   style: TextButton.styleFrom(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 3, vertical: 9),
-                    backgroundColor: _workspaceView == value
-                        ? theme.colorScheme.primaryContainer
-                        : theme.colorScheme.surfaceContainer,
+                    minimumSize: const Size(0, 48),
+                    backgroundColor: Colors.transparent,
                     foregroundColor: _workspaceView == value
-                        ? theme.colorScheme.onPrimaryContainer
-                        : theme.colorScheme.onSurfaceVariant,
+                        ? const Color(0xFF251C16) : const Color(0xFFF4EDE5),
                   ),
                   child: FittedBox(
                     fit: BoxFit.scaleDown,
                     child: Text(label, style: const TextStyle(
                         fontSize: 12, fontWeight: FontWeight.w700)),
                   ),
+                ),
                 ),
               ),
             ),
@@ -2357,7 +2478,9 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     for (final r in widget.floor.electricalRuns) {
       cableTotals[r.cable] = (cableTotals[r.cable] ?? 0) + _runLength(r);
     }
-    return Column(
+    return ColoredBox(
+      color: const Color(0xFF1D1F23),
+      child: Column(
       children: [
         _workspaceTabs(),
         if (_workspaceView != ElectricalWorkspaceView.pointsRoutes)
@@ -2415,6 +2538,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                     visibleCategories: PlanDisplayLayer.values.toSet()
                       ..remove(PlanDisplayLayer.electrical),
                   ) : ElectricalPlanPainter(
+                    darkMode: true,
                     floor: widget.floor,
                     scale: t.scale,
                     origin: t.origin,
@@ -2425,6 +2549,9 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                     showCrossings: _showCrossings,
                     circuitFilterId: _routeCircuitFilterId,
                     visiblePointTypes: _visiblePointTypes,
+                    iconAssets: _iconAssets,
+                    showMountingDimensions: _showMountingDimensions,
+                    reservedRect: _fanRect(size),
                   ),
                   foregroundPainter: widget.embedded
                       ? ElectricalPlanPainter(
@@ -2440,6 +2567,9 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                     showCrossings: _showCrossings,
                           circuitFilterId: _routeCircuitFilterId,
                     visiblePointTypes: _visiblePointTypes,
+                    iconAssets: _iconAssets,
+                    showMountingDimensions: _showMountingDimensions,
+                    reservedRect: _fanRect(size),
                         ) : null,
                   child: const SizedBox.expand(),
                 ),
@@ -2521,6 +2651,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
             ),
           ),
       ],
+      ),
     );
   }
 }
@@ -2564,3 +2695,4 @@ class _ElectricalFanArcs extends CustomPainter {
   bool shouldRepaint(covariant _ElectricalFanArcs oldDelegate) =>
       oldDelegate.color != color;
 }
+
