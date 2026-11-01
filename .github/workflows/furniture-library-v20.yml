@@ -1,0 +1,104 @@
+name: Furniture Library v20 - Lounge Chair and Oak Nightstand
+
+on:
+  push:
+    branches: [feat/blender-furniture-lab]
+    paths:
+      - 'blender/furniture_library/**'
+      - '.github/workflows/furniture-library-v20.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  two-furniture-families:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Blender and material QA
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y blender python3-pil python3-numpy
+          blender --version
+
+      - name: Prepare TWO real scanned CC0 PBR materials
+        env:
+          FURNITURE_OUT: out/furniture20
+        run: python3 blender/furniture_library/prepare_materials_v20.py
+
+      - name: Build real furniture 3D scenes, render and export standalone GLBs
+        env:
+          FURNITURE_OUT: out/furniture20
+          RENDER_SAMPLES: '32'
+        run: |
+          blender -b -t 2 --python-exit-code 3 --python blender/furniture_library/build_family_v20.py
+
+      - name: Validate two different real geometry families and their PBR
+        run: |
+          python3 - <<'PY'
+          import json,struct,math
+          from pathlib import Path
+          from PIL import Image,ImageStat
+          root=Path('out/furniture20')
+          reports=json.loads((root/'furniture_library_report.json').read_text(encoding='utf-8'))
+          assert set(reports)=={'lounge_chair_v20','oak_nightstand_v20'}
+          required_tex={}
+          for kind in ('linen','oak'):
+              required_tex[kind]={}
+              for tex in ('basecolor.png','normal.png','orm.png'):
+                  p=root/kind/tex
+                  assert p.stat().st_size>10000,(kind,tex)
+                  with Image.open(p) as im:
+                      assert min(im.size)>=1024,(kind,tex)
+                      if tex=='normal.png':
+                          st=ImageStat.Stat(im.convert('RGB'))
+                          assert st.stddev[0]>2 and st.stddev[1]>2,(kind,tex)
+          for name in reports:
+              glb=root/(name+'.glb')
+              raw=glb.read_bytes()
+              assert raw[:4]==b'glTF' and struct.unpack_from('<I',raw,8)[0]==len(raw)
+              jsonsize,kind=struct.unpack_from('<II',raw,12)
+              assert kind==0x4e4f534a
+              d=json.loads(raw[20:20+jsonsize])
+              assert len(d.get('meshes',[]))>=12,(name,len(d.get('meshes',[])))
+              assert len(d.get('materials',[]))>=3,name
+              assert len(d.get('images',[]))>=3,name
+              assert any('normalTexture' in m and
+                         m.get('pbrMetallicRoughness',{}).get('baseColorTexture') and
+                         m.get('pbrMetallicRoughness',{}).get('metallicRoughnessTexture')
+                         for m in d['materials']),name
+              for mesh in d['meshes']:
+                  for prim in mesh.get('primitives',[]):
+                      assert 'POSITION' in prim.get('attributes',{})
+              for extension in ('.blend','_render.png','_detail.png'):
+                  assert (root/(name+extension)).stat().st_size>20000,(name,extension)
+              with Image.open(root/(name+'_render.png')) as im:
+                  assert im.width>=800 and im.height>=700
+                  assert ImageStat.Stat(im.convert('L')).stddev[0]>20,name
+              print('FURNITURE_QA_OK',name,'meshes',len(d['meshes']),
+                    'materials',len(d['materials']),'embedded_maps',len(d['images']),
+                    'glb_megabytes',round(len(raw)/1048576,2))
+          PY
+
+      - name: Publish actual furniture and PBR scans
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: furniture-library-v20-chair-and-nightstand
+          path: |
+            out/furniture20/l*.glb
+            out/furniture20/l*.blend
+            out/furniture20/l*_render.png
+            out/furniture20/l*_detail.png
+            out/furniture20/oak_nightstand_v20.glb
+            out/furniture20/oak_nightstand_v20.blend
+            out/furniture20/oak_nightstand_v20_render.png
+            out/furniture20/oak_nightstand_v20_detail.png
+            out/furniture20/furniture_library_report.json
+            out/furniture20/linen/material.json
+            out/furniture20/oak/material.json
+          if-no-files-found: warn
+          retention-days: 14
