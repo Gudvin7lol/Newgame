@@ -60,6 +60,7 @@ jobs:
             BLENDER_OUT="out/auto/$candidate" \
             NORMAL_STRENGTH="$normal" \
             TEXTURE_TILE_M="$tile" \
+            SHAPE_LOOSENESS="$softness" \
             RENDER_SAMPLES=14 \
             blender -b -t 2 --python-exit-code 3 --python blender/auto_furniture/build_candidate.py
             echo "::endgroup::"
