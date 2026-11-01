@@ -53,8 +53,8 @@ jobs:
       - name: Create three 3D candidates automatically
         run: |
           set -euo pipefail
-          while read -r candidate normal tile; do
-            echo "::group::Modeling $candidate, normal=$normal, tile=$tile"
+          while read -r candidate normal tile softness; do
+            echo "::group::Modeling $candidate, normal=$normal, tile=$tile, softness=$softness"
             mkdir -p "out/auto/$candidate"
             cp -r out/auto/scan_v13 "out/auto/$candidate/"
             BLENDER_OUT="out/auto/$candidate" \
