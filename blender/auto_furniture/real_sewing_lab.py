@@ -97,16 +97,16 @@ for h in range(17):
         x,y=xy(u,v)
         a=math.atan2(y/B,x/A)
         # 3D fabric allowance: slightly overcut side perimeter and bunched folds.
-        rad=(.0024*(1-t)+.0010*t)+.010*SHAPE*sin(pi*t)**1.15
-        rad+=.0026*SHAPE*sin(5*a+1.7*t)*sin(pi*t)**1.6
+        rad=(.0010*(1-t)+.0003*t)+.0055*SHAPE*sin(pi*t)**1.35
+        rad+=.0015*SHAPE*sin(5*a+1.7*t)*sin(pi*t)**1.6
         # Irregular gathers from asymmetric sewing tension.
-        for anchor,amp in ((19,.010),(57,-.008),(110,.012),(166,-.009)):
+        for anchor,amp in ((19,.005),(57,-.004),(110,.006),(166,-.0045)):
             distance=min(abs(k-anchor),count-abs(k-anchor))
             rad+=amp*SHAPE*exp(-(distance/9)**2)*sin(pi*t)**2
         rr=math.hypot(x,y)+1.e-5
         xx=x+x/rr*rad; yy=y+y/rr*rad
         z=topz(x,y)*(1-t)-.052*t
-        z+=SHAPE*.006*sin(3.7*a+5.2*t)*sin(pi*t)**2
+        z+=SHAPE*.003*sin(3.7*a+5.2*t)*sin(pi*t)**2
         row.append(addv((xx,yy,z),(arc[k]/.23,.118*t/.23)))
     siderows.append(row)
 for h in range(16):
@@ -148,6 +148,13 @@ for pol in mesh.polygons:pol.use_smooth=True
 pinned=cloth.vertex_groups.new(name="Stationary underside")
 bottom_vertices=[index for row in bottom for index in row]
 pinned.add(bottom_vertices,1.0,"REPLACE")
+# Anchors around the top seam prevent realistic sewing springs from pulling
+# the entire cushion perimeter across the upper fabric. Interior is unpinned.
+pinned.add(ringidx,.88,"REPLACE")
+for j in range(N+1):
+    for i in range(N+1):
+        if min(i,j,N-i,N-j)==1:
+            pinned.add([top[j][i]],.45,"REPLACE")
 # Sofa-sized 3D foam collision shape, independent from the fabric.
 bpy.ops.mesh.primitive_cube_add(location=(0,0,-.004))
 foam=bpy.context.object;foam.name="Core foam | support collision"
@@ -162,14 +169,14 @@ foam.hide_render=True
 bpy.context.view_layer.objects.active=cloth
 cm=cloth.modifiers.new("REAL CLOTH SEWING SPRINGS","CLOTH")
 cm.settings.quality=5;cm.settings.mass=.25
-cm.settings.tension_stiffness=14;cm.settings.compression_stiffness=10
-cm.settings.shear_stiffness=9;cm.settings.bending_stiffness=.35
+cm.settings.tension_stiffness=23;cm.settings.compression_stiffness=18
+cm.settings.shear_stiffness=16;cm.settings.bending_stiffness=.7
 cm.settings.vertex_group_mass=pinned.name
 cm.settings.pin_stiffness=20
 assert hasattr(cm.settings,"use_sewing_springs")
 cm.settings.use_sewing_springs=True
 if hasattr(cm.settings,"sewing_force_max"):
-    cm.settings.sewing_force_max=12.0
+    cm.settings.sewing_force_max=8.0
 cm.collision_settings.use_collision=True
 cm.collision_settings.distance_min=.002
 cm.collision_settings.use_self_collision=False
@@ -184,7 +191,7 @@ newmesh=bpy.data.meshes.new_from_object(ev,preserve_all_data_layers=True,depsgra
 assert len(newmesh.vertices)==len(initial)
 max_shift=max((newmesh.vertices[i].co-initial[i]).length for i in range(len(initial)))
 print("SIM_DISPLACEMENT",round(max_shift,5),flush=True)
-assert .0001<max_shift<.14,"Sewing physics did not converge"
+assert .0001<max_shift<.075,"Sewing physics displaced the upholstery too far"
 # Measure seam gap from actual simulated vertices before making the exported GLB.
 gaps=[]
 for k in range(count):
@@ -237,7 +244,7 @@ welt=bpy.data.objects.new("Cloth wrapped piping",curve)
 bpy.context.collection.objects.link(welt)
 curve.materials.append(seammat)
 # Studio lighting: strong lateral grazing light exposes the textile silhouette.
-bpy.ops.mesh.primitive_plane_add(size=200,location=(0,0,-.071))
+bpy.ops.mesh.primitive_plane_add(size=200,location=(0,0,-.082))
 ground=bpy.context.object
 gmat=bpy.data.materials.new("Neutral gray floor")
 gmat.diffuse_color=(.12,.12,.12,1);ground.data.materials.append(gmat)
@@ -278,6 +285,9 @@ report={
     "seam_gap_before_snap_max_m":round(max_gap,6),
     "seam_snap_postprocess_used":True,
     "seam_loose_edges":len(E),
+    "edge_pin_weight":0.88,
+    "gusset_cut_allowance_m":0.0055,
+    "shape_refinement":"Reduce overcut and anchor seam boundary while sewing springs pull gusset",
     "final_nonmanifold_edges":nonmanifold,
     "mobile_visual_tested":False
 }
