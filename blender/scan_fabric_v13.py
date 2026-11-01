@@ -24,20 +24,20 @@ for key,name in maps.items():
 rgb=np.asarray(Image.open(folder/maps["diff"]).convert("RGB")).astype(np.float32)/255.
 luma=.2126*rgb[:,:,0]+.7152*rgb[:,:,1]+.0722*rgb[:,:,2]
 mean=float(np.mean(luma))
-r=np.clip((luma-mean)*.68+1.,.70,1.30)
-warm=np.array([183,170,152],dtype=np.float32)
+r=np.clip((luma-mean)*.97+1.,.64,1.36)
+warm=np.array([163,146,127],dtype=np.float32)
 albedo=np.clip(warm[None,None,:]*r[:,:,None],0,255).astype(np.uint8)
 Image.fromarray(albedo,"RGB").save(folder/"linen_scan_beige_basecolor.png",optimize=True)
 Image.open(folder/maps["nor_gl"]).convert("RGB").save(folder/"linen_scan_normal_gl.png",optimize=True)
 rough=np.asarray(Image.open(folder/maps["rough"]).convert("L")).astype(np.float32)/255.
 # Preserve roughness variation, ensure no plastic gloss. This map uses actual scanned data.
-rough=.76 + (rough-float(np.mean(rough)))*.35
+rough=.80 + (rough-float(np.mean(rough)))*.48
 rough=np.clip(rough,.66,.94)
 Image.fromarray((rough*255).astype(np.uint8),"L").save(folder/"linen_scan_roughness.png",optimize=True)
 mr=np.zeros((*rough.shape,4),dtype=np.uint8)
 mr[:,:,0]=255;mr[:,:,1]=(rough*255).astype(np.uint8);mr[:,:,2]=0;mr[:,:,3]=255
 Image.fromarray(mr,"RGBA").save(folder/"linen_scan_orm.png",optimize=True)
-stats={"material":"Poly Haven Rough Linen, recolored beige","license":"CC0","source":"https://polyhaven.com/a/rough_linen","texture_physical_height_m":0.3,
+stats={"material":"Poly Haven Rough Linen, scanned PBR, warm natural beige calibration","license":"CC0","source":"https://polyhaven.com/a/rough_linen","texture_physical_height_m":0.3,
        "normal_source":"normal OpenGL","roughness_mean":round(float(np.mean(rough)),3),
        "resolution":Image.open(folder/"linen_scan_normal_gl.png").size}
 (folder/"texture_report.json").write_text(json.dumps(stats,indent=2),encoding="utf-8")
