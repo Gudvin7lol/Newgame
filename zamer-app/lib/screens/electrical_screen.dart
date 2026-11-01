@@ -2099,7 +2099,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
         sector(key: 'electrical-fan-add', slot: 0, inner: innerRadius,
           outer: actionRadius, icon: const Icon(Icons.add_rounded, color: Color(0xFFFFC28C), size: 27),
           label: 'Добавить', active: _mode == ElectricalMode.add,
-          onTap: () => setState(() { _mode = ElectricalMode.add; _addArcOpen = !expanded; })),
+          onTap: () => setState(() { _mode = ElectricalMode.add; _addArcOpen = true; })),
         sector(key: 'electrical-fan-select', slot: 1, inner: innerRadius,
           outer: actionRadius, icon: const Icon(Icons.near_me_outlined, color: Color(0xFFF4EDE5), size: 25),
           label: 'Выбрать', active: _mode == ElectricalMode.select,
@@ -2110,13 +2110,20 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
         Positioned(left: center.dx - 32, top: center.dy - 32,
           child: SizedBox(width: 64, height: 64,
             child: ZamerGlassSurface(primary: true, radius: 32, padding: EdgeInsets.zero,
-              child: IconButton(
+              child: !expanded && selected == null
+                  ? Center(child: Tooltip(message: _mode == ElectricalMode.add ? _type.label
+                      : _mode == ElectricalMode.select ? 'Выбор объектов' : 'Черновая линия',
+                    child: _mode == ElectricalMode.add
+                        ? ZamerElectricIcon(kind: electricIconKind(_type), state: ZamerElectricIconState.fan, size: 30)
+                        : Icon(_mode == ElectricalMode.select ? Icons.near_me_outlined : Icons.polyline_outlined,
+                            color: const Color(0xFF251C16))))
+                  : IconButton(
                 key: ValueKey(selected != null && !expanded
                     ? 'electrical-selection-actions' : 'electrical-fan-collapse'),
                 tooltip: expanded ? 'Свернуть веер' : selected != null ? 'Действия с выбранной точкой' : 'Открыть категории',
                 onPressed: () {
                   if (selected != null && !expanded) { _showPointActions(selected); }
-                  else { setState(() { _mode = ElectricalMode.add; _addArcOpen = !expanded; }); }
+                  else { setState(() { _addArcOpen = false; }); }
                 },
                 icon: Icon(expanded ? Icons.keyboard_arrow_down : selected != null ? Icons.more_horiz : Icons.keyboard_arrow_up,
                   color: const Color(0xFF251C16), size: 30),
