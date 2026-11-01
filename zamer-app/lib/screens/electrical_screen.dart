@@ -1976,9 +1976,11 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
       (ElectricalPointType.tvSocket, Icons.tv_outlined, 'ТВ'),
       (ElectricalPointType.dataSocket, Icons.wifi_outlined, 'Интернет'),
     ];
+    // 230×178 dp is a compact mobile footprint without shrinking hit
+    // targets below 48 dp. Preserve the approved arc categories and keys.
     const positions = <(double, double)>[
-      (20, 149), (53, 79), (127, 21), (217, 2),
-      (113, 146), (167, 96), (229, 67),
+      (14, 122), (42, 65), (99, 20), (181, 2),
+      (87, 128), (136, 83), (180, 58),
     ];
     final visibleTypes = <(ElectricalPointType, IconData, String)>[
       ...inner,
@@ -2010,15 +2012,15 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
               onLongPressEnd: draggableType == null ? null
                   : (d) => _fanLongPressDrop(draggableType, d.globalPosition),
               child: SizedBox(
-                width: 54, height: 55,
+                width: 48, height: 48,
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(icon, size: 21, color: theme.colorScheme.onSurface),
-                    const SizedBox(height: 2),
+                    Icon(icon, size: 19, color: theme.colorScheme.onSurface),
+                    const SizedBox(height: 1),
                     Text(label, maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 9)),
+                        style: const TextStyle(fontSize: 8.5)),
                   ],
                 ),
               ),
@@ -2041,7 +2043,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
               key: ValueKey(_mode == ElectricalMode.add
                   ? 'electrical-two-ring-fan'
                   : 'electrical-context-fan'),
-              width: 290, height: 212,
+              width: 230, height: 178,
               child: CustomPaint(
                 painter: _ElectricalFanArcs(
                     color: theme.colorScheme.primary.withValues(alpha: .35)),
@@ -2547,8 +2549,21 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                     ),
                   ),
                 ),
+              // Shift the expanded fan away from the selected point
+              // rather than obscuring the installation mark.
               Positioned(
-                right: 12,
+                left: _addArcOpen && selected != null &&
+                        (t.origin.dx + selected.xMm * t.scale) >
+                            size.width - 245 &&
+                        (t.origin.dy + selected.yMm * t.scale) >
+                            size.height - 240
+                    ? 12 : null,
+                right: _addArcOpen && selected != null &&
+                        (t.origin.dx + selected.xMm * t.scale) >
+                            size.width - 245 &&
+                        (t.origin.dy + selected.yMm * t.scale) >
+                            size.height - 240
+                    ? null : 12,
                 bottom: 12,
                 child: _quickFan(),
               ),
@@ -2635,7 +2650,7 @@ class _ElectricalFanArcs extends CustomPainter {
     final paint = Paint()..color = color
         ..strokeWidth = 1.2..style = PaintingStyle.stroke;
     final center = Offset(size.width - 3, size.height - 2);
-    for (final radius in <double>[143, 220]) {
+    for (final radius in <double>[112, 174]) {
       canvas.drawArc(Rect.fromCircle(center: center, radius: radius),
           math.pi, math.pi / 2, false, paint);
     }
