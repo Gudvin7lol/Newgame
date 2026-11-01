@@ -9,6 +9,7 @@ import '../models/electrical_mounting.dart';
 import '../models/electrical_design_draft.dart';
 import '../services/electrical_design_engine.dart';
 import '../widgets/electrical_consumer_draft_editor.dart';
+import '../services/electrical_device_catalog.dart';
 import '../services/electrical_mounting_service.dart';
 import '../services/electrical_frame_geometry.dart';
 import '../services/electrical_snap_service.dart';
@@ -631,6 +632,19 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
         _ => [ElectricalModuleType.socket220],
       };
 
+  /// Assign only creation-time, explicitly provisional assumptions.
+  /// Existing imported points and all manually edited fields are untouched.
+  void _setInitialLoad(ElectricalPoint point) {
+    final estimate = ElectricalDeviceCatalog.defaultForPoint(point);
+    if (estimate == null) return;
+    final draft = widget.floor.electricalDesignDraft ??
+        ElectricalDesignDraft();
+    if (draft.consumers.containsKey(point.id)) return;
+    point.powerW = estimate.installedWatts!;
+    draft.consumers[point.id] = estimate;
+    widget.floor.electricalDesignDraft = draft;
+  }
+
   Future<void> _tap(TapUpDetails d, Size size) async {
     if (_pinchingCamera) return;
     final t = _tx(size);
@@ -707,6 +721,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
       }
       _pushUndo();
       widget.floor.electricalPoints.add(created);
+      _setInitialLoad(created);
       await widget.onChanged();
       if (mounted) setState(() => _selectedId = created.id);
       if (_type == ElectricalPointType.frame && mounted)
@@ -774,6 +789,9 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     _pushUndo();
     final draft = widget.floor.electricalDesignDraft ?? ElectricalDesignDraft();
     draft.consumers[point.id] = next;
+    // Keep the legacy load summary in sync with the editable consumer.
+    // The engineering engine still reads the explicit design draft.
+    point.powerW = next.installedWatts ?? 0;
     widget.floor.electricalDesignDraft = draft;
     await widget.onChanged();
     if (mounted) setState(() => _selectedId = point.id);
@@ -1793,6 +1811,16 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     }
     _pushUndo();
     widget.floor.electricalPoints.add(copy);
+    final draft = widget.floor.electricalDesignDraft;
+    final source = draft?.consumers[original.id];
+    if (source != null) {
+      draft!.consumers[copy.id] = ElectricalConsumerDraft.fromJson({
+        ...source.toJson(),
+        'pointId': copy.id,
+        // Copying a point must never automatically lock its line.
+        'lockedLineId': null,
+      });
+    }
     await widget.onChanged();
     if (mounted) setState(() => _selectedId = copy.id);
   }
@@ -1852,6 +1880,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     widget.floor.electricalRuns.removeWhere((run) =>
         run.startPointId == point.id || run.endPointId == point.id);
     widget.floor.electricalPoints.removeWhere((p) => p.id == point.id);
+    widget.floor.electricalDesignDraft?.consumers.remove(point.id);
     await widget.onChanged();
     if (mounted) setState(() {
       _selectedId = null;
