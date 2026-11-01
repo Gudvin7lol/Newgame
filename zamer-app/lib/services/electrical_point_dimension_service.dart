@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import '../models/electrical_mounting.dart';
 import '../models/models.dart';
 import 'electrical_frame_geometry.dart';
@@ -87,8 +85,6 @@ class ElectricalPointDimensionService {
     assert(proposed.wallId == point.wallId);
     assert(proposed.wallSide == point.wallSide);
     assert((proposed.heightMm - point.heightMm).abs() < .001);
-    assert(math.Point(proposed.xMm, proposed.yMm) !=
-        const math.Point<double>(double.nan, double.nan));
     return proposed;
   }
 }
