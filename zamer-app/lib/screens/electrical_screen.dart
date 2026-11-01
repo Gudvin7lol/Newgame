@@ -2714,7 +2714,9 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
           ElectricalCompactInspector(
             floor: widget.floor,
             point: selected,
-            onDatum: () => _editMountingDirect(selected),
+            onDatum: () => selected.wallId == null
+                ? _editMountingDirect(selected)
+                : _editWallStation(selected),
             onHeight: () => _quickPointHeight(selected),
             onLoad: () => _editConsumerDraftDirect(selected),
           ),
