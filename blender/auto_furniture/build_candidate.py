@@ -452,6 +452,24 @@ boundary=sum(1 for e in bm.edges if len(e.link_faces)!=2)
 print("SEAM_QA", "before_vertices",pre_vertices,
       "after_vertices",len(bm.verts),"nonmanifold_edges",boundary)
 assert boundary==0, "Unclosed shell: check seam vertex matching and face winding"
+# Geometry is measured separately from the render; a bright image cannot pass
+# as realistic fabric geometry just because PBR files are present.
+import json as _json
+geometry_report={
+    "model_version":"v16",
+    "outer_shell_vertices_after_weld":len(bm.verts),
+    "outer_shell_faces":len(bm.faces),
+    "nonmanifold_edges":boundary,
+    "simulation_max_vertical_displacement_m":round(max_shift,6),
+    "simulation_mean_vertical_displacement_m":round(avg_shift,6),
+    "sculpted_seam_relief_max_m":round(max_detail,6),
+    "seam_relief_zones":8,
+    "gusset_local_pucker_zones":6,
+    "physical_sewing_springs_enabled":False,
+    "mobile_realism_verified":False
+}
+(OUT/"geometry_report.json").write_text(_json.dumps(geometry_report,indent=2),encoding="utf-8")
+print("GEOMETRY_REPORT",geometry_report)
 bm.to_mesh(top.data)
 bm.free()
 top.data.update()
