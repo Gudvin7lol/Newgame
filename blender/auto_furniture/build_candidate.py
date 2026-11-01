@@ -261,7 +261,7 @@ sub=foamobj.modifiers.new("Foam shaping","SUBSURF")
 sub.levels=2;bpy.ops.object.modifier_apply(modifier=sub.name)
 for v in foamobj.data.vertices:
     x,y=v.co.x,v.co.y
-    crown=max(0,1-(x/.355)**2)*max(0,1-(y/TEXTURE_TILE_M5)**2)
+    crown=max(0,1-(x/.355)**2)*max(0,1-(y/.305)**2)
     if v.co.z>0:v.co.z+=.034*crown
 foamobj.location.z += .0035
 foamobj.data.materials.append(foam)
