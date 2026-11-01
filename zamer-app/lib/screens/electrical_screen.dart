@@ -433,8 +433,12 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     if (_needsWall(point.type) || (point.type == ElectricalPointType.junctionBox && point.wallId != null)) {
       final rawHit = _nearestWall(raw,
           wallId: point.wallId,
-          maxDistanceMm: ElectricalSnapService.captureMm(
-              _activePlanScale(), capturePx: 32));
+          // Once mounted, drag along the same wall even when the finger
+          // temporarily leaves its narrow visual stroke.
+          maxDistanceMm: point.wallId != null
+              ? double.infinity
+              : ElectricalSnapService.captureMm(
+                  _activePlanScale(), capturePx: 32));
       final hit = rawHit == null
           ? null
           : _clearOfDoor(_snapWallHit(rawHit),
@@ -1003,6 +1007,16 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     point.label = next.label;
     point.circuit = next.circuit;
     point.powerW = next.powerW;
+    final draftConsumer =
+        widget.floor.electricalDesignDraft?.consumers[point.id];
+    if (draftConsumer != null &&
+        draftConsumer.installedWatts != next.powerW) {
+      widget.floor.electricalDesignDraft!.consumers[point.id] =
+          ElectricalConsumerDraft.fromJson({
+        ...draftConsumer.toJson(),
+        'installedWatts': next.powerW,
+      });
+    }
     point.heightMm = next.heightMm;
     point.modules
       ..clear()
@@ -2466,6 +2480,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                 onPointerCancel: _touchEnd,
                 child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
+                dragStartBehavior: DragStartBehavior.down,
                 onTapUp: (d) => _tap(d, size),
                 onPanStart: (d) => _canvasPanStart(d, size),
                 onPanUpdate: (d) => _canvasPanUpdate(d, size),
