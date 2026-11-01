@@ -67,7 +67,7 @@ void main() {
 
   test('candidate APK build number is 111 or newer', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
-    final match = RegExp(r'version:\s+1\.5\.[67]\+(\d+)').firstMatch(pubspec);
+    final match = RegExp(r'^version:\s+\d+\.\d+\.\d+\+(\d+)\s*$', multiLine: true).firstMatch(pubspec);
     expect(match, isNotNull);
     expect(int.parse(match!.group(1)!), greaterThanOrEqualTo(111));
   });

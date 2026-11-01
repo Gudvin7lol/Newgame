@@ -70,7 +70,7 @@ void main() {
     expect(floor.electricalPoints, hasLength(1));
   });
 
-  testWidgets('inspector shows precise non-finished datum and three actions',
+  testWidgets('inspector distinguishes unassigned axis offset and preserves three actions',
       (tester) async {
     final floor = _floor();
     var datum = 0, height = 0, load = 0;
@@ -85,7 +85,7 @@ void main() {
     )));
     expect(find.byKey(const ValueKey('electrical-compact-inspector')),
         findsOneWidget);
-    expect(find.text('От оси стены'), findsOneWidget);
+    expect(find.text('Привязка не задана'), findsOneWidget);
     expect(find.text('650 мм'), findsOneWidget);
     expect(find.text('300 мм'), findsOneWidget);
     expect(find.textContaining('К1'), findsOneWidget);

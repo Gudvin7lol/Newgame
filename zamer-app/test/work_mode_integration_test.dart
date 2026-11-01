@@ -67,7 +67,7 @@ void main() {
     final floor = FloorPlan(id: 'floor', name: 'Этаж 1');
     final project = MeasureProject(id: 'project', name: 'Квартира',
         floors: [floor]);
-    final day = DateTime(2026, 11, 2);
+    final day = DateUtils.dateOnly(DateTime.now()).add(const Duration(days: 2));
     project.workBoard.tasks.addAll([
       WorkTask(
         id: 'wall', title: 'Покраска стен',
@@ -128,7 +128,8 @@ void main() {
       (tester) async {
     final project = MeasureProject(id: 'shortcut', name: 'Объект',
       floors: [FloorPlan(id: 'f', name: 'Этаж')]);
-    final date = DateTime(2026, 10, 26);
+    // Keep this task in progress regardless of the day CI is run.
+    final date = DateUtils.dateOnly(DateTime.now()).subtract(const Duration(days: 2));
     project.workBoard.tasks.add(WorkTask(
       id: 'active', title: 'Штукатурка спальни', start: date,
       finish: date.add(const Duration(days: 4)), quantity: 40,
