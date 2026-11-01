@@ -15,6 +15,8 @@ on:
       - 'zamer-app/lib/services/electrical_device_catalog.dart'
       - 'zamer-app/lib/services/electrical_design_engine.dart'
       - 'zamer-app/lib/widgets/electrical_consumer_draft_editor.dart'
+      - 'zamer-app/lib/services/electrical_point_dimension_service.dart'
+      - 'zamer-app/test/electrical_station_edit_test.dart'
       - '.github/workflows/verify-electrical-precision-p16.yml'
 
 permissions:
@@ -47,7 +49,9 @@ jobs:
             test/electrical_creation_load_defaults_test.dart \
             lib/services/electrical_device_catalog.dart \
             lib/services/electrical_design_engine.dart \
-            lib/widgets/electrical_consumer_draft_editor.dart
+            lib/widgets/electrical_consumer_draft_editor.dart \
+            lib/services/electrical_point_dimension_service.dart \
+            test/electrical_station_edit_test.dart
       - name: Test snapping and existing electrical contracts
         working-directory: zamer-app
         run: |
@@ -55,6 +59,7 @@ jobs:
             test/electrical_precision_p16_test.dart \
             test/electrical_free_drag_wall_lock_test.dart \
             test/electrical_creation_load_defaults_test.dart \
+            test/electrical_station_edit_test.dart \
             test/electrical_design_core_p13_test.dart \
             test/electrical_frame_fan_p15_test.dart \
             test/electrical_workspace_stage1_p12_test.dart \
