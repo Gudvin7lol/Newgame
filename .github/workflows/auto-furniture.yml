@@ -61,7 +61,7 @@ jobs:
             NORMAL_STRENGTH="$normal" \
             TEXTURE_TILE_M="$tile" \
             SHAPE_LOOSENESS="$softness" \
-            RENDER_SAMPLES=14 \
+            RENDER_SAMPLES=28 \
             blender -b -t 2 --python-exit-code 3 --python blender/auto_furniture/build_candidate.py
             echo "::endgroup::"
           done < out/auto/plan.tsv
@@ -90,6 +90,9 @@ jobs:
             out/auto/best_detail.png
             out/auto/candidates_comparison.png
             out/auto/quality_report.*
+            out/auto/reference/geometry_report.json
+            out/auto/high/geometry_report.json
+            out/auto/low/geometry_report.json
             out/auto/plan.json
             out/auto/scan_v13/texture_report.json
             blender/auto_furniture/state.json
