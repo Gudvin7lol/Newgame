@@ -306,9 +306,13 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     return best;
   }
 
-  _WallHit? _nearestWall(math.Point<double> p, {double maxDistanceMm = 550}) {
+  _WallHit? _nearestWall(math.Point<double> p, {
+    double maxDistanceMm = 550,
+    String? wallId,
+  }) {
     _WallHit? best;
     for (final wall in widget.floor.walls) {
+      if (wallId != null && wall.id != wallId) continue;
       final a = widget.floor.nodeById(wall.startNodeId);
       final b = widget.floor.nodeById(wall.endNodeId);
       if (a == null || b == null) continue;
@@ -427,6 +431,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
   void _movePoint(ElectricalPoint point, math.Point<double> raw) {
     if (_needsWall(point.type) || (point.type == ElectricalPointType.junctionBox && point.wallId != null)) {
       final rawHit = _nearestWall(raw,
+          wallId: point.wallId,
           maxDistanceMm: ElectricalSnapService.captureMm(
               _activePlanScale(), capturePx: 32));
       final hit = rawHit == null
@@ -434,7 +439,10 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
           : _clearOfDoor(_snapWallHit(rawHit),
               _hasSwitch(point.type, point.modules));
       if (hit != null) {
-        point.wallSide = _sideOfWall(hit.wall, raw, point.wallSide);
+        // Dragging preserves the mounting face; change it in the inspector.
+        if (point.wallId == null) {
+          point.wallSide = _sideOfWall(hit.wall, raw, point.wallSide);
+        }
         point.xMm = hit.point.x;
         point.yMm = hit.point.y;
         point.wallId = hit.wall.id;
@@ -481,13 +489,15 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
 
   void _dragStart(DragStartDetails d, Size size) {
     if (_pinchingCamera || _touches.length > 1) return;
-    if (_mode != ElectricalMode.select) return;
     final mm = _screenToMm(d.localPosition, size);
     final t = _tx(size);
-    final point = _near(mm, math.max(160.0, 28 / math.max(t.scale, 0.001)));
+    final point = _near(mm,
+        ElectricalSnapService.captureMm(t.scale, capturePx: 24));
     setState(() {
       _dragPointId = point?.id;
-      _selectedId = point?.id;
+      if (point != null || _mode == ElectricalMode.select) {
+        _selectedId = point?.id;
+      }
       _dragUndoPushed = false;
       _dragProblem = null;
     });
@@ -495,7 +505,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
 
   void _dragUpdate(DragUpdateDetails d, Size size) {
     if (_pinchingCamera || _touches.length > 1) return;
-    if (_mode != ElectricalMode.select || _dragPointId == null) return;
+    if (_dragPointId == null) return;
     final point = widget.floor.electricalPoints
         .where((p) => p.id == _dragPointId).firstOrNull;
     if (point == null) return;
@@ -531,7 +541,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
   }
 
   Future<void> _dragEnd(DragEndDetails d) async {
-    if (_mode != ElectricalMode.select || _dragPointId == null) return;
+    if (_dragPointId == null) return;
     final error = _dragProblem;
     if (error != null && _dragUndoPushed && _undo.isNotEmpty) {
       final snapshot = jsonDecode(_undo.removeLast()) as Map;
@@ -550,6 +560,31 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Перемещение отменено: $error')));
       }
+    }
+  }
+
+  // Point dragging is available in every tool; empty space retains
+  // the Add tool's drag-to-place interaction.
+  void _canvasPanStart(DragStartDetails details, Size size) {
+    _dragStart(details, size);
+    if (_dragPointId == null && _mode == ElectricalMode.add) {
+      _placePanStart(details);
+    }
+  }
+
+  void _canvasPanUpdate(DragUpdateDetails details, Size size) {
+    if (_dragPointId != null) {
+      _dragUpdate(details, size);
+    } else if (_mode == ElectricalMode.add) {
+      _placePanUpdate(details);
+    }
+  }
+
+  Future<void> _canvasPanEnd(DragEndDetails details, Size size) async {
+    if (_dragPointId != null) {
+      await _dragEnd(details);
+    } else if (_mode == ElectricalMode.add) {
+      await _placePanEnd(size);
     }
   }
 
@@ -604,6 +639,13 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
       (d.localPosition.dy - t.origin.dy) / t.scale,
     );
     if (_mode == ElectricalMode.add) {
+      // Existing points are selected instead of duplicated.
+      final existing = _near(mm,
+          ElectricalSnapService.captureMm(t.scale, capturePx: 20));
+      if (existing != null) {
+        setState(() => _selectedId = existing.id);
+        return;
+      }
       final scale = _activePlanScale();
       final guided = _type == ElectricalPointType.ceilingLight
           ? ElectricalSnapService.light(widget.floor, mm, scale).position
@@ -2396,15 +2438,9 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                 child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTapUp: (d) => _tap(d, size),
-                onPanStart: _mode == ElectricalMode.select
-                    ? (d) => _dragStart(d, size)
-                    : _mode == ElectricalMode.add ? _placePanStart : null,
-                onPanUpdate: _mode == ElectricalMode.select
-                    ? (d) => _dragUpdate(d, size)
-                    : _mode == ElectricalMode.add ? _placePanUpdate : null,
-                onPanEnd: _mode == ElectricalMode.select ? _dragEnd
-                    : _mode == ElectricalMode.add ? (_) => _placePanEnd(size)
-                    : null,
+                onPanStart: (d) => _canvasPanStart(d, size),
+                onPanUpdate: (d) => _canvasPanUpdate(d, size),
+                onPanEnd: (d) => _canvasPanEnd(d, size),
                 child: CustomPaint(
                   painter: widget.embedded ? CadPlanPainter(
                     floor: widget.floor,
