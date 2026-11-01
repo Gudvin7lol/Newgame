@@ -4,6 +4,7 @@ import '../models/electrical_network.dart';
 import '../models/electrical_route_3d.dart';
 import '../models/models.dart';
 import '../services/electrical_route_service.dart';
+import '../services/electrical_auto_route_proposal_service.dart';
 import 'electrical_route_plan_preview.dart';
 
 class ElectricalRouteEditResult {
@@ -83,6 +84,59 @@ class _ElectricalRouteEditorState extends State<ElectricalRouteEditor> {
       throw const FormatException('Монтажный запас должен быть неотрицательным.');
     }
     return n;
+  }
+
+  /// Preview never mutates the saved cable or existing manual route.
+  /// The user accepts into this editor first, and separately saves the path.
+  Future<void> proposeCeilingRoute() async {
+    if (widget.initial != null || route.vertices.length > 1) return;
+    try {
+      final candidate = ElectricalAutoRouteProposalService.prepare(
+          widget.floor, widget.cable, existing: widget.initial);
+      final accepted = await showDialog<bool>(
+        context: context,
+        builder: (dialog) => AlertDialog(
+          title: const Text('Предварительная трасса'),
+          scrollable: true,
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Геометрия: ${fmt(candidate.measurement.geometricMm / 1000)} м'),
+              const SizedBox(height: 8),
+              ElectricalRoutePlanPreview(
+                vertices: candidate.route.vertices,
+                target: ElectricalRouteService.endpoint(finish),
+              ),
+              const SizedBox(height: 8),
+              for (final warning in candidate.warnings)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 5),
+                  child: Text('• $warning',
+                    style: Theme.of(dialog).textTheme.bodySmall),
+                ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialog, false),
+              child: const Text('Отмена')),
+            FilledButton(
+              key: const ValueKey('route-auto-accept-preview'),
+              onPressed: () => Navigator.pop(dialog, true),
+              child: const Text('Вставить черновик'),
+            ),
+          ],
+        ),
+      );
+      if (!mounted || accepted != true) return;
+      setState(() {
+        route = ElectricalRoute3d.fromJson(candidate.route.toJson());
+        error = null;
+      });
+    } on FormatException catch (problem) {
+      if (!mounted) return;
+      setState(() => error = problem.message);
+    }
   }
 
   Future<void> addLeg() async {
@@ -264,6 +318,20 @@ class _ElectricalRouteEditorState extends State<ElectricalRouteEditor> {
             const SizedBox(height: 16),
             ElectricalRoutePlanPreview(
               vertices: route.vertices, target: target,
+            ),
+            const SizedBox(height: 14),
+            OutlinedButton.icon(
+              key: const ValueKey('route-auto-propose'),
+              onPressed: widget.initial == null && route.vertices.length == 1
+                  ? proposeCeilingRoute : null,
+              icon: const Icon(Icons.auto_fix_high_outlined),
+              label: const Text('Предложить по потолку (черновик)'),
+            ),
+            const SizedBox(height: 5),
+            Text(
+              'Только одна прямая стена. Предложение не меняет '
+              'существующие маршруты и требует ручной проверки.',
+              style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 14),
             Row(children: [
