@@ -194,7 +194,9 @@ mean_gap=sum(gaps)/len(gaps)
 max_gap=max(gaps)
 print("ACTUAL_SEWING_GAP_M",mean_gap,max_gap,flush=True)
 # Model data is saved prior to geometric cleanup so seams can be examined.
-cloth.modifiers.clear()
+sew_force=getattr(cm.settings,"sewing_force_max",None)
+for mod in list(cloth.modifiers):
+    cloth.modifiers.remove(mod)
 old=cloth.data;cloth.data=newmesh;bpy.data.meshes.remove(old)
 cloth.data.materials.clear();cloth.data.materials.append(mat)
 for f in cloth.data.polygons:f.use_smooth=True
@@ -231,7 +233,7 @@ for k,index in enumerate(ringidx):
     v=newmesh.vertices[index].co
     spline.points[k].co=(v.x*1.003,v.y*1.003,v.z+.0004,1)
 spline.use_cyclic_u=True
-welt=bpy.data.objects.new("Cloth wrapped piping","CURVE" if False else curve)
+welt=bpy.data.objects.new("Cloth wrapped piping",curve)
 bpy.context.collection.objects.link(welt)
 curve.materials.append(seammat)
 # Studio lighting: strong lateral grazing light exposes the textile silhouette.
@@ -270,7 +272,7 @@ scene.render.filepath=str(OUT/"real_sewn_cloth.png")
 bpy.ops.render.render(write_still=True)
 report={
     "simulation":"Cloth with use_sewing_springs True: disconnected pattern pieces",
-    "sewing_force_max":getattr(cm.settings,"sewing_force_max",None),
+    "sewing_force_max":sew_force,
     "simulated_displacement_m":round(max_shift,6),
     "seam_gap_before_snap_mean_m":round(mean_gap,6),
     "seam_gap_before_snap_max_m":round(max_gap,6),
