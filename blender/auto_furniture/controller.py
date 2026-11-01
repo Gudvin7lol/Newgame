@@ -9,7 +9,7 @@ import argparse, json, math, shutil, struct, statistics
 from pathlib import Path
 from PIL import Image, ImageStat, ImageFilter, ImageDraw, ImageFont
 
-DEFAULT={"normal_strength":0.75, "texture_tile_m":0.30, "best_score":None,
+DEFAULT={"normal_strength":0.75, "texture_tile_m":0.30, "shape_looseness":1.0, "best_score":None,
          "successful_runs":0, "history":[]}
 LABELS=("low", "reference", "high")
 
@@ -27,15 +27,17 @@ def plan(root,statefile):
     state=load_state(statefile)
     normal=max(0.40,min(1.20,float(state["normal_strength"])))
     tile=max(0.18,min(0.45,float(state["texture_tile_m"])))
+    softness=max(.75,min(1.25,float(state.get("shape_looseness",1.0))))
+    # Search actual shape differences, not tiny imperceptible PBR tweaks.
     trials=[
-        ("low",round(max(.4,normal-.16),3),round(min(.46,tile+.045),3)),
-        ("reference",round(normal,3),round(tile,3)),
-        ("high",round(min(1.2,normal+.16),3),round(max(.18,tile-.045),3))
+        ("low",round(normal,3),round(tile,3),round(max(.55,softness-.28),3)),
+        ("reference",round(normal,3),round(tile,3),round(softness,3)),
+        ("high",round(normal,3),round(tile,3),round(min(1.65,softness+.28),3))
     ]
-    (root/"plan.tsv").write_text("\n".join(f"{name} {n} {t}" for name,n,t in trials)+"\n",encoding="utf-8")
+    (root/"plan.tsv").write_text("\n".join(f"{name} {n} {t} {sh}" for name,n,t,sh in trials)+"\n",encoding="utf-8")
     (root/"plan.json").write_text(json.dumps({
-        "baseline":state,"trials":[{"name":x,"normal_strength":y,"texture_tile_m":z}
-          for x,y,z in trials]},indent=2),encoding="utf-8")
+        "baseline":state,"trials":[{"name":x,"normal_strength":y,"texture_tile_m":z,"shape_looseness":sh}
+          for x,y,z,sh in trials]},indent=2),encoding="utf-8")
     print("TRIAL_PLAN",trials)
 
 def glb_check(path):
@@ -122,7 +124,7 @@ def rank(root,statefile):
     for trial in planfile["trials"]:
         name=trial["name"]
         folder=root/name
-        record={"name":name,**{k:trial[k] for k in ("normal_strength","texture_tile_m")}}
+        record={"name":name,**{k:trial[k] for k in ("normal_strength","texture_tile_m","shape_looseness")}}
         try:
             for f in ("cushion_v14.blend","cushion_v14.glb","cushion_v14_cycles.png","cushion_v14_detail.png"):
                 assert (folder/f).is_file(),f"Missing file {f}"
@@ -146,7 +148,19 @@ def rank(root,statefile):
     (root/"quality_report.json").write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding="utf-8")
     if not passing:
         raise RuntimeError("All model candidates failed structural/PBR checks")
-    winner=max(passing,key=lambda x:x["technical_score"])
+    raw_best=max(passing,key=lambda x:x["technical_score"])
+    raw_worst=min(passing,key=lambda x:x["technical_score"])
+    significance=raw_best["technical_score"]-raw_worst["technical_score"]
+    # Do not pretend to learn from hundredths of a point of clipping noise.
+    centre=next((x for x in passing if x["name"]=="reference"),raw_best)
+    winner=raw_best if significance>=1.5 else centre
+    report["technical_difference_points"]=round(significance,2)
+    report["selection_reason"]=(
+        "technical-score margin >=1.5; still requires visual review"
+        if significance>=1.5 else
+        "score differences too small; keep reference geometry, visual review required")
+    report["winner"]=winner["name"]
+    (root/"quality_report.json").write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding="utf-8")
     wdir=root/winner["name"]
     for src,dst in (("cushion_v14.glb","best_furniture.glb"),
                     ("cushion_v14.blend","best_furniture.blend"),
@@ -169,9 +183,10 @@ def rank(root,statefile):
     old=load_state(statefile)
     oldscore=old.get("best_score")
     # Persist improvements in technical proxy, not a claim of artistic learning.
-    if oldscore is None or winner["technical_score"] > float(oldscore):
+    if oldscore is None or (significance>=1.5 and winner["technical_score"]>float(oldscore)+1.5):
         old["normal_strength"]=winner["normal_strength"]
         old["texture_tile_m"]=winner["texture_tile_m"]
+        old["shape_looseness"]=winner["shape_looseness"]
         old["best_score"]=winner["technical_score"]
     old["successful_runs"]=int(old.get("successful_runs",0))+1
     old["history"]=(old.get("history",[])+[{"winner":winner["name"],
@@ -185,12 +200,13 @@ def rank(root,statefile):
         "This workflow produces actual Blender mesh/material/GLB assets, not AI-rendered illustrations.",
         "**It does not assert photorealism**. Visual evaluation on Android is still necessary.",
         "",
-        "| Trial | Normal | UV tile (m) | Technical score | Result |",
-        "|---|---:|---:|---:|---|",
+        "| Trial | Shape softness | Normal | UV tile (m) | Technical score | Result |",
+        "|---|---:|---:|---:|---:|---|",
     ]
     for x in results:
-        summary.append(f'| {x["name"]} | {x["normal_strength"]} | {x["texture_tile_m"]} | {x["technical_score"]} | {"PASS" if x["passed"] else x.get("error","FAIL")} |')
+        summary.append(f'| {x["name"]} | {x["shape_looseness"]} | {x["normal_strength"]} | {x["texture_tile_m"]} | {x["technical_score"]} | {"PASS" if x["passed"] else x.get("error","FAIL")} |')
     summary+=["",f'Chosen technical baseline: **{winner["name"]}**.',
+              f'Selection reason: {report["selection_reason"]}.',
               "Quality score covers lighting/clipping/contrast and valid PBR structure, not upholstery realism.",
               "A good score cannot prove lifelike geometry, believable wrinkles, or correct fabric scale.",
               "Settings are carried to the next CI run using cache. Aesthetic user feedback must override this proxy."]
