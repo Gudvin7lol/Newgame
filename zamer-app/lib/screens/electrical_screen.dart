@@ -11,6 +11,7 @@ import '../models/electrical_design_draft.dart';
 import '../services/electrical_design_engine.dart';
 import '../widgets/electrical_consumer_draft_editor.dart';
 import '../services/electrical_device_catalog.dart';
+import '../services/electrical_point_dimension_service.dart';
 import '../services/electrical_mounting_service.dart';
 import '../services/electrical_frame_geometry.dart';
 import '../services/electrical_snap_service.dart';
@@ -1656,6 +1657,139 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     return base / 1000 * (1 + r.reservePct / 100);
   }
 
+  /// A numeric station is an atomic model edit, not a visual icon offset.
+  /// Existing mounting bases are updated consistently by the service.
+  Future<void> _editWallStation(ElectricalPoint point) async {
+    if (point.wallId == null || point.wallOffsetMm == null) return;
+    final controller = TextEditingController(text: _mm(point.wallOffsetMm!));
+    double? requested;
+    try {
+      requested = await showDialog<double>(
+        context: context,
+        builder: (dialog) => AlertDialog(
+          title: const Text('Расстояние от начала стены'),
+          content: TextField(
+            key: const ValueKey('electrical-station-input'),
+            controller: controller,
+            autofocus: true,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(
+              labelText: 'До центра точки',
+              suffixText: 'мм',
+              helperText: 'По оси стены, шаг ввода 1 мм',
+            ),
+            onSubmitted: (raw) => Navigator.of(dialog).pop(
+              double.tryParse(raw.trim().replaceAll(',', '.')) ??
+                  double.nan,
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialog),
+                child: const Text('Отмена')),
+            FilledButton(
+              key: const ValueKey('electrical-station-confirm'),
+              onPressed: () => Navigator.pop(dialog,
+                  double.tryParse(controller.text.trim().replaceAll(',', '.')) ??
+                      double.nan),
+              child: const Text('Готово'),
+            ),
+          ],
+        ),
+      );
+    } finally {
+      controller.dispose();
+    }
+    if (requested == null || !mounted) return;
+    try {
+      final proposed = ElectricalPointDimensionService.prepare(
+          widget.floor, point, requested);
+      if ((point.wallOffsetMm! - proposed.wallOffsetMm!).abs() < .001) return;
+      _pushUndo();
+      point.xMm = proposed.xMm;
+      point.yMm = proposed.yMm;
+      point.wallOffsetMm = proposed.wallOffsetMm;
+      point.mounting = proposed.mounting;
+      // A saved finished reference stays stored, but its validation
+      // intentionally signals 'stale' until reconfirmed after movement.
+      await widget.onChanged();
+      if (mounted) setState(() => _selectedId = point.id);
+    } on FormatException catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message)),
+      );
+    }
+  }
+
+  /// The visual dimension pill is a genuine tap target above CustomPaint.
+  /// It uses the same model station as the inspector's geometry, not pixels.
+  Widget? _stationDimensionChip(
+      ElectricalPoint? point, Size size, _Tx tx) {
+    if (point == null || point.wallId == null ||
+        point.wallOffsetMm == null || !_visiblePointTypes.contains(point.type)) {
+      return null;
+    }
+    final wall = widget.floor.wallById(point.wallId!);
+    if (wall == null) return null;
+    final start = widget.floor.nodeById(wall.startNodeId);
+    final end = widget.floor.nodeById(wall.endNodeId);
+    if (start == null || end == null) return null;
+    final dx = end.xMm - start.xMm, dy = end.yMm - start.yMm;
+    final length = math.sqrt(dx * dx + dy * dy);
+    if (!length.isFinite || length < 1) return null;
+    final startPx = tx.origin +
+        Offset(start.xMm * tx.scale, start.yMm * tx.scale);
+    final pointPx = tx.origin +
+        Offset(point.xMm * tx.scale, point.yMm * tx.scale);
+    const chipW = 192.0, chipH = 48.0;
+    final normal = Offset(dy / length, -dx / length) *
+        (point.wallSide == -1 ? -1.0 : 1.0);
+    final centre = point.mounting == null
+        ? (startPx + pointPx) / 2 + normal * 36
+        : pointPx + const Offset(60, 36);
+    return Positioned(
+      left: (centre.dx - chipW / 2)
+          .clamp(4.0, math.max(4.0, size.width - chipW - 4)).toDouble(),
+      top: (centre.dy - chipH / 2)
+          .clamp(4.0, math.max(4.0, size.height - chipH - 4)).toDouble(),
+      child: Material(
+        color: const Color(0xFF202631),
+        borderRadius: BorderRadius.circular(10),
+        child: InkWell(
+          key: const ValueKey('electrical-dimension-station'),
+          borderRadius: BorderRadius.circular(10),
+          onTap: () => _editWallStation(point),
+          child: SizedBox(
+            width: chipW,
+            height: chipH,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: Row(children: [
+                const Icon(Icons.straighten, size: 17,
+                    color: Color(0xFFF2B69B)),
+                const SizedBox(width: 6),
+                Expanded(child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('${_mm(point.wallOffsetMm!)} мм · H ${_mm(point.heightMm)}',
+                      style: const TextStyle(fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFFF1F3F6))),
+                    const Text('От начала стены · редактировать',
+                      style: TextStyle(fontSize: 9.5,
+                        color: Color(0xFFAEB7C4))),
+                  ],
+                )),
+                const Icon(Icons.edit_outlined, size: 15,
+                    color: Color(0xFFAEB7C4)),
+              ]),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _quickPointHeight(ElectricalPoint point) async {
     final oldProblem = ElectricalMountingService.problem(widget.floor, point);
     if (point.mounting != null && oldProblem != null) {
@@ -2503,6 +2637,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                     origin: t.origin,
                     selectedPointId: _selectedId,
                     wireStartPointId: _wireStartId,
+                    interactiveDimensions: true,
                     showLegacyLines: _showLegacyLines || _mode == ElectricalMode.wire,
                     show3dRoutes: _show3dRoutes,
                     showCrossings: _showCrossings,
@@ -2516,6 +2651,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                           origin: t.origin,
                           selectedPointId: _selectedId,
                           wireStartPointId: _wireStartId,
+                          interactiveDimensions: true,
                           darkMode: true,
                           overlayOnly: true,
                           showLegacyLines: _showLegacyLines || _mode == ElectricalMode.wire,
@@ -2528,6 +2664,8 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                 ),
                 ),
               ),
+              if (_stationDimensionChip(selected, size, t) case final chip?)
+                chip,
               if (_placingAt != null && _mode == ElectricalMode.add)
                 Positioned(
                   left: (_placementPreview(_placingAt!, size).dx - 15)
