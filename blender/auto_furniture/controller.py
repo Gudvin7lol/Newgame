@@ -129,6 +129,12 @@ def rank(root,statefile):
             for f in ("cushion_v14.blend","cushion_v14.glb","cushion_v14_cycles.png","cushion_v14_detail.png"):
                 assert (folder/f).is_file(),f"Missing file {f}"
             record["gltf"]=glb_check(folder/"cushion_v14.glb")
+            metrics=json.loads((folder/"geometry_report.json").read_text(encoding="utf-8"))
+            assert metrics["nonmanifold_edges"]==0,"Cloth shell contains unclosed geometry"
+            assert 0.002<metrics["simulation_max_vertical_displacement_m"]<.055,"Unstable/unmoved cloth"
+            assert .003<metrics["sculpted_seam_relief_max_m"]<.025,"Unrealistic/missing crease relief"
+            assert metrics["seam_relief_zones"]>=6,"No seam-driven sculpt details"
+            record["geometry"]=metrics
             record["beauty"]=image_check(folder/"cushion_v14_cycles.png")
             record["detail"]=image_check(folder/"cushion_v14_detail.png")
             record["technical_score"]=round(
