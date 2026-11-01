@@ -1,4 +1,6 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zamer_app/widgets/electrical_route_editor.dart';
 import 'package:zamer_app/models/electrical_network.dart';
 import 'package:zamer_app/models/electrical_route_3d.dart';
 import 'package:zamer_app/models/models.dart';
@@ -106,6 +108,35 @@ void main() {
     floor.nodes[1].yMm = 100;
     expect(() => ElectricalAutoRouteProposalService.prepare(
         floor, _cable()), throwsFormatException);
+  });
+
+  testWidgets('route preview is explicit and never saves by preview alone',
+      (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final floor = _floor();
+    final snapshot = floor.toJson().toString();
+    final cable = _cable();
+    await tester.pumpWidget(MaterialApp(home: ElectricalRouteEditor(
+      floor: floor, cable: cable,
+    )));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('route-auto-propose')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('route-auto-propose')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('route-auto-accept-preview')),
+        findsOneWidget);
+    expect(floor.toJson().toString(), snapshot);
+    expect(cable.route3dId, isNull);
+    await tester.tap(find.byKey(
+        const ValueKey('route-auto-accept-preview')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Длина трассы:'), findsWidgets);
+    expect(floor.toJson().toString(), snapshot);
+    expect(cable.route3dId, isNull);
+    expect(tester.takeException(), isNull);
   });
 
   test('insufficient height and invalid parameters fail closed', () {
