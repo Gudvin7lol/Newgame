@@ -16,6 +16,7 @@ class ElectricalPlanPainter extends CustomPainter {
     this.wireStartPointId,
     this.darkMode = false,
     this.overlayOnly = false,
+    this.interactiveDimensions = false,
     this.showLegacyLines = true,
     this.show3dRoutes = false,
     this.showCrossings = false,
@@ -31,6 +32,8 @@ class ElectricalPlanPainter extends CustomPainter {
   final bool darkMode;
   /// Retain CAD flooring, furniture, walls below electrical layer.
   final bool overlayOnly;
+  /// The Flutter overlay owns editable labels; canvas draws witness lines.
+  final bool interactiveDimensions;
   /// Legacy drawing is never a proof of physical cable connectivity.
   final bool showLegacyLines;
   final bool show3dRoutes;
@@ -242,6 +245,7 @@ class ElectricalPlanPainter extends CustomPainter {
     canvas.drawLine(a, a + lift + normal * 5, line);
     canvas.drawLine(b, b + lift + normal * 5, line);
     canvas.drawLine(a + lift, b + lift, line);
+    if (interactiveDimensions) return;
     final caption = '${point.wallOffsetMm!.round()} мм от начала стены'
         ' · H ${point.heightMm.round()} мм';
     final tp = TextPainter(
@@ -287,6 +291,7 @@ class ElectricalPlanPainter extends CustomPainter {
       canvas.drawLine(a + lift, b + lift, paint);
       caption = '${point.label.isEmpty ? point.id : point.label} · ${m.datumName} → центр: ${m.distanceMm} мм · h ${point.heightMm} от ЧП';
     }
+    if (interactiveDimensions) return;
     final tp = TextPainter(text: TextSpan(text: caption,
       style: TextStyle(fontSize: 11, color: color, backgroundColor: darkMode ? const Color(0xFF142027) : Colors.white)),
       textDirection: TextDirection.ltr)..layout(maxWidth: 235);
