@@ -85,7 +85,7 @@ void main() {
     )));
     expect(find.byKey(const ValueKey('electrical-compact-inspector')),
         findsOneWidget);
-    expect(find.text('От оси стены'), findsOneWidget);
+    expect(find.text('От начала стены'), findsOneWidget);
     expect(find.text('650 мм'), findsOneWidget);
     expect(find.text('300 мм'), findsOneWidget);
     expect(find.textContaining('К1'), findsOneWidget);
