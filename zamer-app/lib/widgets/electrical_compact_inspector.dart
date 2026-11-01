@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../models/models.dart';
-import '../services/electrical_datum_assignment_service.dart';
-import '../services/electrical_mounting_service.dart';
 
 /// Single-row inspector; all edits are delegated to the parent undo/save flow.
 class ElectricalCompactInspector extends StatelessWidget {
@@ -22,33 +20,12 @@ class ElectricalCompactInspector extends StatelessWidget {
   static String millimeters(double value) =>
       value.isFinite ? '${value.round()} мм' : 'не задано';
 
-  String get datumTitle {
-    final reference = point.datumAssignment;
-    if (reference != null) {
-      if (ElectricalDatumAssignmentService.problem(floor, point) == null) {
-        return millimeters(reference.fromDatumMm.abs());
-      }
-      return 'Устарела';
-    }
-    final mount = point.mounting;
-    if (mount != null &&
-        ElectricalMountingService.problem(floor, point) == null) {
-      return millimeters(mount.distanceMm);
-    }
-    if (point.wallId != null && point.wallOffsetMm != null) {
-      return millimeters(point.wallOffsetMm!);
-    }
-    return 'Выбрать';
-  }
+  // The compact field and the on-plan dimension share the same station
+  // measured from the wall start node, not a named finished datum.
+  String get datumTitle => point.wallOffsetMm == null
+      ? 'Выбрать' : millimeters(point.wallOffsetMm!);
 
-  String get datumLabel {
-    final reference = point.datumAssignment;
-    if (reference != null) {
-      return ElectricalDatumAssignmentService.problem(floor, point) == null
-          ? 'От чистовой базы' : 'База устарела';
-    }
-    return 'От оси стены';
-  }
+  String get datumLabel => 'От начала стены';
 
   Widget _field(
       BuildContext context, String label, String value, VoidCallback onTap,
