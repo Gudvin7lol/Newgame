@@ -8,10 +8,10 @@ Workflow: `.github/workflows/auto-furniture.yml`, running on branch `feat/blende
 
 1. Download licensed **CC0 Rough Linen** scan from Poly Haven with `scan_fabric_v13.py`.
 2. Use `controller.py plan` to plan three variants around previous best values (UV scale, normal intensity).
-3. Use **real Blender Cloth** mesh from `build_candidate.py`, not AI image stand-ins.
+3. Use **real Blender Cloth** mesh from `build_candidate.py`, not AI image stand-ins. Shape generator now varies a gently asymmetrical cutline, reduced foam dome height, side band compression and millimetre-scale seam folds. Cloth top perimeter is pinned, **not physically sewn with sewing springs**.
 4. Export real `.blend` editable scene, textured `.glb`, and two Cycles camera angles.
 5. Parse the GLB and require actual base-color, normal and metallic-roughness texture links and UVs.
-6. Check image clipping/contrast and source texture variability, then choose **technical baseline**. This is a proxy, not an aesthetic judgement.
+6. Check image clipping/contrast and source texture variability, then choose **technical baseline**. Margins smaller than 1.5 points are treated as inconclusive and the reference candidate is retained. This is a proxy, not an aesthetic judgement.
 7. Upload comparison PNG, best GLB, best BLEND, objective QA report and settings state as GitHub Actions artifacts.
 8. Carry best settings to later workflows through GitHub Actions Cache.
 
@@ -36,3 +36,7 @@ The remote GPU should send generated images/maps to the same Blender-side valida
 The best baseline stays in Actions Cache. Objective scores are technical proxies and may be gamed by artificial sharpening, so they are constrained. For meaningful aesthetic progress, compare multiple angles against photographic references, collect human/vision-model review, revise geometry/material priors, and reject models failing mobile verification. An AI reviewer and editable sewing-pattern solver are planned but not yet implemented.
 
 Existing model generation code: `blender/cushion_scan_v14.py` and `blender/auto_furniture/build_candidate.py`.
+
+## Verified geometry run, 2026-11-01
+
+[Autonomous Furniture Lab successful run #7](https://github.com/Gudvin7lol/Newgame/actions/runs/41309521377) built three softness settings 0.72/1.00/1.28, checked closed shell with zero nonmanifold edges, and exported mapped GLBs. Seam relief is 3.30/4.58/5.86 mm, cloth relaxation 8.88-10.36 mm depending on setting. Automated technical scores 88.71/88.72/88.74 are visually too close; baseline retained at 1.00 rather than claiming that 0.02-point gain is learning. Model still visually too regular and is **not** considered photorealistic.
