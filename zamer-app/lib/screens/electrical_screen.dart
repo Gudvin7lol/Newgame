@@ -2043,7 +2043,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     Widget sector({required String key, required int slot,
         required double inner, required double outer, required Widget icon,
         required String label, required VoidCallback? onTap,
-        bool active = false, ElectricalPointType? draggable}) {
+        bool active = false, bool showLabel = true, ElectricalPointType? draggable}) {
       final angle = math.pi + (slot + .5) * math.pi / 6;
       final position = center + Offset(math.cos(angle), math.sin(angle)) * ((inner + outer) / 2);
       return Positioned.fill(child: ClipPath(
@@ -2067,9 +2067,9 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                 child: Opacity(opacity: onTap == null ? .35 : 1,
                   child: SizedBox(key: ValueKey(key), width: 68, height: 52, child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
-                    children: [icon, const SizedBox(height: 3),
+                    children: [icon, if (showLabel) ...[const SizedBox(height: 3),
                       Text(label, maxLines: 1, overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 10, color: Color(0xFFF4EDE5)))],
+                        style: const TextStyle(fontFamily: 'Roboto', fontSize: 10, color: Color(0xFFF4EDE5)))]],
                   ))),
               )]),
             )),
@@ -2096,15 +2096,15 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                 _addArcOpen = false;
               })),
           ]))),
-        sector(key: 'electrical-fan-add', slot: 0, inner: innerRadius,
+        sector(key: 'electrical-fan-add', showLabel: false, slot: 0, inner: innerRadius,
           outer: actionRadius, icon: const Icon(Icons.add_rounded, color: Color(0xFFFFC28C), size: 27),
           label: 'Добавить', active: _mode == ElectricalMode.add,
           onTap: () => setState(() { _mode = ElectricalMode.add; _addArcOpen = true; })),
-        sector(key: 'electrical-fan-select', slot: 1, inner: innerRadius,
+        sector(key: 'electrical-fan-select', showLabel: false, slot: 1, inner: innerRadius,
           outer: actionRadius, icon: const Icon(Icons.near_me_outlined, color: Color(0xFFF4EDE5), size: 25),
           label: 'Выбрать', active: _mode == ElectricalMode.select,
           onTap: () => setState(() { _mode = ElectricalMode.select; _addArcOpen = false; })),
-        sector(key: 'electrical-fan-delete', slot: 2, inner: innerRadius,
+        sector(key: 'electrical-fan-delete', showLabel: false, slot: 2, inner: innerRadius,
           outer: actionRadius, icon: const Icon(Icons.delete_outline, color: Color(0xFFFF967C), size: 25),
           label: 'Удалить', onTap: selected == null ? null : () => _deleteSelectedPoint(selected)),
         Positioned(left: center.dx - 32, top: center.dy - 32,
@@ -2200,7 +2200,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                   child: FittedBox(
                     fit: BoxFit.scaleDown,
                     child: Text(label, style: const TextStyle(
-                        fontSize: 12, fontWeight: FontWeight.w700)),
+                        fontFamily: 'Roboto', fontSize: 12, fontWeight: FontWeight.w700)),
                   ),
                 ),
                 ),

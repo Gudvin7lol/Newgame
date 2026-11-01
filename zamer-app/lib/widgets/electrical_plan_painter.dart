@@ -125,7 +125,12 @@ class ElectricalPlanPainter extends CustomPainter {
   /// Shared by painting and tap handling: the visible number is the hit target.
   List<ElectricalDimensionLayout> dimensionLayouts(Size size) {
     final result = <ElectricalDimensionLayout>[];
-    final occupied = <Rect>[if (reservedRect != null) reservedRect!];
+    final occupied = <Rect>[
+      if (reservedRect != null) reservedRect!,
+      for (final point in floor.electricalPoints)
+        if (visiblePointTypes == null || visiblePointTypes!.contains(point.type))
+          Rect.fromCenter(center: p(point.xMm, point.yMm), width: 38, height: 38),
+    ];
     final points = floor.electricalPoints.toList()
       ..sort((a, b) => a.id == selectedPointId ? -1 : b.id == selectedPointId ? 1 : 0);
     for (final point in points) {
