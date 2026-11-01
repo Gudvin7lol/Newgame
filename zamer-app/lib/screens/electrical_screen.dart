@@ -1767,18 +1767,14 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                 const Icon(Icons.straighten, size: 17,
                     color: Color(0xFFF2B69B)),
                 const SizedBox(width: 6),
-                Expanded(child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('${_mm(point.wallOffsetMm!)} мм · H ${_mm(point.heightMm)}',
-                      style: const TextStyle(fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFFF1F3F6))),
-                    const Text('От начала стены · редактировать',
-                      style: TextStyle(fontSize: 9.5,
-                        color: Color(0xFFAEB7C4))),
-                  ],
+                Expanded(child: Text(
+                  '${_mm(point.wallOffsetMm!)} мм · H ${_mm(point.heightMm)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  softWrap: false,
+                  style: const TextStyle(
+                    fontSize: 12, fontWeight: FontWeight.w700,
+                    color: Color(0xFFF1F3F6)),
                 )),
                 const Icon(Icons.edit_outlined, size: 15,
                     color: Color(0xFFAEB7C4)),
