@@ -89,8 +89,23 @@ class ElectricalPlanPainter extends CustomPainter {
         final b = floor.nodeById(wall.endNodeId);
         if (a != null && b != null) angle = math.atan2(b.yMm - a.yMm, b.xMm - a.xMm);
       }
-      _symbol(canvas, pos, point, selected, angle: angle);
-      if (point.id == selectedPointId) _mountingDimension(canvas, point, size);
+      // Model coordinates stay on the wall axis. Offset only the symbol
+      // toward its mounted room so the wall face is obvious at a glance.
+      var iconPos = pos;
+      if (wall != null && point.isWallDevice) {
+        final halfDepth = (point.type == ElectricalPointType.frame ||
+                point.modules.length > 1) ? 8.5 : 6.5;
+        final shift = halfDepth * point.wallSide;
+        iconPos = pos + Offset(-math.sin(angle) * shift,
+                               math.cos(angle) * shift);
+      }
+      _symbol(canvas, iconPos, point, selected, angle: angle);
+      if (point.id == selectedPointId) {
+        // Show the exact wall-axis anchor without moving any CAD geometry.
+        canvas.drawCircle(pos, 2, Paint()
+          ..color = const Color(0xFFF2B69B));
+        _mountingDimension(canvas, point, size);
+      }
       if (point.label.isNotEmpty) {
         final tp = TextPainter(
           text: TextSpan(text: point.label, style: TextStyle(fontSize: 10,
@@ -98,7 +113,7 @@ class ElectricalPlanPainter extends CustomPainter {
             fontWeight: FontWeight.w600)),
           textDirection: TextDirection.ltr,
         )..layout(maxWidth: 120);
-        tp.paint(canvas, pos + const Offset(9, -18));
+        tp.paint(canvas, iconPos + const Offset(9, -18));
       }
     }
   }
