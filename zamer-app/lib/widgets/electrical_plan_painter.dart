@@ -215,9 +215,58 @@ class ElectricalPlanPainter extends CustomPainter {
     canvas.restore();
   }
 
+  /// A selected wall point always has a readable station and height
+  /// even before the optional named mounting datum has been configured.
+  /// The axis station is not a finished-surface dimension.
+  void _axisStationDimension(
+      Canvas canvas, ElectricalPoint point, Size size) {
+    final wall = point.wallId == null
+        ? null : floor.wallById(point.wallId!);
+    final start = wall == null
+        ? null : floor.nodeById(wall.startNodeId);
+    final end = wall == null
+        ? null : floor.nodeById(wall.endNodeId);
+    if (start == null || end == null || point.wallOffsetMm == null) return;
+    final dx = end.xMm - start.xMm, dy = end.yMm - start.yMm;
+    final len = math.sqrt(dx * dx + dy * dy);
+    if (!len.isFinite || len <= 0) return;
+    final a = p(start.xMm, start.yMm);
+    final b = p(point.xMm, point.yMm);
+    final side = point.wallSide == -1 ? -1.0 : 1.0;
+    // Draw dimensions opposite the mounted face so the symbol is clear.
+    final normal = Offset(dy / len, -dx / len) * side;
+    final lift = normal * 26;
+    final color = darkMode
+        ? const Color(0xFFF2B69B) : const Color(0xFF784A32);
+    final line = Paint()..color = color..strokeWidth = 1.2;
+    canvas.drawLine(a, a + lift + normal * 5, line);
+    canvas.drawLine(b, b + lift + normal * 5, line);
+    canvas.drawLine(a + lift, b + lift, line);
+    final caption = '${point.wallOffsetMm!.round()} мм от оси угла'
+        ' · H ${point.heightMm.round()} мм';
+    final tp = TextPainter(
+      text: TextSpan(text: caption, style: TextStyle(
+        fontSize: 12, fontWeight: FontWeight.w600, color: color,
+        backgroundColor: darkMode
+            ? const Color(0xFF142027) : Colors.white,
+      )),
+      textDirection: TextDirection.ltr,
+    )..layout(maxWidth: 210);
+    final centre = (a + b) / 2 + lift + normal * 7;
+    tp.paint(canvas, Offset(
+      (centre.dx - tp.width / 2)
+          .clamp(4.0, math.max(4.0, size.width - tp.width - 4)),
+      (centre.dy - tp.height / 2)
+          .clamp(4.0, math.max(4.0, size.height - tp.height - 4)),
+    ));
+  }
+
   void _mountingDimension(Canvas canvas, ElectricalPoint point, Size size) {
     final m = point.mounting;
-    if (m == null) return;
+    if (m == null) {
+      _axisStationDimension(canvas, point, size);
+      return;
+    }
     final issue = ElectricalMountingService.problem(floor, point);
     final color = issue == null
         ? (darkMode ? const Color(0xFFFFBD88) : const Color(0xFF6A3E1C))
