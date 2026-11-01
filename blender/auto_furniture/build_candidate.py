@@ -56,7 +56,11 @@ def top_height(x,y):
     # Flatter, compressed foam crest. The old 41mm dome looked inflated and rigid.
     z=.064+( .027-.004*(SHAPE_LOOSENESS-1.0))*crown
     # Uneven upholstery tension; small broad depressions, not repeating stripes.
-    z+=.0028*SHAPE_LOOSENESS*math.sin(7.5*x+1.8*y+.6)*math.cos(4.6*y-1.2*x)*crown
+    z+=.0039*SHAPE_LOOSENESS*math.sin(7.5*x+1.8*y+.6)*math.cos(4.6*y-1.2*x)*crown
+    # Broad, asymmetric foam pockets create uneven support instead of a single
+    # perfect inflated dome. All amplitudes are millimetric and deterministic.
+    z-=.0056*SHAPE_LOOSENESS*exp(-((x+.13)/.18)**2-((y+.05)/.14)**2)*crown
+    z+=.0036*SHAPE_LOOSENESS*exp(-((x-.16)/.12)**2-((y-.12)/.14)**2)*crown
     z+=0.0045*exp(-((x+0.086)/0.12)**2 - ((y-0.047)/0.17)**2)
     z+=0.0025*exp(-((x-0.17)/0.07)**2 - ((y+0.09)/0.15)**2)
     z-=0.002*exp(-((x+0.21)/0.075)**2 - ((y+0.15)/0.06)**2)
@@ -200,6 +204,20 @@ for h in range(23):
         for ai,atk in [(44,.0030),(68,.0025),(150,.0035),(265,.0020),(328,.0028)]:
             d=min(abs(k-ai),count-abs(k-ai))
             z+=SHAPE_LOOSENESS*atk*math.exp(-(d/7.5)**2)*math.sin(2*pi*t)*math.exp(-((t-.24)/.25)**2)
+        # Localized seam puckers on the gusset follow nonuniform sewn tension:
+        # no repeated sine grid and no geometry added to the top/bottom seam.
+        for anchor, sign, extent, amp in (
+            (23,1,.24,.0075),(70,-1,.20,.009),(141,1,.34,.008),
+            (191,-1,.21,.010),(258,1,.26,.007),(327,-1,.30,.009)):
+            d=min(abs(k-anchor),count-abs(k-anchor))
+            lateral=math.exp(-(d/(13.0*SHAPE_LOOSENESS))**2)
+            vertical=math.sin(pi*t)**1.7
+            wave=math.sin(pi*(t-extent)*1.5)
+            z+=sign*amp*SHAPE_LOOSENESS*lateral*vertical*wave
+            # Woven fabric wrinkles also push inward/outward, not only up/down.
+            wrinkle=sign*.007*SHAPE_LOOSENESS*lateral*vertical*math.cos(3.4*pi*t)
+            xx+=wrinkle*x/(math.hypot(x,y)+.0001)
+            yy+=wrinkle*y/(math.hypot(x,y)+.0001)
         verts.append((xx,yy,z))
         uvs.append((arclens[k]/TEXTURE_TILE_M,t*.13/TEXTURE_TILE_M))
 for h in range(22):
@@ -351,11 +369,15 @@ for j in range(nyg+1):
 # Preserve localized crease relief AFTER physical settling. Ordinary smooth cloth
 # simulation flattens all seam wrinkles; these are modest 1-4mm geometric details.
 creases=[
-    (-.245,-.223,.78,.62,.115,.0048,.011),
-    (-.207,-.258,.48,.88,.091,.0036,.010),
-    ( .238,-.219,-.73,.68,.108,.0050,.013),
-    ( .281,-.124,-.91,.36,.087,.0042,.009),
-    (-.286, .151,.90,-.43,.074,.0035,.009),
+    # anchor xy / heading vector / length / positive ridge / width
+    (-.251,-.212,.79,.61,.145,.0125,.018),
+    (-.203,-.248,.43,.90,.123,.0080,.015),
+    ( .221,-.223,-.72,.68,.158,.0121,.019),
+    ( .283,-.131,-.93,.33,.132,.0095,.015),
+    (-.287, .154,.86,-.50,.108,.0080,.015),
+    ( .171, .269,-.38,-.92,.146,.0100,.017),
+    (-.091, .284,.21,-.98,.106,.0065,.015),
+    ( .294, .075,-.94,-.25,.107,.0085,.015),
 ]
 max_detail=0.0
 for v in top.data.vertices:
@@ -368,16 +390,16 @@ for v in top.data.vertices:
         t=(x-ax)*dx+(y-ay)*dy
         p=-(x-ax)*dy+(y-ay)*dx
         if -.015<t<extent*1.45:
-            strength=math.exp(-((t-extent*.42)/(extent*.54))**2)
-            bend=.004*math.sin(t*32+ax*9)
-            valley=math.exp(-((p-bend+.001)/(w*.57))**2)
-            ridge=math.exp(-((p-bend-w*.74)/(w*1.05))**2)
-            dz+=amplitude*strength*(ridge-.95*valley)
+            strength=math.exp(-((t-extent*.40)/(extent*.51))**2)
+            bend=.006*math.sin(t*19+ax*11)
+            valley=math.exp(-((p-bend+.001)/(w*.63))**2)
+            ridge=math.exp(-((p-bend-w*.82)/(w*1.08))**2)
+            dz+=amplitude*strength*(ridge-.91*valley)
     dz*=smooth*SHAPE_LOOSENESS
     v.co.z+=dz
     max_detail=max(max_detail,abs(dz))
 print("RELIEF_QA",round(max_detail,5),"m", "shape_looseness",SHAPE_LOOSENESS)
-assert .001<max_detail<.018,"Unreasonable/missing seam-relief geometry"
+assert .003<max_detail<.025,"Unreasonable/missing seam-relief geometry"
 top.data.update()
 simscene.frame_set(1)
 
@@ -402,13 +424,13 @@ for name,loc,energy,size in [
     ob.rotation_euler=(look-ob.location).to_track_quat("-Z","Y").to_euler()
 scene.render.engine="CYCLES"
 scene.cycles.samples=RENDER_SAMPLES
-scene.cycles.use_denoising=False
-bpy.context.view_layer.cycles.use_denoising=False
+scene.cycles.use_denoising=True
+bpy.context.view_layer.cycles.use_denoising=True
 scene.render.resolution_x=840
 scene.render.resolution_y=620
 scene.render.resolution_percentage=100
 scene.world.color=(.07,.07,.07)
-scene.view_settings.exposure=-1.05
+scene.view_settings.exposure=-1.20
 scene.render.image_settings.file_format="PNG"
 scene.render.filepath=str(OUT/"cushion_v14_cycles.png")
 bpy.ops.wm.save_as_mainfile(filepath=str(OUT/"cushion_v14.blend"))
@@ -461,6 +483,8 @@ import json as _json
 (OUT/"candidate_settings.json").write_text(_json.dumps({
     "normal_strength":NORMAL_STRENGTH,
     "shape_looseness":SHAPE_LOOSENESS,
+    "sculpt_method":"broad asymmetric foam pockets, 8 radial seam folds, 6 nonuniform gusset puckers",
+    "quality_note":"physical cloth relaxation and sculpted seam microfolds; not fully sewn cloth simulation",
     "texture_tile_m":TEXTURE_TILE_M,
     "render_samples":RENDER_SAMPLES,
     "source":"Poly Haven rough linen CC0 / fixed 3D geometry v14",
