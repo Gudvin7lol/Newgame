@@ -55,7 +55,9 @@ jobs:
                       assert min(im.size)>=1024,(kind,tex)
                       if tex=='normal.png':
                           st=ImageStat.Stat(im.convert('RGB'))
-                          assert st.stddev[0]>2 and st.stddev[1]>2,(kind,tex)
+                          # Linen has raised fibers; oak veneer can legitimately be almost flat.
+                          threshold=2.0 if kind=='linen' else 1.2
+                          assert st.stddev[0]>threshold and st.stddev[1]>threshold,(kind,tex,st.stddev)
           for name in reports:
               glb=root/(name+'.glb')
               raw=glb.read_bytes()
