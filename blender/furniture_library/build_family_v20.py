@@ -348,13 +348,13 @@ def cabinet():
     block("Lower fixed case panel",(0,.003,.215),(.467,.390,.025),wood,.004,True)
     block("Inner back panel",(0,.186,.429),(.470,.014,.437),wood,.002,True)
     block("Central drawer divider rail",(0,-.170,.437),(.469,.033,.020),wood,.003,True)
-    for drawer,z in enumerate((.320,.535)):
+    for drawer,z in enumerate((.335,.545)):
         # Real depth behind fronts and visible shadow-gap at carcass.
         block("Drawer interior bottom "+str(drawer),(0,-.026,z-.077),(.417,.310,.009),dark,.002)
         for x in (-.216,.216):
             block("Drawer metal slide "+str(drawer)+" "+str(x),
                 (x,-.033,z),(.010,.285,.018),steel,.0015)
-        block("Full oak drawer face "+str(drawer),(0,-.199,z),(.456,.022,.184),wood,.0045,True)
+        block("Full oak drawer face "+str(drawer),(0,-.199,z),(.456,.022,.206),wood,.0045,True)
         # Handle cap and two fastened posts. All real mesh, no painted impostors.
         for x in (-.055,.055):
             fastener("Handle fixing stud "+str(drawer)+" "+str(x),(x,-.216,z),gold,r=.006,depth=.017,axis="Y")
