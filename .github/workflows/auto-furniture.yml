@@ -1,0 +1,96 @@
+name: Autonomous Furniture Lab - CPU quality loop
+
+on:
+  push:
+    branches: [feat/blender-furniture-lab]
+    paths:
+      - 'blender/auto_furniture/**'
+      - 'blender/cushion_scan_v14.py'
+      - 'blender/scan_fabric_v13.py'
+      - '.github/workflows/auto-furniture.yml'
+  workflow_dispatch:
+  # Weekly unattended check once merged to default branch.
+  # Scheduled runs only occur from the default branch.
+  schedule:
+    - cron: '17 7 * * 1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: auto-furniture-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  generate-evaluate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Blender and material validation tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y blender python3-numpy python3-pil
+          blender --version
+
+      - name: Restore previous technical baseline from CI cache
+        uses: actions/cache/restore@v4
+        with:
+          path: blender/auto_furniture/state.json
+          key: furniture-tuning-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: |
+            furniture-tuning-${{ runner.os }}-
+
+      - name: Prepare real scanned linen and trial plan
+        env:
+          BLENDER_OUT: out/auto
+        run: |
+          set -euo pipefail
+          python3 blender/scan_fabric_v13.py
+          python3 blender/auto_furniture/controller.py plan --root out/auto --state blender/auto_furniture/state.json
+          cat out/auto/plan.tsv
+
+      - name: Create three 3D candidates automatically
+        run: |
+          set -euo pipefail
+          while read -r candidate normal tile; do
+            echo "::group::Modeling $candidate, normal=$normal, tile=$tile"
+            mkdir -p "out/auto/$candidate"
+            cp -r out/auto/scan_v13 "out/auto/$candidate/"
+            BLENDER_OUT="out/auto/$candidate" \
+            NORMAL_STRENGTH="$normal" \
+            TEXTURE_TILE_M="$tile" \
+            RENDER_SAMPLES=14 \
+            blender -b -t 2 --python-exit-code 3 --python blender/auto_furniture/build_candidate.py
+            echo "::endgroup::"
+          done < out/auto/plan.tsv
+
+      - name: Validate PBR/GLB and rank technical render quality
+        run: |
+          python3 blender/auto_furniture/controller.py rank --root out/auto --state blender/auto_furniture/state.json
+          cat out/auto/quality_report.md
+
+      - name: Preserve learned technical baseline for next run
+        if: success()
+        uses: actions/cache/save@v4
+        with:
+          path: blender/auto_furniture/state.json
+          key: furniture-tuning-${{ runner.os }}-${{ github.run_id }}
+
+      - name: Publish model, renders, material QA and trial report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: furniture-auto-generated-${{ github.run_number }}
+          path: |
+            out/auto/best_furniture.glb
+            out/auto/best_furniture.blend
+            out/auto/best_render.png
+            out/auto/best_detail.png
+            out/auto/candidates_comparison.png
+            out/auto/quality_report.*
+            out/auto/plan.json
+            out/auto/scan_v13/texture_report.json
+            blender/auto_furniture/state.json
+          if-no-files-found: warn
+          retention-days: 14
