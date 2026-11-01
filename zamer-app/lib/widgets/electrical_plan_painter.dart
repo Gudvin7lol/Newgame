@@ -51,7 +51,7 @@ class ElectricalPlanPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (!overlayOnly) canvas.drawRect(Offset.zero & size, Paint()
-      ..color = darkMode ? const Color(0xFF09151B) : const Color(0xFFF7F8FA));
+      ..color = darkMode ? const Color(0xFF1D1F23) : const Color(0xFFF7F8FA));
 
     if (!overlayOnly) for (final wall in floor.walls) {
       final a = floor.nodeById(wall.startNodeId);
@@ -186,7 +186,7 @@ class ElectricalPlanPainter extends CustomPainter {
         canvas.drawRRect(rr, Paint()..color = color.withValues(alpha: .5)
           ..style = PaintingStyle.stroke..strokeWidth = .7);
         final tp = TextPainter(text: TextSpan(text: label.$2,
-          style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
+          style: TextStyle(fontFamily: 'Roboto', color: color, fontSize: 12, fontWeight: FontWeight.w600)),
           textDirection: TextDirection.ltr, maxLines: 1, ellipsis: '…')
           ..layout(maxWidth: label.$1.width - 12);
         tp.paint(canvas, label.$1.center - Offset(tp.width / 2, tp.height / 2));

@@ -97,7 +97,7 @@ void main() {
         floor, single), isNull);
   });
 
-  testWidgets('v8 arcs keep the approved add/select/wire entry points',
+  testWidgets('v5 fan has add/select/delete and one sketch-line entry',
       (tester) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
@@ -111,12 +111,19 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('electrical-two-ring-fan')),
         findsOneWidget);
-    expect(find.byKey(const ValueKey('electrical-add-frame')),
+    expect(find.byKey(const ValueKey('electrical-add-socket')),
         findsOneWidget);
     expect(find.byKey(const ValueKey('electrical-fan-select')),
         findsOneWidget);
-    expect(find.byKey(const ValueKey('electrical-fan-wire')),
+    expect(find.byKey(const ValueKey('electrical-fan-delete')),
         findsOneWidget);
+    expect(find.byKey(const ValueKey('electrical-fan-wire')), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('electrical-plan-layers')));
+    await tester.pumpAndSettle();
+    expect(find.text('Нарисовать черновую линию'), findsOneWidget);
+    await tester.tap(find.text('Нарисовать черновую линию'));
+    await tester.pumpAndSettle();
+    expect(floor.electricalPoints, isEmpty);
     expect(tester.takeException(), isNull);
   });
 
@@ -134,14 +141,15 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('electrical-add-wallLight')),
         findsNothing);
-    await tester.drag(
-      find.byKey(const ValueKey('electrical-two-ring-fan')),
-      const Offset(0, 90),
-    );
-    await tester.pumpAndSettle();
+    for (var i = 0; i < 10 && find.byKey(const ValueKey('electrical-add-wallLight')).evaluate().isEmpty; i++) {
+      final fan = tester.getRect(find.byKey(const ValueKey('electrical-two-ring-fan')));
+      await tester.dragFrom(fan.topLeft + const Offset(67, 192), const Offset(0, 32));
+      await tester.pumpAndSettle();
+    }
     expect(find.byKey(const ValueKey('electrical-add-wallLight')),
         findsOneWidget);
     expect(floor.electricalPoints, isEmpty);
     expect(tester.takeException(), isNull);
   });
 }
+

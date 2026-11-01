@@ -3,6 +3,8 @@ import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
+import 'package:zamer_app/design_system/zamer_electric_glass.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zamer_app/design_system/zamer_master_theme.dart';
 import 'package:zamer_app/models/models.dart';
@@ -81,6 +83,19 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.runAsync(() async {
+      final textFont = File('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf');
+      if (await textFont.exists()) {
+        await (FontLoader('Roboto')..addFont(Future.value(ByteData.sublistView(await textFont.readAsBytes())))).load();
+      }
+      final flutterRoot = Platform.environment['FLUTTER_ROOT'];
+      if (flutterRoot != null) {
+        final icons = File('$flutterRoot/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf');
+        if (await icons.exists()) {
+          await (FontLoader('MaterialIcons')..addFont(Future.value(ByteData.sublistView(await icons.readAsBytes())))).load();
+        }
+      }
+    });
     final f = mountingFixture();
     ElectricalMountingService.apply(f, f.electricalPoints.first, dimension(f));
     await tester.pumpWidget(MaterialApp(theme: ZamerMasterTheme.dark,
@@ -101,6 +116,13 @@ void main() {
     expect(find.byKey(const ValueKey('electrical-add-appliance')), findsOneWidget);
     expect(find.byKey(const ValueKey('electrical-fan-add')), findsOneWidget);
     expect(tester.takeException(), isNull);
+    await tester.runAsync(() async {
+      final context = tester.element(find.byKey(const ValueKey('kit-preview')));
+      for (final entry in ZamerElectricIcon.names.values) {
+        await precacheImage(AssetImage('assets/electric/icons/${entry.$1}_fan.png'), context);
+      }
+    });
+    await tester.pumpAndSettle();
     await tester.runAsync(() async {
       final boundary = tester.renderObject<RenderRepaintBoundary>(find.byKey(const ValueKey('kit-preview')));
       final image = await boundary.toImage(pixelRatio: 2);
