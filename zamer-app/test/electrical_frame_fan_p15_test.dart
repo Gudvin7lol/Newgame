@@ -128,7 +128,12 @@ void main() {
         findsOneWidget);
     for (var i = 0; i < 10 && find.byKey(const ValueKey('electrical-add-frame')).evaluate().isEmpty; i++) {
       final fan = tester.getRect(find.byKey(const ValueKey('electrical-two-ring-fan')));
-      await tester.dragFrom(fan.topLeft + const Offset(67, 192), const Offset(0, 32));
+      final gesture = await tester.startGesture(fan.topLeft + const Offset(67, 192));
+      await gesture.moveBy(const Offset(0, 20));
+      await tester.pump();
+      await gesture.moveBy(const Offset(0, 40));
+      await tester.pump();
+      await gesture.up();
       await tester.pumpAndSettle();
     }
     expect(find.byKey(const ValueKey('electrical-add-frame')),

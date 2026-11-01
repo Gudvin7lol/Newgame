@@ -85,6 +85,17 @@ class ElectricalPlanPainter extends CustomPainter {
     if (show3dRoutes) _drawPhysicalRoutes(canvas, size);
     if (showCrossings) _drawCrossings(canvas, size);
 
+    final selectedPoint = floor.electricalPoints.where((e) => e.id == selectedPointId).firstOrNull;
+    final selectedWall = selectedPoint?.wallId == null ? null : floor.wallById(selectedPoint!.wallId!);
+    if (selectedWall != null) {
+      final a = floor.nodeById(selectedWall.startNodeId);
+      final b = floor.nodeById(selectedWall.endNodeId);
+      if (a != null && b != null) canvas.drawLine(p(a.xMm, a.yMm), p(b.xMm, b.yMm),
+        Paint()..color = const Color(0x55FFC28C)
+          ..strokeWidth = math.max(3.0, selectedWall.thicknessMm * scale)
+          ..strokeCap = StrokeCap.square);
+    }
+
     for (final point in floor.electricalPoints) {
       if (visiblePointTypes != null && !visiblePointTypes!.contains(point.type)) continue;
       final pos = p(point.xMm, point.yMm);
@@ -335,6 +346,8 @@ class ElectricalPlanPainter extends CustomPainter {
         rect, const Radius.circular(5));
       canvas.drawRRect(housing, Paint()..color = darkMode ? const Color(0xFF202631) : const Color(0xFFF9F9F5));
       canvas.drawRRect(housing, stroke);
+      if (selected) canvas.drawRRect(RRect.fromRectAndRadius(rect.inflate(3), const Radius.circular(7)),
+        Paint()..color = const Color(0xFFFFC28C)..style = PaintingStyle.stroke..strokeWidth = 2);
       for (var i = 1; i < visibleCount; i++) {
         final x = rect.left + 3 + moduleStep * i;
         canvas.drawLine(Offset(x, rect.top + 2),

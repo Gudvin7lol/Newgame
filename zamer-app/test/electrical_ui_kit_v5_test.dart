@@ -104,13 +104,33 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('electrical-plan-layers')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Монтажные размеры'));
+    await tester.tap(find.byKey(const ValueKey('electrical-toggle-mounting-dimensions')));
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('electrical-fan-select')));
+    await tester.pumpAndSettle();
+    final canvasFinder = find.byWidgetPredicate((w) => w is CustomPaint && w.painter is ElectricalPlanPainter);
+    final paintWidget = tester.widget<CustomPaint>(canvasFinder);
+    final painter = paintWidget.painter! as ElectricalPlanPainter;
+    final size = tester.getSize(canvasFinder);
+    final label = painter.dimensionLayouts(size).single;
+    await tester.tapAt(tester.getTopLeft(canvasFinder) + label.heightRect.center);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('electrical-quick-height-input')), findsOneWidget);
+    await tester.enterText(find.byKey(const ValueKey('electrical-quick-height-input')), '450');
+    await tester.tap(find.text('Применить'));
+    await tester.pumpAndSettle();
+    expect(f.electricalPoints.first.heightMm, 450);
+    expect(f.electricalPoints.first.mounting!.distanceMm, 600);
     await tester.tap(find.byKey(const ValueKey('electrical-fan-add')));
     await tester.pumpAndSettle();
     for (var i = 0; i < 10 && find.byKey(const ValueKey('electrical-add-appliance')).evaluate().isEmpty; i++) {
       final fan = tester.getRect(find.byKey(const ValueKey('electrical-two-ring-fan')));
-      await tester.dragFrom(fan.topLeft + const Offset(67, 192), const Offset(0, 32));
+      final gesture = await tester.startGesture(fan.topLeft + const Offset(67, 192));
+      await gesture.moveBy(const Offset(0, 20));
+      await tester.pump();
+      await gesture.moveBy(const Offset(0, 40));
+      await tester.pump();
+      await gesture.up();
       await tester.pumpAndSettle();
     }
     expect(find.byKey(const ValueKey('electrical-add-appliance')), findsOneWidget);

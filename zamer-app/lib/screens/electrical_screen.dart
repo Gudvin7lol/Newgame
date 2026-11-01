@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'dart:ui' show PointerDeviceKind;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 
 import '../models/models.dart';
 import '../models/electrical_mounting.dart';
@@ -1490,6 +1491,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
             itemBuilder: (_) => [
               const PopupMenuItem(value: 'manual', child: Text('Нарисовать черновую линию')),
               CheckedPopupMenuItem(
+                key: const ValueKey('electrical-toggle-mounting-dimensions'),
                 value: 'dimensions', checked: _showMountingDimensions,
                 child: const Text('Монтажные размеры'),
               ),
@@ -2044,6 +2046,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
         clipper: _ElectricalFanSectorClipper(center, inner, outer, slot),
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
+          dragStartBehavior: DragStartBehavior.down,
           onTap: onTap,
           onVerticalDragUpdate: draggable == null ? null
               : (details) => _scrollFanOuter(details.delta.dy),
