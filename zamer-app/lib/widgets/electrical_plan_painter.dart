@@ -242,7 +242,7 @@ class ElectricalPlanPainter extends CustomPainter {
     canvas.drawLine(a, a + lift + normal * 5, line);
     canvas.drawLine(b, b + lift + normal * 5, line);
     canvas.drawLine(a + lift, b + lift, line);
-    final caption = '${point.wallOffsetMm!.round()} мм от оси угла'
+    final caption = '${point.wallOffsetMm!.round()} мм от начала стены'
         ' · H ${point.heightMm.round()} мм';
     final tp = TextPainter(
       text: TextSpan(text: caption, style: TextStyle(
@@ -255,9 +255,9 @@ class ElectricalPlanPainter extends CustomPainter {
     final centre = (a + b) / 2 + lift + normal * 7;
     tp.paint(canvas, Offset(
       (centre.dx - tp.width / 2)
-          .clamp(4.0, math.max(4.0, size.width - tp.width - 4)),
+          .clamp(4.0, math.max(4.0, size.width - tp.width - 4)).toDouble(),
       (centre.dy - tp.height / 2)
-          .clamp(4.0, math.max(4.0, size.height - tp.height - 4)),
+          .clamp(4.0, math.max(4.0, size.height - tp.height - 4)).toDouble(),
     ));
   }
 
