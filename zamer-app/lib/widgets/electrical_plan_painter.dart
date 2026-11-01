@@ -154,6 +154,9 @@ class ElectricalPlanPainter extends CustomPainter {
         hash = (hash * 31 + code) & 0x7fffffff;
       }
       final color = colors[hash % colors.length];
+      // A route proposed from an unverified drawing must not look identical
+      // to a surveyed geometric path. Neither is an installation approval.
+      final tentative = route.source != ElectricalPathSource.measured;
       final stroke = Paint()
         ..color = color
         ..strokeWidth = 2.8
@@ -170,12 +173,31 @@ class ElectricalPlanPainter extends CustomPainter {
           canvas.drawCircle(pb, 6, stroke);
           canvas.drawCircle(pb, 2.1, dot);
         } else {
-          canvas.drawLine(pa, pb, stroke);
-          if (index < points.length - 1) canvas.drawCircle(pb, 2.4, dot);
+          if (tentative) {
+            _drawDraftLine(canvas, pa, pb, stroke);
+          } else {
+            canvas.drawLine(pa, pb, stroke);
+            if (index < points.length - 1) canvas.drawCircle(pb, 2.4, dot);
+          }
         }
       }
     }
     canvas.restore();
+  }
+
+  /// Deliberate visual distinction: dashed = route geometry not surveyed.
+  void _drawDraftLine(Canvas canvas, Offset a, Offset b, Paint paint) {
+    final d = b - a;
+    final len = d.distance;
+    if (len < .001) return;
+    final unit = d / len;
+    const dash = 7.0, gap = 5.0;
+    var distance = 0.0;
+    while (distance < len) {
+      final finish = math.min(distance + dash, len);
+      canvas.drawLine(a + unit * distance, a + unit * finish, paint);
+      distance += dash + gap;
+    }
   }
 
   void _drawCrossings(Canvas canvas, Size size) {
