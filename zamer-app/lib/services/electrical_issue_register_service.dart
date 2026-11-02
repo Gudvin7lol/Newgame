@@ -1,4 +1,5 @@
 import '../models/electrical_network.dart';
+import '../models/electrical_route_3d.dart';
 import '../models/models.dart';
 import 'electrical_cable_journal_service.dart';
 import 'electrical_junction_audit_service.dart';
@@ -58,6 +59,10 @@ class ElectricalIssueRegisterService {
       for (final cable in network?.cables ?? <ElectricalCableRecord>[])
         if (cable.route3dId != null) cable.route3dId!: cable,
     };
+    final routeIds = <String>{
+      for (final route in network?.routes3d ?? <ElectricalRoute3d>[])
+        route.id,
+    };
     final terminals = <String, ElectricalTerminalRecord>{
       for (final terminal in network?.terminals ?? <ElectricalTerminalRecord>[])
         terminal.id: terminal,
@@ -84,7 +89,18 @@ class ElectricalIssueRegisterService {
       final id = issue.referenceId;
       ElectricalIssueObject object = ElectricalIssueObject.unlocated;
       String? focus;
-      if (id != null && cableById.containsKey(id)) {
+      // IDs live in different namespaces. A cable and a 3D route can
+      // legitimately share a string ID; distinguish by the issue code
+      // rather than accidentally navigating to the wrong cable.
+      const routeCodes = <String>{
+        'duplicateRoute3d', 'invalidRoute3d',
+        'routeExclusionConflict', 'orphanRoute3d',
+      };
+      if (id != null && routeCodes.contains(issue.code) &&
+          routeIds.contains(id)) {
+        object = ElectricalIssueObject.route;
+        focus = anchorForCable(routeToCable[id]);
+      } else if (id != null && cableById.containsKey(id)) {
         object = ElectricalIssueObject.cable;
         focus = anchorForCable(cableById[id]);
       } else if (id != null && routeToCable.containsKey(id)) {
