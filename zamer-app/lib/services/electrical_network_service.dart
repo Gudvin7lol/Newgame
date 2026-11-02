@@ -186,6 +186,14 @@ class ElectricalNetworkService {
       } on FormatException catch (e) {
         issue('invalidRoute3d', e.message, route.id);
       }
+      // A formerly clear route can become forbidden when a new obstacle
+      // is recorded. Keep the route for investigation, but report it as
+      // an error so the saved network can never masquerade as validated.
+      try {
+        ElectricalRouteExclusionService.requireClear(floor, route);
+      } on FormatException catch (e) {
+        issue('routeExclusionConflict', e.message, route.id);
+      }
     }
     for (final cable in network.cables) {
       if (cable.explicitReserveMm != null &&
