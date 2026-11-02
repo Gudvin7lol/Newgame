@@ -37,6 +37,8 @@ on:
       - 'zamer-app/lib/models/electrical_route_3d.dart'
       - 'zamer-app/lib/services/electrical_route_exclusion_service.dart'
       - 'zamer-app/lib/services/electrical_route_service.dart'
+      - 'zamer-app/lib/services/electrical_network_service.dart'
+      - 'zamer-app/lib/services/electrical_cable_journal_service.dart'
       - 'zamer-app/lib/widgets/electrical_route_exclusions_sheet.dart'
       - 'zamer-app/lib/widgets/electrical_route_editor.dart'
       - '.github/workflows/verify-electrical-precision-p16.yml'
@@ -94,6 +96,8 @@ jobs:
             lib/models/electrical_route_3d.dart \
             lib/services/electrical_route_exclusion_service.dart \
             lib/services/electrical_route_service.dart \
+            lib/services/electrical_network_service.dart \
+            lib/services/electrical_cable_journal_service.dart \
             lib/widgets/electrical_route_exclusions_sheet.dart \
             lib/widgets/electrical_route_editor.dart
       - name: Test snapping and existing electrical contracts
