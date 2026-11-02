@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import '../models/electrical_route_3d.dart';
 import '../models/models.dart';
 import 'electrical_frame_geometry.dart';
@@ -101,6 +103,7 @@ class ElectricalJunctionCandidateService {
     final suggestions = <ElectricalJunctionCandidate>[];
 
     for (final room in GeometryService.roomFaces(floor)) {
+      final ceilingOfRoom = floor.roomMetaByKey(room.key)?.ceilingHeightMm;
       final groups = <String, List<ElectricalPoint>>{};
       for (final point in floor.electricalPoints) {
         final cls = _loadClass(point);
@@ -132,7 +135,9 @@ class ElectricalJunctionCandidateService {
           final end = floor.nodeById(wall.endNodeId);
           if (start == null || end == null) continue;
           final length = floor.wallLengthMm(wall);
-          final ceiling = wall.heightOverrideMm ?? floor.defaultHeightMm;
+          final wallHeight = wall.heightOverrideMm ?? floor.defaultHeightMm;
+          final ceiling = ceilingOfRoom == null
+              ? wallHeight : math.min(wallHeight, ceilingOfRoom);
           final height = ceiling - dropFromCeilingMm;
           if (!length.isFinite || length < 2 * minimumCornerClearanceMm ||
               !ceiling.isFinite || height < 1500) continue;
