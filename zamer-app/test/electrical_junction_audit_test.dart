@@ -158,6 +158,44 @@ void main() {
     expect(floor.toJson().toString(),before);
   });
 
+  test('RK audit finds stale wall-locked coordinates after the wall moves', () {
+    final floor=fixture();
+    floor.nodes.addAll([
+      PlanNode(id:'wa',xMm:0,yMm:0),
+      PlanNode(id:'wb',xMm:4000,yMm:0),
+    ]);
+    floor.walls.add(PlanWall(
+        id:'wall',startNodeId:'wa',endNodeId:'wb'));
+    for (final point in floor.electricalPoints) {
+      point.wallId='wall';
+      point.wallSide=1;
+      point.wallOffsetMm=point.xMm;
+    }
+    final initial=ElectricalJunctionAuditService.inspect(floor);
+    expect(initial.entries.first.errors.join(' '),
+        isNot(contains('привязкой к стене')));
+    floor.nodes.first.yMm=150;
+    final snapshot=floor.toJson().toString();
+    final updated=ElectricalJunctionAuditService.inspect(floor);
+    expect(updated.entries.first.errors.join(' '),
+        contains('Координаты точки не совпадают'));
+    expect(updated.entries.last.errors.join(' '),
+        contains('Координаты точки не совпадают'));
+    expect(floor.toJson().toString(),snapshot);
+  });
+
+  test('RK audit flags a removed wall without losing cable connections', () {
+    final floor=fixture();
+    floor.electricalPoints.first
+      ..wallId='removed-wall'
+      ..wallOffsetMm=1200;
+    final before=floor.toJson().toString();
+    final audit=ElectricalJunctionAuditService.inspect(floor);
+    expect(audit.entries.first.errors.join(' '),
+        contains('Привязанная стена удалена'));
+    expect(floor.toJson().toString(),before);
+  });
+
   test('RK audit flags deleted circuit without connecting unrelated cores', () {
     final floor=fixture();
     floor.electricalNetwork!.circuits.removeWhere((c)=>c.id=='A');
