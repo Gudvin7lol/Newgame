@@ -28,6 +28,7 @@ import '../widgets/electrical_junction_candidates_sheet.dart';
 import '../widgets/electrical_junction_audit_sheet.dart';
 import '../widgets/electrical_issue_register_sheet.dart';
 import '../services/electrical_issue_register_service.dart';
+import '../services/electrical_issue_locator_service.dart';
 import '../services/electrical_junction_edit_service.dart';
 import '../services/geometry_service.dart';
 import '../widgets/electrical_plan_painter.dart';
@@ -89,6 +90,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
   String _routeMode = 'orthogonal';
   String? _wireStartId;
   String? _selectedId;
+  String? _diagnosticRouteId;
   /// Physical cable routes and sketch lines are hidden by default.
   bool _show3dRoutes = false;
   bool _showCrossings = false;
@@ -1488,10 +1490,8 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
   }
 
   void _locateElectricalIssue(ElectricalIssueEntry issue) {
-    final focus = issue.focusPointId;
-    final point = widget.floor.electricalPoints.where(
-        (p) => p.id == focus).firstOrNull;
-    if (point == null) {
+    final location = ElectricalIssueLocatorService.locate(widget.floor, issue);
+    if (location == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('Объект отсутствует на плане. Проверьте ссылки в схеме.'),
       ));
@@ -1504,15 +1504,16 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
       _workspaceView = ElectricalWorkspaceView.pointsRoutes;
       _mode = ElectricalMode.select;
       _wireStartId = null;
-      _selectedId = point.id;
+      _selectedId = location.pointId;
+      _diagnosticRouteId = location.diagnosticRouteId;
       _routeCircuitFilterId = null;
       _showPower = true;
       _showLights = true;
       _showJunctions = true;
       if (!size.isEmpty) {
         _camera = PlanViewportSnapshot(
-          centerXMm: point.xMm,
-          centerYMm: point.yMm,
+          centerXMm: location.xMm,
+          centerYMm: location.yMm,
           pixelsPerMm: originalScale.clamp(.04, .25).toDouble(),
         );
       }
@@ -2803,6 +2804,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                     showLegacyLines: _showLegacyLines || _mode == ElectricalMode.wire,
                     show3dRoutes: _show3dRoutes,
                     showCrossings: _showCrossings,
+                    diagnosticRouteId: _diagnosticRouteId,
                     circuitFilterId: _routeCircuitFilterId,
                     visiblePointTypes: _visiblePointTypes,
                   ),
@@ -2819,6 +2821,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                           showLegacyLines: _showLegacyLines || _mode == ElectricalMode.wire,
                           show3dRoutes: _show3dRoutes,
                     showCrossings: _showCrossings,
+                          diagnosticRouteId: _diagnosticRouteId,
                           circuitFilterId: _routeCircuitFilterId,
                     visiblePointTypes: _visiblePointTypes,
                         ) : null,
