@@ -292,6 +292,34 @@ void main() {
     expect(register.hasBlockingIssues,isTrue);
   });
 
+  testWidgets('issue register opens only the exact linked cable by ID',
+      (tester) async {
+    tester.view.physicalSize=const Size(390,844);
+    tester.view.devicePixelRatio=1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final floor=sample();
+    final before=floor.toJson().toString();
+    String? opened;
+    final list=ElectricalIssueRegisterService.inspect(floor).entries;
+    final index=list.indexWhere((e)=>e.code=='missingPhysicalRoute');
+    expect(index,greaterThanOrEqualTo(0));
+    await tester.pumpWidget(MaterialApp(home:Scaffold(
+      body:ElectricalIssueRegisterSheet(
+        floor:floor,onLocate:(_){},onOpenCable:(id)=>opened=id,
+      ),
+    )));
+    await tester.pumpAndSettle();
+    final target=find.byKey(ValueKey('electrical-issue-cable-$index'));
+    await tester.ensureVisible(target);
+    await tester.pumpAndSettle();
+    await tester.tap(target);
+    await tester.pumpAndSettle();
+    expect(opened,'c1');
+    expect(floor.toJson().toString(),before);
+    expect(tester.takeException(),isNull);
+  });
+
   testWidgets('mobile filter and locate callback do not change project',
       (tester) async {
     tester.view.physicalSize=const Size(390,844);
