@@ -1661,16 +1661,15 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
   /// Existing mounting bases are updated consistently by the service.
   Future<void> _editWallStation(ElectricalPoint point) async {
     if (point.wallId == null || point.wallOffsetMm == null) return;
-    final controller = TextEditingController(text: _mm(point.wallOffsetMm!));
-    double? requested;
-    try {
-      requested = await showDialog<double>(
+    var stationInput = _mm(point.wallOffsetMm!);
+    final requested = await showDialog<double>(
         context: context,
         builder: (dialog) => AlertDialog(
           title: const Text('Расстояние от начала стены'),
-          content: TextField(
+          content: TextFormField(
             key: const ValueKey('electrical-station-input'),
-            controller: controller,
+            initialValue: stationInput,
+            onChanged: (value) => stationInput = value,
             autofocus: true,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: const InputDecoration(
@@ -1689,16 +1688,13 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
             FilledButton(
               key: const ValueKey('electrical-station-confirm'),
               onPressed: () => Navigator.pop(dialog,
-                  double.tryParse(controller.text.trim().replaceAll(',', '.')) ??
+                  double.tryParse(stationInput.trim().replaceAll(',', '.')) ??
                       double.nan),
               child: const Text('Готово'),
             ),
           ],
         ),
       );
-    } finally {
-      controller.dispose();
-    }
     if (requested == null || !mounted) return;
     try {
       final proposed = ElectricalPointDimensionService.prepare(
