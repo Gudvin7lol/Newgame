@@ -10,9 +10,11 @@ class ElectricalIssueRegisterSheet extends StatefulWidget {
     super.key,
     required this.floor,
     required this.onLocate,
+    this.onOpenCable,
   });
   final FloorPlan floor;
   final ValueChanged<ElectricalIssueEntry> onLocate;
+  final ValueChanged<String>? onOpenCable;
 
   @override
   State<ElectricalIssueRegisterSheet> createState() =>
@@ -22,6 +24,20 @@ class ElectricalIssueRegisterSheet extends StatefulWidget {
 class _ElectricalIssueRegisterSheetState
     extends State<ElectricalIssueRegisterSheet> {
   ElectricalIssueSeverity? filter;
+
+  String? linkedCableId(ElectricalIssueEntry issue) {
+    final network = widget.floor.electricalNetwork;
+    if (network == null) return null;
+    if (issue.object == ElectricalIssueObject.cable &&
+        network.cables.any((c) => c.id == issue.objectId)) {
+      return issue.objectId;
+    }
+    if (issue.object == ElectricalIssueObject.route) {
+      return network.cables.where((c) =>
+          c.route3dId == issue.objectId).firstOrNull?.id;
+    }
+    return null;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -112,6 +128,18 @@ class _ElectricalIssueRegisterSheetState
                           ],
                         ),
                       ),
+                      if (widget.onOpenCable != null &&
+                          linkedCableId(items[i]) != null)
+                        IconButton(
+                          key: ValueKey('electrical-issue-cable-$i'),
+                          tooltip: 'Открыть этот кабель в журнале',
+                          visualDensity: VisualDensity.compact,
+                          icon: const Icon(Icons.inventory_2_outlined),
+                          onPressed: () {
+                            final id = linkedCableId(items[i]);
+                            if (id != null) widget.onOpenCable?.call(id);
+                          },
+                        ),
                       if (ElectricalIssueLocatorService.locate(
                           widget.floor, items[i]) != null)
                         IconButton(
