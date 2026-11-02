@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import '../models/electrical_route_3d.dart';
 import '../models/models.dart';
 import 'geometry_service.dart';
+import 'electrical_route_exclusion_service.dart';
 
 /// Finds the shortest known orthogonal wall-axis corridor within one
 /// topologically closed room. The output is a DRAFT, never a permitted cable
@@ -55,6 +56,19 @@ class ElectricalWallCorridorGraphService {
       bool spanAllowed(PlanWall wall, double beginMm, double endMm) {
         final low = math.min(beginMm, endMm);
         final high = math.max(beginMm, endMm);
+        final from = floor.nodeById(wall.startNodeId);
+        final to = floor.nodeById(wall.endNodeId);
+        final length = floor.wallLengthMm(wall);
+        if (from == null || to == null || length <= 0) return false;
+        ElectricalRouteVertex at(double station) => ElectricalRouteVertex(
+          xMm: from.xMm + (to.xMm-from.xMm)*station/length,
+          yMm: from.yMm + (to.yMm-from.yMm)*station/length,
+          zMm: zMm,
+        );
+        if (ElectricalRouteExclusionService.conflictForLeg(
+          at(beginMm), at(endMm),
+          ElectricalRouteExclusionService.saved(floor),
+        ) != null) return false;
         return !wall.openings.any((opening) {
           final oLow = opening.offsetFromStartMm;
           final oHigh = oLow + opening.widthMm;
