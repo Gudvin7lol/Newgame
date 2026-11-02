@@ -187,6 +187,7 @@ void main() {
     expect(report.isApproved,isFalse);
     expect(report.incomplete,isTrue);
     expect(report.missing,contains(contains('габариты')));
+    expect(report.missing,contains(contains('паспортная модель')));
   });
 
   testWidgets('connection proposal requires two explicit approvals',
