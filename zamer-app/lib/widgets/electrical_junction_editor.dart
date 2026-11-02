@@ -4,6 +4,7 @@ import '../models/models.dart';
 import '../models/electrical_network.dart';
 import '../models/electrical_junction_capacity.dart';
 import '../services/electrical_junction_capacity_service.dart';
+import '../services/electrical_junction_connection_proposal_service.dart';
 import '../services/electrical_network_service.dart';
 import '../services/electrical_junction_edit_service.dart';
 import '../services/electrical_route_service.dart';
@@ -369,6 +370,89 @@ class _ElectricalJunctionEditorState extends State<ElectricalJunctionEditor> {
     setState(() {
       draft.junctionCapacities[widget.junctionPointId] = next;
       error = null;
+    });
+  }
+
+  Future<void> reviewConnectionProposals() async {
+    final options = ElectricalJunctionConnectionProposalService.propose(
+        widget.floor,draft,widget.junctionPointId);
+    if (options.isEmpty) {
+      setState(() => error = 'Пока нет подтверждённых назначений жил '
+          'нескольких кабелей для предварительного предложения.');
+      return;
+    }
+    final chosen = await showModalBottomSheet<
+        ElectricalJunctionConnectionProposal>(
+      context:context,
+      isScrollControlled:true,
+      showDragHandle:true,
+      builder:(sheet) => SafeArea(child:FractionallySizedBox(
+        heightFactor:.76,
+        child:ListView(
+          padding:const EdgeInsets.fromLTRB(16,12,16,24),
+          children:[
+            Text('Проверка соединений',
+              style:Theme.of(sheet).textTheme.titleLarge),
+            const SizedBox(height:8),
+            const Text('Похожие маркировки ещё не подтверждают '
+                'возможность электрического соединения.'),
+            for (var i=0;i<options.length;i++)
+              ListTile(
+                key:ValueKey('junction-proposal-$i'),
+                title:Text('${options[i].circuitId} · '
+                    '${options[i].purpose.name}'),
+                subtitle:Text('${options[i].members.length} концов жил '
+                    'из ${options[i].members.map((m)=>m.cableId).toSet().length} кабелей'),
+                trailing:const Icon(Icons.chevron_right),
+                onTap:()=>Navigator.pop(sheet,options[i]),
+              ),
+          ],
+        ),
+      )),
+    );
+    if (!mounted || chosen == null) return;
+    final accepted = await showDialog<bool>(
+      context:context,
+      builder:(dialog)=>AlertDialog(
+        title:const Text('Подтвердить клеммную запись?'),
+        scrollable:true,
+        content:Column(
+          mainAxisSize:MainAxisSize.min,
+          crossAxisAlignment:CrossAxisAlignment.start,
+          children:[
+            Text('Цепь: ${chosen.circuitId}'),
+            Text('Назначение: ${chosen.purpose.name}'),
+            for (final member in chosen.members)
+              Text('${member.cableId} · жила ${member.coreId}'),
+            const SizedBox(height:12),
+            for(final warning in chosen.warnings)
+              Padding(padding:const EdgeInsets.only(bottom:7),
+                child:Text('• $warning')),
+          ],
+        ),
+        actions:[
+          TextButton(onPressed:()=>Navigator.pop(dialog,false),
+            child:const Text('Отмена')),
+          FilledButton(
+            key:const ValueKey('junction-proposal-accept'),
+            onPressed:()=>Navigator.pop(dialog,true),
+            child:const Text('Записать соединение'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || accepted != true) return;
+    change(() {
+      ElectricalJunctionConnectionProposalService.requireCurrent(
+          widget.floor,draft,widget.junctionPointId,chosen);
+      ElectricalJunctionEditService.createTerminal(
+        widget.floor,draft,
+        id:id('terminal'), junctionId:widget.junctionPointId,
+        mark:'Проверить соединитель',
+        members:chosen.members,
+      );
+      ElectricalJunctionCapacityService.requireWithinEnteredLimits(
+        widget.floor,draft,widget.junctionPointId);
     });
   }
 
@@ -793,6 +877,12 @@ class _ElectricalJunctionEditorState extends State<ElectricalJunctionEditor> {
             Row(children: [
               Expanded(child: Text('Клеммы',
                   style: Theme.of(context).textTheme.titleMedium)),
+              TextButton.icon(
+                key: const ValueKey('junction-review-connections'),
+                onPressed: reviewConnectionProposals,
+                icon:const Icon(Icons.fact_check_outlined),
+                label:const Text('Предложения'),
+              ),
               TextButton.icon(
                 key: const ValueKey('junction-add-terminal'),
                 onPressed: createTerminal,
