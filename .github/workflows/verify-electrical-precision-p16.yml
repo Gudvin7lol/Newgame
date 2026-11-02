@@ -52,7 +52,7 @@ permissions:
 jobs:
   precision:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
@@ -126,3 +126,13 @@ jobs:
             test/electrical_mounting_test.dart \
             test/electrical_wall_elevations_p6_test.dart \
             test/electrical_cable_journal_p4_test.dart
+      - name: Build Android debug APK for hands-on electrical preview
+        working-directory: zamer-app
+        run: flutter build apk --debug
+      - name: Publish debug APK (not a production release)
+        uses: actions/upload-artifact@v4
+        with:
+          name: zamer-electrical-debug-${{ github.event.pull_request.number }}
+          path: zamer-app/build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
