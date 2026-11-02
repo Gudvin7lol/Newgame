@@ -664,6 +664,11 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
 
   Future<void> _tap(TapUpDetails d, Size size) async {
     if (_pinchingCamera) return;
+    // A diagnostic overlay belongs only to the explicitly selected fault.
+    // A subsequent plan tap returns to ordinary (validated) route viewing.
+    if (_diagnosticRouteId != null) {
+      setState(() => _diagnosticRouteId = null);
+    }
     final t = _tx(size);
     final mm = math.Point<double>(
       (d.localPosition.dx - t.origin.dx) / t.scale,
