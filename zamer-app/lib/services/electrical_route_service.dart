@@ -76,6 +76,10 @@ class ElectricalRouteService {
       throw const FormatException(
           'Точки или высоты изменились: перепроверьте концы трассы.');
     }
+    if (route.lockedLegs.any((i) =>
+        i < 0 || i >= route.vertices.length - 1)) {
+      throw const FormatException('У трассы есть некорректные индексы закреплённых участков.');
+    }
     final lengths = <double>[];
     for (var i = 1; i < route.vertices.length; i++) {
       final prev = route.vertices[i - 1];
@@ -135,6 +139,25 @@ class ElectricalRouteService {
     }
     measure(floor, route, reserveMm: reserveMm);
     ElectricalRouteExclusionService.requireClear(floor, route);
+    final linked = draft.routes3d
+        .where((r) => r.id == cable.route3dId).firstOrNull;
+    if (linked != null && linked.lockedLegs.isNotEmpty &&
+        linked.id != route.id) {
+      throw const FormatException(
+        'Нельзя заменить трассу: имеются закреплённые вручную участки.');
+    }
+    if (linked != null) {
+      for (final i in linked.lockedLegs) {
+        if (!route.lockedLegs.contains(i) ||
+            i + 1 >= route.vertices.length ||
+            linked.vertices[i].distanceTo(route.vertices[i]) > .5 ||
+            linked.vertices[i+1].distanceTo(route.vertices[i+1]) > .5 ||
+            linked.methods[i] != route.methods[i]) {
+          throw FormatException(
+            'Закреплённый участок ${i+1} изменён. Сначала явно снимите фиксацию.');
+        }
+      }
+    }
     final same = draft.routes3d.where((r) => r.id == route.id).firstOrNull;
     if (same != null && draft.cables.any(
       (c) => c.id != cableId && c.route3dId == route.id)) {
@@ -158,6 +181,12 @@ class ElectricalRouteService {
       throw const FormatException('Кабель удалён из схемы.');
     }
     final former = cable.route3dId;
+    final current = draft.routes3d
+        .where((r) => r.id == former).firstOrNull;
+    if (current != null && current.lockedLegs.isNotEmpty) {
+      throw const FormatException(
+          'У трассы есть закреплённые участки. Сначала снимите фиксацию.');
+    }
     cable.route3dId = null;
     cable.explicitReserveMm = null;
     if (former != null && !draft.cables.any((c) => c.route3dId == former)) {
