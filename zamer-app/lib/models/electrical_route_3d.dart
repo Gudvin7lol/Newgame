@@ -73,7 +73,7 @@ class ElectricalRoute3d {
     'methods': methods.map((m) => m.name).toList(),
     'source': source.name,
     'note': note,
-    'lockedLegs': lockedLegs.toList()..sort(),
+    if (lockedLegs.isNotEmpty) 'lockedLegs': lockedLegs.toList()..sort(),
   };
 
   factory ElectricalRoute3d.fromJson(Map<String, dynamic> j) =>
