@@ -6,6 +6,8 @@ import 'package:zamer_app/models/electrical_route_3d.dart';
 import 'package:zamer_app/models/electrical_route_exclusion_zone.dart';
 import 'package:zamer_app/models/models.dart';
 import 'package:zamer_app/services/electrical_issue_register_service.dart';
+import 'package:zamer_app/services/electrical_issue_locator_service.dart';
+import 'package:zamer_app/widgets/electrical_plan_painter.dart';
 import 'package:zamer_app/widgets/electrical_issue_register_sheet.dart';
 
 FloorPlan sample() {
@@ -109,6 +111,93 @@ void main() {
     expect(issue.description,contains('Балка'));
     expect(register.hasBlockingIssues,isTrue);
     expect(floor.toJson().toString(),before);
+  });
+
+  test('route fault zoom targets the blocked leg, not an arbitrary endpoint', () {
+    final floor=sample();
+    final network=floor.electricalNetwork!;
+    network.routes3d.add(ElectricalRoute3d(
+      id:'route',fromPointId:'s1',toPointId:'rk',
+      vertices:const [
+        ElectricalRouteVertex(xMm:500,yMm:0,zMm:300),
+        ElectricalRouteVertex(xMm:500,yMm:0,zMm:2500),
+        ElectricalRouteVertex(xMm:2000,yMm:0,zMm:2500),
+      ],
+      methods:const [
+        ElectricalInstallationMethod.inWall,
+        ElectricalInstallationMethod.aboveCeiling,
+      ],
+    ));
+    network.cables.single.route3dId='route';
+    network.routeExclusionZones.add(const ElectricalRouteExclusionZone(
+      id:'beam',name:'Перемычка',minXMm:1100,maxXMm:1450,
+      minYMm:-200,maxYMm:200,minZMm:2400,maxZMm:2600,
+    ));
+    final snapshot=floor.toJson().toString();
+    final issue=ElectricalIssueRegisterService.inspect(floor).entries
+        .singleWhere((e)=>e.code=='routeExclusionConflict');
+    final target=ElectricalIssueLocatorService.locate(floor,issue)!;
+    expect(target.pointId,'s1');
+    expect(target.diagnosticRouteId,'route');
+    expect(target.xMm,1250);
+    expect(target.yMm,0);
+    expect(floor.toJson().toString(),snapshot);
+  });
+
+  test('missing route reference locates the surviving point without drawing', () {
+    final floor=sample();
+    floor.electricalNetwork!.cables.single.route3dId='missing';
+    final register=ElectricalIssueRegisterService.inspect(floor);
+    final issue=register.entries.firstWhere(
+      (e)=>e.code=='missingRoute3d');
+    final target=ElectricalIssueLocatorService.locate(floor,issue)!;
+    expect(target.xMm,500);
+    expect(target.yMm,0);
+    expect(target.diagnosticRouteId,isNull);
+  });
+
+  test('deleted objects have no made-up location or ghost warning overlay', () {
+    final floor=sample();
+    floor.electricalNetwork!.terminals.add(
+      ElectricalTerminalRecord(id:'ghost',junctionPointId:'gone'));
+    final issue=ElectricalIssueRegisterService.inspect(floor).entries
+        .firstWhere((e)=>e.code=='invalidJunction');
+    expect(ElectricalIssueLocatorService.locate(floor,issue),isNull);
+  });
+
+  testWidgets('fault painter renders selected route as diagnostics only',
+      (tester) async {
+    final floor=sample();
+    final network=floor.electricalNetwork!;
+    network.routes3d.add(ElectricalRoute3d(
+      id:'invalid-route',fromPointId:'s1',toPointId:'rk',
+      vertices:const [
+        ElectricalRouteVertex(xMm:500,yMm:0,zMm:300),
+        ElectricalRouteVertex(xMm:500,yMm:0,zMm:2400),
+        ElectricalRouteVertex(xMm:2000,yMm:0,zMm:2400),
+      ],
+      methods:const [
+        ElectricalInstallationMethod.inWall,
+        ElectricalInstallationMethod.aboveCeiling,
+      ],
+    ));
+    network.cables.single.route3dId='invalid-route';
+    network.routeExclusionZones.add(const ElectricalRouteExclusionZone(
+      id:'block',name:'Стойка',minXMm:900,maxXMm:1600,
+      minYMm:-100,maxYMm:100,minZMm:2300,maxZMm:2500));
+    final snapshot=floor.toJson().toString();
+    await tester.pumpWidget(MaterialApp(home:Scaffold(
+      body:Center(child:CustomPaint(
+        size:const Size(390,500),
+        painter:ElectricalPlanPainter(
+          floor:floor,scale:.09,origin:const Offset(5,80),
+          show3dRoutes:true,diagnosticRouteId:'invalid-route',
+        ),
+      )),
+    )));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(),isNull);
+    expect(floor.toJson().toString(),snapshot);
   });
 
   test('unresolvable broken terminal is visible but never navigates randomly', () {
