@@ -22,7 +22,7 @@ class ElectricalRouteExclusionZone {
         ![minXMm,maxXMm,minYMm,maxYMm,minZMm,maxZMm]
           .every((n) => n.isFinite && n.abs() < 10000000) ||
         minXMm >= maxXMm || minYMm >= maxYMm ||
-        minZMm >= maxZMm || minZMm < 0) {
+        minZMm >= maxZMm) {
       throw const FormatException(
           'Запретная зона: укажите название и допустимые границы X/Y/Z.');
     }
