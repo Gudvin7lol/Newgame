@@ -26,6 +26,9 @@ on:
       - 'zamer-app/test/electrical_junction_candidates_test.dart'
       - 'zamer-app/test/electrical_junction_capacity_and_proposals_test.dart'
       - 'zamer-app/test/electrical_junction_audit_test.dart'
+      - 'zamer-app/test/electrical_issue_register_test.dart'
+      - 'zamer-app/lib/services/electrical_issue_register_service.dart'
+      - 'zamer-app/lib/widgets/electrical_issue_register_sheet.dart'
       - 'zamer-app/lib/services/electrical_junction_audit_service.dart'
       - 'zamer-app/lib/widgets/electrical_junction_audit_sheet.dart'
       - 'zamer-app/lib/models/electrical_junction_capacity.dart'
@@ -88,6 +91,9 @@ jobs:
             test/electrical_junction_candidates_test.dart \
             test/electrical_junction_capacity_and_proposals_test.dart \
             test/electrical_junction_audit_test.dart \
+            test/electrical_issue_register_test.dart \
+            lib/services/electrical_issue_register_service.dart \
+            lib/widgets/electrical_issue_register_sheet.dart \
             lib/services/electrical_junction_audit_service.dart \
             lib/widgets/electrical_junction_audit_sheet.dart \
             lib/models/electrical_junction_capacity.dart \
@@ -110,6 +116,7 @@ jobs:
         working-directory: zamer-app
         run: |
           flutter test \
+            test/electrical_issue_register_test.dart \
             test/electrical_junction_audit_test.dart \
             test/electrical_junction_capacity_and_proposals_test.dart \
             test/electrical_junction_candidates_test.dart \
