@@ -139,9 +139,31 @@ void main() {
     final target=ElectricalIssueLocatorService.locate(floor,issue)!;
     expect(target.pointId,'s1');
     expect(target.diagnosticRouteId,'route');
-    expect(target.xMm,1250);
+    expect(target.xMm,1275); // exact intersection, not entire 1500 mm leg
     expect(target.yMm,0);
     expect(floor.toJson().toString(),snapshot);
+  });
+
+  test('narrow obstacle far along long cable is located precisely', () {
+    const beam = ElectricalRouteExclusionZone(
+      id:'beam',name:'Труба', minXMm:9100,maxXMm:9200,
+      minYMm:-200,maxYMm:200,minZMm:2400,maxZMm:2600,
+    );
+    final actual = beam.intersectionMidpoint(
+      const ElectricalRouteVertex(xMm:0,yMm:0,zMm:2500),
+      const ElectricalRouteVertex(xMm:10000,yMm:0,zMm:2500),
+    );
+    expect(actual,isNotNull);
+    expect(actual!.xMm,9150);
+    expect(actual.yMm,0);
+    expect(beam.intersectionMidpoint(
+      const ElectricalRouteVertex(xMm:0,yMm:0,zMm:2000),
+      const ElectricalRouteVertex(xMm:10000,yMm:0,zMm:2000),
+    ),isNull);
+    expect(beam.intersects(
+      const ElectricalRouteVertex(xMm:0,yMm:0,zMm:2500),
+      const ElectricalRouteVertex(xMm:10000,yMm:0,zMm:2500),
+    ),isTrue);
   });
 
   test('missing route reference locates the surviving point without drawing', () {
