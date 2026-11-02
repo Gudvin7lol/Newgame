@@ -1,6 +1,7 @@
 import '../models/electrical_network.dart';
 import '../models/electrical_route_3d.dart';
 import '../models/models.dart';
+import 'electrical_route_exclusion_service.dart';
 
 /// Geometric measurements only, never electrical safety approval or an
 /// estimate of cable capacity, installation feasibility or procurement.
@@ -133,6 +134,7 @@ class ElectricalRouteService {
       throw const FormatException('Трасса не соответствует концам кабеля.');
     }
     measure(floor, route, reserveMm: reserveMm);
+    ElectricalRouteExclusionService.requireClear(floor, route);
     final same = draft.routes3d.where((r) => r.id == route.id).firstOrNull;
     if (same != null && draft.cables.any(
       (c) => c.id != cableId && c.route3dId == route.id)) {
