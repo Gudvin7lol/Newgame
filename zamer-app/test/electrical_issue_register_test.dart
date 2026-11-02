@@ -305,6 +305,90 @@ void main() {
     expect(floor.toJson().toString(),before);
   });
 
+
+  test('unrelated route with colliding cable ID cannot hide cable fault', () {
+    final floor = sample();
+    final network = floor.electricalNetwork!;
+    network.routes3d.addAll([
+      ElectricalRoute3d(
+        id: 'proper', fromPointId: 's1', toPointId: 'rk',
+        vertices: const [
+          ElectricalRouteVertex(xMm: 500, yMm: 0, zMm: 300),
+          ElectricalRouteVertex(xMm: 500, yMm: 0, zMm: 2500),
+          ElectricalRouteVertex(xMm: 2000, yMm: 0, zMm: 2500),
+        ],
+        methods: const [
+          ElectricalInstallationMethod.inWall,
+          ElectricalInstallationMethod.aboveCeiling,
+        ],
+      ),
+      // Completely unrelated, invalid route with the same ID as cable c1.
+      ElectricalRoute3d(
+        id: 'c1', fromPointId: 'deleted', toPointId: 'rk',
+        vertices: const [
+          ElectricalRouteVertex(xMm: 0, yMm: 0, zMm: 200),
+          ElectricalRouteVertex(xMm: 0, yMm: 0, zMm: 2500),
+        ],
+        methods: const [ElectricalInstallationMethod.inWall],
+      ),
+    ]);
+    network.cables.single
+      ..route3dId = 'proper'
+      ..routeRunId = 'deleted-plan-line';
+    final before = floor.toJson().toString();
+    final entries = ElectricalIssueRegisterService.inspect(floor).entries;
+    expect(entries.any((e) => e.code == 'invalidRoute3d' &&
+        e.object == ElectricalIssueObject.route && e.objectId == 'c1'),
+        isTrue);
+    expect(entries.any((e) => e.code == 'invalidCableRoute' &&
+        e.object == ElectricalIssueObject.cable && e.objectId == 'c1'),
+        isTrue);
+    expect(floor.toJson().toString(), before);
+  });
+
+  testWidgets('shared route fault never opens arbitrary linked cable',
+      (tester) async {
+    final floor = sample();
+    final network = floor.electricalNetwork!;
+    network.routes3d.add(ElectricalRoute3d(
+      id: 'shared', fromPointId: 's1', toPointId: 'rk',
+      vertices: const [
+        ElectricalRouteVertex(xMm: 500, yMm: 0, zMm: 300),
+        ElectricalRouteVertex(xMm: 500, yMm: 0, zMm: 2500),
+        ElectricalRouteVertex(xMm: 2000, yMm: 0, zMm: 2500),
+      ],
+      methods: const [
+        ElectricalInstallationMethod.inWall,
+        ElectricalInstallationMethod.aboveCeiling,
+      ],
+    ));
+    network.cables.single.route3dId = 'shared';
+    network.cables.add(ElectricalCableRecord(
+      id: 'second', circuitId: 'C', fromPointId: 's1', toPointId: 'rk',
+      route3dId: 'shared',
+    ));
+    network.routeExclusionZones.add(const ElectricalRouteExclusionZone(
+      id: 'beam-shared', name: 'Балка', minXMm: 1000, maxXMm: 1400,
+      minYMm: -100, maxYMm: 100, minZMm: 2400, maxZMm: 2600,
+    ));
+    final before = floor.toJson().toString();
+    final entries = ElectricalIssueRegisterService.inspect(floor).entries;
+    final index = entries.indexWhere((e) =>
+        e.code == 'routeExclusionConflict' && e.objectId == 'shared');
+    expect(index, greaterThanOrEqualTo(0));
+    String? opened;
+    await tester.pumpWidget(MaterialApp(home: Scaffold(
+      body: ElectricalIssueRegisterSheet(
+        floor: floor, onLocate: (_) {}, onOpenCable: (id) => opened = id,
+      ),
+    )));
+    await tester.pumpAndSettle();
+    expect(find.byKey(ValueKey('electrical-issue-cable-$index')), findsNothing);
+    expect(opened, isNull);
+    expect(floor.toJson().toString(), before);
+    expect(tester.takeException(), isNull);
+  });
+
   test('deleted objects have no made-up location or ghost warning overlay', () {
     final floor=sample();
     floor.electricalNetwork!.terminals.add(
