@@ -5,6 +5,7 @@ import '../models/electrical_route_3d.dart';
 import '../models/models.dart';
 import 'electrical_route_service.dart';
 import 'electrical_wall_corridor_graph_service.dart';
+import 'electrical_route_exclusion_service.dart';
 import 'geometry_service.dart';
 
 /// An explicit, review-only passage proposal. A doorway is used as a
@@ -158,6 +159,7 @@ class ElectricalInterroomPassageProposalService {
     );
     // Independently validate the axis-aligned construction and endpoints.
     ElectricalRouteService.measure(floor, route);
+    ElectricalRouteExclusionService.requireClear(floor, route);
     return route;
   }
 }
