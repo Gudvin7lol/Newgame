@@ -96,27 +96,40 @@ class ElectricalIssueRegisterService {
         'duplicateRoute3d', 'invalidRoute3d',
         'routeExclusionConflict', 'orphanRoute3d',
       };
-      if (id != null && routeCodes.contains(issue.code) &&
-          routeIds.contains(id)) {
-        object = ElectricalIssueObject.route;
-        focus = anchorForCable(routeToCable[id]);
+      const terminalCodes = <String>{
+        'duplicateTerminal', 'invalidJunction', 'incompleteTerminal',
+        'unknownCore', 'foreignCore', 'doubleTermination',
+        'mixedCircuits', 'mixedCoreRoles', 'unknownCoreRoles',
+      };
+      const circuitCodes = <String>{
+        'duplicateCircuit', 'circuitName', 'badPanel',
+      };
+      // ID namespaces are deliberately independent. A terminal and a cable
+      // can have identical text IDs, so each issue code must resolve against
+      // its owning collection, never against an arbitrary earlier match.
+      if (id != null && routeCodes.contains(issue.code)) {
+        if (routeIds.contains(id)) {
+          object = ElectricalIssueObject.route;
+          focus = anchorForCable(routeToCable[id]);
+        }
+      } else if (id != null && terminalCodes.contains(issue.code)) {
+        if (terminals.containsKey(id)) {
+          object = ElectricalIssueObject.junction;
+          focus = terminals[id]!.junctionPointId;
+        }
+      } else if (id != null && circuitCodes.contains(issue.code)) {
+        if (circuits.containsKey(id)) {
+          object = ElectricalIssueObject.circuit;
+          final cable = network?.cables.where(
+              (c) => c.circuitId == id).firstOrNull;
+          focus = anchorForCable(cable);
+        }
       } else if (id != null && cableById.containsKey(id)) {
         object = ElectricalIssueObject.cable;
         focus = anchorForCable(cableById[id]);
-      } else if (id != null && routeToCable.containsKey(id)) {
-        object = ElectricalIssueObject.route;
-        focus = anchorForCable(routeToCable[id]);
-      } else if (id != null && terminals.containsKey(id)) {
-        object = ElectricalIssueObject.junction;
-        focus = terminals[id]!.junctionPointId;
       } else if (id != null && points.containsKey(id)) {
         object = ElectricalIssueObject.point;
         focus = id;
-      } else if (id != null && circuits.containsKey(id)) {
-        object = ElectricalIssueObject.circuit;
-        final cable = network?.cables.where(
-          (c) => c.circuitId == id).firstOrNull;
-        focus = anchorForCable(cable);
       }
       add(issue.code, issue.message,
           issue.severity == ElectricalNetworkSeverity.error
