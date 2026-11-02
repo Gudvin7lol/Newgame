@@ -117,7 +117,12 @@ class ElectricalRouteService {
          route.toPointId != cable.toPointId)) {
       throw const FormatException('Кабель не связан с подходящей 3D-трассой.');
     }
-    return measure(floor, route, reserveMm: cable.explicitReserveMm);
+    final measured = measure(
+        floor, route, reserveMm: cable.explicitReserveMm);
+    // Every consumer of a cable's current usable length must reject paths
+    // that have become forbidden since that cable was first recorded.
+    ElectricalRouteExclusionService.requireClear(floor, route);
+    return measured;
   }
 
   /// Replace an existing route only if no other cable uses that same route,
