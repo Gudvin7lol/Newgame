@@ -178,6 +178,60 @@ void main() {
     expect(target.diagnosticRouteId,isNull);
   });
 
+  testWidgets('orphaned saved route remains locatable by real route coordinates',
+      (tester) async {
+    tester.view.physicalSize=const Size(390,844);
+    tester.view.devicePixelRatio=1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final floor=sample();
+    final network=floor.electricalNetwork!;
+    network.routes3d.add(ElectricalRoute3d(
+      id:'orphan-path',fromPointId:'s1',toPointId:'rk',
+      vertices:const [
+        ElectricalRouteVertex(xMm:500,yMm:0,zMm:300),
+        ElectricalRouteVertex(xMm:500,yMm:0,zMm:2400),
+        ElectricalRouteVertex(xMm:2000,yMm:0,zMm:2400),
+      ],
+      methods:const [
+        ElectricalInstallationMethod.inWall,
+        ElectricalInstallationMethod.aboveCeiling,
+      ],
+    ));
+    network.cables.single.route3dId='orphan-path';
+    floor.electricalPoints.removeWhere((p) =>
+        p.id == 's1' || p.id == 'rk');
+    final snapshot=floor.toJson().toString();
+    final issue=ElectricalIssueRegisterService.inspect(floor).entries
+        .singleWhere((e)=>e.code=='invalidRoute3d');
+    expect(issue.focusPointId,isNull);
+    expect(issue.canLocate,isFalse); // legacy field only means a point exists
+    final location=ElectricalIssueLocatorService.locate(floor,issue);
+    expect(location,isNotNull);
+    expect(location!.diagnosticRouteId,'orphan-path');
+    ElectricalIssueEntry? located;
+    await tester.pumpWidget(MaterialApp(home:Scaffold(
+      body:ElectricalIssueRegisterSheet(
+        floor:floor,onLocate:(entry)=>located=entry,
+      ),
+    )));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('electrical-issue-errors')));
+    await tester.pumpAndSettle();
+    final rows=ElectricalIssueRegisterService.inspect(floor).entries
+        .where((e)=>e.severity==ElectricalIssueSeverity.error).toList();
+    final index=rows.indexWhere((e)=>e.code=='invalidRoute3d');
+    expect(index,greaterThanOrEqualTo(0));
+    final button=find.byKey(ValueKey('electrical-issue-locate-$index'));
+    await tester.ensureVisible(button);
+    await tester.pumpAndSettle();
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+    expect(located?.code,'invalidRoute3d');
+    expect(floor.toJson().toString(),snapshot);
+    expect(tester.takeException(),isNull);
+  });
+
   test('deleted objects have no made-up location or ghost warning overlay', () {
     final floor=sample();
     floor.electricalNetwork!.terminals.add(
