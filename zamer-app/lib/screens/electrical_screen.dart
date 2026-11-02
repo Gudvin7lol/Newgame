@@ -1399,14 +1399,15 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     );
   }
 
-  Future<void> _showCableJournal() async {
+  Future<void> _showCableJournal({String? focusCableId}) async {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
       builder: (_) => ElectricalCableJournalSheet(
         floor: widget.floor,
-        initialCircuitId: _routeCircuitFilterId,
+        initialCircuitId: focusCableId == null ? _routeCircuitFilterId : null,
+        initialCableId: focusCableId,
         onCircuitChanged: (circuitId) {
           if (!mounted) return;
           setState(() {
@@ -1527,19 +1528,27 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
   }
 
   Future<void> _showIssueRegister() async {
-    await showModalBottomSheet<void>(
+    // Navigate only after the original modal closes; otherwise nested
+    // bottom sheets can intercept taps on small mobile screens.
+    final action = await showModalBottomSheet<
+        ({ElectricalIssueEntry? issue, String? cableId})>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
       builder: (sheet) => ElectricalIssueRegisterSheet(
         floor: widget.floor,
-        onLocate: (issue) {
-          Navigator.of(sheet).pop();
-          if (!mounted) return;
-          _locateElectricalIssue(issue);
-        },
+        onLocate: (issue) =>
+            Navigator.of(sheet).pop((issue: issue, cableId: null)),
+        onOpenCable: (id) =>
+            Navigator.of(sheet).pop((issue: null, cableId: id)),
       ),
     );
+    if (!mounted || action == null) return;
+    if (action.issue != null) {
+      _locateElectricalIssue(action.issue!);
+    } else if (action.cableId != null) {
+      await _showCableJournal(focusCableId: action.cableId);
+    }
   }
 
   Widget _routeControls() {
@@ -1562,7 +1571,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
             key: const ValueKey('electrical-cable-journal'),
             tooltip: 'Кабельный журнал',
             icon: const Icon(Icons.inventory_2_outlined),
-            onPressed: _showCableJournal,
+            onPressed: () => _showCableJournal(),
           ),
           PopupMenuButton<String>(
             key: const ValueKey('electrical-plan-layers'),
