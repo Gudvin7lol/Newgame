@@ -98,6 +98,12 @@ class ElectricalCableJournalService {
       }
       try {
         final m = ElectricalRouteService.measureCable(floor, cable);
+        final path = network.routes3d
+            .where((r) => r.id == cable.route3dId).firstOrNull;
+        if (path == null) {
+          throw const FormatException('Физическая трасса не найдена.');
+        }
+        ElectricalRouteExclusionService.requireClear(floor, path);
         rows.add(CableJournalRow(
           cable: cable, circuitName: name,
           fromLabel: from, toLabel: to,
