@@ -33,8 +33,11 @@ class _ElectricalIssueRegisterSheetState
       return issue.objectId;
     }
     if (issue.object == ElectricalIssueObject.route) {
-      return network.cables.where((c) =>
-          c.route3dId == issue.objectId).firstOrNull?.id;
+      // One physical route may belong to several distinct cables.
+      // Do not jump to an arbitrary first cable when the link is ambiguous.
+      final matchingCables = network.cables.where((c) =>
+          c.route3dId == issue.objectId).toList();
+      return matchingCables.length == 1 ? matchingCables.single.id : null;
     }
     return null;
   }
