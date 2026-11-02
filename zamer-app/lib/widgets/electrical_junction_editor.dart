@@ -880,11 +880,11 @@ class _ElectricalJunctionEditorState extends State<ElectricalJunctionEditor> {
             Row(children: [
               Expanded(child: Text('Клеммы',
                   style: Theme.of(context).textTheme.titleMedium)),
-              TextButton.icon(
+              IconButton(
                 key: const ValueKey('junction-review-connections'),
+                tooltip: 'Предложения соединений',
                 onPressed: reviewConnectionProposals,
                 icon:const Icon(Icons.fact_check_outlined),
-                label:const Text('Предложения'),
               ),
               TextButton.icon(
                 key: const ValueKey('junction-add-terminal'),
