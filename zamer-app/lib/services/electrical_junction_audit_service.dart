@@ -43,7 +43,7 @@ class ElectricalJunctionAuditService {
   /// Check explicit wall-coordinate bindings against the latest measured
   /// wall nodes. Legacy freely placed points have no wall binding to check.
   /// Curved geometry is intentionally not reprojected onto a straight chord.
-  static String? _wallAnchorProblem(FloorPlan floor, ElectricalPoint point) {
+  static String? wallAnchorProblem(FloorPlan floor, ElectricalPoint point) {
     if (point.wallId == null && point.wallOffsetMm == null) return null;
     if (point.wallId == null || point.wallOffsetMm == null ||
         !point.wallOffsetMm!.isFinite ||
@@ -102,7 +102,7 @@ class ElectricalJunctionAuditService {
     for (final box in boxes) {
       final errors = <String>[];
       final unknown = <String>[];
-      final boxAnchor = _wallAnchorProblem(floor, box);
+      final boxAnchor = wallAnchorProblem(floor, box);
       if (boxAnchor != null) {
         errors.add('РК ${box.id}: $boxAnchor');
       }
@@ -182,7 +182,7 @@ class ElectricalJunctionAuditService {
         }
         for (final terminalPoint in [startPoint, endPoint]) {
           if (terminalPoint == null) continue;
-          final problem = _wallAnchorProblem(floor, terminalPoint);
+          final problem = wallAnchorProblem(floor, terminalPoint);
           if (problem == null) continue;
           final message = 'Точка ${terminalPoint.id}: $problem';
           if (!errors.contains(message)) errors.add(message);
