@@ -1,7 +1,7 @@
 import '../models/electrical_network.dart';
 import '../models/models.dart';
 import 'electrical_junction_capacity_service.dart';
-import 'electrical_route_exclusion_service.dart';
+import 'electrical_route_service.dart';
 
 /// A read-only structural audit, NOT electrical verification or approval.
 /// It keeps fatal inconsistencies distinct from unknown physical constraints.
@@ -130,6 +130,32 @@ class ElectricalJunctionAuditService {
       }
       for (final cable in network.cables.where(
           (c) => c.fromPointId == box.id || c.toPointId == box.id)) {
+        // On a changed floor, connected cable references can go stale even
+        // when the topology record and its 3D path still exist.
+        final startPoint = floor.electricalPoints
+            .where((p) => p.id == cable.fromPointId).firstOrNull;
+        final endPoint = floor.electricalPoints
+            .where((p) => p.id == cable.toPointId).firstOrNull;
+        if (startPoint == null || endPoint == null) {
+          errors.add('Кабель ${cable.id}: отсутствует концевая '
+              'точка после изменения плана.');
+        }
+        if (!network.circuits.any((c) => c.id == cable.circuitId)) {
+          errors.add('Кабель ${cable.id}: группа удалена '
+              'или больше не существует.');
+        }
+        if (cable.routeRunId != null) {
+          final linked = floor.electricalRuns.where((run) =>
+              run.id == cable.routeRunId &&
+              ((run.startPointId == cable.fromPointId &&
+                run.endPointId == cable.toPointId) ||
+               (run.startPointId == cable.toPointId &&
+                run.endPointId == cable.fromPointId)));
+          if (linked.isEmpty) {
+            errors.add('Кабель ${cable.id}: линия на плане '
+                'не совпадает с фактическими концами.');
+          }
+        }
         if (cable.route3dId == null) {
           unknown.add('Кабель ${cable.id}: трёхмерная трасса не задана.');
           continue;
@@ -141,7 +167,9 @@ class ElectricalJunctionAuditService {
               'на отсутствующую 3D-трассу.');
         } else {
           try {
-            ElectricalRouteExclusionService.requireClear(floor, route);
+            // Includes missing/relocated endpoints, old heights, path
+            // ownership and any newly introduced exclusion zones.
+            ElectricalRouteService.measureCable(floor, cable);
           } on FormatException catch (e) {
             errors.add('Кабель ${cable.id}: ${e.message}');
           }
