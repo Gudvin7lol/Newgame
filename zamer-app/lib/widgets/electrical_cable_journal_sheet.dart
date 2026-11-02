@@ -5,10 +5,13 @@ import '../services/electrical_cable_journal_service.dart';
 class ElectricalCableJournalSheet extends StatefulWidget {
   const ElectricalCableJournalSheet({
     super.key, required this.floor,
-    required this.initialCircuitId, required this.onCircuitChanged,
+    required this.initialCircuitId, this.initialCableId,
+    required this.onCircuitChanged,
   });
   final FloorPlan floor;
   final String? initialCircuitId;
+  /// Deep-link from issue register; restrict counts to that physical cable.
+  final String? initialCableId;
   final ValueChanged<String?> onCircuitChanged;
 
   @override
@@ -18,11 +21,14 @@ class ElectricalCableJournalSheet extends StatefulWidget {
 
 class _ElectricalCableJournalSheetState extends State<ElectricalCableJournalSheet> {
   String? circuitId;
+  String? focusedCableId;
 
   @override
   void initState() {
     super.initState();
-    circuitId = widget.initialCircuitId;
+    circuitId = widget.initialCableId == null
+        ? widget.initialCircuitId : null;
+    focusedCableId = widget.initialCableId;
   }
 
   String meters(double? mm) => mm == null
@@ -36,8 +42,12 @@ class _ElectricalCableJournalSheetState extends State<ElectricalCableJournalShee
     if (circuitId != null && !circuits.any((c) => c.id == circuitId)) {
       circuitId = null;
     }
+    if (focusedCableId != null &&
+        !(network?.cables.any((c) => c.id == focusedCableId) ?? false)) {
+      focusedCableId = null; // Removed reference must not point elsewhere.
+    }
     final journal = ElectricalCableJournalService.create(
-        widget.floor, circuitId: circuitId);
+        widget.floor, circuitId: circuitId, cableId: focusedCableId);
     final t = journal.totals;
     return SafeArea(
       child: FractionallySizedBox(
@@ -51,6 +61,24 @@ class _ElectricalCableJournalSheetState extends State<ElectricalCableJournalShee
             const SizedBox(height: 5),
             const Text('Только кабели из явно созданных электрических связей. '
                 'Старые линии и их условные проценты запаса не учитываются.'),
+            if (focusedCableId != null) ...[
+              ListTile(
+                key: const ValueKey('cable-journal-focus'),
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                title: Text('Выбран кабель: $focusedCableId'),
+                subtitle: const Text('Показатели ниже относятся только '
+                    'к этому кабелю, не ко всей группе.'),
+                trailing: TextButton(
+                  key: const ValueKey('cable-journal-focus-clear'),
+                  onPressed: () => setState(() {
+                    focusedCableId = null;
+                    circuitId = null;
+                  }),
+                  child: const Text('Все'),
+                ),
+              ),
+            ],
             const SizedBox(height: 14),
             DropdownButtonFormField<String>(
               key: ValueKey('cable-journal-group-' + (circuitId ?? 'all')),
@@ -67,7 +95,10 @@ class _ElectricalCableJournalSheetState extends State<ElectricalCableJournalShee
               ],
               onChanged: (value) {
                 final selected = value == '__all__' ? null : value;
-                setState(() => circuitId = selected);
+                setState(() {
+                  circuitId = selected;
+                  focusedCableId = null;
+                });
                 widget.onCircuitChanged(selected);
               },
             ),
