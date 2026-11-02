@@ -823,6 +823,19 @@ class _ElectricalJunctionEditorState extends State<ElectricalJunctionEditor> {
                 'жил: ${capacity.conductorEnds} · '
                 'соединителей: ${capacity.connectorCount}',
                 key:const ValueKey('junction-capacity-counts')),
+            Text('Свободных концов жил: ${capacity.unassignedEnds} · '
+                'макс. в одной клемме: ${capacity.maxObservedConnectorSize}',
+                style:Theme.of(context).textTheme.bodySmall),
+            if (!capacity.enteredLimits)
+              const Text('Паспортные лимиты не указаны.',
+                  key:ValueKey('junction-capacity-unknown')),
+            if (capacity.enteredLimits && !capacity.exceeded)
+              const Text('Введённые числовые лимиты не превышены. '
+                  'Монтажная допустимость не подтверждена.'),
+            if (capacity.missing.any((v) =>
+                v.contains('паспортная модель')))
+              const Text('Укажите производителя и модель коробки '
+                  'для проверки введённых числовых лимитов.'),
             if (capacity.violations.isNotEmpty)
               for (final message in capacity.violations)
                 Text(message,style:TextStyle(
