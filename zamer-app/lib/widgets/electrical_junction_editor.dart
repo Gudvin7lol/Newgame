@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../models/models.dart';
 import '../models/electrical_network.dart';
+import '../models/electrical_junction_capacity.dart';
+import '../services/electrical_junction_capacity_service.dart';
 import '../services/electrical_network_service.dart';
 import '../services/electrical_junction_edit_service.dart';
 import '../services/electrical_route_service.dart';
@@ -280,6 +282,94 @@ class _ElectricalJunctionEditorState extends State<ElectricalJunctionEditor> {
       routeRunId: result.runId,
       description: result.description,
     ));
+  }
+
+  Future<void> editCapacity() async {
+    final old = draft.junctionCapacities[widget.junctionPointId];
+    final values = <String,String>{
+      'model': old?.boxModel ?? '',
+      'cables': old?.maxCableEntries?.toString() ?? '',
+      'ends': old?.maxConductorEnds?.toString() ?? '',
+      'connectors': old?.maxConnectorCount?.toString() ?? '',
+      'perConnector': old?.maxEndsPerConnector?.toString() ?? '',
+    };
+    String? localError;
+    final next = await showDialog<ElectricalJunctionCapacity>(
+      context: context,
+      builder: (dialog) => StatefulBuilder(
+        builder: (dialog, refresh) => AlertDialog(
+          title: const Text('Вместимость РК'),
+          scrollable: true,
+          content: SizedBox(width: 320,
+            child: Column(mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Заполняйте ограничения только из документации '
+                    'конкретной коробки и соединителей. Пустое поле '
+                    'означает «неизвестно», а не «без ограничений».'),
+                for (final item in <(String,String)>[
+                  ('model','Модель и производитель'),
+                  ('cables','Макс. кабельных вводов'),
+                  ('ends','Макс. концов жил'),
+                  ('connectors','Макс. соединителей'),
+                  ('perConnector','Макс. жил в одном соединителе'),
+                ])
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: TextFormField(
+                      key: ValueKey('junction-capacity-${item.$1}'),
+                      initialValue: values[item.$1],
+                      onChanged: (v) => values[item.$1] = v,
+                      keyboardType: item.$1 == 'model'
+                        ? TextInputType.text : TextInputType.number,
+                      decoration: InputDecoration(labelText:item.$2),
+                    ),
+                  ),
+                if (localError != null)
+                  Text(localError!,style:TextStyle(
+                    color:Theme.of(dialog).colorScheme.error)),
+              ],
+            ),
+          ),
+          actions:[
+            TextButton(onPressed:()=>Navigator.pop(dialog),
+              child:const Text('Отмена')),
+            FilledButton(
+              key:const ValueKey('junction-capacity-save'),
+              onPressed: () {
+                try {
+                  int? integer(String key) {
+                    final raw = values[key]!.trim();
+                    if (raw.isEmpty) return null;
+                    final number = int.tryParse(raw);
+                    if (number == null) throw const FormatException();
+                    return number;
+                  }
+                  final entry = ElectricalJunctionCapacity(
+                    junctionPointId:widget.junctionPointId,
+                    boxModel:values['model']!.trim(),
+                    maxCableEntries:integer('cables'),
+                    maxConductorEnds:integer('ends'),
+                    maxConnectorCount:integer('connectors'),
+                    maxEndsPerConnector:integer('perConnector'),
+                  );
+                  entry.validate();
+                  Navigator.pop(dialog,entry);
+                } catch (_) {
+                  refresh(()=>localError = 'Укажите целые положительные '
+                      'лимиты из паспорта изделия либо оставьте поле пустым.');
+                }
+              },
+              child:const Text('Применить'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || next == null) return;
+    setState(() {
+      draft.junctionCapacities[widget.junctionPointId] = next;
+      error = null;
+    });
   }
 
   Future<void> createTerminal() async {
@@ -597,6 +687,8 @@ class _ElectricalJunctionEditorState extends State<ElectricalJunctionEditor> {
       0, (sum, cable) => sum + cable.cores.where(
           (c) => !occupied.contains(cable.id + '/' + c.id)).length,
     );
+    final capacity = ElectricalJunctionCapacityService.inspect(
+      widget.floor,draft,widget.junctionPointId);
     return Scaffold(
       appBar: AppBar(
         title: const Text('Соединения коробки'),
@@ -630,6 +722,29 @@ class _ElectricalJunctionEditorState extends State<ElectricalJunctionEditor> {
               Text(error!, key: const ValueKey('junction-error'),
                   style: TextStyle(color: Theme.of(context).colorScheme.error)),
             ],
+            const SizedBox(height: 14),
+            Row(children:[
+              Expanded(child:Text('Вместимость РК',
+                style:Theme.of(context).textTheme.titleMedium)),
+              TextButton.icon(
+                key:const ValueKey('junction-capacity-edit'),
+                onPressed:editCapacity,icon:const Icon(Icons.tune_outlined),
+                label:const Text('Параметры'),
+              ),
+            ]),
+            Text('Вводов: ${capacity.cableEntries} · '
+                'жил: ${capacity.conductorEnds} · '
+                'соединителей: ${capacity.connectorCount}',
+                key:const ValueKey('junction-capacity-counts')),
+            if (capacity.violations.isNotEmpty)
+              for (final message in capacity.violations)
+                Text(message,style:TextStyle(
+                  color:Theme.of(context).colorScheme.error)),
+            const Text('Выполнение введённых лимитов не означает '
+                'подтверждённую монтажную вместимость.'),
+            if (capacity.incomplete)
+              const Text('Не проверены все условия вместимости, '
+                  'доступности, соединителей и реального монтажа.'),
             const SizedBox(height: 22),
             Row(children: [
               Expanded(child: Text('Цепи',
