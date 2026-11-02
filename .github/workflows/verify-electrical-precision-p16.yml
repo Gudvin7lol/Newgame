@@ -24,6 +24,12 @@ on:
       - 'zamer-app/test/electrical_interroom_passage_test.dart'
       - 'zamer-app/test/electrical_exclusion_and_locked_routes_test.dart'
       - 'zamer-app/test/electrical_junction_candidates_test.dart'
+      - 'zamer-app/test/electrical_junction_capacity_and_proposals_test.dart'
+      - 'zamer-app/lib/models/electrical_junction_capacity.dart'
+      - 'zamer-app/lib/services/electrical_junction_capacity_service.dart'
+      - 'zamer-app/lib/services/electrical_junction_connection_proposal_service.dart'
+      - 'zamer-app/lib/services/electrical_junction_edit_service.dart'
+      - 'zamer-app/lib/widgets/electrical_junction_editor.dart'
       - 'zamer-app/lib/services/electrical_junction_candidate_service.dart'
       - 'zamer-app/lib/widgets/electrical_junction_candidates_sheet.dart'
       - 'zamer-app/lib/models/electrical_route_exclusion_zone.dart'
@@ -75,6 +81,12 @@ jobs:
             test/electrical_interroom_passage_test.dart \
             test/electrical_exclusion_and_locked_routes_test.dart \
             test/electrical_junction_candidates_test.dart \
+            test/electrical_junction_capacity_and_proposals_test.dart \
+            lib/models/electrical_junction_capacity.dart \
+            lib/services/electrical_junction_capacity_service.dart \
+            lib/services/electrical_junction_connection_proposal_service.dart \
+            lib/services/electrical_junction_edit_service.dart \
+            lib/widgets/electrical_junction_editor.dart \
             lib/services/electrical_junction_candidate_service.dart \
             lib/widgets/electrical_junction_candidates_sheet.dart \
             lib/models/electrical_route_exclusion_zone.dart \
@@ -88,6 +100,7 @@ jobs:
         working-directory: zamer-app
         run: |
           flutter test \
+            test/electrical_junction_capacity_and_proposals_test.dart \
             test/electrical_junction_candidates_test.dart \
             test/electrical_interroom_passage_test.dart \
             test/electrical_exclusion_and_locked_routes_test.dart \
