@@ -6,6 +6,7 @@ import '../services/electrical_mounting_service.dart';
 import '../services/electrical_route_service.dart';
 import '../services/electrical_crossing_service.dart';
 import '../models/electrical_route_3d.dart';
+import '../models/electrical_route_exclusion_zone.dart';
 
 class ElectricalPlanPainter extends CustomPainter {
   ElectricalPlanPainter({
@@ -76,6 +77,38 @@ class ElectricalPlanPainter extends CustomPainter {
       if (run.routeMode == 'orthogonal') path.lineTo(pb.dx, pa.dy);
       path.lineTo(pb.dx, pb.dy);
       canvas.drawPath(path, paint);
+    }
+
+    // No-go zones are persistent project geometry, not a decorative layer.
+    // Their Z range appears in the caption; a plan rectangle alone is not
+    // a complete three-dimensional safety envelope.
+    for (final zone in floor.electricalNetwork?.routeExclusionZones ??
+        const <ElectricalRouteExclusionZone>[]) {
+      try {
+        zone.validate();
+      } on FormatException {
+        continue;
+      }
+      final leftTop = p(zone.minXMm, zone.minYMm);
+      final rightBottom = p(zone.maxXMm, zone.maxYMm);
+      final rect = Rect.fromPoints(leftTop, rightBottom);
+      canvas.drawRect(rect, Paint()..color =
+          const Color(0xFFE76C67).withValues(alpha: .16));
+      canvas.drawRect(rect, Paint()
+        ..color = const Color(0xFFE76C67)
+        ..strokeWidth = 1.3
+        ..style = PaintingStyle.stroke);
+      final tp = TextPainter(
+        text: TextSpan(
+          text: '${zone.name} · Z ${zone.minZMm.round()}–${zone.maxZMm.round()}',
+          style: const TextStyle(
+            color: Color(0xFFE76C67),
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+          ),
+        ), textDirection: TextDirection.ltr,
+      )..layout(maxWidth: 195);
+      tp.paint(canvas, rect.topLeft + const Offset(3, 3));
     }
 
     if (show3dRoutes) _drawPhysicalRoutes(canvas, size);
