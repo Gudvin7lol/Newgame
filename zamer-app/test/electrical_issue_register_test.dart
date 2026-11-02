@@ -292,9 +292,9 @@ void main() {
   test('circuit fault does not open a cable with the same string ID', () {
     final floor=sample();
     final network=floor.electricalNetwork!;
-    network.circuits.single
-      ..name=''
-      ..id='c1';
+    network.circuits
+      ..clear()
+      ..add(ElectricalCircuitRecord(id:'c1',name:''));
     network.cables.single.circuitId='c1';
     final before=floor.toJson().toString();
     final issue=ElectricalIssueRegisterService.inspect(floor)
