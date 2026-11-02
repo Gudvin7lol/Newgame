@@ -213,7 +213,7 @@ class ElectricalPlanPainter extends CustomPainter {
           canvas.drawCircle(pb, 2.1, dot);
         } else {
           if (tentative) {
-            _drawDraftLine(canvas, pa, pb, stroke);
+            _drawDraftLine(canvas, pa, pb, stroke, viewport: size);
           } else {
             canvas.drawLine(pa, pb, stroke);
             if (index < points.length - 1) canvas.drawCircle(pb, 2.4, dot);
@@ -250,7 +250,7 @@ class ElectricalPlanPainter extends CustomPainter {
       if ((pa - pb).distance < .1) {
         canvas.drawCircle(pa, 7, red); // vertical segment in plan view
       } else {
-        _drawDraftLine(canvas, pa, pb, red);
+        _drawDraftLine(canvas, pa, pb, red, viewport: size);
       }
     }
     final first = route.vertices.first;
@@ -269,18 +269,50 @@ class ElectricalPlanPainter extends CustomPainter {
     canvas.restore();
   }
 
-  /// Deliberate visual distinction: dashed = route geometry not surveyed.
-  void _drawDraftLine(Canvas canvas, Offset a, Offset b, Paint paint) {
+  /// Draw only visible dashes. A route can span a huge world distance
+  /// (including an invalid imported path), but it must never freeze a phone
+  /// by creating hundreds of thousands of off-screen dash segments.
+  void _drawDraftLine(Canvas canvas, Offset a, Offset b, Paint paint,
+      {required Size viewport}) {
     final d = b - a;
     final len = d.distance;
-    if (len < .001) return;
+    if (!len.isFinite || len < .001) return;
+    const dash = 7.0, gap = 5.0, period = dash + gap;
+    // Liang-Barsky parameter clipping against the visible canvas with
+    // a small margin for the stroke; preserves the original dash phase.
+    var enter = 0.0, exit = 1.0;
+    bool clip(double p, double q) {
+      if (p.abs() < 1e-10) return q >= 0;
+      final r = q / p;
+      if (p < 0) {
+        if (r > exit) return false;
+        if (r > enter) enter = r;
+      } else {
+        if (r < enter) return false;
+        if (r < exit) exit = r;
+      }
+      return true;
+    }
+    if (!clip(-d.dx, a.dx + 8) ||
+        !clip(d.dx, viewport.width + 8 - a.dx) ||
+        !clip(-d.dy, a.dy + 8) ||
+        !clip(d.dy, viewport.height + 8 - a.dy) ||
+        enter > exit) return;
+    final from = len * enter;
+    final to = len * exit;
     final unit = d / len;
-    const dash = 7.0, gap = 5.0;
-    var distance = 0.0;
-    while (distance < len) {
-      final finish = math.min(distance + dash, len);
-      canvas.drawLine(a + unit * distance, a + unit * finish, paint);
-      distance += dash + gap;
+    var distance = (from / period).floorToDouble() * period;
+    while (distance <= to) {
+      final visibleFrom = math.max(from, distance);
+      final visibleTo = math.min(to, distance + dash);
+      if (visibleFrom < visibleTo) {
+        canvas.drawLine(
+          a + unit * visibleFrom,
+          a + unit * visibleTo,
+          paint,
+        );
+      }
+      distance += period;
     }
   }
 
