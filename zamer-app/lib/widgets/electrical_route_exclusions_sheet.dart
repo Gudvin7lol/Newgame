@@ -9,7 +9,7 @@ class ElectricalRouteExclusionsSheet extends StatefulWidget {
     required this.onAdd,
     required this.onRemove,
   });
-  final List<ElectricalRouteExclusionZone> zones;
+  final List<ElectricalRouteExclusionZone> Function() zones;
   final Future<void> Function(ElectricalRouteExclusionZone) onAdd;
   final Future<void> Function(String) onRemove;
 
