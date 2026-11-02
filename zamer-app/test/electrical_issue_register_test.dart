@@ -113,6 +113,42 @@ void main() {
     expect(floor.toJson().toString(),before);
   });
 
+  test('same ID of cable and 3D route still navigates to route conflict', () {
+    final floor=sample();
+    final network=floor.electricalNetwork!;
+    // IDs are independent namespaces and may overlap on imported projects.
+    network.routes3d.add(ElectricalRoute3d(
+      id:'c1',fromPointId:'s1',toPointId:'rk',
+      vertices:const [
+        ElectricalRouteVertex(xMm:500,yMm:0,zMm:300),
+        ElectricalRouteVertex(xMm:500,yMm:0,zMm:2500),
+        ElectricalRouteVertex(xMm:2000,yMm:0,zMm:2500),
+      ],
+      methods:const [
+        ElectricalInstallationMethod.inWall,
+        ElectricalInstallationMethod.aboveCeiling,
+      ],
+    ));
+    network.cables.single.route3dId='c1';
+    network.routeExclusionZones.add(
+      const ElectricalRouteExclusionZone(
+        id:'no-go',name:'Пересечение',
+        minXMm:1100,maxXMm:1300,
+        minYMm:-100,maxYMm:100,
+        minZMm:2450,maxZMm:2550,
+      ),
+    );
+    final snapshot=floor.toJson().toString();
+    final issue=ElectricalIssueRegisterService.inspect(floor).entries
+        .singleWhere((e)=>e.code=='routeExclusionConflict');
+    expect(issue.object,ElectricalIssueObject.route);
+    expect(issue.objectId,'c1');
+    final location=ElectricalIssueLocatorService.locate(floor,issue)!;
+    expect(location.diagnosticRouteId,'c1');
+    expect(location.xMm,1200);
+    expect(floor.toJson().toString(),snapshot);
+  });
+
   test('route fault zoom targets the blocked leg, not an arbitrary endpoint', () {
     final floor=sample();
     final network=floor.electricalNetwork!;
