@@ -5,6 +5,7 @@ import '../models/electrical_route_3d.dart';
 import '../models/models.dart';
 import '../services/electrical_route_service.dart';
 import '../services/electrical_auto_route_proposal_service.dart';
+import '../services/electrical_interroom_passage_proposal_service.dart';
 import 'electrical_route_plan_preview.dart';
 
 class ElectricalRouteEditResult {
@@ -131,6 +132,125 @@ class _ElectricalRouteEditorState extends State<ElectricalRouteEditor> {
       if (!mounted || accepted != true) return;
       setState(() {
         route = ElectricalRoute3d.fromJson(candidate.route.toJson());
+        error = null;
+      });
+    } on FormatException catch (problem) {
+      if (!mounted) return;
+      setState(() => error = problem.message);
+    }
+  }
+
+  /// A selected door only identifies the *candidate*. It is never an
+  /// engineering approval to penetrate the lintel or fire-rated wall.
+  Future<void> proposeInterroomPassage() async {
+    if (widget.initial != null || widget.cable.route3dId != null ||
+        route.vertices.length > 1) return;
+    final doors = <({String wallId, String openingId})>[
+      for (final wall in widget.floor.walls)
+        for (final opening in wall.openings)
+          if (opening.type == OpeningType.door)
+            (wallId: wall.id, openingId: opening.id),
+    ];
+    if (doors.isEmpty) {
+      setState(() => error =
+          'На плане нет дверных проёмов для явного выбора перехода.');
+      return;
+    }
+    var selection = 0;
+    final chosen = await showDialog<int>(
+      context: context,
+      builder: (dialog) => StatefulBuilder(
+        builder: (dialog, refresh) => AlertDialog(
+          title: const Text('Переход между помещениями'),
+          scrollable: true,
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Выберите конкретную общую стену и дверь. '
+                  'Маршрут над проёмом остаётся неподтверждённым '
+                  'чертёжным предположением, а не разрешением на бурение.'),
+              const SizedBox(height: 10),
+              DropdownButtonFormField<int>(
+                key: const ValueKey('route-passage-opening'),
+                initialValue: selection,
+                isExpanded: true,
+                items: [
+                  for (var index = 0; index < doors.length; index++)
+                    DropdownMenuItem(
+                      value: index,
+                      child: Text('Стена ${doors[index].wallId}, '
+                          'дверь ${doors[index].openingId}',
+                          overflow: TextOverflow.ellipsis),
+                    ),
+                ],
+                onChanged: (next) =>
+                    refresh(() => selection = next ?? 0),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialog),
+              child: const Text('Отмена')),
+            FilledButton(
+              key: const ValueKey('route-passage-review'),
+              onPressed: () => Navigator.pop(dialog, selection),
+              child: const Text('Проверить черновик'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || chosen == null) return;
+    try {
+      final pick = doors[chosen];
+      final candidate =
+          ElectricalInterroomPassageProposalService.prepare(
+        widget.floor, widget.cable,
+        passageWallId: pick.wallId,
+        openingId: pick.openingId,
+        explicitlySelected: true,
+      );
+      final measured = ElectricalRouteService.measure(
+          widget.floor, candidate);
+      final accepted = await showDialog<bool>(
+        context: context,
+        builder: (dialog) => AlertDialog(
+          title: const Text('Непроверенный переход'),
+          scrollable: true,
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Ориентировочная геометрия: '
+                  '${fmt(measured.geometricMm / 1000)} м'),
+              const SizedBox(height: 8),
+              ElectricalRoutePlanPreview(
+                vertices: candidate.vertices,
+                target: ElectricalRouteService.endpoint(finish),
+              ),
+              const SizedBox(height: 8),
+              const Text('ВНИМАНИЕ. Проход над дверью может попадать '
+                  'в перемычку, несущую часть или противопожарную '
+                  'преграду. Толщина стены в черновике номинальная. '
+                  'Перед монтажом необходима проверка конструкции, '
+                  'способа прокладки и точных размеров.'),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialog, false),
+              child: const Text('Отмена')),
+            FilledButton(
+              key: const ValueKey('route-passage-accept'),
+              onPressed: () => Navigator.pop(dialog, true),
+              child: const Text('Вставить непроверенный черновик'),
+            ),
+          ],
+        ),
+      );
+      if (!mounted || accepted != true) return;
+      setState(() {
+        route = ElectricalRoute3d.fromJson(candidate.toJson());
         error = null;
       });
     } on FormatException catch (problem) {
@@ -333,6 +453,16 @@ class _ElectricalRouteEditorState extends State<ElectricalRouteEditor> {
               'Черновик не меняет существующие трассы и требует '
               'проверки на объекте.',
               style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              key: const ValueKey('route-interroom-propose'),
+              onPressed: widget.initial == null &&
+                      widget.cable.route3dId == null &&
+                      route.vertices.length == 1
+                  ? proposeInterroomPassage : null,
+              icon: const Icon(Icons.door_front_door_outlined),
+              label: const Text('Переход через выбранную дверь'),
             ),
             const SizedBox(height: 14),
             Row(children: [
