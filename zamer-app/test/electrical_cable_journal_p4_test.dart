@@ -84,6 +84,48 @@ void main() {
     expect(j.totals.unknownRouteCount, 1);
   });
 
+  test('single physical cable deep-link is filtered by stable ID and read only', () {
+    final floor = journalFixture();
+    final before = floor.toJson().toString();
+    final focused = ElectricalCableJournalService.create(
+        floor, cableId: 'c2');
+    expect(focused.rows.map((e)=>e.cable.id), ['c2']);
+    expect(focused.totals.cableCount, 1);
+    expect(focused.totals.unknownRouteCount, 1);
+    expect(focused.totals.knownGeometricMm, 0);
+    expect(ElectricalCableJournalService.create(
+        floor, cableId: 'deleted').rows, isEmpty);
+    expect(floor.toJson().toString(),before);
+  });
+
+  testWidgets('focused cable journal can return to the whole network',
+      (tester) async {
+    tester.view.physicalSize = const Size(390,844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final floor=journalFixture();
+    final before=floor.toJson().toString();
+    await tester.pumpWidget(MaterialApp(home:Scaffold(
+      body:ElectricalCableJournalSheet(
+        floor:floor, initialCircuitId:null, initialCableId:'c2',
+        onCircuitChanged:(_){},
+      ),
+    )));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('cable-journal-focus')),findsOneWidget);
+    expect(find.text('Выбран кабель: c2'),findsOneWidget);
+    expect(find.byKey(const ValueKey('journal-cable-c2')),findsOneWidget);
+    expect(find.byKey(const ValueKey('journal-cable-c1')),findsNothing);
+    await tester.tap(find.byKey(
+        const ValueKey('cable-journal-focus-clear')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('cable-journal-focus')),findsNothing);
+    expect(find.byKey(const ValueKey('journal-cable-c1')),findsOneWidget);
+    expect(floor.toJson().toString(),before);
+    expect(tester.takeException(),isNull);
+  });
+
   test('unknown reserve stays unknown even with a valid route', () {
     final floor = journalFixture();
     final network = floor.electricalNetwork!;
