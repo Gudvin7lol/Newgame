@@ -137,6 +137,39 @@ void main() {
         (v) => v.xMm == 0 && v.yMm == 3000), isTrue);
   });
 
+  test('different rooms cannot be connected through a shared wall', () {
+    final floor = _floor();
+    floor.nodes.addAll([
+      PlanNode(id: 'e', xMm: 7000, yMm: 0),
+      PlanNode(id: 'f', xMm: 7000, yMm: 3000),
+    ]);
+    floor.walls.addAll([
+      PlanWall(id: 'east-top', startNodeId: 'b', endNodeId: 'e'),
+      PlanWall(id: 'east-end', startNodeId: 'e', endNodeId: 'f'),
+      PlanWall(id: 'east-bottom', startNodeId: 'f', endNodeId: 'c'),
+    ]);
+    floor.electricalPoints.last
+      ..wallId = 'east-top'
+      ..xMm = 5300
+      ..yMm = 0
+      ..wallOffsetMm = 1300
+      ..wallSide = 1;
+    expect(() => ElectricalAutoRouteProposalService.prepare(
+        floor, _cable()), throwsFormatException);
+  });
+
+  test('unclosed room graph never invents a cross-wall corridor', () {
+    final floor = _floor();
+    floor.walls.removeWhere((w) => w.id == 'bottom');
+    floor.electricalPoints.last
+      ..wallId = 'other'
+      ..xMm = 4000
+      ..yMm = 1000
+      ..wallOffsetMm = 1000;
+    expect(() => ElectricalAutoRouteProposalService.prepare(
+        floor, _cable()), throwsFormatException);
+  });
+
   test('rotated walls require a different route model', () {
     final floor = _floor();
     floor.nodes[1].yMm = 100;
