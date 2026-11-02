@@ -81,6 +81,20 @@ class ElectricalCableJournalService {
     final circuitNames = {
       for (final c in network.circuits) c.id: c.name,
     };
+    // A saved/imported project can contain duplicate IDs. A measurement must
+    // not silently select one of several ambiguous cables, routes or groups.
+    final circuitCounts = <String, int>{};
+    final cableCounts = <String, int>{};
+    final routeCounts = <String, int>{};
+    for (final circuit in network.circuits) {
+      circuitCounts.update(circuit.id, (n) => n + 1, ifAbsent: () => 1);
+    }
+    for (final cable in network.cables) {
+      cableCounts.update(cable.id, (n) => n + 1, ifAbsent: () => 1);
+    }
+    for (final route in network.routes3d) {
+      routeCounts.update(route.id, (n) => n + 1, ifAbsent: () => 1);
+    }
     final rows = <CableJournalRow>[];
     for (final cable in network.cables) {
       if (circuitId != null && cable.circuitId != circuitId) continue;
@@ -98,6 +112,34 @@ class ElectricalCableJournalService {
         continue;
       }
       try {
+        // Geometry alone is insufficient for a reliable cable quantity.
+        // Keep a broken network out of the measured total until repaired.
+        if (cable.id.trim().isEmpty || cableCounts[cable.id] != 1) {
+          throw const FormatException(
+              'ID кабеля пуст или повторяется: проверьте схему.');
+        }
+        if (circuitCounts[cable.circuitId] != 1) {
+          throw const FormatException(
+              'Группа кабеля удалена или имеет повторный ID.');
+        }
+        if (cable.fromPointId == cable.toPointId) {
+          throw const FormatException(
+              'Начало и конец кабеля совпадают.');
+        }
+        if (routeCounts[cable.route3dId] != 1) {
+          throw const FormatException(
+              '3D-трасса удалена или имеет повторный ID.');
+        }
+        if (cable.routeRunId != null &&
+            !floor.electricalRuns.any((run) =>
+                run.id == cable.routeRunId &&
+                ((run.startPointId == cable.fromPointId &&
+                  run.endPointId == cable.toPointId) ||
+                 (run.startPointId == cable.toPointId &&
+                  run.endPointId == cable.fromPointId)))) {
+          throw const FormatException(
+              'Линия на плане больше не соответствует кабелю.');
+        }
         final m = ElectricalRouteService.measureCable(floor, cable);
         final path = network.routes3d
             .where((r) => r.id == cable.route3dId).firstOrNull;
