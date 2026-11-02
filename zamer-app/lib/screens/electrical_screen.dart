@@ -26,6 +26,8 @@ import '../widgets/electrical_route_exclusions_sheet.dart';
 import '../services/electrical_junction_candidate_service.dart';
 import '../widgets/electrical_junction_candidates_sheet.dart';
 import '../widgets/electrical_junction_audit_sheet.dart';
+import '../widgets/electrical_issue_register_sheet.dart';
+import '../services/electrical_issue_register_service.dart';
 import '../services/electrical_junction_edit_service.dart';
 import '../services/geometry_service.dart';
 import '../widgets/electrical_plan_painter.dart';
@@ -263,7 +265,8 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
   }
 
   _Tx _tx(Size size) {
-    final linked = widget.embedded ? (_camera ?? widget.sharedViewport?.value) : null;
+    final linked = _camera ??
+        (widget.embedded ? widget.sharedViewport?.value : null);
     if (linked != null && linked.valid) {
       final scale = linked.pixelsPerMm;
       return _Tx(scale: scale, origin: Offset(
@@ -1484,6 +1487,55 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     );
   }
 
+  void _locateElectricalIssue(ElectricalIssueEntry issue) {
+    final focus = issue.focusPointId;
+    final point = widget.floor.electricalPoints.where(
+        (p) => p.id == focus).firstOrNull;
+    if (point == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Объект отсутствует на плане. Проверьте ссылки в схеме.'),
+      ));
+      return;
+    }
+    final size = _viewportSize;
+    final originalScale = !size.isEmpty
+        ? _tx(size).scale : 0.08;
+    setState(() {
+      _workspaceView = ElectricalWorkspaceView.pointsRoutes;
+      _mode = ElectricalMode.select;
+      _wireStartId = null;
+      _selectedId = point.id;
+      _routeCircuitFilterId = null;
+      _showPower = true;
+      _showLights = true;
+      _showJunctions = true;
+      if (!size.isEmpty) {
+        _camera = PlanViewportSnapshot(
+          centerXMm: point.xMm,
+          centerYMm: point.yMm,
+          pixelsPerMm: originalScale.clamp(.04, .25).toDouble(),
+        );
+      }
+    });
+    _publishCamera();
+  }
+
+  Future<void> _showIssueRegister() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheet) => ElectricalIssueRegisterSheet(
+        floor: widget.floor,
+        onLocate: (issue) {
+          Navigator.of(sheet).pop();
+          if (!mounted) return;
+          _locateElectricalIssue(issue);
+        },
+      ),
+    );
+  }
+
   Widget _routeControls() {
     final id = _routeCircuitFilterId;
     final circuit = widget.floor.electricalNetwork?.circuits
@@ -1525,6 +1577,10 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
               }
               if (choice == 'junctionAudit') {
                 _showJunctionAudit();
+                return;
+              }
+              if (choice == 'issueRegister') {
+                _showIssueRegister();
                 return;
               }
               setState(() {
@@ -1582,6 +1638,11 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                 key: ValueKey('electrical-junction-candidates'),
                 value: 'junctionCandidates',
                 child: Text('Кандидаты РК'),
+              ),
+              const PopupMenuItem(
+                key: ValueKey('electrical-issue-register'),
+                value: 'issueRegister',
+                child: Text('Проверка электрики'),
               ),
               const PopupMenuItem(
                 key: ValueKey('electrical-junction-audit'),
