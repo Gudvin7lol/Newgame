@@ -6,6 +6,8 @@ import 'package:zamer_app/models/models.dart';
 import 'package:zamer_app/services/electrical_auto_route_proposal_service.dart';
 import 'package:zamer_app/services/electrical_route_exclusion_service.dart';
 import 'package:zamer_app/services/electrical_route_service.dart';
+import 'package:zamer_app/services/electrical_network_service.dart';
+import 'package:zamer_app/services/electrical_cable_journal_service.dart';
 
 FloorPlan floorFixture() {
   final floor = FloorPlan(id: 'f', name: 'Тест');
@@ -151,6 +153,43 @@ void main() {
         floor,network,'c',manual()),throwsFormatException);
     expect(network.routes3d,isEmpty);
     expect(network.cables.single.route3dId,isNull);
+  });
+
+  test('new forbidden volume invalidates previously saved route without deleting it', () {
+    final floor=floorFixture();
+    final network=floor.electricalNetwork!;
+    final cable=network.cables.single;
+    ElectricalRouteService.upsertForCable(
+      floor,network,cable.id,manual(),
+    );
+    final oldPath=network.routes3d.single.toJson().toString();
+    final before=ElectricalCableJournalService.create(floor);
+    expect(before.totals.routedCount,1);
+    expect(before.totals.invalidRouteCount,0);
+    expect(ElectricalNetworkService.inspect(floor)
+        .where((i)=>i.code=='routeExclusionConflict'),isEmpty);
+
+    // Record a previously unknown beam in the corridor of a saved cable.
+    ElectricalRouteExclusionService.add(floor,zone());
+    final issues=ElectricalNetworkService.inspect(floor)
+        .where((i)=>i.code=='routeExclusionConflict').toList();
+    expect(issues,hasLength(1));
+    expect(issues.single.referenceId,'manual');
+    expect(issues.single.severity,ElectricalNetworkSeverity.error);
+    final after=ElectricalCableJournalService.create(floor);
+    expect(after.totals.invalidRouteCount,1);
+    expect(after.totals.routedCount,0);
+    expect(after.totals.knownGeometricMm,0);
+    expect(after.rows.single.problem,contains('Балка'));
+    expect(network.routes3d.single.toJson().toString(),oldPath);
+    expect(cable.route3dId,'manual');
+
+    // Removing a no-go region never changes the actual cable geometry.
+    ElectricalRouteExclusionService.remove(floor,'block');
+    final again=ElectricalCableJournalService.create(floor);
+    expect(again.totals.routedCount,1);
+    expect(again.totals.invalidRouteCount,0);
+    expect(network.routes3d.single.toJson().toString(),oldPath);
   });
 
   test('malformed protected indices are rejected early', () {
