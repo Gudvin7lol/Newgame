@@ -20,6 +20,9 @@ import '../widgets/electrical_point_properties.dart';
 import '../widgets/electrical_compact_inspector.dart';
 import '../widgets/electrical_junction_editor.dart';
 import '../models/electrical_network.dart';
+import '../models/electrical_route_exclusion_zone.dart';
+import '../services/electrical_route_exclusion_service.dart';
+import '../widgets/electrical_route_exclusions_sheet.dart';
 import '../services/electrical_junction_edit_service.dart';
 import '../services/geometry_service.dart';
 import '../widgets/electrical_plan_painter.dart';
@@ -1402,6 +1405,38 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     );
   }
 
+  Future<void> _showExclusionZones() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => ElectricalRouteExclusionsSheet(
+        zones: widget.floor.electricalNetwork?.routeExclusionZones ??
+            <ElectricalRouteExclusionZone>[],
+        onAdd: (zone) async {
+          zone.validate();
+          if (widget.floor.electricalNetwork?.routeExclusionZones
+                  .any((z) => z.id == zone.id) ?? false) {
+            throw const FormatException('Идентификатор уже используется.');
+          }
+          _pushUndo();
+          widget.floor.electricalNetwork ??= ElectricalNetwork();
+          ElectricalRouteExclusionService.add(widget.floor, zone);
+          await widget.onChanged();
+          if (mounted) setState(() {});
+        },
+        onRemove: (id) async {
+          if (!(widget.floor.electricalNetwork?.routeExclusionZones
+                  .any((z) => z.id == id) ?? false)) return;
+          _pushUndo();
+          ElectricalRouteExclusionService.remove(widget.floor, id);
+          await widget.onChanged();
+          if (mounted) setState(() {});
+        },
+      ),
+    );
+  }
+
   Widget _routeControls() {
     final id = _routeCircuitFilterId;
     final circuit = widget.floor.electricalNetwork?.circuits
@@ -1431,6 +1466,10 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
             onSelected: (choice) {
               if (choice == 'faces') {
                 _showWallFaces();
+                return;
+              }
+              if (choice == 'zones') {
+                _showExclusionZones();
                 return;
               }
               setState(() {
@@ -1478,6 +1517,11 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
               const PopupMenuItem(
                 value: 'faces',
                 child: Text('Стороны и отделка стен'),
+              ),
+              const PopupMenuItem(
+                key: ValueKey('electrical-route-zones'),
+                value: 'zones',
+                child: Text('Запретные зоны кабеля'),
               ),
               PopupMenuItem(
                 value: 'review',
