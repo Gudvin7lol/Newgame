@@ -49,9 +49,13 @@ class ElectricalJunctionCandidateService {
   const ElectricalJunctionCandidateService._();
 
   static String? _loadClass(ElectricalPoint p) => switch (p.type) {
-    ElectricalPointType.socket ||
-    ElectricalPointType.frame ||
-    ElectricalPointType.appliance => 'силовая',
+    ElectricalPointType.socket => 'силовая',
+    ElectricalPointType.frame =>
+      p.modules.contains(ElectricalModuleType.socket220)
+          ? 'силовая' : null,
+    // An appliance output is not a generic socket group. Its routing
+    // and isolation must be chosen explicitly, never guessed here.
+    ElectricalPointType.appliance => null,
     ElectricalPointType.wallLight ||
     ElectricalPointType.ceilingLight ||
     ElectricalPointType.switchPoint => 'освещение',
@@ -107,7 +111,13 @@ class ElectricalJunctionCandidateService {
       final groups = <String, List<ElectricalPoint>>{};
       for (final point in floor.electricalPoints) {
         final cls = _loadClass(point);
-        if (cls == null || !_inRoom(floor, room, point)) continue;
+        final load = floor.electricalDesignDraft?.consumers[point.id];
+        // Dedicated, wet-area, three-phase and explicitly critical
+        // consumers are not suitable for generic automatic RK grouping.
+        if (cls == null || load?.isDedicated == true ||
+            load?.isWetZone == true || load?.threePhase == true ||
+            load?.isNonSwitchable == true ||
+            !_inRoom(floor, room, point)) continue;
         // This legacy display group is NOT proof of actual circuit wiring.
         final label = point.circuit.trim();
         if (label.isEmpty) continue;
