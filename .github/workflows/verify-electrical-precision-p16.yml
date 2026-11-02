@@ -20,6 +20,8 @@ on:
       - 'zamer-app/test/electrical_auto_route_proposal_test.dart'
       - 'zamer-app/lib/services/electrical_auto_route_proposal_service.dart'
       - 'zamer-app/lib/services/electrical_wall_corridor_graph_service.dart'
+      - 'zamer-app/lib/services/electrical_interroom_passage_proposal_service.dart'
+      - 'zamer-app/test/electrical_interroom_passage_test.dart'
       - 'zamer-app/lib/widgets/electrical_route_editor.dart'
       - '.github/workflows/verify-electrical-precision-p16.yml'
 
@@ -59,11 +61,14 @@ jobs:
             test/electrical_auto_route_proposal_test.dart \
             lib/services/electrical_auto_route_proposal_service.dart \
             lib/services/electrical_wall_corridor_graph_service.dart \
+            lib/services/electrical_interroom_passage_proposal_service.dart \
+            test/electrical_interroom_passage_test.dart \
             lib/widgets/electrical_route_editor.dart
       - name: Test snapping and existing electrical contracts
         working-directory: zamer-app
         run: |
           flutter test \
+            test/electrical_interroom_passage_test.dart \
             test/electrical_precision_p16_test.dart \
             test/electrical_free_drag_wall_lock_test.dart \
             test/electrical_creation_load_defaults_test.dart \
