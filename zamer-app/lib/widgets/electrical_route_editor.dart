@@ -485,14 +485,28 @@ class _ElectricalRouteEditorState extends State<ElectricalRouteEditor> {
                 leading: Text((i + 1).toString()),
                 title: Text(fmt(route.vertices[i].distanceTo(
                     route.vertices[i + 1])) + ' мм'),
-                subtitle: Text(methodLabel(route.methods[i])),
+                subtitle: Text(methodLabel(route.methods[i]) +
+                    (route.lockedLegs.contains(i) ? ' · Закреплён' : '')),
+                trailing: route.lockedLegs.contains(i)
+                    ? const Icon(Icons.lock_outline,
+                        color: Color(0xFFF2B69B))
+                    : IconButton(
+                        key: ValueKey('route-lock-leg-$i'),
+                        tooltip: 'Зафиксировать участок',
+                        icon: const Icon(Icons.lock_open_outlined),
+                        onPressed: () => setState(() {
+                          route.lockedLegs.add(i);
+                          error = null;
+                        }),
+                      ),
               ),
             if (route.methods.isNotEmpty)
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton.icon(
                   key: const ValueKey('route-remove-last'),
-                  onPressed: () => setState(() {
+                  onPressed: route.lockedLegs.contains(
+                      route.methods.length - 1) ? null : () => setState(() {
                     route.methods.removeLast();
                     route.vertices.removeLast();
                     error = null;
@@ -500,6 +514,13 @@ class _ElectricalRouteEditorState extends State<ElectricalRouteEditor> {
                   icon: const Icon(Icons.undo),
                   label: const Text('Убрать последний участок'),
                 ),
+              ),
+            if (route.lockedLegs.isNotEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 4),
+                child: Text('Закреплённые участки защищены от '
+                    'замены и удаления. Снятие фиксации требует '
+                    'отдельного подтверждённого действия.'),
               ),
             const Divider(height: 24),
             Text('Пройдено по геометрии: ' + fmt(partialMm / 1000) + ' м'),
