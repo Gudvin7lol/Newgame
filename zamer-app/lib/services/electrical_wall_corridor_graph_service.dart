@@ -150,7 +150,7 @@ class ElectricalWallCorridorGraphService {
         order.add(current);
         current = previous[current];
       }
-      order.reverse();
+      final ordered = order.reversed.toList();
       ElectricalRouteVertex vertex(String key) {
         if (key == '@start') return ElectricalRouteVertex(
             xMm: start.xMm, yMm: start.yMm, zMm: zMm);
@@ -161,7 +161,7 @@ class ElectricalWallCorridorGraphService {
             xMm: node.xMm, yMm: node.yMm, zMm: zMm);
       }
       final result = <ElectricalRouteVertex>[];
-      for (final key in order) {
+      for (final key in ordered) {
         final next = vertex(key);
         if (result.isNotEmpty && result.last.distanceTo(next) < .001) {
           continue;
