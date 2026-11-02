@@ -3,6 +3,7 @@ import '../models/electrical_route_3d.dart';
 import '../models/models.dart';
 import 'electrical_route_service.dart';
 import 'electrical_wall_corridor_graph_service.dart';
+import 'electrical_route_exclusion_service.dart';
 
 /// Restricted, transparent routing proposal for two devices on the SAME
 /// straight axis-aligned wall. It NEVER writes a cable or route into a FloorPlan.
@@ -73,6 +74,7 @@ class ElectricalAutoRouteProposalService {
             'Не проверены инженерные коммуникации, балки, штробы, '
             'повороты, нормативные зоны, способ и доступность прокладки.',
       );
+      ElectricalRouteExclusionService.requireClear(floor, route);
       final measurement = ElectricalRouteService.measure(
           floor, route, reserveMm: cable.explicitReserveMm);
       return ElectricalAutoRouteProposal(
@@ -161,6 +163,7 @@ class ElectricalAutoRouteProposalService {
           'балки, инженерные коммуникации, доступность, нормативные зоны '
           'и возможность скрытого монтажа.',
     );
+    ElectricalRouteExclusionService.requireClear(floor, proposed);
     final measurement = ElectricalRouteService.measure(
         floor, proposed, reserveMm: cable.explicitReserveMm);
     return ElectricalAutoRouteProposal(
