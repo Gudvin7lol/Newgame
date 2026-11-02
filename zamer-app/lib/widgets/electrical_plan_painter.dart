@@ -22,6 +22,7 @@ class ElectricalPlanPainter extends CustomPainter {
     this.showLegacyLines = true,
     this.show3dRoutes = false,
     this.showCrossings = false,
+    this.diagnosticRouteId,
     this.circuitFilterId,
     this.visiblePointTypes,
   });
@@ -40,6 +41,8 @@ class ElectricalPlanPainter extends CustomPainter {
   final bool showLegacyLines;
   final bool show3dRoutes;
   final bool showCrossings;
+  /// A fault-focused trace is never drawn as a validated installation.
+  final String? diagnosticRouteId;
   final String? circuitFilterId;
   /// Visual-only filter: hidden points remain in the project model.
   final Set<ElectricalPointType>? visiblePointTypes;
@@ -113,6 +116,7 @@ class ElectricalPlanPainter extends CustomPainter {
     }
 
     if (show3dRoutes) _drawPhysicalRoutes(canvas, size);
+    if (diagnosticRouteId != null) _drawDiagnosticRoute(canvas, size);
     if (showCrossings) _drawCrossings(canvas, size);
 
     for (final point in floor.electricalPoints) {
@@ -171,7 +175,7 @@ class ElectricalPlanPainter extends CustomPainter {
         continue;
       }
       final routeId = cable.route3dId;
-      if (routeId == null) continue;
+      if (routeId == null || routeId == diagnosticRouteId) continue;
       final route = routes[routeId];
       if (route == null) continue;
       try {
@@ -217,6 +221,51 @@ class ElectricalPlanPainter extends CustomPainter {
         }
       }
     }
+    canvas.restore();
+  }
+
+  /// Draw ONLY a specifically requested faulty route as an explicit
+  /// inspection trace. The routine does not certify or repair its geometry;
+  /// it avoids projecting missing/nonfinite vertices or inventing new links.
+  void _drawDiagnosticRoute(Canvas canvas, Size size) {
+    final route = floor.electricalNetwork?.routes3d
+        .where((r) => r.id == diagnosticRouteId).firstOrNull;
+    if (route == null || route.vertices.length < 2 ||
+        route.vertices.any((v) => !v.finite ||
+          v.xMm.abs() > 10000000 || v.yMm.abs() > 10000000 ||
+          v.zMm.abs() > 10000000)) return;
+
+    final red = Paint()
+      ..color = const Color(0xFFFF6969)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4
+      ..strokeCap = StrokeCap.round;
+    canvas.save();
+    canvas.clipRect(Offset.zero & size);
+    for (var i = 1; i < route.vertices.length; i++) {
+      final start = route.vertices[i - 1];
+      final end = route.vertices[i];
+      final pa = p(start.xMm, start.yMm);
+      final pb = p(end.xMm, end.yMm);
+      if ((pa - pb).distance < .1) {
+        canvas.drawCircle(pa, 7, red); // vertical segment in plan view
+      } else {
+        _drawDraftLine(canvas, pa, pb, red);
+      }
+    }
+    final first = route.vertices.first;
+    final badge = p(first.xMm, first.yMm);
+    canvas.drawCircle(badge, 11, Paint()
+      ..color = darkMode ? const Color(0xFF301417) : Colors.white);
+    canvas.drawCircle(badge, 11, red);
+    final label = TextPainter(
+      text: const TextSpan(text: '!', style: TextStyle(
+        fontSize: 13, fontWeight: FontWeight.w800,
+        color: Color(0xFFFF6969),
+      )),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    label.paint(canvas, badge - Offset(label.width/2, label.height/2));
     canvas.restore();
   }
 
