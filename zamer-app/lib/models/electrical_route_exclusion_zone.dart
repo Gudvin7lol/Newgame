@@ -56,6 +56,41 @@ class ElectricalRouteExclusionZone {
     return true;
   }
 
+  /// Return a point INSIDE the actual intersected portion of this volume.
+  /// Unlike the midpoint of the entire cable leg, this is an accurate plan
+  /// camera target even for a very long cable with a small distant obstacle.
+  /// Non-finite geometry has no trustworthy coordinate to navigate to.
+  ElectricalRouteVertex? intersectionMidpoint(
+      ElectricalRouteVertex a, ElectricalRouteVertex b) {
+    validate();
+    if (!a.finite || !b.finite) return null;
+    const epsilon = 1e-9;
+    var enter = 0.0, leave = 1.0;
+    for (final axis in <({double origin, double delta, double min, double max})>[
+      (origin:a.xMm,delta:b.xMm-a.xMm,min:minXMm,max:maxXMm),
+      (origin:a.yMm,delta:b.yMm-a.yMm,min:minYMm,max:maxYMm),
+      (origin:a.zMm,delta:b.zMm-a.zMm,min:minZMm,max:maxZMm),
+    ]) {
+      if (axis.delta.abs() < epsilon) {
+        if (axis.origin < axis.min || axis.origin > axis.max) return null;
+        continue;
+      }
+      final first = (axis.min - axis.origin) / axis.delta;
+      final last = (axis.max - axis.origin) / axis.delta;
+      final lo = first < last ? first : last;
+      final hi = first > last ? first : last;
+      if (lo > enter) enter = lo;
+      if (hi < leave) leave = hi;
+      if (enter > leave) return null;
+    }
+    final t = (enter + leave) / 2;
+    return ElectricalRouteVertex(
+      xMm:a.xMm + (b.xMm - a.xMm) * t,
+      yMm:a.yMm + (b.yMm - a.yMm) * t,
+      zMm:a.zMm + (b.zMm - a.zMm) * t,
+    );
+  }
+
   Map<String,dynamic> toJson() => {
     'id':id,'name':name,'note':note,
     'minXMm':minXMm,'maxXMm':maxXMm,
