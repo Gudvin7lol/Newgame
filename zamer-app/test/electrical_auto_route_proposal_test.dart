@@ -18,6 +18,8 @@ FloorPlan _floor() {
   floor.walls.addAll([
     PlanWall(id: 'wall', startNodeId: 'a', endNodeId: 'b'),
     PlanWall(id: 'other', startNodeId: 'b', endNodeId: 'c'),
+    PlanWall(id: 'bottom', startNodeId: 'c', endNodeId: 'd'),
+    PlanWall(id: 'left', startNodeId: 'd', endNodeId: 'a'),
   ]);
   floor.electricalPoints.addAll([
     ElectricalPoint(id: 'from', type: ElectricalPointType.socket,
@@ -99,12 +101,44 @@ void main() {
     expect(manual.toJson().toString(), fingerprint);
   });
 
-  test('different walls and angled walls require a real corridor graph', () {
+  test('same-room graph routes around a corner and preserves 3D length', () {
     final floor = _floor();
-    floor.electricalPoints.last.wallId = 'other';
-    expect(() => ElectricalAutoRouteProposalService.prepare(
-        floor, _cable()), throwsFormatException);
-    floor.electricalPoints.last.wallId = 'wall';
+    final finish = floor.electricalPoints.last
+      ..wallId = 'other'
+      ..xMm = 4000
+      ..yMm = 1000
+      ..wallOffsetMm = 1000;
+    final candidate = ElectricalAutoRouteProposalService.prepare(
+        floor, _cable());
+    expect(candidate.route.vertices.any(
+        (v) => v.xMm == 4000 && v.yMm == 0 && v.zMm == 2550), isTrue);
+    expect(candidate.measurement.geometricMm, closeTo(9000, .001));
+    expect(candidate.route.vertices.last.xMm, finish.xMm);
+    expect(candidate.route.vertices.last.zMm, 300);
+    expect(floor.electricalNetwork, isNull); // No implicit cable writes.
+  });
+
+  test('graph avoids a blocked wall segment instead of crossing it', () {
+    final floor = _floor();
+    floor.electricalPoints.last
+      ..wallId = 'other'
+      ..xMm = 4000
+      ..yMm = 1000
+      ..wallOffsetMm = 1000;
+    floor.walls.first.openings.add(WallOpening(
+      id: 'clerestory', type: OpeningType.window,
+      widthMm: 900, heightMm: 300, sillHeightMm: 2400,
+      offsetFromStartMm: 1600,
+    ));
+    final candidate = ElectricalAutoRouteProposalService.prepare(
+        floor, _cable());
+    expect(candidate.measurement.geometricMm, greaterThan(9000));
+    expect(candidate.route.vertices.any(
+        (v) => v.xMm == 0 && v.yMm == 3000), isTrue);
+  });
+
+  test('rotated walls require a different route model', () {
+    final floor = _floor();
     floor.nodes[1].yMm = 100;
     expect(() => ElectricalAutoRouteProposalService.prepare(
         floor, _cable()), throwsFormatException);
