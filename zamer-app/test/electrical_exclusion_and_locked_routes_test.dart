@@ -66,6 +66,12 @@ void main() {
       'version':1, 'circuits':[], 'cables':[], 'terminals':[], 'routes3d':[],
     });
     expect(old.routeExclusionZones,isEmpty);
+    expect(old.toJson().containsKey('routeExclusionZones'),isFalse);
+    final underfloor=zone(bottom:-350,top:-50);
+    underfloor.validate();
+    expect(underfloor.intersects(
+      const ElectricalRouteVertex(xMm:0,yMm:0,zMm:-100),
+      const ElectricalRouteVertex(xMm:4000,yMm:0,zMm:-100)),isTrue);
     final roundTrip = ElectricalRouteExclusionZone.fromJson(zone().toJson());
     expect(roundTrip.intersects(
       const ElectricalRouteVertex(xMm:0,yMm:0,zMm:2550),
@@ -118,6 +124,10 @@ void main() {
     ElectricalRouteService.upsertForCable(floor,network,cable.id,original);
     final saved=FloorPlan.fromJson(floor.toJson());
     expect(saved.electricalNetwork!.routes3d.single.lockedLegs,{1});
+    expect(ElectricalRoute3d(
+      id:'untouched',fromPointId:'s',toPointId:'t',
+      vertices:manual().vertices,methods:manual().methods,
+    ).toJson().containsKey('lockedLegs'),isFalse);
     expect(saved.electricalNetwork!.cables.single.route3dId,'manual');
 
     final edited=ElectricalRoute3d.fromJson(original.toJson());
