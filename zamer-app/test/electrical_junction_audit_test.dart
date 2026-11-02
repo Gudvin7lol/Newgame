@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zamer_app/models/electrical_junction_capacity.dart';
 import 'package:zamer_app/models/electrical_network.dart';
+import 'package:zamer_app/models/electrical_route_3d.dart';
 import 'package:zamer_app/models/models.dart';
 import 'package:zamer_app/services/electrical_junction_audit_service.dart';
 import 'package:zamer_app/widgets/electrical_junction_audit_sheet.dart';
@@ -106,6 +107,65 @@ void main() {
     expect(result.entries.single.errors,isEmpty);
     expect(result.entries.single.needsReview,isTrue);
     expect(result.approved,isFalse);
+  });
+
+  test('RK audit catches moved endpoint without rewriting stored cable', () {
+    final floor=fixture();
+    final cable=floor.electricalNetwork!.cables.first;
+    cable.route3dId='path-a';
+    floor.electricalNetwork!.routes3d.add(ElectricalRoute3d(
+      id:'path-a',fromPointId:'s1',toPointId:'rk1',
+      vertices:const [
+        ElectricalRouteVertex(xMm:700,yMm:0,zMm:300),
+        ElectricalRouteVertex(xMm:700,yMm:0,zMm:2500),
+        ElectricalRouteVertex(xMm:1200,yMm:0,zMm:2500),
+      ],
+      methods:[
+        ElectricalInstallationMethod.inWall,
+        ElectricalInstallationMethod.aboveCeiling,
+      ],
+      source:ElectricalPathSource.measured,
+    ));
+    var audit=ElectricalJunctionAuditService.inspect(floor);
+    expect(audit.entries.first.errors.where((e)=>e.contains('Кабель a')),
+        isEmpty);
+    final point=floor.electricalPoints.first;
+    point.xMm+=200;
+    final before=floor.toJson().toString();
+    audit=ElectricalJunctionAuditService.inspect(floor);
+    expect(audit.entries.first.errors.join(' '),
+        contains('Точки или высоты изменились'));
+    expect(floor.toJson().toString(),before);
+    expect(cable.route3dId,'path-a');
+  });
+
+  test('RK audit identifies detached plan run and removed cable endpoint', () {
+    final floor=fixture();
+    floor.electricalRuns.add(ElectricalRun(
+      id:'run-a',startPointId:'s1',endPointId:'rk1',
+    ));
+    floor.electricalNetwork!.cables.first.routeRunId='run-a';
+    expect(ElectricalJunctionAuditService.inspect(floor)
+        .entries.first.errors.join(' '),isNot(contains('линия на плане')));
+    floor.electricalRuns.first.endPointId='s2';
+    var audit=ElectricalJunctionAuditService.inspect(floor);
+    expect(audit.entries.first.errors.join(' '),contains('линия на плане'));
+    floor.electricalPoints.removeWhere((p)=>p.id=='s1');
+    final before=floor.toJson().toString();
+    audit=ElectricalJunctionAuditService.inspect(floor);
+    expect(audit.entries.first.errors.join(' '),
+        contains('отсутствует концевая точка'));
+    expect(floor.toJson().toString(),before);
+  });
+
+  test('RK audit flags deleted circuit without connecting unrelated cores', () {
+    final floor=fixture();
+    floor.electricalNetwork!.circuits.removeWhere((c)=>c.id=='A');
+    final before=floor.toJson().toString();
+    final audit=ElectricalJunctionAuditService.inspect(floor);
+    expect(audit.entries.first.errors.join(' '),contains('группа удалена'));
+    expect(audit.entries.last.errors.join(' '),contains('группа удалена'));
+    expect(floor.toJson().toString(),before);
   });
 
   testWidgets('audit sheet shows capacity and selects box without mutation',
