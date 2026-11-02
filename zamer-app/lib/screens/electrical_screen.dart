@@ -1677,7 +1677,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
               suffixText: 'мм',
               helperText: 'По оси стены, шаг ввода 1 мм',
             ),
-            onSubmitted: (raw) => Navigator.of(dialog).pop(
+            onFieldSubmitted: (raw) => Navigator.of(dialog).pop(
               double.tryParse(raw.trim().replaceAll(',', '.')) ??
                   double.nan,
             ),
