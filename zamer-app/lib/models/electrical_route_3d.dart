@@ -49,7 +49,9 @@ class ElectricalRoute3d {
     required List<ElectricalInstallationMethod> methods,
     this.source = ElectricalPathSource.unspecified,
     this.note = '',
-  }) : vertices = vertices, methods = methods;
+    Set<int>? lockedLegs,
+  }) : vertices = vertices, methods = methods,
+       lockedLegs = lockedLegs ?? <int>{};
 
   final String id;
   final String fromPointId, toPointId;
@@ -59,6 +61,9 @@ class ElectricalRoute3d {
   final List<ElectricalInstallationMethod> methods;
   ElectricalPathSource source;
   String note;
+  /// Zero-based segment indexes explicitly protected by the installer.
+  /// Existing versions lacking the field load as unlocked.
+  final Set<int> lockedLegs;
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -68,6 +73,7 @@ class ElectricalRoute3d {
     'methods': methods.map((m) => m.name).toList(),
     'source': source.name,
     'note': note,
+    'lockedLegs': lockedLegs.toList()..sort(),
   };
 
   factory ElectricalRoute3d.fromJson(Map<String, dynamic> j) =>
@@ -88,5 +94,7 @@ class ElectricalRoute3d {
             (e) => e.name == j['source'],
             orElse: () => ElectricalPathSource.unspecified),
         note: j['note'] as String? ?? '',
+        lockedLegs: ((j['lockedLegs'] as List?) ?? const [])
+            .map((i) => (i as num).toInt()).toSet(),
       );
 }
