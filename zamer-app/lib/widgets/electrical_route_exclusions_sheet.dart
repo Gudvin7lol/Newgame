@@ -145,7 +145,7 @@ class _ElectricalRouteExclusionsSheetState
             onPressed: addZone, icon: const Icon(Icons.add),
             label: const Text('Добавить запретный объём'),
           ),
-          if (widget.zones.isEmpty)
+          if (widget.zones().isEmpty)
             const Padding(
               padding: EdgeInsets.only(top: 14),
               child: Text('Нет сохранённых запретных зон.'),
