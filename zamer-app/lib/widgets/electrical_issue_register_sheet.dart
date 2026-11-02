@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/models.dart';
 import '../services/electrical_issue_register_service.dart';
+import '../services/electrical_issue_locator_service.dart';
 
 /// Read-only diagnostics. The only action is locating a known point on plan.
 class ElectricalIssueRegisterSheet extends StatefulWidget {
@@ -111,7 +112,8 @@ class _ElectricalIssueRegisterSheetState
                           ],
                         ),
                       ),
-                      if (items[i].canLocate)
+                      if (ElectricalIssueLocatorService.locate(
+                          widget.floor, items[i]) != null)
                         IconButton(
                           key: ValueKey('electrical-issue-locate-$i'),
                           tooltip: 'Показать на плане',
