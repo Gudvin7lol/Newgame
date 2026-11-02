@@ -62,16 +62,16 @@ class ElectricalIssueLocatorService {
         for (var i = 1; i < route.vertices.length; i++) {
           final a = route.vertices[i - 1];
           final b = route.vertices[i];
-          if (ElectricalRouteExclusionService.conflictForLeg(
-              a, b, ElectricalRouteExclusionService.saved(floor)) == null) {
-            continue;
+          for (final zone in ElectricalRouteExclusionService.saved(floor)) {
+            final actualOverlap = zone.intersectionMidpoint(a,b);
+            if (actualOverlap == null) continue;
+            return ElectricalIssueLocation(
+              pointId: point?.id,
+              xMm: actualOverlap.xMm,
+              yMm: actualOverlap.yMm,
+              diagnosticRouteId: route.id,
+            );
           }
-          return ElectricalIssueLocation(
-            pointId: point?.id,
-            xMm: (a.xMm + b.xMm) / 2,
-            yMm: (a.yMm + b.yMm) / 2,
-            diagnosticRouteId: route.id,
-          );
         }
       }
       // Missing or moved endpoints are better inspected at their mount
