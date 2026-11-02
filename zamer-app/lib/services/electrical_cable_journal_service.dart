@@ -66,7 +66,7 @@ class ElectricalCableJournalService {
     return point.label.trim().isEmpty ? point.type.label : point.label;
   }
 
-  static ElectricalCableJournal create(FloorPlan floor, {String? circuitId}) {
+  static ElectricalCableJournal create(FloorPlan floor, {String? circuitId, String? cableId}) {
     final network = floor.electricalNetwork;
     if (network == null) {
       return const ElectricalCableJournal(
@@ -84,6 +84,7 @@ class ElectricalCableJournalService {
     final rows = <CableJournalRow>[];
     for (final cable in network.cables) {
       if (circuitId != null && cable.circuitId != circuitId) continue;
+      if (cableId != null && cable.id != cableId) continue;
       final name = circuitNames[cable.circuitId] ?? 'Удалённая цепь';
       final from = _point(floor, cable.fromPointId);
       final to = _point(floor, cable.toPointId);
