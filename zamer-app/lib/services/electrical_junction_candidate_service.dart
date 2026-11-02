@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import '../models/electrical_route_3d.dart';
 import '../models/models.dart';
 import 'electrical_frame_geometry.dart';
@@ -115,6 +113,13 @@ class ElectricalJunctionCandidateService {
       for (final entry in groups.entries) {
         final consumers = entry.value;
         if (consumers.length < 2) continue;
+        // Do not propose another box for the same provisional group if the
+        // project already has a room box labelled for that group.
+        final alreadyBoxed = floor.electricalPoints.any((point) =>
+            point.type == ElectricalPointType.junctionBox &&
+            point.circuit.trim() == consumers.first.circuit.trim() &&
+            _inRoom(floor, room, point));
+        if (alreadyBoxed) continue;
         final separator = entry.key.indexOf('|');
         final cls = entry.key.substring(0, separator);
         final circuit = entry.key.substring(separator + 1);
