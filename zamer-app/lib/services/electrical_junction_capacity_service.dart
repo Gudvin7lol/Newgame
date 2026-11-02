@@ -70,6 +70,9 @@ class ElectricalJunctionCapacityService {
       }
     }
 
+    if (spec?.hasEnteredLimits == true && spec!.boxModel.trim().isEmpty) {
+      missing.add('Для числовых пределов не указана паспортная модель коробки.');
+    }
     limit('Кабельных вводов', cables.length, spec?.maxCableEntries);
     limit('Концов жил', conductorEnds, spec?.maxConductorEnds);
     limit('Соединителей', terminals.length, spec?.maxConnectorCount);
