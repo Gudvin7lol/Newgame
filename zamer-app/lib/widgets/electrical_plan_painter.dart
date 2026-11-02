@@ -176,6 +176,7 @@ class ElectricalPlanPainter extends CustomPainter {
       if (route == null) continue;
       try {
         ElectricalRouteService.measureCable(floor, cable);
+        ElectricalRouteExclusionService.requireClear(floor, route);
       } on FormatException {
         // Invalid, stale or unverified geometry must not masquerade as a valid
         // physical route on the installation plan.
