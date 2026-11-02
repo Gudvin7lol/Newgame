@@ -90,6 +90,45 @@ void main() {
         floor,network,'rk').exceeded,isFalse);
   });
 
+  test('saving a different junction does not bypass another boxes limits', () {
+    final floor = project();
+    floor.electricalPoints.add(ElectricalPoint(
+      id:'rk2', type:ElectricalPointType.junctionBox,
+      xMm:2200, yMm:0, wallId:'w', wallOffsetMm:2200,
+      wallSide:1, heightMm:2500,
+    ));
+    final draft = ElectricalJunctionEditService.copy(floor.electricalNetwork);
+    draft.cables.addAll([
+      ElectricalCableRecord(id:'x1',circuitId:'C1',
+        fromPointId:'s1',toPointId:'rk2'),
+      ElectricalCableRecord(id:'x2',circuitId:'C1',
+        fromPointId:'rk2',toPointId:'s2'),
+    ]);
+    draft.junctionCapacities['rk2'] = const ElectricalJunctionCapacity(
+      junctionPointId:'rk2', maxCableEntries:1,
+    );
+    expect(() => ElectricalJunctionEditService.validateForSave(
+        floor,'rk',draft),throwsFormatException);
+    expect(floor.electricalNetwork!.cables,hasLength(2));
+    expect(floor.electricalNetwork!.junctionCapacities,isEmpty);
+  });
+
+  test('reject orphan or mismatched junction capacity records', () {
+    final floor=project();
+    final draft=ElectricalJunctionEditService.copy(floor.electricalNetwork);
+    draft.junctionCapacities['ghost'] =
+        const ElectricalJunctionCapacity(junctionPointId:'ghost');
+    expect(() => ElectricalJunctionEditService.validateForSave(
+        floor,'rk',draft),throwsFormatException);
+    draft.junctionCapacities
+      ..clear()
+      ..['rk'] = const ElectricalJunctionCapacity(
+          junctionPointId:'ghost',maxCableEntries:3);
+    expect(() => ElectricalJunctionEditService.validateForSave(
+        floor,'rk',draft),throwsFormatException);
+    expect(floor.electricalNetwork!.junctionCapacities,isEmpty);
+  });
+
   test('only explicit circuit+purpose members from different cables proposed', () {
     final floor = project();
     final network = floor.electricalNetwork!;
