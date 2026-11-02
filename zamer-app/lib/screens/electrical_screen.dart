@@ -1411,7 +1411,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
       isScrollControlled: true,
       showDragHandle: true,
       builder: (_) => ElectricalRouteExclusionsSheet(
-        zones: widget.floor.electricalNetwork?.routeExclusionZones ??
+        zones: () => widget.floor.electricalNetwork?.routeExclusionZones ??
             <ElectricalRouteExclusionZone>[],
         onAdd: (zone) async {
           zone.validate();
