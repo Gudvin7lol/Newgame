@@ -445,14 +445,17 @@ class _ElectricalJunctionEditorState extends State<ElectricalJunctionEditor> {
     change(() {
       ElectricalJunctionConnectionProposalService.requireCurrent(
           widget.floor,draft,widget.junctionPointId,chosen);
+      final proposalDraft = ElectricalJunctionEditService.copy(draft);
       ElectricalJunctionEditService.createTerminal(
-        widget.floor,draft,
+        widget.floor,proposalDraft,
         id:id('terminal'), junctionId:widget.junctionPointId,
         mark:'Проверить соединитель',
         members:chosen.members,
       );
       ElectricalJunctionCapacityService.requireWithinEnteredLimits(
-        widget.floor,draft,widget.junctionPointId);
+        widget.floor,proposalDraft,widget.junctionPointId);
+      // Publish only the fully checked draft, preserving undo/cancel semantics.
+      draft = proposalDraft;
     });
   }
 
