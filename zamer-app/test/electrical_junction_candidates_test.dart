@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zamer_app/models/electrical_network.dart';
+import 'package:zamer_app/models/electrical_design_draft.dart';
 import 'package:zamer_app/models/electrical_route_exclusion_zone.dart';
 import 'package:zamer_app/models/models.dart';
 import 'package:zamer_app/services/electrical_junction_candidate_service.dart';
@@ -95,6 +96,45 @@ void main() {
     expect(ElectricalJunctionCandidateService.propose(separate),isEmpty);
     expect(() => ElectricalJunctionCandidateService.propose(fixture(),
         maxCandidates:0), throwsFormatException);
+  });
+
+  test('skip dedicated or wet consumers instead of inventing a shared RK', () {
+    final floor = fixture();
+    floor.electricalDesignDraft = ElectricalDesignDraft(consumers: {
+      's1': const ElectricalConsumerDraft(
+          pointId: 's1', isDedicated: true),
+    });
+    expect(ElectricalJunctionCandidateService.propose(floor), isEmpty);
+    floor.electricalDesignDraft!.consumers['s1'] =
+        const ElectricalConsumerDraft(pointId: 's1', isWetZone: true);
+    expect(ElectricalJunctionCandidateService.propose(floor), isEmpty);
+  });
+
+  test('separate power and lighting boxes without duplicated power box', () {
+    final floor = fixture();
+    floor.electricalPoints.add(ElectricalPoint(
+      id: 'l2',type: ElectricalPointType.ceilingLight,
+      xMm: 2500,yMm:1200,heightMm:2600,circuit:'К1',
+    ));
+    final initial = ElectricalJunctionCandidateService.propose(floor);
+    expect(initial.map((c) => c.loadClass).toSet(),
+      {'силовая','освещение'});
+    final power = initial.firstWhere((c) => c.loadClass == 'силовая');
+    floor.electricalPoints.add(power.asPoint('installed-power-box'));
+    final remaining = ElectricalJunctionCandidateService.propose(floor);
+    expect(remaining, hasLength(1));
+    expect(remaining.single.loadClass, 'освещение');
+  });
+
+  test('data-only frame is not mistaken for a powered consumer', () {
+    final floor = fixture();
+    floor.electricalPoints[1]
+      ..type = ElectricalPointType.frame
+      ..modules.clear()
+      ..modules.addAll([
+        ElectricalModuleType.data, ElectricalModuleType.tv,
+      ]);
+    expect(ElectricalJunctionCandidateService.propose(floor), isEmpty);
   });
 
   test('existing junction on the same provisional circuit prevents duplicate', () {
