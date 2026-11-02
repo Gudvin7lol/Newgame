@@ -2,6 +2,7 @@ import '../models/electrical_network.dart';
 import '../models/electrical_route_3d.dart';
 import '../models/models.dart';
 import 'electrical_route_service.dart';
+import 'electrical_wall_corridor_graph_service.dart';
 
 /// Restricted, transparent routing proposal for two devices on the SAME
 /// straight axis-aligned wall. It NEVER writes a cable or route into a FloorPlan.
@@ -41,11 +42,49 @@ class ElectricalAutoRouteProposalService {
     final b = floor.electricalPoints
         .where((p) => p.id == cable.toPointId).firstOrNull;
     if (a == null || b == null || a.id == b.id ||
-        a.wallId == null || b.wallId != a.wallId ||
+        a.wallId == null || b.wallId == null ||
         a.wallOffsetMm == null || b.wallOffsetMm == null) {
       throw const FormatException(
-        'Черновой автоматический маршрут пока доступен только '
-        'между точками на одной прямой стене.');
+        'Для предложения нужны две настенные точки с известной привязкой.');
+    }
+    if (a.wallId != b.wallId) {
+      final ceilingZ = floor.defaultHeightMm - ceilingDropMm;
+      final corridor = ElectricalWallCorridorGraphService.find(
+        floor, a, b, zMm: ceilingZ,
+        minimumCeilingDropMm: ceilingDropMm,
+      );
+      final begin = ElectricalRouteService.endpoint(a);
+      final finish = ElectricalRouteService.endpoint(b);
+      final vertices = <ElectricalRouteVertex>[begin];
+      void add(ElectricalRouteVertex next) {
+        if (vertices.last.distanceTo(next) > .001) vertices.add(next);
+      }
+      for (final vertex in corridor) add(vertex);
+      add(finish);
+      final route = ElectricalRoute3d(
+        id: 'route-' + cable.id,
+        fromPointId: a.id,
+        toPointId: b.id,
+        vertices: vertices,
+        methods: List.filled(
+          vertices.length - 1, ElectricalInstallationMethod.unspecified),
+        source: ElectricalPathSource.unspecified,
+        note: 'АВТОЧЕРНОВИК по графу стен одной комнаты. '
+            'Не проверены инженерные коммуникации, балки, штробы, '
+            'повороты, нормативные зоны, способ и доступность прокладки.',
+      );
+      final measurement = ElectricalRouteService.measure(
+          floor, route, reserveMm: cable.explicitReserveMm);
+      return ElectricalAutoRouteProposal(
+        route: route,
+        measurement: measurement,
+        warnings: const [
+          'Коридор найден только по геометрии стен одного помещения.',
+          'Проверьте потолочные коммуникации, штробление, повороты, '
+              'доступность и действующие ограничения.',
+          'Это черновик без доказанной монтажной допустимости.',
+        ],
+      );
     }
     final wall = floor.wallById(a.wallId!);
     final wallStart = wall == null
