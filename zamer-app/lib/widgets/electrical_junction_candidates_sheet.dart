@@ -23,6 +23,9 @@ class _ElectricalJunctionCandidatesSheetState
     extends State<ElectricalJunctionCandidatesSheet> {
   String? error;
 
+  String roomLabel(String key) =>
+      widget.floor.roomMetaByKey(key)?.name ?? 'Помещение по плану';
+
   Future<void> previewAndPlace(ElectricalJunctionCandidate candidate) async {
     final selected = await showDialog<bool>(
       context: context,
@@ -33,7 +36,7 @@ class _ElectricalJunctionCandidatesSheetState
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Помещение: ${candidate.roomKey}'),
+            Text('Помещение: ${roomLabel(candidate.roomKey)}'),
             Text('Предварительная группа: ${candidate.circuitLabel} '
                  '(${candidate.loadClass})'),
             Text('Стена: ${candidate.wallId}, сторона '
@@ -107,7 +110,8 @@ class _ElectricalJunctionCandidatesSheetState
                   title: Text('РК · ${candidates[i].circuitLabel} '
                       '(${candidates[i].loadClass})'),
                   subtitle: Text(
-                    'Стена ${candidates[i].wallId}, '
+                    '${roomLabel(candidates[i].roomKey)} · '
+                    'стена ${candidates[i].wallId}, '
                     '${candidates[i].wallOffsetMm.round()} мм · '
                     'H ${candidates[i].heightMm.round()} мм\n'
                     '${candidates[i].consumerIds.length} точек · '
