@@ -25,6 +25,7 @@ import '../services/electrical_route_exclusion_service.dart';
 import '../widgets/electrical_route_exclusions_sheet.dart';
 import '../services/electrical_junction_candidate_service.dart';
 import '../widgets/electrical_junction_candidates_sheet.dart';
+import '../widgets/electrical_junction_audit_sheet.dart';
 import '../services/electrical_junction_edit_service.dart';
 import '../services/geometry_service.dart';
 import '../widgets/electrical_plan_painter.dart';
@@ -1465,6 +1466,24 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     );
   }
 
+  Future<void> _showJunctionAudit() async {
+    await showModalBottomSheet<void>(
+      context:context,
+      isScrollControlled:true,
+      showDragHandle:true,
+      builder:(sheet) => ElectricalJunctionAuditSheet(
+        floor:widget.floor,
+        onSelectJunction:(id) {
+          Navigator.pop(sheet);
+          if (mounted) setState(() {
+            _selectedId = id;
+            _mode = ElectricalMode.select;
+          });
+        },
+      ),
+    );
+  }
+
   Widget _routeControls() {
     final id = _routeCircuitFilterId;
     final circuit = widget.floor.electricalNetwork?.circuits
@@ -1502,6 +1521,10 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
               }
               if (choice == 'junctionCandidates') {
                 _showJunctionCandidates();
+                return;
+              }
+              if (choice == 'junctionAudit') {
+                _showJunctionAudit();
                 return;
               }
               setState(() {
@@ -1559,6 +1582,11 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                 key: ValueKey('electrical-junction-candidates'),
                 value: 'junctionCandidates',
                 child: Text('Кандидаты РК'),
+              ),
+              const PopupMenuItem(
+                key: ValueKey('electrical-junction-audit'),
+                value: 'junctionAudit',
+                child: Text('Проверка всех РК'),
               ),
               PopupMenuItem(
                 value: 'review',
