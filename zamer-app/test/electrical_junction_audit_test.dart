@@ -129,8 +129,13 @@ void main() {
     final first=find.byKey(const ValueKey('junction-audit-rk1'));
     await tester.tap(first);
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(
-        const ValueKey('junction-audit-select-rk1')));
+    final show = find.byKey(
+        const ValueKey('junction-audit-select-rk1'));
+    // Expanded diagnostics can exceed a phone viewport. Scroll to the
+    // actual button before tapping, not its off-screen render position.
+    await tester.ensureVisible(show);
+    await tester.pumpAndSettle();
+    await tester.tap(show);
     await tester.pumpAndSettle();
     expect(selected,'rk1');
     expect(floor.toJson().toString(),before);
