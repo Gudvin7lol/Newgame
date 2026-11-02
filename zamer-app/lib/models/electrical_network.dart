@@ -225,7 +225,8 @@ class ElectricalNetwork {
     'cables': cables.map((e) => e.toJson()).toList(),
     'terminals': terminals.map((e) => e.toJson()).toList(),
     'routes3d': routes3d.map((e) => e.toJson()).toList(),
-    'routeExclusionZones': routeExclusionZones.map((e) => e.toJson()).toList(),
+    if (routeExclusionZones.isNotEmpty)
+      'routeExclusionZones': routeExclusionZones.map((e) => e.toJson()).toList(),
   };
 
   factory ElectricalNetwork.fromJson(Map<String, dynamic> json) {
