@@ -268,6 +268,43 @@ void main() {
     expect(tester.takeException(),isNull);
   });
 
+  test('terminal errors navigate to junction despite colliding cable ID', () {
+    final floor=sample();
+    // Different object types may legitimately share the same string ID.
+    floor.electricalNetwork!.terminals.add(
+      ElectricalTerminalRecord(
+        id:'c1',junctionPointId:'rk',
+        members:const [],
+      ),
+    );
+    final before=floor.toJson().toString();
+    final issues=ElectricalIssueRegisterService.inspect(floor).entries;
+    final issue=issues.firstWhere((e)=>e.code=='incompleteTerminal');
+    expect(issue.object,ElectricalIssueObject.junction);
+    expect(issue.objectId,'c1');
+    expect(issue.focusPointId,'rk');
+    final location=ElectricalIssueLocatorService.locate(floor,issue);
+    expect(location?.pointId,'rk');
+    expect(location?.xMm,2000);
+    expect(floor.toJson().toString(),before);
+  });
+
+  test('circuit fault does not open a cable with the same string ID', () {
+    final floor=sample();
+    final network=floor.electricalNetwork!;
+    network.circuits.single
+      ..name=''
+      ..id='c1';
+    network.cables.single.circuitId='c1';
+    final before=floor.toJson().toString();
+    final issue=ElectricalIssueRegisterService.inspect(floor)
+        .entries.firstWhere((e)=>e.code=='circuitName');
+    expect(issue.object,ElectricalIssueObject.circuit);
+    expect(issue.objectId,'c1');
+    expect(issue.focusPointId,'s1');
+    expect(floor.toJson().toString(),before);
+  });
+
   test('deleted objects have no made-up location or ghost warning overlay', () {
     final floor=sample();
     floor.electricalNetwork!.terminals.add(
