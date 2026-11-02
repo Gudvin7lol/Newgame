@@ -116,6 +116,9 @@ class ElectricalJunctionCandidateService {
       for (final entry in groups.entries) {
         final consumers = entry.value;
         if (consumers.length < 2) continue;
+        final separator = entry.key.indexOf('|');
+        final cls = entry.key.substring(0, separator);
+        final circuit = entry.key.substring(separator + 1);
         // Do not propose another box for the same provisional group if the
         // project already has a room box labelled for that group.
         final alreadyBoxed = floor.electricalPoints.any((point) =>
@@ -127,9 +130,6 @@ class ElectricalJunctionCandidateService {
               point.label.contains('· $cls ·')) &&
             _inRoom(floor, room, point));
         if (alreadyBoxed) continue;
-        final separator = entry.key.indexOf('|');
-        final cls = entry.key.substring(0, separator);
-        final circuit = entry.key.substring(separator + 1);
         ElectricalJunctionCandidate? best;
 
         for (final edge in room.edges) {
