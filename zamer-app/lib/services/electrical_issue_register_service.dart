@@ -166,9 +166,18 @@ class ElectricalIssueRegisterService {
       } else if (row.status == CableJournalStatus.invalidRoute) {
         // Do not repeat a route problem already reported by the network
         // audit. The cable journal still independently marks it invalid.
+        // Other cable faults (e.g. an unknown circuit, invalid cores)
+        // must not hide a separate broken physical route. Deduplicate only
+        // when a matching network-level route error has already been raised.
+        const routeFaults = <String>{
+          'missingRoute3d', 'wrongRoute3d', 'staleRoute3d',
+          'invalidRoute3d', 'routeExclusionConflict',
+        };
         final alreadyReported = result.any((issue) =>
-            issue.objectId == row.cable.id ||
-            issue.objectId == row.cable.route3dId);
+            routeFaults.contains(issue.code) &&
+            (issue.objectId == row.cable.id ||
+             (row.cable.route3dId != null &&
+              issue.objectId == row.cable.route3dId)));
         if (!alreadyReported) {
           add('invalidCableRoute',
               'Кабель ${row.cable.id}: ${row.problem ?? 'трасса недействительна'}.',
