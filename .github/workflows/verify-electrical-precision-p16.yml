@@ -23,6 +23,9 @@ on:
       - 'zamer-app/lib/services/electrical_interroom_passage_proposal_service.dart'
       - 'zamer-app/test/electrical_interroom_passage_test.dart'
       - 'zamer-app/test/electrical_exclusion_and_locked_routes_test.dart'
+      - 'zamer-app/test/electrical_junction_candidates_test.dart'
+      - 'zamer-app/lib/services/electrical_junction_candidate_service.dart'
+      - 'zamer-app/lib/widgets/electrical_junction_candidates_sheet.dart'
       - 'zamer-app/lib/models/electrical_route_exclusion_zone.dart'
       - 'zamer-app/lib/models/electrical_network.dart'
       - 'zamer-app/lib/models/electrical_route_3d.dart'
@@ -71,6 +74,9 @@ jobs:
             lib/services/electrical_interroom_passage_proposal_service.dart \
             test/electrical_interroom_passage_test.dart \
             test/electrical_exclusion_and_locked_routes_test.dart \
+            test/electrical_junction_candidates_test.dart \
+            lib/services/electrical_junction_candidate_service.dart \
+            lib/widgets/electrical_junction_candidates_sheet.dart \
             lib/models/electrical_route_exclusion_zone.dart \
             lib/models/electrical_network.dart \
             lib/models/electrical_route_3d.dart \
@@ -82,6 +88,7 @@ jobs:
         working-directory: zamer-app
         run: |
           flutter test \
+            test/electrical_junction_candidates_test.dart \
             test/electrical_interroom_passage_test.dart \
             test/electrical_exclusion_and_locked_routes_test.dart \
             test/electrical_precision_p16_test.dart \
