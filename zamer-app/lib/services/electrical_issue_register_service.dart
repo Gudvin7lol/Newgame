@@ -202,10 +202,14 @@ class ElectricalIssueRegisterService {
           'missingRoute3d', 'wrongRoute3d', 'staleRoute3d',
           'invalidRoute3d', 'routeExclusionConflict',
         };
+        // Route and cable IDs are separate namespaces. An unrelated route
+        // with the same text ID must not suppress this cable's own fault.
         final alreadyReported = result.any((issue) =>
             routeFaults.contains(issue.code) &&
-            (issue.objectId == row.cable.id ||
-             (row.cable.route3dId != null &&
+            ((issue.object == ElectricalIssueObject.cable &&
+              issue.objectId == row.cable.id) ||
+             (issue.object == ElectricalIssueObject.route &&
+              row.cable.route3dId != null &&
               issue.objectId == row.cable.route3dId)));
         if (!alreadyReported) {
           add('invalidCableRoute',
