@@ -23,6 +23,8 @@ import '../models/electrical_network.dart';
 import '../models/electrical_route_exclusion_zone.dart';
 import '../services/electrical_route_exclusion_service.dart';
 import '../widgets/electrical_route_exclusions_sheet.dart';
+import '../services/electrical_junction_candidate_service.dart';
+import '../widgets/electrical_junction_candidates_sheet.dart';
 import '../services/electrical_junction_edit_service.dart';
 import '../services/geometry_service.dart';
 import '../widgets/electrical_plan_painter.dart';
@@ -1437,6 +1439,32 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     );
   }
 
+  Future<void> _showJunctionCandidates() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => ElectricalJunctionCandidatesSheet(
+        floor: widget.floor,
+        onPlace: (candidate) async {
+          final id = 'junction-' +
+              DateTime.now().microsecondsSinceEpoch.toString();
+          // Validate after consent so changes to wall/room/no-go geometry
+          // cannot silently place an obsolete candidate.
+          final point = ElectricalJunctionCandidateService.preparePlacement(
+            widget.floor, candidate, id:id,
+          );
+          _pushUndo();
+          widget.floor.electricalPoints.add(point);
+          await widget.onChanged();
+          if (mounted) setState(() {
+            _selectedId = point.id;
+          });
+        },
+      ),
+    );
+  }
+
   Widget _routeControls() {
     final id = _routeCircuitFilterId;
     final circuit = widget.floor.electricalNetwork?.circuits
@@ -1470,6 +1498,10 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
               }
               if (choice == 'zones') {
                 _showExclusionZones();
+                return;
+              }
+              if (choice == 'junctionCandidates') {
+                _showJunctionCandidates();
                 return;
               }
               setState(() {
@@ -1522,6 +1554,11 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                 key: ValueKey('electrical-route-zones'),
                 value: 'zones',
                 child: Text('Запретные зоны кабеля'),
+              ),
+              const PopupMenuItem(
+                key: ValueKey('electrical-junction-candidates'),
+                value: 'junctionCandidates',
+                child: Text('Кандидаты РК'),
               ),
               PopupMenuItem(
                 value: 'review',
