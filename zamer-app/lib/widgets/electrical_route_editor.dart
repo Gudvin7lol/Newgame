@@ -4,6 +4,7 @@ import '../models/electrical_network.dart';
 import '../models/electrical_route_3d.dart';
 import '../models/models.dart';
 import '../services/electrical_route_service.dart';
+import '../services/electrical_route_exclusion_service.dart';
 import '../services/electrical_auto_route_proposal_service.dart';
 import '../services/electrical_interroom_passage_proposal_service.dart';
 import 'electrical_route_plan_preview.dart';
@@ -369,6 +370,7 @@ class _ElectricalRouteEditorState extends State<ElectricalRouteEditor> {
       ElectricalRouteService.measure(
         widget.floor, route, reserveMm: reserveMm,
       );
+      ElectricalRouteExclusionService.requireClear(widget.floor, route);
       Navigator.pop(context, ElectricalRouteEditResult(
           ElectricalRoute3d.fromJson(route.toJson()), reserveMm));
     } on FormatException catch (e) {
@@ -391,6 +393,7 @@ class _ElectricalRouteEditorState extends State<ElectricalRouteEditor> {
       measured = ElectricalRouteService.measure(
         widget.floor, route, reserveMm: reserveValue(),
       );
+      ElectricalRouteExclusionService.requireClear(widget.floor, route);
     } on FormatException catch (e) {
       check = e.message;
     }
