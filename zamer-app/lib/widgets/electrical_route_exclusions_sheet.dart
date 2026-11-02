@@ -150,7 +150,7 @@ class _ElectricalRouteExclusionsSheetState
               padding: EdgeInsets.only(top: 14),
               child: Text('Нет сохранённых запретных зон.'),
             ),
-          for (final zone in widget.zones)
+          for (final zone in widget.zones())
             Card(
               child: ListTile(
                 title: Text(zone.name),
