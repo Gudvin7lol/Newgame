@@ -329,8 +329,9 @@ class _ElectricalRouteEditorState extends State<ElectricalRouteEditor> {
             ),
             const SizedBox(height: 5),
             Text(
-              'Только одна прямая стена. Предложение не меняет '
-              'существующие маршруты и требует ручной проверки.',
+              'По прямым стенам одного замкнутого помещения. '
+              'Черновик не меняет существующие трассы и требует '
+              'проверки на объекте.',
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 14),
