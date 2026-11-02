@@ -27,7 +27,7 @@ import '../services/electrical_junction_candidate_service.dart';
 import '../widgets/electrical_junction_candidates_sheet.dart';
 import '../widgets/electrical_junction_audit_sheet.dart';
 import '../widgets/electrical_issue_register_sheet.dart';
-import '../services/electrical_issue_register_service.dart';
+import '../services/electrical_issue_register_service.dart' hide ElectricalIssueSeverity;
 import '../services/electrical_issue_locator_service.dart';
 import '../services/electrical_junction_edit_service.dart';
 import '../services/geometry_service.dart';
