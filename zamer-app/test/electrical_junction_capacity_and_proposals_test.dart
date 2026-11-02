@@ -161,8 +161,14 @@ void main() {
       floor:floor,junctionPointId:'rk',
     )));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.byKey(
-        const ValueKey('junction-review-connections')));
+    // The button is in a lazily built ListView, so ensureVisible()
+    // cannot find it until its child has actually been laid out.
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('junction-review-connections')),
+      200,
+      scrollable: find.byType(Scrollable).first,
+      maxScrolls: 40,
+    );
     await tester.tap(find.byKey(
         const ValueKey('junction-review-connections')));
     await tester.pumpAndSettle();
