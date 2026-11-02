@@ -40,7 +40,7 @@ class ElectricalJunctionCandidate {
     wallOffsetMm: wallOffsetMm,
     wallSide: wallSide,
     heightMm: heightMm,
-    label: 'РК · $circuitLabel',
+    label: 'РК · $loadClass · $circuitLabel',
     circuit: circuitLabel,
   );
 }
@@ -121,6 +121,10 @@ class ElectricalJunctionCandidateService {
         final alreadyBoxed = floor.electricalPoints.any((point) =>
             point.type == ElectricalPointType.junctionBox &&
             point.circuit.trim() == consumers.first.circuit.trim() &&
+            // An unclassified legacy box may serve this group, so do not
+            // duplicate it. New candidates encode their class in the label.
+            (!point.label.startsWith('РК ·') ||
+              point.label.contains('· $cls ·')) &&
             _inRoom(floor, room, point));
         if (alreadyBoxed) continue;
         final separator = entry.key.indexOf('|');
