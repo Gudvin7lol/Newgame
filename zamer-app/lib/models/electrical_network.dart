@@ -1,4 +1,5 @@
 import 'electrical_route_3d.dart';
+import 'electrical_route_exclusion_zone.dart';
 
 /// Explicit, provisional electrical topology. Never inferred from positions or
 /// the legacy circuit name stored on ElectricalPoint.
@@ -202,10 +203,12 @@ class ElectricalNetwork {
     List<ElectricalCableRecord>? cables,
     List<ElectricalTerminalRecord>? terminals,
     List<ElectricalRoute3d>? routes3d,
+    List<ElectricalRouteExclusionZone>? routeExclusionZones,
   })  : circuits = circuits ?? [],
         cables = cables ?? [],
         terminals = terminals ?? [],
-        routes3d = routes3d ?? [];
+        routes3d = routes3d ?? [],
+        routeExclusionZones = routeExclusionZones ?? [];
 
   static const int schemaVersion = 1;
   final List<ElectricalCircuitRecord> circuits;
@@ -213,6 +216,8 @@ class ElectricalNetwork {
   final List<ElectricalTerminalRecord> terminals;
   /// Physical routes may be reused by several cables.
   final List<ElectricalRoute3d> routes3d;
+  /// Explicitly forbidden routing volumes. Missing zones do not imply safety.
+  final List<ElectricalRouteExclusionZone> routeExclusionZones;
 
   Map<String, dynamic> toJson() => {
     'version': schemaVersion,
@@ -220,6 +225,7 @@ class ElectricalNetwork {
     'cables': cables.map((e) => e.toJson()).toList(),
     'terminals': terminals.map((e) => e.toJson()).toList(),
     'routes3d': routes3d.map((e) => e.toJson()).toList(),
+    'routeExclusionZones': routeExclusionZones.map((e) => e.toJson()).toList(),
   };
 
   factory ElectricalNetwork.fromJson(Map<String, dynamic> json) {
@@ -243,6 +249,10 @@ class ElectricalNetwork {
           .toList(),
       routes3d: ((json['routes3d'] as List?) ?? const [])
           .map((e) => ElectricalRoute3d.fromJson(
+              Map<String, dynamic>.from(e as Map)))
+          .toList(),
+      routeExclusionZones: ((json['routeExclusionZones'] as List?) ?? const [])
+          .map((e) => ElectricalRouteExclusionZone.fromJson(
               Map<String, dynamic>.from(e as Map)))
           .toList(),
     );
