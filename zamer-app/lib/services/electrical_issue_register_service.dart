@@ -3,6 +3,7 @@ import '../models/electrical_route_3d.dart';
 import '../models/models.dart';
 import 'electrical_cable_journal_service.dart';
 import 'electrical_circuit_path_service.dart';
+import 'electrical_din_layout_service.dart';
 import 'electrical_junction_audit_service.dart';
 import 'electrical_network_service.dart';
 
@@ -185,6 +186,27 @@ class ElectricalIssueRegisterService {
             'и/или паспортные параметры (${box.unknown.length} замечаний).',
             ElectricalIssueSeverity.review, ElectricalIssueObject.junction,
             box.junctionId, box.junctionId, 'РК');
+      }
+    }
+
+    // Mechanical DIN placement errors belong to the same floor-wide issue
+    // register. They are not evidence about protective device electrical
+    // ratings, terminals or suitability for installation.
+    for (final board in floor.electricalDesignDraft?.dinBoards.values ??
+        []) {
+      final audit = ElectricalDinLayoutService.inspect(floor, board);
+      const blocked = <String>{
+        'invalidPanel', 'duplicateDevice', 'invalidCircuit',
+        'outOfRail', 'overlap',
+      };
+      for (final issue in audit.issues) {
+        add('din:${issue.code}',
+            'Щит ${board.panelPointId}: ${issue.message}',
+            blocked.contains(issue.code)
+                ? ElectricalIssueSeverity.error
+                : ElectricalIssueSeverity.review,
+            ElectricalIssueObject.point, board.panelPointId,
+            board.panelPointId, 'DIN');
       }
     }
 
