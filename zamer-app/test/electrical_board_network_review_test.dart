@@ -176,14 +176,14 @@ void main() {
     expect(find.byKey(
         const ValueKey('board-physical-circuits-title')), findsOneWidget);
     expect(find.byKey(
-        const ValueKey('board-network-circuit-C')), findsOneWidget);
+        const ValueKey('board-network-circuit-C-0')), findsOneWidget);
     await tester.tap(find.byKey(
         const ValueKey('electrical-board-tab-checks')));
     await tester.pumpAndSettle();
     expect(find.byKey(
         const ValueKey('board-network-checks-title')), findsOneWidget);
     expect(find.byKey(
-        const ValueKey('board-network-check-C')), findsOneWidget);
+        const ValueKey('board-network-check-C-0')), findsOneWidget);
     expect(floor.toJson().toString(), before);
     expect(tester.takeException(), isNull);
   });
