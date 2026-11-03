@@ -92,10 +92,25 @@ class ElectricalCircuitPathService {
         if (first != second) parent[second] = first;
       }
 
+      // A conductor end cannot occupy two terminals in the same RK.
+      // Refuse both ambiguous connections instead of using either one as
+      // proof of a path back to the panel.
+      final occurrences = <String, int>{};
+      for (final terminal in network.terminals) {
+        for (final ref in terminal.members) {
+          final key = terminal.junctionPointId + '\u0000' +
+              _coreKey(ref.cableId, ref.coreId);
+          occurrences.update(key, (n) => n + 1, ifAbsent: () => 1);
+        }
+      }
+
       for (final terminal in network.terminals) {
         if (points[terminal.junctionPointId]?.type !=
             ElectricalPointType.junctionBox ||
-            terminal.members.length < 2) {
+            terminal.members.length < 2 ||
+            terminal.members.any((ref) => occurrences[
+              terminal.junctionPointId + '\u0000' +
+              _coreKey(ref.cableId, ref.coreId)] != 1)) {
           continue;
         }
         final members = <String>[];
@@ -113,6 +128,7 @@ class ElectricalCircuitPathService {
         // Bad or cross-circuit terminals are never trusted as connections.
         if (members.length != terminal.members.length ||
             members.toSet().length != members.length ||
+            terminal.members.map((r) => r.cableId).toSet().length < 2 ||
             members.map((k) => roles[k]).toSet().length != 1) {
           continue;
         }
