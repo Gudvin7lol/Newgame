@@ -22,6 +22,16 @@ class ElectricalDinBoardEditor extends StatefulWidget {
 }
 
 class _ElectricalDinBoardEditorState extends State<ElectricalDinBoardEditor> {
+  String _kindLabel(ElectricalDinDeviceKind kind) => switch (kind) {
+    ElectricalDinDeviceKind.incoming => 'Вводной аппарат',
+    ElectricalDinDeviceKind.breaker => 'Автомат',
+    ElectricalDinDeviceKind.rcd => 'УЗО',
+    ElectricalDinDeviceKind.rcbo => 'Дифавтомат',
+    ElectricalDinDeviceKind.surgeProtector => 'УЗИП',
+    ElectricalDinDeviceKind.contactor => 'Контактор',
+    ElectricalDinDeviceKind.other => 'Другой аппарат',
+  };
+
   String? _panelId;
 
   List<ElectricalPoint> get _panels => widget.floor.electricalPoints
@@ -136,7 +146,7 @@ class _ElectricalDinBoardEditorState extends State<ElectricalDinBoardEditor> {
                     for (final value in ElectricalDinDeviceKind.values)
                       DropdownMenuItem(
                         value: value,
-                        child: Text(value.name),
+                        child: Text(_kindLabel(value)),
                       ),
                   ],
                   onChanged: (value) {
