@@ -145,6 +145,56 @@ void main() {
     expect(noOp.problem, contains('уже находится'));
   });
 
+  testWidgets('one-handed tap selection places an unlocked device',
+      (tester) async {
+    tester.view.physicalSize = const Size(390, 940);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final f = floor();
+    f.electricalDesignDraft = ElectricalDesignDraft(dinBoards: {
+      'panel': board([
+        apparatus('free', width: 2),
+        apparatus('fixed', row: 0, start: 5, locked: true),
+      ]),
+    });
+    var saves = 0;
+    await tester.pumpWidget(MaterialApp(home: Scaffold(
+      body: SingleChildScrollView(child: ElectricalDinBoardEditor(
+        floor: f,
+        onSave: (next) async {
+          f.electricalDesignDraft!.dinBoards['panel'] =
+              ElectricalDinBoardDraft.fromJson(next.toJson());
+          saves++;
+        },
+      )),
+    )));
+    await tester.pumpAndSettle();
+    final choose = find.byKey(const ValueKey('din-device-free'));
+    await tester.ensureVisible(choose);
+    await tester.tap(choose);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('din-selected-device')),
+        findsOneWidget);
+    final target = find.byKey(const ValueKey('din-cell-tap-0-2'));
+    await tester.ensureVisible(target);
+    await tester.pumpAndSettle();
+    await tester.tap(target);
+    await tester.pumpAndSettle();
+    expect(find.text('Переместить DIN-аппарат?'), findsOneWidget);
+    expect(saves, 0);
+    await tester.tap(find.byKey(const ValueKey('din-move-confirm')));
+    await tester.pumpAndSettle();
+    expect(saves, 1);
+    expect(f.electricalDesignDraft!.dinBoards['panel']!.devices[0]
+        .startHalfModule, 2);
+    expect(f.electricalDesignDraft!.dinBoards['panel']!.devices[1]
+        .startHalfModule, 5);
+    expect(find.byKey(const ValueKey('din-selected-device')),
+        findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('drag from DIN rail asks confirmation, cancel is non-mutating',
       (tester) async {
     tester.view.physicalSize = const Size(390, 940);
