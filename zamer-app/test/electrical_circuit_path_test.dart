@@ -99,6 +99,41 @@ void main() {
     expect(ElectricalCircuitPathService.inspect(floor), isEmpty);
   });
 
+  test('a reused conductor end in one RK never proves a panel path', () {
+    final floor = fixture();
+    final network = floor.electricalNetwork!;
+    network.terminals.add(ElectricalTerminalRecord(
+      id: 'duplicate', junctionPointId: 'rk',
+      members: const [
+        ElectricalCoreReference(cableId: 'feed', coreId: '1'),
+        ElectricalCoreReference(cableId: 'branch', coreId: '1'),
+      ],
+    ));
+    final before = floor.toJson().toString();
+    final issues = ElectricalCircuitPathService.inspect(floor);
+    expect(issues, hasLength(1));
+    expect(issues.single.cableId, 'branch');
+    expect(issues.single.message, contains('L'));
+    expect(floor.toJson().toString(), before);
+  });
+
+  test('two cores of one cable cannot be a junction bridge', () {
+    final floor = fixture();
+    final network = floor.electricalNetwork!;
+    network.terminals.removeAt(0);
+    network.terminals.add(ElectricalTerminalRecord(
+      id: 'self', junctionPointId: 'rk',
+      members: const [
+        ElectricalCoreReference(cableId: 'feed', coreId: '1'),
+        ElectricalCoreReference(cableId: 'feed', coreId: '2'),
+      ],
+    ));
+    final issues = ElectricalCircuitPathService.inspect(floor);
+    expect(issues, hasLength(1));
+    expect(issues.single.cableId, 'branch');
+    expect(issues.single.message, contains('L'));
+  });
+
   test('mixed-role terminal cannot fake continuity', () {
     final floor = fixture();
     final junction = floor.electricalNetwork!.terminals.first;
