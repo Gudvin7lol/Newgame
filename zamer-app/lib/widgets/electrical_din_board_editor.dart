@@ -6,6 +6,7 @@ import '../models/electrical_design_draft.dart';
 import '../models/models.dart';
 import '../services/electrical_din_layout_service.dart';
 import '../services/electrical_din_layout_proposal_service.dart';
+import '../services/electrical_din_move_service.dart';
 
 /// User-authored mechanical DIN inventory only, not a wiring diagram.
 class ElectricalDinBoardEditor extends StatefulWidget {
@@ -385,6 +386,72 @@ class _ElectricalDinBoardEditorState extends State<ElectricalDinBoardEditor> {
     await _save(refreshed.preview!);
   }
 
+  /// Dragging previews the destination but never edits the live project
+  /// before user confirmation. Recheck against all concurrent changes.
+  Future<void> _dropToSlot(
+      String panelId, String deviceId, int row, int start) async {
+    final current = _current(panelId);
+    final snapshot = jsonEncode(current.toJson());
+    final proposed = ElectricalDinMoveService.prepare(
+      widget.floor, current,
+      deviceId: deviceId,
+      targetRow: row,
+      targetHalfModule: start,
+    );
+    if (!proposed.canApply) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(proposed.problem ?? 'Перемещение невозможно.')));
+      return;
+    }
+    final device = current.devices.singleWhere((d) => d.id == deviceId);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: const Text('Переместить DIN-аппарат?'),
+        content: Text(
+          '${device.label.isEmpty ? device.id : device.label}\n'
+          'Ряд ${row + 1}, позиция ${start / 2 + 1}.\n'
+          'Ручное размещение не означает проверку схемы подключения.',
+        ),
+        actions: [
+          TextButton(
+            key: const ValueKey('din-move-cancel'),
+            onPressed: () => Navigator.pop(dialog, false),
+            child: const Text('Отмена'),
+          ),
+          FilledButton(
+            key: const ValueKey('din-move-confirm'),
+            onPressed: () => Navigator.pop(dialog, true),
+            child: const Text('Переместить'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || confirmed != true) return;
+    final latest = _current(panelId);
+    if (jsonEncode(latest.toJson()) != snapshot) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Компоновка изменилась. Повтори перемещение.'),
+      ));
+      return;
+    }
+    final fresh = ElectricalDinMoveService.prepare(
+      widget.floor, latest,
+      deviceId: deviceId,
+      targetRow: row,
+      targetHalfModule: start,
+    );
+    if (!fresh.canApply ||
+        jsonEncode(fresh.preview!.toJson()) !=
+            jsonEncode(proposed.preview!.toJson())) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Место больше недоступно. Проверь DIN-компоновку.'),
+      ));
+      return;
+    }
+    await _save(fresh.preview!);
+  }
+
   @override
   Widget build(BuildContext context) {
     final panels = _panels;
@@ -435,10 +502,12 @@ class _ElectricalDinBoardEditorState extends State<ElectricalDinBoardEditor> {
           ),
         ),
         if (board.rows > 0 && board.modulesPerRow > 0 &&
-            board.rows <= 8 && board.modulesPerRow <= 36)
+            board.rows <= 8 && board.modulesPerRow <= 36) ...[
+          const Text('Удерживай аппарат и перенеси его на DIN-место. '
+              'Для перемещения закреплённого аппарата сначала сними замок.'),
           for (var rail = 0; rail < board.rows; rail++)
             Padding(
-              padding: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.only(bottom: 8, top: 4),
               child: Column(
                 key: ValueKey('din-rail-preview-$rail'),
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -448,53 +517,142 @@ class _ElectricalDinBoardEditorState extends State<ElectricalDinBoardEditor> {
                   const SizedBox(height: 3),
                   SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        for (var half = 0;
-                            half < board.modulesPerRow * 2; half++)
-                          Builder(builder: (context) {
-                            final covering = board.devices.where((d) =>
-                                d.row == rail &&
-                                d.startHalfModule != null &&
-                                d.widthHalfModules != null &&
-                                half >= d.startHalfModule! &&
-                                half < d.startHalfModule! +
-                                    d.widthHalfModules!).toList();
-                            final color = covering.length > 1
-                                ? Theme.of(context).colorScheme.errorContainer
-                                : covering.isNotEmpty
-                                    ? Theme.of(context).colorScheme.primaryContainer
-                                    : Theme.of(context).colorScheme.surfaceContainer;
-                            return Tooltip(
-                              message: covering.isEmpty
-                                  ? 'Пустое место'
-                                  : covering.map((d) =>
-                                      d.label.isEmpty ? d.id : d.label).join(', '),
-                              child: Container(
-                                key: ValueKey('din-cell-$rail-$half'),
-                                width: 18,
-                                height: 29,
-                                alignment: Alignment.center,
-                                decoration: BoxDecoration(
-                                  color: color,
-                                  border: Border.all(
-                                    width: .5,
-                                    color: Theme.of(context).colorScheme.outline,
-                                  ),
-                                ),
-                                child: half.isEven ? Text(
-                                  '${half ~/ 2 + 1}',
-                                  style: const TextStyle(fontSize: 8),
-                                ) : null,
+                    child: SizedBox(
+                      width: board.modulesPerRow * 36.0,
+                      height: 45,
+                      child: Stack(
+                        children: [
+                          Row(children: [
+                            for (var half = 0;
+                                half < board.modulesPerRow * 2; half++)
+                              DragTarget<({String panelId, String deviceId})>(
+                                key: ValueKey('din-drop-$rail-$half'),
+                                onWillAcceptWithDetails: (details) =>
+                                    details.data.panelId == panel.id,
+                                onAcceptWithDetails: (details) =>
+                                    _dropToSlot(details.data.panelId,
+                                        details.data.deviceId, rail, half),
+                                builder: (context, candidates, rejected) {
+                                  final covering = board.devices.where((d) =>
+                                      d.row == rail &&
+                                      d.startHalfModule != null &&
+                                      d.widthHalfModules != null &&
+                                      half >= d.startHalfModule! &&
+                                      half < d.startHalfModule! +
+                                          d.widthHalfModules!).toList();
+                                  final validHover = candidates.isNotEmpty &&
+                                      ElectricalDinMoveService.prepare(
+                                        widget.floor, board,
+                                        deviceId: candidates.first.deviceId,
+                                        targetRow: rail,
+                                        targetHalfModule: half,
+                                      ).canApply;
+                                  final colors = Theme.of(context).colorScheme;
+                                  final bg = candidates.isNotEmpty
+                                      ? (validHover ? colors.tertiaryContainer
+                                          : colors.errorContainer)
+                                      : covering.length > 1
+                                          ? colors.errorContainer
+                                          : covering.isNotEmpty
+                                              ? colors.primaryContainer
+                                              : colors.surfaceContainer;
+                                  return Tooltip(
+                                    message: covering.isEmpty
+                                        ? 'Пустое место'
+                                        : covering.map((d) =>
+                                            d.label.isEmpty ? d.id :
+                                                d.label).join(', '),
+                                    child: Container(
+                                      key: ValueKey('din-cell-$rail-$half'),
+                                      width: 18,
+                                      height: 45,
+                                      alignment: Alignment.bottomCenter,
+                                      decoration: BoxDecoration(
+                                        color: bg,
+                                        border: Border.all(
+                                            width: .5,
+                                            color: colors.outline),
+                                      ),
+                                      child: half.isEven ? Text(
+                                        '${half ~/ 2 + 1}',
+                                        style: const TextStyle(fontSize: 8),
+                                      ) : null,
+                                    ),
+                                  );
+                                },
                               ),
-                            );
-                          }),
-                      ],
+                          ]),
+                          for (final device in board.devices)
+                            if (device.row == rail &&
+                                device.startHalfModule != null &&
+                                device.widthHalfModules != null &&
+                                device.startHalfModule! >= 0 &&
+                                device.startHalfModule! +
+                                    device.widthHalfModules! <=
+                                    board.modulesPerRow * 2)
+                              Positioned(
+                                left: device.startHalfModule! * 18.0,
+                                top: 1,
+                                height: 30,
+                                width: device.widthHalfModules! * 18.0,
+                                child: Tooltip(
+                                  message: device.positionLocked
+                                      ? 'Закреплено: ${device.label.isEmpty ? device.id : device.label}'
+                                      : 'Удерживай для переноса: ${device.label.isEmpty ? device.id : device.label}',
+                                  child: device.positionLocked
+                                      ? Container(
+                                          key: ValueKey('din-rail-locked-${device.id}'),
+                                          alignment: Alignment.center,
+                                          decoration: BoxDecoration(
+                                            color: Theme.of(context)
+                                                .colorScheme.secondaryContainer,
+                                            borderRadius:
+                                                BorderRadius.circular(3),
+                                          ),
+                                          child: const Icon(Icons.lock_outline,
+                                              size: 13),
+                                        )
+                                      : LongPressDraggable<
+                                          ({String panelId, String deviceId})>(
+                                          key: ValueKey('din-rail-drag-${device.id}'),
+                                          data: (
+                                            panelId: panel.id,
+                                            deviceId: device.id,
+                                          ),
+                                          feedback: Material(
+                                            elevation: 4,
+                                            borderRadius:
+                                                BorderRadius.circular(6),
+                                            child: Padding(
+                                              padding: const EdgeInsets.all(8),
+                                              child: Text(device.label.isEmpty
+                                                  ? device.id : device.label),
+                                            ),
+                                          ),
+                                          childWhenDragging: const SizedBox(),
+                                          child: Container(
+                                            decoration: BoxDecoration(
+                                              color: Theme.of(context)
+                                                  .colorScheme.primaryContainer,
+                                              borderRadius:
+                                                  BorderRadius.circular(3),
+                                            ),
+                                            alignment: Alignment.center,
+                                            child: const Icon(
+                                                Icons.drag_indicator,
+                                                size: 15),
+                                          ),
+                                        ),
+                                ),
+                              ),
+                        ],
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
+        ],
         OutlinedButton.icon(
           key: const ValueKey('din-add-device'),
           onPressed: () => _editDevice(board),
@@ -516,27 +674,61 @@ class _ElectricalDinBoardEditorState extends State<ElectricalDinBoardEditor> {
           Card(child: ListTile(
             key: ValueKey('din-device-${device.id}'),
             dense: true,
-            title: Text(device.label.isEmpty ? device.id : device.label),
+            leading: device.positionLocked
+                ? const Icon(Icons.lock_outline)
+                : LongPressDraggable<
+                    ({String panelId, String deviceId})>(
+                    key: ValueKey('din-list-drag-${device.id}'),
+                    data: (panelId: panel.id, deviceId: device.id),
+                    feedback: Material(
+                      elevation: 4,
+                      borderRadius: BorderRadius.circular(6),
+                      child: Padding(
+                        padding: const EdgeInsets.all(8),
+                        child: Text(device.label.isEmpty
+                            ? device.id : device.label),
+                      ),
+                    ),
+                    childWhenDragging: const SizedBox(width: 38, height: 38),
+                    child: const SizedBox(
+                      width: 38,
+                      height: 38,
+                      child: Icon(Icons.drag_indicator),
+                    ),
+                  ),
+            title: Text(
+              device.label.isEmpty ? device.id : device.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
             subtitle: Text(
               '${device.model.isEmpty ? "Модель не указана" : device.model} · '
               '${device.widthHalfModules == null ? "ширина неизвестна" : "${device.widthHalfModules! / 2} модуля"} · '
               '${device.row == null || device.startHalfModule == null ? "место не указано" : "ряд ${device.row! + 1}, позиция ${device.startHalfModule! / 2 + 1}"}'
               '${device.positionLocked ? " · закреплено" : ""}',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
-            trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-              IconButton(
-                key: ValueKey('din-edit-${device.id}'),
-                tooltip: 'Редактировать аппарат',
-                onPressed: () => _editDevice(board, device),
-                icon: const Icon(Icons.edit_outlined),
-              ),
-              IconButton(
-                key: ValueKey('din-delete-${device.id}'),
-                tooltip: 'Удалить аппарат',
-                onPressed: () => _deleteDevice(board, device),
-                icon: const Icon(Icons.delete_outline),
-              ),
-            ]),
+            trailing: PopupMenuButton<String>(
+              key: ValueKey('din-actions-${device.id}'),
+              tooltip: 'Действия с аппаратом',
+              onSelected: (action) {
+                if (action == 'edit') _editDevice(board, device);
+                if (action == 'delete') _deleteDevice(board, device);
+              },
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  key: ValueKey('din-edit-${device.id}'),
+                  value: 'edit',
+                  child: const Text('Редактировать'),
+                ),
+                PopupMenuItem(
+                  key: ValueKey('din-delete-${device.id}'),
+                  value: 'delete',
+                  child: const Text('Удалить'),
+                ),
+              ],
+            ),
           )),
         if (audit.issues.isNotEmpty)
           ExpansionTile(
