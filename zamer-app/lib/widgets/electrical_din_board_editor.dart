@@ -370,7 +370,19 @@ class _ElectricalDinBoardEditorState extends State<ElectricalDinBoardEditor> {
       ));
       return;
     }
-    await _save(proposal.preview!);
+    // The panel or a referenced physical circuit can disappear while the
+    // preview is open without modifying the board inventory itself.
+    final refreshed = ElectricalDinLayoutProposalService.propose(
+        widget.floor, latest);
+    if (!refreshed.canApply ||
+        jsonEncode(refreshed.preview!.toJson()) !=
+            jsonEncode(proposal.preview!.toJson())) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Исходные данные изменились. Проверь предложение заново.'),
+      ));
+      return;
+    }
+    await _save(refreshed.preview!);
   }
 
   @override
