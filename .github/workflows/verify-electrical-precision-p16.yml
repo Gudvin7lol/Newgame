@@ -28,6 +28,8 @@ on:
       - 'zamer-app/test/electrical_junction_audit_test.dart'
       - 'zamer-app/test/electrical_issue_register_test.dart'
       - 'zamer-app/test/electrical_circuit_path_test.dart'
+      - 'zamer-app/test/electrical_board_network_review_test.dart'
+      - 'zamer-app/lib/services/electrical_board_network_review_service.dart'
       - 'zamer-app/lib/services/electrical_circuit_path_service.dart'
       - 'zamer-app/lib/services/electrical_issue_register_service.dart'
       - 'zamer-app/lib/services/electrical_issue_locator_service.dart'
@@ -96,7 +98,9 @@ jobs:
             test/electrical_junction_audit_test.dart \
             test/electrical_issue_register_test.dart \
             test/electrical_circuit_path_test.dart \
+            test/electrical_board_network_review_test.dart \
             lib/services/electrical_circuit_path_service.dart \
+            lib/services/electrical_board_network_review_service.dart \
             lib/services/electrical_issue_register_service.dart \
             lib/services/electrical_issue_locator_service.dart \
             lib/widgets/electrical_issue_register_sheet.dart \
@@ -124,6 +128,7 @@ jobs:
           flutter test \
             test/electrical_issue_register_test.dart \
             test/electrical_circuit_path_test.dart \
+            test/electrical_board_network_review_test.dart \
             test/electrical_junction_audit_test.dart \
             test/electrical_junction_capacity_and_proposals_test.dart \
             test/electrical_junction_candidates_test.dart \
