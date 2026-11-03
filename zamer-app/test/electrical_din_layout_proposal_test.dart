@@ -165,6 +165,42 @@ void main() {
     expect(proposal.preview!.devices[1].model, 'Паспорт X');
   });
 
+  testWidgets('deleted source panel blocks confirming a stale DIN preview',
+      (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final f = _floor();
+    f.electricalDesignDraft = ElectricalDesignDraft(dinBoards: {
+      'p': _board(modules: 4, devices: [
+        _device('fixed', width: 2, row: 0, start: 0, locked: true),
+        _device('movable', width: 2),
+      ]),
+    });
+    var saves = 0;
+    await tester.pumpWidget(MaterialApp(home: Scaffold(
+      body: SingleChildScrollView(child: ElectricalDinBoardEditor(
+        floor: f,
+        onSave: (draft) async { saves++; },
+      )),
+    )));
+    await tester.pumpAndSettle();
+    final button = find.byKey(const ValueKey('din-suggest-layout'));
+    await tester.ensureVisible(button);
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+    expect(find.text('Предложение DIN-компоновки'), findsOneWidget);
+    f.electricalPoints.clear();
+    await tester.tap(find.byKey(const ValueKey('din-proposal-apply')));
+    await tester.pumpAndSettle();
+    expect(saves, 0);
+    expect(f.electricalDesignDraft!.dinBoards['p']!.devices[1].row, isNull);
+    expect(find.textContaining('Исходные данные изменились'),
+        findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('stale preview cannot overwrite a newer manual edit',
       (tester) async {
     tester.view.physicalSize = const Size(390, 844);
