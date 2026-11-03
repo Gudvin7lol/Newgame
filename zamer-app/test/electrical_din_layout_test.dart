@@ -148,6 +148,18 @@ void main() {
     }), throwsFormatException);
   });
 
+  test('fractional stored half-slot numbers are rejected, not rounded', () {
+    expect(() => ElectricalDinDeviceDraft.fromJson({
+      'id': 'bad',
+      'widthHalfModules': 2.5,
+    }), throwsFormatException);
+    expect(() => ElectricalDinBoardDraft.fromJson({
+      'panelPointId': 'panel',
+      'rows': 1.5,
+      'modulesPerRow': 12,
+    }), throwsFormatException);
+  });
+
   testWidgets('mobile DIN editor saves rail size and a locked device',
       (tester) async {
     tester.view.physicalSize = const Size(390, 844);
