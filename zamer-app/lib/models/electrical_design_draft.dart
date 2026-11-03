@@ -218,7 +218,7 @@ class ElectricalLineManualDraft {
 int? _dinInteger(Object? raw) {
   if (raw == null) return null;
   if (raw is! num || !raw.isFinite ||
-      raw != raw.roundToDouble()) {
+      raw != raw.round()) {
     throw const FormatException('DIN-размер должен быть целым числом полумодулей.');
   }
   return raw.toInt();
