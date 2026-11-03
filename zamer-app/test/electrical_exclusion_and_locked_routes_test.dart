@@ -29,9 +29,10 @@ FloorPlan floorFixture() {
       xMm:3500,yMm:0,wallId:'top',wallOffsetMm:3500,
       wallSide:1,heightMm:300),
   ]);
-  floor.electricalNetwork = ElectricalNetwork(cables:[
-    ElectricalCableRecord(id:'c',circuitId:'C1',fromPointId:'s',toPointId:'t'),
-  ]);
+  floor.electricalNetwork = ElectricalNetwork(
+    circuits:[ElectricalCircuitRecord(id:'C1',name:'Тестовая линия')],
+    cables:[ElectricalCableRecord(id:'c',circuitId:'C1',fromPointId:'s',toPointId:'t')],
+  );
   return floor;
 }
 
