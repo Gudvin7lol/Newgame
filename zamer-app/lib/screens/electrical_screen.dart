@@ -45,6 +45,7 @@ import '../widgets/cad_plan_painter.dart';
 import '../services/plan_visibility_service.dart';
 import '../services/plan_viewport_link.dart';
 import '../services/electrical_board_draft_service.dart';
+import '../services/electrical_board_network_review_service.dart';
 
 enum ElectricalMode { add, wire, select }
 
@@ -2586,6 +2587,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
 
   Widget _boardWorkspace() {
     final draft = ElectricalBoardDraftService.create(widget.floor);
+    final networkReview = ElectricalBoardNetworkReviewService.create(widget.floor);
     final design = widget.floor.electricalDesignDraft;
     final checks = design == null
         ? null : ElectricalDesignEngine.calculate(widget.floor, design);
@@ -2696,7 +2698,46 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                   ),
                 ),
                 if (checks != null)
-                  Text('Открытых замечаний: ${checks.issues.length}'),
+                  Text('Открытых замечаний по расчёту: ${checks.issues.length}'),
+                const SizedBox(height: 10),
+                Text('Зарегистрированные физические группы',
+                    key: const ValueKey('board-physical-circuits-title'),
+                    style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 4),
+                const Text('Отдельно от предварительных групп нагрузок. '
+                    'Переход от расчётной линии к физической цепи '
+                    'автоматически не подтверждается.'),
+                if (!networkReview.hasNetwork)
+                  const Card(child: ListTile(
+                    title: Text('Физическая сеть ещё не создана'),
+                    subtitle: Text('Рисованные линии не считаются '
+                        'кабелями или подключениями щита.'),
+                  ))
+                else if (networkReview.circuits.isEmpty)
+                  const Card(child: ListTile(
+                    title: Text('В сети пока нет физических групп'),
+                    subtitle: Text('Назначь источник-щит и опиши '
+                        'кабели отдельно от эскиза нагрузок.'),
+                  )),
+                for (final circuit in networkReview.circuits)
+                  Card(
+                    key: ValueKey('board-network-circuit-${circuit.id}'),
+                    child: ListTile(
+                      dense: true,
+                      title: Text(circuit.name),
+                      subtitle: Text(
+                        'Щит: ${circuit.panelLabel} · '
+                        '3D-трасс: ${circuit.routedCount}/${circuit.cableCount}\n'
+                        'Проверено длины по геометрии: '
+                        '${circuit.knownGeometricMm == null ? "неизвестно" : (circuit.knownGeometricMm! / 1000).toStringAsFixed(2) + " м"}'
+                        ' · монтажный итог: '
+                        '${circuit.knownWithReserveMm == null ? "неизвестен" : (circuit.knownWithReserveMm! / 1000).toStringAsFixed(2) + " м"}',
+                      ),
+                      isThreeLine: true,
+                      trailing: circuit.needsReview
+                          ? const Icon(Icons.info_outline) : null,
+                    ),
+                  ),
               ],
               if (_boardView == ElectricalBoardView.checks) ...[
                 Text('Инженерные проверки',
@@ -2723,6 +2764,39 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                         ),
                         title: Text(issue.message),
                         subtitle: Text(issue.code),
+                      ),
+                    ),
+                const SizedBox(height: 10),
+                Text('Физическая сеть: проверка исходных данных',
+                    key: const ValueKey('board-network-checks-title'),
+                    style: Theme.of(context).textTheme.titleMedium),
+                if (!networkReview.hasNetwork)
+                  const ListTile(
+                    title: Text('Не создана электрическая сеть'),
+                    subtitle: Text('Пока доступны только расчётные '
+                        'линии и эскизы.'),
+                  )
+                else
+                  for (final circuit in networkReview.circuits)
+                    Card(
+                      key: ValueKey('board-network-check-${circuit.id}'),
+                      child: ExpansionTile(
+                        dense: true,
+                        title: Text(circuit.name),
+                        subtitle: Text(circuit.messages.isEmpty
+                            ? 'Явных замечаний к записям не найдено; '
+                              'монтажные проверки не выполнены.'
+                            : 'Проверить: ${circuit.messages.length}'),
+                        children: [
+                          if (circuit.messages.isEmpty)
+                            const ListTile(
+                              dense: true,
+                              title: Text('Требуются электрические измерения, '
+                                  'проверка защиты и паспорта оборудования.'),
+                            ),
+                          for (final message in circuit.messages)
+                            ListTile(dense: true, title: Text(message)),
+                        ],
                       ),
                     ),
                 const Padding(
