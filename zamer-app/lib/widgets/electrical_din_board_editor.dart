@@ -1,8 +1,11 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 
 import '../models/electrical_design_draft.dart';
 import '../models/models.dart';
 import '../services/electrical_din_layout_service.dart';
+import '../services/electrical_din_layout_proposal_service.dart';
 
 /// User-authored mechanical DIN inventory only, not a wiring diagram.
 class ElectricalDinBoardEditor extends StatefulWidget {
@@ -289,6 +292,90 @@ class _ElectricalDinBoardEditorState extends State<ElectricalDinBoardEditor> {
     await _save(current);
   }
 
+  Future<void> _suggestLayout(ElectricalDinBoardDraft current) async {
+    final sourceSnapshot = jsonEncode(current.toJson());
+    final proposal = ElectricalDinLayoutProposalService.propose(
+        widget.floor, current);
+    if (proposal.problems.isNotEmpty) {
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (dialog) => AlertDialog(
+          title: const Text('Компоновка невозможна'),
+          content: Text(proposal.problems.join('\n')),
+          actions: [TextButton(
+            onPressed: () => Navigator.pop(dialog),
+            child: const Text('Закрыть'),
+          )],
+        ),
+      );
+      return;
+    }
+    if (proposal.changes.isEmpty || proposal.preview == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Все аппараты уже размещены. Перемещать нечего.'),
+        ));
+      }
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: const Text('Предложение DIN-компоновки'),
+        content: SizedBox(
+          width: 320,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Переместить или установить: '
+                    '${proposal.changes.length}. '
+                    'Закреплённые позиции не затрагиваются.'),
+                const SizedBox(height: 6),
+                const Text('Это размещение по габаритам, не схема '
+                    'электрических соединений.'),
+                for (final change in proposal.changes)
+                  ListTile(
+                    dense: true,
+                    title: Text(change.deviceId),
+                    subtitle: Text(
+                      'Ряд ${change.nextRow + 1}, '
+                      'позиция ${change.nextHalfModule / 2 + 1}',
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            key: const ValueKey('din-proposal-cancel'),
+            onPressed: () => Navigator.pop(dialog, false),
+            child: const Text('Отмена'),
+          ),
+          FilledButton(
+            key: const ValueKey('din-proposal-apply'),
+            onPressed: () => Navigator.pop(dialog, true),
+            child: const Text('Применить'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || confirmed != true) return;
+    // A newer manual edit or other floor change invalidates the preview.
+    // Never overwrite it with an older proposal from an open dialog.
+    final latest = _current(current.panelPointId);
+    if (jsonEncode(latest.toJson()) != sourceSnapshot) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Компоновка изменилась. Построй предложение заново.'),
+      ));
+      return;
+    }
+    await _save(proposal.preview!);
+  }
+
   @override
   Widget build(BuildContext context) {
     final panels = _panels;
@@ -405,6 +492,13 @@ class _ElectricalDinBoardEditorState extends State<ElectricalDinBoardEditor> {
           icon: const Icon(Icons.add),
           label: const Text('Добавить аппарат по паспорту'),
         ),
+        if (board.devices.isNotEmpty)
+          OutlinedButton.icon(
+            key: const ValueKey('din-suggest-layout'),
+            onPressed: () => _suggestLayout(board),
+            icon: const Icon(Icons.auto_fix_high_outlined),
+            label: const Text('Предложить свободные места'),
+          ),
         if (board.devices.isEmpty)
           const ListTile(dense: true,
             title: Text('Аппараты пока не добавлены'),
