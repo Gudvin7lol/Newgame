@@ -34,6 +34,8 @@ on:
       - 'zamer-app/lib/services/electrical_din_layout_service.dart'
       - 'zamer-app/lib/services/electrical_din_layout_proposal_service.dart'
       - 'zamer-app/test/electrical_din_layout_proposal_test.dart'
+      - 'zamer-app/lib/services/electrical_din_move_service.dart'
+      - 'zamer-app/test/electrical_din_move_test.dart'
       - 'zamer-app/lib/widgets/electrical_din_board_editor.dart'
       - 'zamer-app/lib/services/electrical_board_network_review_service.dart'
       - 'zamer-app/lib/services/electrical_circuit_path_service.dart'
@@ -110,6 +112,8 @@ jobs:
             lib/services/electrical_din_layout_service.dart \
             lib/services/electrical_din_layout_proposal_service.dart \
             test/electrical_din_layout_proposal_test.dart \
+            lib/services/electrical_din_move_service.dart \
+            test/electrical_din_move_test.dart \
             lib/widgets/electrical_din_board_editor.dart \
             lib/services/electrical_circuit_path_service.dart \
             lib/services/electrical_board_network_review_service.dart \
@@ -143,6 +147,7 @@ jobs:
             test/electrical_board_network_review_test.dart \
             test/electrical_din_layout_test.dart \
             test/electrical_din_layout_proposal_test.dart \
+            test/electrical_din_move_test.dart \
             test/electrical_junction_audit_test.dart \
             test/electrical_junction_capacity_and_proposals_test.dart \
             test/electrical_junction_candidates_test.dart \
