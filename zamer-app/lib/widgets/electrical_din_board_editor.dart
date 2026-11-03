@@ -54,40 +54,41 @@ class _ElectricalDinBoardEditorState extends State<ElectricalDinBoardEditor> {
   }
 
   Future<void> _configure(ElectricalDinBoardDraft current) async {
-    final rows = TextEditingController(
-        text: current.rows == 0 ? '' : current.rows.toString());
-    final modules = TextEditingController(
-        text: current.modulesPerRow == 0
-            ? '' : current.modulesPerRow.toString());
+    var rowsInput = current.rows == 0 ? '' : current.rows.toString();
+    var modulesInput = current.modulesPerRow == 0
+        ? '' : current.modulesPerRow.toString();
     final requested = await showDialog<(int, int)>(
       context: context,
       builder: (dialog) => AlertDialog(
         title: const Text('Параметры DIN-корпуса'),
-        content: Column(mainAxisSize: MainAxisSize.min, children: [
-          TextField(
+        content: SingleChildScrollView(child: Column(
+          mainAxisSize: MainAxisSize.min, children: [
+          TextFormField(
             key: const ValueKey('din-rail-rows'),
-            controller: rows,
+            initialValue: rowsInput,
+            onChanged: (value) => rowsInput = value,
             keyboardType: TextInputType.number,
             decoration: const InputDecoration(labelText: 'Число DIN-рядов'),
           ),
-          TextField(
+          TextFormField(
             key: const ValueKey('din-rail-modules'),
-            controller: modules,
+            initialValue: modulesInput,
+            onChanged: (value) => modulesInput = value,
             keyboardType: TextInputType.number,
             decoration: const InputDecoration(
               labelText: 'Модулей на один ряд',
               helperText: 'По паспорту конкретного корпуса',
             ),
           ),
-        ]),
+        ])),
         actions: [
           TextButton(onPressed: () => Navigator.pop(dialog),
               child: const Text('Отмена')),
           FilledButton(
             key: const ValueKey('din-save-enclosure'),
             onPressed: () {
-              final r = int.tryParse(rows.text.trim());
-              final m = int.tryParse(modules.text.trim());
+              final r = int.tryParse(rowsInput.trim());
+              final m = int.tryParse(modulesInput.trim());
               if (r == null || m == null || r <= 0 || m <= 0 ||
                   r > 100 || m > 500) return;
               Navigator.pop(dialog, (r, m));
@@ -97,8 +98,6 @@ class _ElectricalDinBoardEditorState extends State<ElectricalDinBoardEditor> {
         ],
       ),
     );
-    rows.dispose();
-    modules.dispose();
     if (requested == null || !mounted) return;
     current.rows = requested.$1;
     current.modulesPerRow = requested.$2;
@@ -117,17 +116,15 @@ class _ElectricalDinBoardEditorState extends State<ElectricalDinBoardEditor> {
 
   Future<void> _editDevice(ElectricalDinBoardDraft current,
       [ElectricalDinDeviceDraft? original]) async {
-    final label = TextEditingController(text: original?.label ?? '');
-    final model = TextEditingController(text: original?.model ?? '');
-    final width = TextEditingController(text:
-        original?.widthHalfModules == null
-            ? '' : (original!.widthHalfModules! / 2).toString());
-    final row = TextEditingController(text:
-        original?.row == null ? '' : (original!.row! + 1).toString());
-    final position = TextEditingController(text:
-        original?.startHalfModule == null
-            ? '' : (original!.startHalfModule! / 2 + 1).toString());
-    final circuit = TextEditingController(text: original?.circuitId ?? '');
+    var labelInput = original?.label ?? '';
+    var modelInput = original?.model ?? '';
+    var widthInput = original?.widthHalfModules == null
+        ? '' : (original!.widthHalfModules! / 2).toString();
+    var rowInput = original?.row == null
+        ? '' : (original!.row! + 1).toString();
+    var positionInput = original?.startHalfModule == null
+        ? '' : (original!.startHalfModule! / 2 + 1).toString();
+    var circuitInput = original?.circuitId ?? '';
     var kind = original?.kind ?? ElectricalDinDeviceKind.other;
     var locked = original?.positionLocked ?? false;
     final requested = await showDialog<ElectricalDinDeviceDraft>(
@@ -156,21 +153,24 @@ class _ElectricalDinBoardEditorState extends State<ElectricalDinBoardEditor> {
                     if (value != null) update(() => kind = value);
                   },
                 ),
-                TextField(
+                TextFormField(
                   key: const ValueKey('din-device-label'),
-                  controller: label,
+                  initialValue: labelInput,
+                  onChanged: (value) => labelInput = value,
                   decoration: const InputDecoration(labelText: 'Название'),
                 ),
-                TextField(
+                TextFormField(
                   key: const ValueKey('din-device-model'),
-                  controller: model,
+                  initialValue: modelInput,
+                  onChanged: (value) => modelInput = value,
                   decoration: const InputDecoration(
                     labelText: 'Модель по паспорту',
                   ),
                 ),
-                TextField(
+                TextFormField(
                   key: const ValueKey('din-device-width'),
-                  controller: width,
+                  initialValue: widthInput,
+                  onChanged: (value) => widthInput = value,
                   keyboardType: const TextInputType.numberWithOptions(
                       decimal: true),
                   decoration: const InputDecoration(
@@ -178,24 +178,27 @@ class _ElectricalDinBoardEditorState extends State<ElectricalDinBoardEditor> {
                     helperText: 'Шаг 0,5; неизвестное оставь пустым',
                   ),
                 ),
-                TextField(
+                TextFormField(
                   key: const ValueKey('din-device-circuit'),
-                  controller: circuit,
+                  initialValue: circuitInput,
+                  onChanged: (value) => circuitInput = value,
                   decoration: const InputDecoration(
                     labelText: 'ID физической группы (необязательно)',
                   ),
                 ),
-                TextField(
+                TextFormField(
                   key: const ValueKey('din-device-row'),
-                  controller: row,
+                  initialValue: rowInput,
+                  onChanged: (value) => rowInput = value,
                   keyboardType: TextInputType.number,
                   decoration: const InputDecoration(
                     labelText: 'Ряд, начиная с 1',
                   ),
                 ),
-                TextField(
+                TextFormField(
                   key: const ValueKey('din-device-position'),
-                  controller: position,
+                  initialValue: positionInput,
+                  onChanged: (value) => positionInput = value,
                   keyboardType: const TextInputType.numberWithOptions(
                       decimal: true),
                   decoration: const InputDecoration(
@@ -219,15 +222,15 @@ class _ElectricalDinBoardEditorState extends State<ElectricalDinBoardEditor> {
             FilledButton(
               key: const ValueKey('din-save-device'),
               onPressed: () {
-                final w = width.text.trim().isEmpty
-                    ? null : _halfModules(width.text);
-                final r = row.text.trim().isEmpty
-                    ? null : int.tryParse(row.text.trim());
-                final start = position.text.trim().isEmpty
-                    ? null : _halfModules(position.text, position: true);
-                if ((width.text.trim().isNotEmpty && w == null) ||
-                    (row.text.trim().isNotEmpty && (r == null || r < 1)) ||
-                    (position.text.trim().isNotEmpty && start == null) ||
+                final w = widthInput.trim().isEmpty
+                    ? null : _halfModules(widthInput);
+                final r = rowInput.trim().isEmpty
+                    ? null : int.tryParse(rowInput.trim());
+                final start = positionInput.trim().isEmpty
+                    ? null : _halfModules(positionInput, position: true);
+                if ((widthInput.trim().isNotEmpty && w == null) ||
+                    (rowInput.trim().isNotEmpty && (r == null || r < 1)) ||
+                    (positionInput.trim().isNotEmpty && start == null) ||
                     ((r == null) != (start == null)) ||
                     (locked && r == null)) return;
                 var id = original?.id;
@@ -241,10 +244,10 @@ class _ElectricalDinBoardEditorState extends State<ElectricalDinBoardEditor> {
                 }
                 Navigator.pop(dialog, ElectricalDinDeviceDraft(
                   id: id, kind: kind,
-                  label: label.text.trim(),
-                  model: model.text.trim(),
-                  circuitId: circuit.text.trim().isEmpty
-                      ? null : circuit.text.trim(),
+                  label: labelInput.trim(),
+                  model: modelInput.trim(),
+                  circuitId: circuitInput.trim().isEmpty
+                      ? null : circuitInput.trim(),
                   widthHalfModules: w,
                   row: r == null ? null : r - 1,
                   startHalfModule: start,
@@ -257,12 +260,6 @@ class _ElectricalDinBoardEditorState extends State<ElectricalDinBoardEditor> {
         ),
       ),
     );
-    label.dispose();
-    model.dispose();
-    width.dispose();
-    row.dispose();
-    position.dispose();
-    circuit.dispose();
     if (requested == null || !mounted) return;
     current.devices.removeWhere((d) => d.id == requested.id);
     current.devices.add(requested);
