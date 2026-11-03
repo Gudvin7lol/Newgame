@@ -328,6 +328,67 @@ class _ElectricalDinBoardEditorState extends State<ElectricalDinBoardEditor> {
             onPressed: () => _configure(board),
           ),
         ),
+        if (board.rows > 0 && board.modulesPerRow > 0 &&
+            board.rows <= 8 && board.modulesPerRow <= 36)
+          for (var rail = 0; rail < board.rows; rail++)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Column(
+                key: ValueKey('din-rail-preview-$rail'),
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('DIN-ряд ${rail + 1}',
+                      style: Theme.of(context).textTheme.labelSmall),
+                  const SizedBox(height: 3),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        for (var half = 0;
+                            half < board.modulesPerRow * 2; half++)
+                          Builder(builder: (context) {
+                            final covering = board.devices.where((d) =>
+                                d.row == rail &&
+                                d.startHalfModule != null &&
+                                d.widthHalfModules != null &&
+                                half >= d.startHalfModule! &&
+                                half < d.startHalfModule! +
+                                    d.widthHalfModules!).toList();
+                            final color = covering.length > 1
+                                ? Theme.of(context).colorScheme.errorContainer
+                                : covering.isNotEmpty
+                                    ? Theme.of(context).colorScheme.primaryContainer
+                                    : Theme.of(context).colorScheme.surfaceContainer;
+                            return Tooltip(
+                              message: covering.isEmpty
+                                  ? 'Пустое место'
+                                  : covering.map((d) =>
+                                      d.label.isEmpty ? d.id : d.label).join(', '),
+                              child: Container(
+                                key: ValueKey('din-cell-$rail-$half'),
+                                width: 18,
+                                height: 29,
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  color: color,
+                                  border: Border.all(
+                                    width: .5,
+                                    color: Theme.of(context).colorScheme.outline,
+                                  ),
+                                ),
+                                child: half.isEven ? Text(
+                                  '${half ~/ 2 + 1}',
+                                  style: const TextStyle(fontSize: 8),
+                                ) : null,
+                              ),
+                            );
+                          }),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
         OutlinedButton.icon(
           key: const ValueKey('din-add-device'),
           onPressed: () => _editDevice(board),
