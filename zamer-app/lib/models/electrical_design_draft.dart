@@ -213,18 +213,133 @@ class ElectricalLineManualDraft {
       );
 }
 
+/// User-entered device identity and passport footprint only. No protection
+/// device type, rating or wiring is selected from load arithmetic.
+enum ElectricalDinDeviceKind {
+  incoming, breaker, rcd, rcbo, surgeProtector, contactor, other,
+}
+
+class ElectricalDinDeviceDraft {
+  const ElectricalDinDeviceDraft({
+    required this.id,
+    this.kind = ElectricalDinDeviceKind.other,
+    this.label = '',
+    this.model = '',
+    this.circuitId,
+    this.widthHalfModules,
+    this.row,
+    this.startHalfModule,
+    this.positionLocked = false,
+  });
+
+  final String id, label, model;
+  final String? circuitId;
+  final ElectricalDinDeviceKind kind;
+  /// Explicit manufacturer footprint in half-module steps. Null is unknown.
+  final int? widthHalfModules;
+  /// Zero-based rail number and half-module index, never inferred.
+  final int? row, startHalfModule;
+  final bool positionLocked;
+
+  void validate() {
+    if (id.trim().isEmpty ||
+        (widthHalfModules != null && widthHalfModules! <= 0) ||
+        (row != null && row! < 0) ||
+        (startHalfModule != null && startHalfModule! < 0) ||
+        (circuitId != null && circuitId!.trim().isEmpty)) {
+      throw const FormatException('Некорректные размеры или ID аппарата щита.');
+    }
+  }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'kind': kind.name,
+    'label': label,
+    'model': model,
+    'circuitId': circuitId,
+    'widthHalfModules': widthHalfModules,
+    'row': row,
+    'startHalfModule': startHalfModule,
+    'positionLocked': positionLocked,
+  };
+
+  factory ElectricalDinDeviceDraft.fromJson(Map<String, dynamic> j) =>
+      ElectricalDinDeviceDraft(
+        id: j['id'] as String,
+        kind: enumOr(ElectricalDinDeviceKind.values, j['kind'],
+            ElectricalDinDeviceKind.other),
+        label: j['label'] as String? ?? '',
+        model: j['model'] as String? ?? '',
+        circuitId: j['circuitId'] as String?,
+        widthHalfModules: (j['widthHalfModules'] as num?)?.toInt(),
+        row: (j['row'] as num?)?.toInt(),
+        startHalfModule: (j['startHalfModule'] as num?)?.toInt(),
+        positionLocked: j['positionLocked'] == true,
+      );
+}
+
+/// Physical rail inventory is a *user-authored* draft separate from load
+/// proposals. Never silently repack locked hardware or invent its width.
+class ElectricalDinBoardDraft {
+  ElectricalDinBoardDraft({
+    required this.panelPointId,
+    this.rows = 0,
+    this.modulesPerRow = 0,
+    List<ElectricalDinDeviceDraft>? devices,
+  }) : devices = devices ?? [];
+
+  final String panelPointId;
+  int rows, modulesPerRow;
+  final List<ElectricalDinDeviceDraft> devices;
+
+  void validate() {
+    if (panelPointId.trim().isEmpty ||
+        rows < 0 || modulesPerRow < 0 ||
+        rows > 100 || modulesPerRow > 500) {
+      throw const FormatException('Некорректные параметры DIN-щита.');
+    }
+    for (final device in devices) {
+      device.validate();
+    }
+  }
+
+  Map<String, dynamic> toJson() => {
+    'panelPointId': panelPointId,
+    'rows': rows,
+    'modulesPerRow': modulesPerRow,
+    'devices': devices.map((d) => d.toJson()).toList(),
+  };
+
+  factory ElectricalDinBoardDraft.fromJson(Map<String, dynamic> j) {
+    final draft = ElectricalDinBoardDraft(
+      panelPointId: j['panelPointId'] as String,
+      rows: (j['rows'] as num?)?.toInt() ?? 0,
+      modulesPerRow: (j['modulesPerRow'] as num?)?.toInt() ?? 0,
+      devices: ((j['devices'] as List?) ?? const [])
+          .map((d) => ElectricalDinDeviceDraft.fromJson(
+              Map<String, dynamic>.from(d as Map)))
+          .toList(),
+    );
+    draft.validate();
+    return draft;
+  }
+}
+
 /// Persisted on FloorPlan: imported P11 projects stay compatible.
 class ElectricalDesignDraft {
   ElectricalDesignDraft({
     this.settings = const ElectricalSupplyDraft(),
     Map<String, ElectricalConsumerDraft>? consumers,
     Map<String, ElectricalLineManualDraft>? lineOverrides,
+    Map<String, ElectricalDinBoardDraft>? dinBoards,
   }) : consumers = consumers ?? {},
-       lineOverrides = lineOverrides ?? {};
+       lineOverrides = lineOverrides ?? {},
+       dinBoards = dinBoards ?? {};
 
   ElectricalSupplyDraft settings;
   final Map<String, ElectricalConsumerDraft> consumers;
   final Map<String, ElectricalLineManualDraft> lineOverrides;
+  final Map<String, ElectricalDinBoardDraft> dinBoards;
 
   void validate() {
     settings.validate();
@@ -240,6 +355,12 @@ class ElectricalDesignDraft {
         throw const FormatException('Не совпадает идентификатор линии.');
       }
     }
+    for (final entry in dinBoards.entries) {
+      entry.value.validate();
+      if (entry.key != entry.value.panelPointId) {
+        throw const FormatException('Не совпадает идентификатор щита.');
+      }
+    }
   }
 
   Map<String, dynamic> toJson() => {
@@ -247,6 +368,8 @@ class ElectricalDesignDraft {
     'settings': settings.toJson(),
     'consumers': consumers.map((k, v) => MapEntry(k, v.toJson())),
     'lineOverrides': lineOverrides.map((k, v) => MapEntry(k, v.toJson())),
+    if (dinBoards.isNotEmpty)
+      'dinBoards': dinBoards.map((k, v) => MapEntry(k, v.toJson())), 
   };
 
   factory ElectricalDesignDraft.fromJson(Map<String, dynamic> j) {
@@ -259,6 +382,9 @@ class ElectricalDesignDraft {
       lineOverrides: ((j['lineOverrides'] as Map?) ?? const {}).map(
         (k, v) => MapEntry(k.toString(), ElectricalLineManualDraft.fromJson(
           Map<String, dynamic>.from(v as Map)))),
+      dinBoards: ((j['dinBoards'] as Map?) ?? const {}).map(
+        (k, v) => MapEntry(k.toString(), ElectricalDinBoardDraft.fromJson(
+          Map<String, dynamic>.from(v as Map)))), 
     );
     state.validate();
     return state;
