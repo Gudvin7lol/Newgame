@@ -184,6 +184,15 @@ void main() {
         const ValueKey('board-network-checks-title')), findsOneWidget);
     expect(find.byKey(
         const ValueKey('board-network-check-C-0')), findsOneWidget);
+    final issuesLink =
+        find.byKey(const ValueKey('board-open-network-issues'));
+    expect(issuesLink, findsOneWidget);
+    await tester.ensureVisible(issuesLink);
+    await tester.pumpAndSettle();
+    await tester.tap(issuesLink);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('electrical-issue-list')),
+        findsOneWidget);
     expect(floor.toJson().toString(), before);
     expect(tester.takeException(), isNull);
   });
