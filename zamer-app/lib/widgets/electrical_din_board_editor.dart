@@ -407,7 +407,7 @@ class _ElectricalDinBoardEditorState extends State<ElectricalDinBoardEditor> {
             subtitle: Text(
               '${device.model.isEmpty ? "Модель не указана" : device.model} · '
               '${device.widthHalfModules == null ? "ширина неизвестна" : "${device.widthHalfModules! / 2} модуля"} · '
-              '${device.row == null ? "место не указано" : "ряд ${device.row! + 1}, позиция ${device.startHalfModule! / 2 + 1}"}'
+              '${device.row == null || device.startHalfModule == null ? "место не указано" : "ряд ${device.row! + 1}, позиция ${device.startHalfModule! / 2 + 1}"}'
               '${device.positionLocked ? " · закреплено" : ""}',
             ),
             trailing: Row(mainAxisSize: MainAxisSize.min, children: [
