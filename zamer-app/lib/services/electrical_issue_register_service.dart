@@ -2,6 +2,7 @@ import '../models/electrical_network.dart';
 import '../models/electrical_route_3d.dart';
 import '../models/models.dart';
 import 'electrical_cable_journal_service.dart';
+import 'electrical_circuit_path_service.dart';
 import 'electrical_junction_audit_service.dart';
 import 'electrical_network_service.dart';
 
@@ -136,6 +137,20 @@ class ElectricalIssueRegisterService {
               ? ElectricalIssueSeverity.error
               : ElectricalIssueSeverity.review,
           object, id, focus, 'Схема');
+    }
+
+    // A traced conductor is not proof of safe electrical continuity.
+    // These read-only checks show missing documented links only when a
+    // distribution panel was explicitly selected for the circuit.
+    for (final problem in ElectricalCircuitPathService.inspect(floor)) {
+      final cable = problem.cableId == null ? null : cableById[problem.cableId];
+      final circuit = circuits[problem.circuitId];
+      add(problem.code, problem.message, ElectricalIssueSeverity.review,
+          cable == null ? ElectricalIssueObject.circuit
+              : ElectricalIssueObject.cable,
+          cable?.id ?? problem.circuitId,
+          anchorForCable(cable) ?? circuit?.sourcePanelPointId,
+          'Связность');
     }
 
     final audit = ElectricalJunctionAuditService.inspect(floor);
