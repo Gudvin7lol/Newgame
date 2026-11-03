@@ -37,6 +37,9 @@ class _ElectricalDinBoardEditorState extends State<ElectricalDinBoardEditor> {
   };
 
   String? _panelId;
+  String? _selectedDeviceId;
+  String? _selectedDevicePanel;
+  static const double _halfSlotWidth = 24;
 
   List<ElectricalPoint> get _panels => widget.floor.electricalPoints
       .where((point) => point.type == ElectricalPointType.panel).toList();
@@ -464,6 +467,10 @@ class _ElectricalDinBoardEditorState extends State<ElectricalDinBoardEditor> {
       return;
     }
     await _save(fresh.preview!);
+    if (mounted) setState(() {
+      _selectedDeviceId = null;
+      _selectedDevicePanel = null;
+    });
   }
 
   @override
@@ -479,6 +486,9 @@ class _ElectricalDinBoardEditorState extends State<ElectricalDinBoardEditor> {
         panels.first;
     final board = _current(panel.id);
     final audit = ElectricalDinLayoutService.inspect(widget.floor, board);
+    final selected = _selectedDevicePanel == panel.id
+        ? board.devices.where((d) => d.id == _selectedDeviceId).firstOrNull
+        : null;
     return Column(
       key: const ValueKey('din-board-editor'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -495,7 +505,11 @@ class _ElectricalDinBoardEditorState extends State<ElectricalDinBoardEditor> {
               ChoiceChip(
                 label: Text(point.label.isEmpty ? point.id : point.label),
                 selected: panel.id == point.id,
-                onSelected: (_) => setState(() => _panelId = point.id),
+                onSelected: (_) => setState(() {
+                  _panelId = point.id;
+                  _selectedDeviceId = null;
+                  _selectedDevicePanel = null;
+                }),
               ),
           ],
         ),
@@ -517,8 +531,9 @@ class _ElectricalDinBoardEditorState extends State<ElectricalDinBoardEditor> {
         ),
         if (board.rows > 0 && board.modulesPerRow > 0 &&
             board.rows <= 8 && board.modulesPerRow <= 36) ...[
-          const Text('Удерживай аппарат и перенеси его на DIN-место. '
-              'Для перемещения закреплённого аппарата сначала сними замок.'),
+          const Text('Удерживай аппарат для перетаскивания или выбери '
+              'его в списке и нажми нужное DIN-место. '
+              'Закреплённые позиции нельзя перемещать.'),
           for (var rail = 0; rail < board.rows; rail++)
             Padding(
               padding: const EdgeInsets.only(bottom: 8, top: 4),
@@ -532,7 +547,7 @@ class _ElectricalDinBoardEditorState extends State<ElectricalDinBoardEditor> {
                   SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: SizedBox(
-                      width: board.modulesPerRow * 36.0,
+                      width: board.modulesPerRow * _halfSlotWidth * 2,
                       height: 45,
                       child: Stack(
                         children: [
@@ -554,6 +569,13 @@ class _ElectricalDinBoardEditorState extends State<ElectricalDinBoardEditor> {
                                       half >= d.startHalfModule! &&
                                       half < d.startHalfModule! +
                                           d.widthHalfModules!).toList();
+                                  final validSelection = selected != null &&
+                                      ElectricalDinMoveService.prepare(
+                                        widget.floor, board,
+                                        deviceId: selected.id,
+                                        targetRow: rail,
+                                        targetHalfModule: half,
+                                      ).canApply;
                                   final validHover = candidates.isNotEmpty &&
                                       candidates.first != null &&
                                       ElectricalDinMoveService.prepare(
@@ -566,6 +588,8 @@ class _ElectricalDinBoardEditorState extends State<ElectricalDinBoardEditor> {
                                   final bg = candidates.isNotEmpty
                                       ? (validHover ? colors.tertiaryContainer
                                           : colors.errorContainer)
+                                      : selected != null && validSelection
+                                          ? colors.tertiaryContainer
                                       : covering.length > 1
                                           ? colors.errorContainer
                                           : covering.isNotEmpty
@@ -577,9 +601,14 @@ class _ElectricalDinBoardEditorState extends State<ElectricalDinBoardEditor> {
                                         : covering.map((d) =>
                                             d.label.isEmpty ? d.id :
                                                 d.label).join(', '),
-                                    child: Container(
+                                    child: GestureDetector(
+                                      key: ValueKey('din-cell-tap-$rail-$half'),
+                                      behavior: HitTestBehavior.opaque,
+                                      onTap: selected == null ? null : () =>
+                                          _dropToSlot(panel.id, selected.id, rail, half),
+                                      child: Container(
                                       key: ValueKey('din-cell-$rail-$half'),
-                                      width: 18,
+                                      width: _halfSlotWidth,
                                       height: 45,
                                       alignment: Alignment.bottomCenter,
                                       decoration: BoxDecoration(
@@ -592,6 +621,7 @@ class _ElectricalDinBoardEditorState extends State<ElectricalDinBoardEditor> {
                                         '${half ~/ 2 + 1}',
                                         style: const TextStyle(fontSize: 8),
                                       ) : null,
+                                    ),
                                     ),
                                   );
                                 },
@@ -606,10 +636,10 @@ class _ElectricalDinBoardEditorState extends State<ElectricalDinBoardEditor> {
                                     device.widthHalfModules! <=
                                     board.modulesPerRow * 2)
                               Positioned(
-                                left: device.startHalfModule! * 18.0,
+                                left: device.startHalfModule! * _halfSlotWidth,
                                 top: 1,
                                 height: 30,
-                                width: device.widthHalfModules! * 18.0,
+                                width: device.widthHalfModules! * _halfSlotWidth,
                                 child: Tooltip(
                                   message: device.positionLocked
                                       ? 'Закреплено: ${device.label.isEmpty ? device.id : device.label}'
@@ -681,6 +711,23 @@ class _ElectricalDinBoardEditorState extends State<ElectricalDinBoardEditor> {
             icon: const Icon(Icons.auto_fix_high_outlined),
             label: const Text('Предложить свободные места'),
           ),
+        if (selected != null)
+          ListTile(
+            key: const ValueKey('din-selected-device'),
+            dense: true,
+            leading: const Icon(Icons.touch_app_outlined),
+            title: Text('Выбрано: ${selected.label.isEmpty ? selected.id : selected.label}'),
+            subtitle: const Text('Нажми подсвеченное свободное место на DIN-рейке'),
+            trailing: IconButton(
+              key: const ValueKey('din-cancel-selection'),
+              tooltip: 'Снять выбор',
+              icon: const Icon(Icons.close),
+              onPressed: () => setState(() {
+                _selectedDeviceId = null;
+                _selectedDevicePanel = null;
+              }),
+            ),
+          ),
         if (board.devices.isEmpty)
           const ListTile(dense: true,
             title: Text('Аппараты пока не добавлены'),
@@ -689,6 +736,17 @@ class _ElectricalDinBoardEditorState extends State<ElectricalDinBoardEditor> {
           Card(child: ListTile(
             key: ValueKey('din-device-${device.id}'),
             dense: true,
+            selected: selected?.id == device.id,
+            onTap: device.positionLocked ? null : () => setState(() {
+              if (_selectedDevicePanel == panel.id &&
+                  _selectedDeviceId == device.id) {
+                _selectedDeviceId = null;
+                _selectedDevicePanel = null;
+              } else {
+                _selectedDeviceId = device.id;
+                _selectedDevicePanel = panel.id;
+              }
+            }),
             leading: device.positionLocked
                 ? const Icon(Icons.lock_outline)
                 : LongPressDraggable<
