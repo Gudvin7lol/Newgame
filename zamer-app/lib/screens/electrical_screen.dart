@@ -46,6 +46,7 @@ import '../services/plan_visibility_service.dart';
 import '../services/plan_viewport_link.dart';
 import '../services/electrical_board_draft_service.dart';
 import '../services/electrical_board_network_review_service.dart';
+import '../widgets/electrical_din_board_editor.dart';
 
 enum ElectricalMode { add, wire, select }
 
@@ -2585,6 +2586,18 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     );
   }
 
+  Future<void> _saveDinBoard(ElectricalDinBoardDraft board) async {
+    // The editor sends a detached validated snapshot; the live project is
+    // changed once, after creating an undo entry.
+    board.validate();
+    _pushUndo();
+    widget.floor.electricalDesignDraft ??= ElectricalDesignDraft();
+    widget.floor.electricalDesignDraft!.dinBoards[board.panelPointId] =
+        ElectricalDinBoardDraft.fromJson(board.toJson());
+    await widget.onChanged();
+    if (mounted) setState(() {});
+  }
+
   Widget _boardWorkspace() {
     final draft = ElectricalBoardDraftService.create(widget.floor);
     final networkReview = ElectricalBoardNetworkReviewService.create(widget.floor);
@@ -2684,6 +2697,11 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                         subtitle: Text(section.role),
                       ),
                     ),
+                const SizedBox(height: 12),
+                ElectricalDinBoardEditor(
+                  floor: widget.floor,
+                  onSave: _saveDinBoard,
+                ),
               ],
               if (_boardView == ElectricalBoardView.wiring) ...[
                 Text('Клеммная ведомость • не сформирована',
