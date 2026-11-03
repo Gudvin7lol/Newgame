@@ -1,4 +1,4 @@
-import '../models/electrical_design_draft.dart';
+import '../models/electrical_design_draft.dart' show ElectricalDinBoardDraft;
 import '../models/electrical_network.dart';
 import '../models/electrical_route_3d.dart';
 import '../models/models.dart';
