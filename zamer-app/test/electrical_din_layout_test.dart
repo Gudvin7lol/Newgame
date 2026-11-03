@@ -181,7 +181,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('din-save-device')));
     await tester.pumpAndSettle();
 
-    final d = saved.devices.single;
+    final d = floor.electricalDesignDraft!.dinBoards['panel']!.devices.single;
     expect(d.label, 'QF1');
     expect(d.widthHalfModules, 3);
     expect(d.row, 0);
