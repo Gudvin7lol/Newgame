@@ -541,9 +541,10 @@ class _ElectricalDinBoardEditorState extends State<ElectricalDinBoardEditor> {
                                       half < d.startHalfModule! +
                                           d.widthHalfModules!).toList();
                                   final validHover = candidates.isNotEmpty &&
+                                      candidates.first != null &&
                                       ElectricalDinMoveService.prepare(
                                         widget.floor, board,
-                                        deviceId: candidates.first.deviceId,
+                                        deviceId: candidates.first!.deviceId,
                                         targetRow: rail,
                                         targetHalfModule: half,
                                       ).canApply;
