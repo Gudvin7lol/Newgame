@@ -165,6 +165,49 @@ void main() {
     expect(proposal.preview!.devices[1].model, 'Паспорт X');
   });
 
+  testWidgets('stale preview cannot overwrite a newer manual edit',
+      (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final f = _floor();
+    f.electricalDesignDraft = ElectricalDesignDraft(dinBoards: {
+      'p': _board(modules: 4, devices: [
+        _device('locked', width: 2, row: 0, start: 0, locked: true),
+        _device('free', width: 2),
+      ]),
+    });
+    var saves = 0;
+    await tester.pumpWidget(MaterialApp(home: Scaffold(
+      body: SingleChildScrollView(child: ElectricalDinBoardEditor(
+        floor: f,
+        onSave: (next) async {
+          f.electricalDesignDraft!.dinBoards['p'] =
+              ElectricalDinBoardDraft.fromJson(next.toJson());
+          saves++;
+        },
+      )),
+    )));
+    await tester.pumpAndSettle();
+    final propose = find.byKey(const ValueKey('din-suggest-layout'));
+    await tester.ensureVisible(propose);
+    await tester.pumpAndSettle();
+    await tester.tap(propose);
+    await tester.pumpAndSettle();
+    expect(find.text('Предложение DIN-компоновки'), findsOneWidget);
+
+    final now = f.electricalDesignDraft!.dinBoards['p']!;
+    now.devices[1] = _device('free', width: 2, row: 0, start: 5);
+    await tester.tap(find.byKey(const ValueKey('din-proposal-apply')));
+    await tester.pumpAndSettle();
+
+    expect(saves, 0);
+    expect(now.devices[1].startHalfModule, 5);
+    expect(find.textContaining('Компоновка изменилась'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('preview cancel cannot change layout; confirm persists snapshot',
       (tester) async {
     tester.view.physicalSize = const Size(390, 844);
