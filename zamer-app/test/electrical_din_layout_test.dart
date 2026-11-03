@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:zamer_app/models/electrical_design_draft.dart';
 import 'package:zamer_app/models/models.dart';
 import 'package:zamer_app/services/electrical_din_layout_service.dart';
+import 'package:zamer_app/services/electrical_issue_register_service.dart';
 import 'package:zamer_app/widgets/electrical_din_board_editor.dart';
 
 FloorPlan fixture() => FloorPlan(
@@ -104,6 +105,24 @@ void main() {
           'overlap']));
   });
 
+  test('DIN overlap is a navigable blocking error in unified issue register',
+      () {
+    final floor = fixture();
+    floor.electricalDesignDraft = ElectricalDesignDraft(dinBoards: {
+      'panel': ElectricalDinBoardDraft(
+        panelPointId: 'panel', rows: 1, modulesPerRow: 6,
+        devices: [device('a', width: 4), device('b', start: 3, width: 4)],
+      ),
+    });
+    final before = floor.toJson().toString();
+    final entries = ElectricalIssueRegisterService.inspect(floor).entries;
+    final overlap = entries.singleWhere((e) => e.code == 'din:overlap');
+    expect(overlap.severity, ElectricalIssueSeverity.error);
+    expect(overlap.focusPointId, 'panel');
+    expect(overlap.objectId, 'panel');
+    expect(floor.toJson().toString(), before);
+  });
+
   test('persisted DIN layout survives FloorPlan JSON and undo restore', () {
     final floor = fixture();
     final board = ElectricalDinBoardDraft(
@@ -162,6 +181,10 @@ void main() {
     final saved = floor.electricalDesignDraft!.dinBoards['panel']!;
     expect(saved.rows, 2);
     expect(saved.modulesPerRow, 12);
+    expect(find.byKey(const ValueKey('din-rail-preview-0')),
+        findsOneWidget);
+    expect(find.byKey(const ValueKey('din-cell-0-0')),
+        findsOneWidget);
 
     final add = find.byKey(const ValueKey('din-add-device'));
     await tester.ensureVisible(add);
