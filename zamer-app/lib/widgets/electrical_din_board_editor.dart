@@ -142,12 +142,14 @@ class _ElectricalDinBoardEditorState extends State<ElectricalDinBoardEditor> {
                 DropdownButtonFormField<ElectricalDinDeviceKind>(
                   key: const ValueKey('din-device-kind'),
                   initialValue: kind,
+                  isExpanded: true,
                   decoration: const InputDecoration(labelText: 'Категория'),
                   items: [
                     for (final value in ElectricalDinDeviceKind.values)
                       DropdownMenuItem(
                         value: value,
-                        child: Text(_kindLabel(value)),
+                        child: Text(_kindLabel(value),
+                            maxLines: 1, overflow: TextOverflow.ellipsis),
                       ),
                   ],
                   onChanged: (value) {
@@ -207,12 +209,24 @@ class _ElectricalDinBoardEditorState extends State<ElectricalDinBoardEditor> {
                     helperText: '1 / 1,5 / 2 ...',
                   ),
                 ),
-                SwitchListTile(
-                  key: const ValueKey('din-device-lock'),
-                  value: locked,
-                  title: const Text('Закрепить позицию'),
-                  subtitle: const Text('Автоперекомпоновка не перемещает'),
-                  onChanged: (value) => update(() => locked = value),
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Закрепить позицию'),
+                          Text('Автоперекомпоновка не перемещает',
+                              style: TextStyle(fontSize: 11)),
+                        ],
+                      ),
+                    ),
+                    Switch(
+                      key: const ValueKey('din-device-lock'),
+                      value: locked,
+                      onChanged: (value) => update(() => locked = value),
+                    ),
+                  ],
                 ),
               ],
             )),
