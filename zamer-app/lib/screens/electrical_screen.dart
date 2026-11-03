@@ -2588,6 +2588,8 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
   Widget _boardWorkspace() {
     final draft = ElectricalBoardDraftService.create(widget.floor);
     final networkReview = ElectricalBoardNetworkReviewService.create(widget.floor);
+    final electricalIssues = _boardView == ElectricalBoardView.checks
+        ? ElectricalIssueRegisterService.inspect(widget.floor) : null;
     final design = widget.floor.electricalDesignDraft;
     final checks = design == null
         ? null : ElectricalDesignEngine.calculate(widget.floor, design);
@@ -2728,7 +2730,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                       subtitle: Text(
                         'Щит: ${circuit.panelLabel} · '
                         '3D-трасс: ${circuit.routedCount}/${circuit.cableCount}\n'
-                        'Проверено длины по геометрии: '
+                        'Измерено по 3D-трассам: '
                         '${circuit.knownGeometricMm == null ? "неизвестно" : (circuit.knownGeometricMm! / 1000).toStringAsFixed(2) + " м"}'
                         ' · монтажный итог: '
                         '${circuit.knownWithReserveMm == null ? "неизвестен" : (circuit.knownWithReserveMm! / 1000).toStringAsFixed(2) + " м"}',
@@ -2770,6 +2772,20 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                 Text('Физическая сеть: проверка исходных данных',
                     key: const ValueKey('board-network-checks-title'),
                     style: Theme.of(context).textTheme.titleMedium),
+                if (electricalIssues != null)
+                  Card(
+                    child: ListTile(
+                      key: const ValueKey('board-open-network-issues'),
+                      leading: const Icon(Icons.fact_check_outlined),
+                      title: Text(
+                          'Ошибок: ${electricalIssues.errors} · '
+                          'требуют проверки: ${electricalIssues.toReview}'),
+                      subtitle: const Text(
+                          'Открыть единый журнал с переходом к объекту'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: _showIssueRegister,
+                    ),
+                  ),
                 if (!networkReview.hasNetwork)
                   const ListTile(
                     title: Text('Не создана электрическая сеть'),
