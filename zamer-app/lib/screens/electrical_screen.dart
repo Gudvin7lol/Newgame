@@ -2719,9 +2719,9 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                     subtitle: Text('Назначь источник-щит и опиши '
                         'кабели отдельно от эскиза нагрузок.'),
                   )),
-                for (final circuit in networkReview.circuits)
+                for (final (index, circuit) in networkReview.circuits.indexed)
                   Card(
-                    key: ValueKey('board-network-circuit-${circuit.id}'),
+                    key: ValueKey('board-network-circuit-${circuit.id}-$index'),
                     child: ListTile(
                       dense: true,
                       title: Text(circuit.name),
@@ -2777,9 +2777,9 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                         'линии и эскизы.'),
                   )
                 else
-                  for (final circuit in networkReview.circuits)
+                  for (final (index, circuit) in networkReview.circuits.indexed)
                     Card(
-                      key: ValueKey('board-network-check-${circuit.id}'),
+                      key: ValueKey('board-network-check-${circuit.id}-$index'),
                       child: ExpansionTile(
                         dense: true,
                         title: Text(circuit.name),
