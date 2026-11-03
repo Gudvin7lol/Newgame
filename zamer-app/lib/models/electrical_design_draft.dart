@@ -213,6 +213,17 @@ class ElectricalLineManualDraft {
       );
 }
 
+/// DIN positions are recorded in discrete half-module slots. Reject
+/// fractional or non-finite JSON numbers rather than silently rounding them.
+int? _dinInteger(Object? raw) {
+  if (raw == null) return null;
+  if (raw is! num || !raw.isFinite ||
+      raw != raw.roundToDouble()) {
+    throw const FormatException('DIN-размер должен быть целым числом полумодулей.');
+  }
+  return raw.toInt();
+}
+
 /// User-entered device identity and passport footprint only. No protection
 /// device type, rating or wiring is selected from load arithmetic.
 enum ElectricalDinDeviceKind {
@@ -271,9 +282,9 @@ class ElectricalDinDeviceDraft {
         label: j['label'] as String? ?? '',
         model: j['model'] as String? ?? '',
         circuitId: j['circuitId'] as String?,
-        widthHalfModules: (j['widthHalfModules'] as num?)?.toInt(),
-        row: (j['row'] as num?)?.toInt(),
-        startHalfModule: (j['startHalfModule'] as num?)?.toInt(),
+        widthHalfModules: _dinInteger(j['widthHalfModules']),
+        row: _dinInteger(j['row']),
+        startHalfModule: _dinInteger(j['startHalfModule']),
         positionLocked: j['positionLocked'] == true,
       );
 }
@@ -313,8 +324,8 @@ class ElectricalDinBoardDraft {
   factory ElectricalDinBoardDraft.fromJson(Map<String, dynamic> j) {
     final draft = ElectricalDinBoardDraft(
       panelPointId: j['panelPointId'] as String,
-      rows: (j['rows'] as num?)?.toInt() ?? 0,
-      modulesPerRow: (j['modulesPerRow'] as num?)?.toInt() ?? 0,
+      rows: _dinInteger(j['rows']) ?? 0,
+      modulesPerRow: _dinInteger(j['modulesPerRow']) ?? 0,
       devices: ((j['devices'] as List?) ?? const [])
           .map((d) => ElectricalDinDeviceDraft.fromJson(
               Map<String, dynamic>.from(d as Map)))
