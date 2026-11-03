@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zamer_app/models/electrical_design_draft.dart';
+import 'package:zamer_app/models/electrical_design_draft.dart' hide ElectricalIssueSeverity;
 import 'package:zamer_app/models/models.dart';
 import 'package:zamer_app/services/electrical_din_layout_service.dart';
-import 'package:zamer_app/services/electrical_issue_register_service.dart' hide ElectricalIssueSeverity;
+import 'package:zamer_app/services/electrical_issue_register_service.dart';
 import 'package:zamer_app/widgets/electrical_din_board_editor.dart';
 
 FloorPlan fixture() => FloorPlan(
