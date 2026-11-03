@@ -200,7 +200,10 @@ void main() {
         find.byKey(const ValueKey('din-device-row')), '1');
     await tester.enterText(
         find.byKey(const ValueKey('din-device-position')), '2.5');
-    await tester.tap(find.byKey(const ValueKey('din-device-lock')));
+    final lock = find.byKey(const ValueKey('din-device-lock'));
+    await tester.ensureVisible(lock);
+    await tester.pumpAndSettle();
+    await tester.tap(lock);
     await tester.tap(find.byKey(const ValueKey('din-save-device')));
     await tester.pumpAndSettle();
 
