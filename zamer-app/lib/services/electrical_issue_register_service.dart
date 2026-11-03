@@ -1,3 +1,4 @@
+import '../models/electrical_design_draft.dart';
 import '../models/electrical_network.dart';
 import '../models/electrical_route_3d.dart';
 import '../models/models.dart';
@@ -193,7 +194,7 @@ class ElectricalIssueRegisterService {
     // register. They are not evidence about protective device electrical
     // ratings, terminals or suitability for installation.
     for (final board in floor.electricalDesignDraft?.dinBoards.values ??
-        []) {
+        <ElectricalDinBoardDraft>[]) {
       final audit = ElectricalDinLayoutService.inspect(floor, board);
       const blocked = <String>{
         'invalidPanel', 'duplicateDevice', 'invalidCircuit',
