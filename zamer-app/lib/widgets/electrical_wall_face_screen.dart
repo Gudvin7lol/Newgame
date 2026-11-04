@@ -175,6 +175,8 @@ class _ElectricalWallFaceScreenState extends State<ElectricalWallFaceScreen> {
               DropdownButtonFormField<String>(
                 key: ValueKey('face-wall-' + (wallId ?? 'none')),
                 isExpanded: true,
+                menuMaxHeight: 288,
+                itemHeight: 48,
                 initialValue: wallId,
                 decoration: const InputDecoration(labelText: 'Стена'),
                 items: [
