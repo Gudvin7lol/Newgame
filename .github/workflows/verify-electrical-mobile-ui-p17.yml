@@ -8,6 +8,8 @@ on:
       - 'zamer-app/lib/screens/recovered_measure_workspace_screen.dart'
       - 'zamer-app/lib/screens/electrical_screen.dart'
       - 'zamer-app/lib/widgets/electrical_wall_elevation_screen.dart'
+      - 'zamer-app/lib/widgets/electrical_wall_face_screen.dart'
+      - 'zamer-app/lib/widgets/electrical_mounting_editor.dart'
       - 'zamer-app/test/electrical_mobile_ui_p17_test.dart'
       - '.github/workflows/verify-electrical-mobile-ui-p17.yml'
 
@@ -35,6 +37,8 @@ jobs:
             lib/screens/recovered_measure_workspace_screen.dart \
             lib/screens/electrical_screen.dart \
             lib/widgets/electrical_wall_elevation_screen.dart \
+            lib/widgets/electrical_wall_face_screen.dart \
+            lib/widgets/electrical_mounting_editor.dart \
             test/electrical_mobile_ui_p17_test.dart
       - name: Run UI, elevation and existing electrical regressions
         working-directory: zamer-app
