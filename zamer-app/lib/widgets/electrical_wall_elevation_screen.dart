@@ -105,15 +105,26 @@ class _ElectricalWallElevationScreenState
               DropdownButtonFormField<String>(
                 key: ValueKey('wall-elevation-wall-' + (wallId ?? 'none')),
                 isExpanded: true,
+                // A 16-wall apartment must scroll inside the menu, not
+                // turn the entire Android display into a wall picker.
+                menuMaxHeight: math.min(288.0,
+                    MediaQuery.sizeOf(context).height * .40),
+                itemHeight: 48,
                 initialValue: wallId,
-                decoration: const InputDecoration(labelText: 'Стена'),
+                decoration: const InputDecoration(
+                  labelText: 'Стена',
+                  helperText: 'Выбери по номеру и длине',
+                ),
                 items: [
                   for (var i = 0; i < walls.length; i++)
                     DropdownMenuItem(
                       value: walls[i].id,
-                      child: Text('Стена ' + (i + 1).toString() +
-                          ' · ' + walls[i].id,
-                          overflow: TextOverflow.ellipsis),
+                      child: Text(
+                        'Стена ${i + 1} · '
+                        '${widget.floor.wallLengthMm(walls[i]).round()} мм',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                 ],
                 onChanged: (id) => setState(() => wallId = id),
@@ -122,6 +133,8 @@ class _ElectricalWallElevationScreenState
               DropdownButtonFormField<String>(
                 key: ValueKey('wall-elevation-group-' + (circuitId ?? 'all')),
                 isExpanded: true,
+                menuMaxHeight: math.min(288.0,
+                    MediaQuery.sizeOf(context).height * .40),
                 initialValue: circuitId ?? '__all__',
                 decoration: const InputDecoration(labelText: 'Группа кабеля'),
                 items: [

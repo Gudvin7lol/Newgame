@@ -70,9 +70,10 @@ class ElectricalDesignEngine {
       ElectricalPointType.ceilingLight ||
       ElectricalPointType.wallLight => ElectricalConsumerKind.lighting,
       ElectricalPointType.socket ||
-      ElectricalPointType.tvSocket ||
-      ElectricalPointType.dataSocket ||
       ElectricalPointType.frame => ElectricalConsumerKind.sockets,
+      // Data and TV signal connectors are not 230 V consumers by default.
+      ElectricalPointType.tvSocket ||
+      ElectricalPointType.dataSocket => ElectricalConsumerKind.unknown,
       ElectricalPointType.appliance => ElectricalConsumerKind.unknown,
       _ => ElectricalConsumerKind.unknown,
     };
@@ -102,7 +103,11 @@ class ElectricalDesignEngine {
       // Panel, switch, junction and unpowered signal points are not loads.
       if (consumer.kind == ElectricalConsumerKind.unknown) {
         if ({ElectricalPointType.panel, ElectricalPointType.junctionBox,
-            ElectricalPointType.switchPoint}.contains(point.type)) continue;
+            ElectricalPointType.switchPoint,
+            ElectricalPointType.tvSocket, ElectricalPointType.dataSocket}
+            .contains(point.type) &&
+            design.consumers[point.id] == null &&
+            point.powerW <= 0) continue;
         issues.add(ElectricalDesignIssue('MISSING_CONSUMER_CLASS',
             ElectricalIssueSeverity.missingInformation,
             'Назначь тип потребителя: без него группировка невозможна.',

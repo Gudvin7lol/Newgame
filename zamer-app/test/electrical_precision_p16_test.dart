@@ -111,6 +111,11 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('electrical-two-ring-fan')),
         findsOneWidget);
+    expect(tester.getSize(find.byKey(
+        const ValueKey('electrical-two-ring-fan'))), const Size(230, 178));
+    // Compact visually, but keep touch targets at least 48dp.
+    expect(tester.getSize(find.byKey(
+        const ValueKey('electrical-add-socket'))), const Size(48, 48));
     expect(find.byKey(const ValueKey('electrical-add-frame')),
         findsOneWidget);
     expect(find.byKey(const ValueKey('electrical-fan-select')),

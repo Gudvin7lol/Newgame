@@ -10,6 +10,56 @@ on:
       - 'zamer-app/lib/services/electrical_frame_geometry.dart'
       - 'zamer-app/lib/widgets/electrical_plan_painter.dart'
       - 'zamer-app/test/electrical_precision_p16_test.dart'
+      - 'zamer-app/test/electrical_free_drag_wall_lock_test.dart'
+      - 'zamer-app/test/electrical_creation_load_defaults_test.dart'
+      - 'zamer-app/lib/services/electrical_device_catalog.dart'
+      - 'zamer-app/lib/services/electrical_design_engine.dart'
+      - 'zamer-app/lib/widgets/electrical_consumer_draft_editor.dart'
+      - 'zamer-app/lib/services/electrical_point_dimension_service.dart'
+      - 'zamer-app/test/electrical_station_edit_test.dart'
+      - 'zamer-app/test/electrical_auto_route_proposal_test.dart'
+      - 'zamer-app/lib/services/electrical_auto_route_proposal_service.dart'
+      - 'zamer-app/lib/services/electrical_wall_corridor_graph_service.dart'
+      - 'zamer-app/lib/services/electrical_interroom_passage_proposal_service.dart'
+      - 'zamer-app/test/electrical_interroom_passage_test.dart'
+      - 'zamer-app/test/electrical_exclusion_and_locked_routes_test.dart'
+      - 'zamer-app/test/electrical_junction_candidates_test.dart'
+      - 'zamer-app/test/electrical_junction_capacity_and_proposals_test.dart'
+      - 'zamer-app/test/electrical_junction_audit_test.dart'
+      - 'zamer-app/test/electrical_issue_register_test.dart'
+      - 'zamer-app/test/electrical_circuit_path_test.dart'
+      - 'zamer-app/test/electrical_board_network_review_test.dart'
+      - 'zamer-app/test/electrical_din_layout_test.dart'
+      - 'zamer-app/lib/models/electrical_design_draft.dart'
+      - 'zamer-app/lib/services/electrical_din_layout_service.dart'
+      - 'zamer-app/lib/services/electrical_din_layout_proposal_service.dart'
+      - 'zamer-app/test/electrical_din_layout_proposal_test.dart'
+      - 'zamer-app/lib/services/electrical_din_move_service.dart'
+      - 'zamer-app/test/electrical_din_move_test.dart'
+      - 'zamer-app/lib/widgets/electrical_din_board_editor.dart'
+      - 'zamer-app/lib/services/electrical_board_network_review_service.dart'
+      - 'zamer-app/lib/services/electrical_circuit_path_service.dart'
+      - 'zamer-app/lib/services/electrical_issue_register_service.dart'
+      - 'zamer-app/lib/services/electrical_issue_locator_service.dart'
+      - 'zamer-app/lib/widgets/electrical_issue_register_sheet.dart'
+      - 'zamer-app/lib/services/electrical_junction_audit_service.dart'
+      - 'zamer-app/lib/widgets/electrical_junction_audit_sheet.dart'
+      - 'zamer-app/lib/models/electrical_junction_capacity.dart'
+      - 'zamer-app/lib/services/electrical_junction_capacity_service.dart'
+      - 'zamer-app/lib/services/electrical_junction_connection_proposal_service.dart'
+      - 'zamer-app/lib/services/electrical_junction_edit_service.dart'
+      - 'zamer-app/lib/widgets/electrical_junction_editor.dart'
+      - 'zamer-app/lib/services/electrical_junction_candidate_service.dart'
+      - 'zamer-app/lib/widgets/electrical_junction_candidates_sheet.dart'
+      - 'zamer-app/lib/models/electrical_route_exclusion_zone.dart'
+      - 'zamer-app/lib/models/electrical_network.dart'
+      - 'zamer-app/lib/models/electrical_route_3d.dart'
+      - 'zamer-app/lib/services/electrical_route_exclusion_service.dart'
+      - 'zamer-app/lib/services/electrical_route_service.dart'
+      - 'zamer-app/lib/services/electrical_network_service.dart'
+      - 'zamer-app/lib/services/electrical_cable_journal_service.dart'
+      - 'zamer-app/lib/widgets/electrical_route_exclusions_sheet.dart'
+      - 'zamer-app/lib/widgets/electrical_route_editor.dart'
       - '.github/workflows/verify-electrical-precision-p16.yml'
 
 permissions:
@@ -18,7 +68,7 @@ permissions:
 jobs:
   precision:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
@@ -37,14 +87,90 @@ jobs:
             lib/services/electrical_snap_service.dart \
             lib/services/electrical_frame_geometry.dart \
             lib/widgets/electrical_plan_painter.dart \
-            test/electrical_precision_p16_test.dart
+            test/electrical_precision_p16_test.dart \
+            test/electrical_free_drag_wall_lock_test.dart \
+            test/electrical_creation_load_defaults_test.dart \
+            lib/services/electrical_device_catalog.dart \
+            lib/services/electrical_design_engine.dart \
+            lib/widgets/electrical_consumer_draft_editor.dart \
+            lib/services/electrical_point_dimension_service.dart \
+            test/electrical_station_edit_test.dart \
+            test/electrical_auto_route_proposal_test.dart \
+            lib/services/electrical_auto_route_proposal_service.dart \
+            lib/services/electrical_wall_corridor_graph_service.dart \
+            lib/services/electrical_interroom_passage_proposal_service.dart \
+            test/electrical_interroom_passage_test.dart \
+            test/electrical_exclusion_and_locked_routes_test.dart \
+            test/electrical_junction_candidates_test.dart \
+            test/electrical_junction_capacity_and_proposals_test.dart \
+            test/electrical_junction_audit_test.dart \
+            test/electrical_issue_register_test.dart \
+            test/electrical_circuit_path_test.dart \
+            test/electrical_board_network_review_test.dart \
+            test/electrical_din_layout_test.dart \
+            lib/models/electrical_design_draft.dart \
+            lib/services/electrical_din_layout_service.dart \
+            lib/services/electrical_din_layout_proposal_service.dart \
+            test/electrical_din_layout_proposal_test.dart \
+            lib/services/electrical_din_move_service.dart \
+            test/electrical_din_move_test.dart \
+            lib/widgets/electrical_din_board_editor.dart \
+            lib/services/electrical_circuit_path_service.dart \
+            lib/services/electrical_board_network_review_service.dart \
+            lib/services/electrical_issue_register_service.dart \
+            lib/services/electrical_issue_locator_service.dart \
+            lib/widgets/electrical_issue_register_sheet.dart \
+            lib/services/electrical_junction_audit_service.dart \
+            lib/widgets/electrical_junction_audit_sheet.dart \
+            lib/models/electrical_junction_capacity.dart \
+            lib/services/electrical_junction_capacity_service.dart \
+            lib/services/electrical_junction_connection_proposal_service.dart \
+            lib/services/electrical_junction_edit_service.dart \
+            lib/widgets/electrical_junction_editor.dart \
+            lib/services/electrical_junction_candidate_service.dart \
+            lib/widgets/electrical_junction_candidates_sheet.dart \
+            lib/models/electrical_route_exclusion_zone.dart \
+            lib/models/electrical_network.dart \
+            lib/models/electrical_route_3d.dart \
+            lib/services/electrical_route_exclusion_service.dart \
+            lib/services/electrical_route_service.dart \
+            lib/services/electrical_network_service.dart \
+            lib/services/electrical_cable_journal_service.dart \
+            lib/widgets/electrical_route_exclusions_sheet.dart \
+            lib/widgets/electrical_route_editor.dart
       - name: Test snapping and existing electrical contracts
         working-directory: zamer-app
         run: |
           flutter test \
+            test/electrical_issue_register_test.dart \
+            test/electrical_circuit_path_test.dart \
+            test/electrical_board_network_review_test.dart \
+            test/electrical_din_layout_test.dart \
+            test/electrical_din_layout_proposal_test.dart \
+            test/electrical_din_move_test.dart \
+            test/electrical_junction_audit_test.dart \
+            test/electrical_junction_capacity_and_proposals_test.dart \
+            test/electrical_junction_candidates_test.dart \
+            test/electrical_interroom_passage_test.dart \
+            test/electrical_exclusion_and_locked_routes_test.dart \
             test/electrical_precision_p16_test.dart \
+            test/electrical_free_drag_wall_lock_test.dart \
+            test/electrical_creation_load_defaults_test.dart \
+            test/electrical_station_edit_test.dart \
+            test/electrical_auto_route_proposal_test.dart \
+            test/electrical_design_core_p13_test.dart \
             test/electrical_frame_fan_p15_test.dart \
             test/electrical_workspace_stage1_p12_test.dart \
             test/electrical_mounting_test.dart \
             test/electrical_wall_elevations_p6_test.dart \
             test/electrical_cable_journal_p4_test.dart
+      - name: Build Android debug APK for hands-on electrical preview
+        working-directory: zamer-app
+        run: flutter build apk --debug
+      - name: Publish debug APK (not a production release)
+        uses: actions/upload-artifact@v4
+        with:
+          name: zamer-electrical-debug-${{ github.event.pull_request.number }}
+          path: zamer-app/build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7

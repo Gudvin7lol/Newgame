@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../models/models.dart';
 import '../models/electrical_network.dart';
+import '../models/electrical_junction_capacity.dart';
+import '../services/electrical_junction_capacity_service.dart';
+import '../services/electrical_junction_connection_proposal_service.dart';
 import '../services/electrical_network_service.dart';
 import '../services/electrical_junction_edit_service.dart';
 import '../services/electrical_route_service.dart';
@@ -280,6 +283,180 @@ class _ElectricalJunctionEditorState extends State<ElectricalJunctionEditor> {
       routeRunId: result.runId,
       description: result.description,
     ));
+  }
+
+  Future<void> editCapacity() async {
+    final old = draft.junctionCapacities[widget.junctionPointId];
+    final values = <String,String>{
+      'model': old?.boxModel ?? '',
+      'cables': old?.maxCableEntries?.toString() ?? '',
+      'ends': old?.maxConductorEnds?.toString() ?? '',
+      'connectors': old?.maxConnectorCount?.toString() ?? '',
+      'perConnector': old?.maxEndsPerConnector?.toString() ?? '',
+    };
+    String? localError;
+    final next = await showDialog<ElectricalJunctionCapacity>(
+      context: context,
+      builder: (dialog) => StatefulBuilder(
+        builder: (dialog, refresh) => AlertDialog(
+          title: const Text('Вместимость РК'),
+          scrollable: true,
+          content: SizedBox(width: 320,
+            child: Column(mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Заполняйте ограничения только из документации '
+                    'конкретной коробки и соединителей. Пустое поле '
+                    'означает «неизвестно», а не «без ограничений».'),
+                for (final item in <(String,String)>[
+                  ('model','Модель и производитель'),
+                  ('cables','Макс. кабельных вводов'),
+                  ('ends','Макс. концов жил'),
+                  ('connectors','Макс. соединителей'),
+                  ('perConnector','Макс. жил в одном соединителе'),
+                ])
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: TextFormField(
+                      key: ValueKey('junction-capacity-${item.$1}'),
+                      initialValue: values[item.$1],
+                      onChanged: (v) => values[item.$1] = v,
+                      keyboardType: item.$1 == 'model'
+                        ? TextInputType.text : TextInputType.number,
+                      decoration: InputDecoration(labelText:item.$2),
+                    ),
+                  ),
+                if (localError != null)
+                  Text(localError!,style:TextStyle(
+                    color:Theme.of(dialog).colorScheme.error)),
+              ],
+            ),
+          ),
+          actions:[
+            TextButton(onPressed:()=>Navigator.pop(dialog),
+              child:const Text('Отмена')),
+            FilledButton(
+              key:const ValueKey('junction-capacity-save'),
+              onPressed: () {
+                try {
+                  int? integer(String key) {
+                    final raw = values[key]!.trim();
+                    if (raw.isEmpty) return null;
+                    final number = int.tryParse(raw);
+                    if (number == null) throw const FormatException();
+                    return number;
+                  }
+                  final entry = ElectricalJunctionCapacity(
+                    junctionPointId:widget.junctionPointId,
+                    boxModel:values['model']!.trim(),
+                    maxCableEntries:integer('cables'),
+                    maxConductorEnds:integer('ends'),
+                    maxConnectorCount:integer('connectors'),
+                    maxEndsPerConnector:integer('perConnector'),
+                  );
+                  entry.validate();
+                  Navigator.pop(dialog,entry);
+                } catch (_) {
+                  refresh(()=>localError = 'Укажите целые положительные '
+                      'лимиты из паспорта изделия либо оставьте поле пустым.');
+                }
+              },
+              child:const Text('Применить'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || next == null) return;
+    setState(() {
+      draft.junctionCapacities[widget.junctionPointId] = next;
+      error = null;
+    });
+  }
+
+  Future<void> reviewConnectionProposals() async {
+    final options = ElectricalJunctionConnectionProposalService.propose(
+        widget.floor,draft,widget.junctionPointId);
+    if (options.isEmpty) {
+      setState(() => error = 'Пока нет подтверждённых назначений жил '
+          'нескольких кабелей для предварительного предложения.');
+      return;
+    }
+    final chosen = await showModalBottomSheet<
+        ElectricalJunctionConnectionProposal>(
+      context:context,
+      isScrollControlled:true,
+      showDragHandle:true,
+      builder:(sheet) => SafeArea(child:FractionallySizedBox(
+        heightFactor:.76,
+        child:ListView(
+          padding:const EdgeInsets.fromLTRB(16,12,16,24),
+          children:[
+            Text('Проверка соединений',
+              style:Theme.of(sheet).textTheme.titleLarge),
+            const SizedBox(height:8),
+            const Text('Похожие маркировки ещё не подтверждают '
+                'возможность электрического соединения.'),
+            for (var i=0;i<options.length;i++)
+              ListTile(
+                key:ValueKey('junction-proposal-$i'),
+                title:Text('${options[i].circuitId} · '
+                    '${options[i].purpose.name}'),
+                subtitle:Text('${options[i].members.length} концов жил '
+                    'из ${options[i].members.map((m)=>m.cableId).toSet().length} кабелей'),
+                trailing:const Icon(Icons.chevron_right),
+                onTap:()=>Navigator.pop(sheet,options[i]),
+              ),
+          ],
+        ),
+      )),
+    );
+    if (!mounted || chosen == null) return;
+    final accepted = await showDialog<bool>(
+      context:context,
+      builder:(dialog)=>AlertDialog(
+        title:const Text('Подтвердить клеммную запись?'),
+        scrollable:true,
+        content:Column(
+          mainAxisSize:MainAxisSize.min,
+          crossAxisAlignment:CrossAxisAlignment.start,
+          children:[
+            Text('Цепь: ${chosen.circuitId}'),
+            Text('Назначение: ${chosen.purpose.name}'),
+            for (final member in chosen.members)
+              Text('${member.cableId} · жила ${member.coreId}'),
+            const SizedBox(height:12),
+            for(final warning in chosen.warnings)
+              Padding(padding:const EdgeInsets.only(bottom:7),
+                child:Text('• $warning')),
+          ],
+        ),
+        actions:[
+          TextButton(onPressed:()=>Navigator.pop(dialog,false),
+            child:const Text('Отмена')),
+          FilledButton(
+            key:const ValueKey('junction-proposal-accept'),
+            onPressed:()=>Navigator.pop(dialog,true),
+            child:const Text('Записать соединение'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || accepted != true) return;
+    change(() {
+      ElectricalJunctionConnectionProposalService.requireCurrent(
+          widget.floor,draft,widget.junctionPointId,chosen);
+      final proposalDraft = ElectricalJunctionEditService.copy(draft);
+      ElectricalJunctionEditService.createTerminal(
+        widget.floor,proposalDraft,
+        id:id('terminal'), junctionId:widget.junctionPointId,
+        mark:'Проверить соединитель',
+        members:chosen.members,
+      );
+      ElectricalJunctionCapacityService.requireWithinEnteredLimits(
+        widget.floor,proposalDraft,widget.junctionPointId);
+      // Publish only the fully checked draft, preserving undo/cancel semantics.
+      draft = proposalDraft;
+    });
   }
 
   Future<void> createTerminal() async {
@@ -597,6 +774,8 @@ class _ElectricalJunctionEditorState extends State<ElectricalJunctionEditor> {
       0, (sum, cable) => sum + cable.cores.where(
           (c) => !occupied.contains(cable.id + '/' + c.id)).length,
     );
+    final capacity = ElectricalJunctionCapacityService.inspect(
+      widget.floor,draft,widget.junctionPointId);
     return Scaffold(
       appBar: AppBar(
         title: const Text('Соединения коробки'),
@@ -630,6 +809,42 @@ class _ElectricalJunctionEditorState extends State<ElectricalJunctionEditor> {
               Text(error!, key: const ValueKey('junction-error'),
                   style: TextStyle(color: Theme.of(context).colorScheme.error)),
             ],
+            const SizedBox(height: 14),
+            Row(children:[
+              Expanded(child:Text('Вместимость РК',
+                style:Theme.of(context).textTheme.titleMedium)),
+              TextButton.icon(
+                key:const ValueKey('junction-capacity-edit'),
+                onPressed:editCapacity,icon:const Icon(Icons.tune_outlined),
+                label:const Text('Параметры'),
+              ),
+            ]),
+            Text('Вводов: ${capacity.cableEntries} · '
+                'жил: ${capacity.conductorEnds} · '
+                'соединителей: ${capacity.connectorCount}',
+                key:const ValueKey('junction-capacity-counts')),
+            Text('Свободных концов жил: ${capacity.unassignedEnds} · '
+                'макс. в одной клемме: ${capacity.maxObservedConnectorSize}',
+                style:Theme.of(context).textTheme.bodySmall),
+            if (!capacity.enteredLimits)
+              const Text('Паспортные лимиты не указаны.',
+                  key:ValueKey('junction-capacity-unknown')),
+            if (capacity.enteredLimits && !capacity.exceeded)
+              const Text('Введённые числовые лимиты не превышены. '
+                  'Монтажная допустимость не подтверждена.'),
+            if (capacity.missing.any((v) =>
+                v.contains('паспортная модель')))
+              const Text('Укажите производителя и модель коробки '
+                  'для проверки введённых числовых лимитов.'),
+            if (capacity.violations.isNotEmpty)
+              for (final message in capacity.violations)
+                Text(message,style:TextStyle(
+                  color:Theme.of(context).colorScheme.error)),
+            const Text('Выполнение введённых лимитов не означает '
+                'подтверждённую монтажную вместимость.'),
+            if (capacity.incomplete)
+              const Text('Не проверены все условия вместимости, '
+                  'доступности, соединителей и реального монтажа.'),
             const SizedBox(height: 22),
             Row(children: [
               Expanded(child: Text('Цепи',
@@ -678,6 +893,12 @@ class _ElectricalJunctionEditorState extends State<ElectricalJunctionEditor> {
             Row(children: [
               Expanded(child: Text('Клеммы',
                   style: Theme.of(context).textTheme.titleMedium)),
+              IconButton(
+                key: const ValueKey('junction-review-connections'),
+                tooltip: 'Предложения соединений',
+                onPressed: reviewConnectionProposals,
+                icon:const Icon(Icons.fact_check_outlined),
+              ),
               TextButton.icon(
                 key: const ValueKey('junction-add-terminal'),
                 onPressed: createTerminal,

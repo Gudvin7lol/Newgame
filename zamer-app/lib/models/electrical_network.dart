@@ -1,4 +1,6 @@
 import 'electrical_route_3d.dart';
+import 'electrical_route_exclusion_zone.dart';
+import 'electrical_junction_capacity.dart';
 
 /// Explicit, provisional electrical topology. Never inferred from positions or
 /// the legacy circuit name stored on ElectricalPoint.
@@ -202,10 +204,14 @@ class ElectricalNetwork {
     List<ElectricalCableRecord>? cables,
     List<ElectricalTerminalRecord>? terminals,
     List<ElectricalRoute3d>? routes3d,
+    List<ElectricalRouteExclusionZone>? routeExclusionZones,
+    Map<String, ElectricalJunctionCapacity>? junctionCapacities,
   })  : circuits = circuits ?? [],
         cables = cables ?? [],
         terminals = terminals ?? [],
-        routes3d = routes3d ?? [];
+        routes3d = routes3d ?? [],
+        routeExclusionZones = routeExclusionZones ?? [],
+        junctionCapacities = junctionCapacities ?? {};
 
   static const int schemaVersion = 1;
   final List<ElectricalCircuitRecord> circuits;
@@ -213,6 +219,10 @@ class ElectricalNetwork {
   final List<ElectricalTerminalRecord> terminals;
   /// Physical routes may be reused by several cables.
   final List<ElectricalRoute3d> routes3d;
+  /// Explicitly forbidden routing volumes. Missing zones do not imply safety.
+  final List<ElectricalRouteExclusionZone> routeExclusionZones;
+  /// Independent user-entered capacity limits per explicitly placed RK.
+  final Map<String, ElectricalJunctionCapacity> junctionCapacities;
 
   Map<String, dynamic> toJson() => {
     'version': schemaVersion,
@@ -220,6 +230,11 @@ class ElectricalNetwork {
     'cables': cables.map((e) => e.toJson()).toList(),
     'terminals': terminals.map((e) => e.toJson()).toList(),
     'routes3d': routes3d.map((e) => e.toJson()).toList(),
+    if (routeExclusionZones.isNotEmpty)
+      'routeExclusionZones': routeExclusionZones.map((e) => e.toJson()).toList(),
+    if (junctionCapacities.isNotEmpty)
+      'junctionCapacities': junctionCapacities.map((key, value) =>
+          MapEntry(key, value.toJson())),
   };
 
   factory ElectricalNetwork.fromJson(Map<String, dynamic> json) {
@@ -245,6 +260,17 @@ class ElectricalNetwork {
           .map((e) => ElectricalRoute3d.fromJson(
               Map<String, dynamic>.from(e as Map)))
           .toList(),
+      routeExclusionZones: ((json['routeExclusionZones'] as List?) ?? const [])
+          .map((e) => ElectricalRouteExclusionZone.fromJson(
+              Map<String, dynamic>.from(e as Map)))
+          .toList(),
+      junctionCapacities:
+          ((json['junctionCapacities'] as Map?) ?? const {})
+          .map((key, value) => MapEntry(
+            key.toString(),
+            ElectricalJunctionCapacity.fromJson(
+              Map<String, dynamic>.from(value as Map)),
+          )),
     );
   }
 }

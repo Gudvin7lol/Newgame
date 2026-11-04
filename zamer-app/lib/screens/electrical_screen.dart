@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:ui' show PointerDeviceKind;
 
+import 'package:flutter/gestures.dart' show DragStartBehavior;
 import 'package:flutter/material.dart';
 
 import '../models/models.dart';
@@ -9,6 +10,8 @@ import '../models/electrical_mounting.dart';
 import '../models/electrical_design_draft.dart';
 import '../services/electrical_design_engine.dart';
 import '../widgets/electrical_consumer_draft_editor.dart';
+import '../services/electrical_device_catalog.dart';
+import '../services/electrical_point_dimension_service.dart';
 import '../services/electrical_mounting_service.dart';
 import '../services/electrical_frame_geometry.dart';
 import '../services/electrical_snap_service.dart';
@@ -17,6 +20,15 @@ import '../widgets/electrical_point_properties.dart';
 import '../widgets/electrical_compact_inspector.dart';
 import '../widgets/electrical_junction_editor.dart';
 import '../models/electrical_network.dart';
+import '../models/electrical_route_exclusion_zone.dart';
+import '../services/electrical_route_exclusion_service.dart';
+import '../widgets/electrical_route_exclusions_sheet.dart';
+import '../services/electrical_junction_candidate_service.dart';
+import '../widgets/electrical_junction_candidates_sheet.dart';
+import '../widgets/electrical_junction_audit_sheet.dart';
+import '../widgets/electrical_issue_register_sheet.dart';
+import '../services/electrical_issue_register_service.dart' hide ElectricalIssueSeverity;
+import '../services/electrical_issue_locator_service.dart';
 import '../services/electrical_junction_edit_service.dart';
 import '../services/geometry_service.dart';
 import '../widgets/electrical_plan_painter.dart';
@@ -33,6 +45,8 @@ import '../widgets/cad_plan_painter.dart';
 import '../services/plan_visibility_service.dart';
 import '../services/plan_viewport_link.dart';
 import '../services/electrical_board_draft_service.dart';
+import '../services/electrical_board_network_review_service.dart';
+import '../widgets/electrical_din_board_editor.dart';
 
 enum ElectricalMode { add, wire, select }
 
@@ -78,6 +92,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
   String _routeMode = 'orthogonal';
   String? _wireStartId;
   String? _selectedId;
+  String? _diagnosticRouteId;
   /// Physical cable routes and sketch lines are hidden by default.
   bool _show3dRoutes = false;
   bool _showCrossings = false;
@@ -254,7 +269,8 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
   }
 
   _Tx _tx(Size size) {
-    final linked = widget.embedded ? (_camera ?? widget.sharedViewport?.value) : null;
+    final linked = _camera ??
+        (widget.embedded ? widget.sharedViewport?.value : null);
     if (linked != null && linked.valid) {
       final scale = linked.pixelsPerMm;
       return _Tx(scale: scale, origin: Offset(
@@ -306,9 +322,13 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     return best;
   }
 
-  _WallHit? _nearestWall(math.Point<double> p, {double maxDistanceMm = 550}) {
+  _WallHit? _nearestWall(math.Point<double> p, {
+    double maxDistanceMm = 550,
+    String? wallId,
+  }) {
     _WallHit? best;
     for (final wall in widget.floor.walls) {
+      if (wallId != null && wall.id != wallId) continue;
       final a = widget.floor.nodeById(wall.startNodeId);
       final b = widget.floor.nodeById(wall.endNodeId);
       if (a == null || b == null) continue;
@@ -427,14 +447,22 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
   void _movePoint(ElectricalPoint point, math.Point<double> raw) {
     if (_needsWall(point.type) || (point.type == ElectricalPointType.junctionBox && point.wallId != null)) {
       final rawHit = _nearestWall(raw,
-          maxDistanceMm: ElectricalSnapService.captureMm(
-              _activePlanScale(), capturePx: 32));
+          wallId: point.wallId,
+          // Once mounted, drag along the same wall even when the finger
+          // temporarily leaves its narrow visual stroke.
+          maxDistanceMm: point.wallId != null
+              ? double.infinity
+              : ElectricalSnapService.captureMm(
+                  _activePlanScale(), capturePx: 32));
       final hit = rawHit == null
           ? null
           : _clearOfDoor(_snapWallHit(rawHit),
               _hasSwitch(point.type, point.modules));
       if (hit != null) {
-        point.wallSide = _sideOfWall(hit.wall, raw, point.wallSide);
+        // Dragging preserves the mounting face; change it in the inspector.
+        if (point.wallId == null) {
+          point.wallSide = _sideOfWall(hit.wall, raw, point.wallSide);
+        }
         point.xMm = hit.point.x;
         point.yMm = hit.point.y;
         point.wallId = hit.wall.id;
@@ -481,13 +509,15 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
 
   void _dragStart(DragStartDetails d, Size size) {
     if (_pinchingCamera || _touches.length > 1) return;
-    if (_mode != ElectricalMode.select) return;
     final mm = _screenToMm(d.localPosition, size);
     final t = _tx(size);
-    final point = _near(mm, math.max(160.0, 28 / math.max(t.scale, 0.001)));
+    final point = _near(mm,
+        ElectricalSnapService.captureMm(t.scale, capturePx: 24));
     setState(() {
       _dragPointId = point?.id;
-      _selectedId = point?.id;
+      if (point != null || _mode == ElectricalMode.select) {
+        _selectedId = point?.id;
+      }
       _dragUndoPushed = false;
       _dragProblem = null;
     });
@@ -495,7 +525,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
 
   void _dragUpdate(DragUpdateDetails d, Size size) {
     if (_pinchingCamera || _touches.length > 1) return;
-    if (_mode != ElectricalMode.select || _dragPointId == null) return;
+    if (_dragPointId == null) return;
     final point = widget.floor.electricalPoints
         .where((p) => p.id == _dragPointId).firstOrNull;
     if (point == null) return;
@@ -531,7 +561,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
   }
 
   Future<void> _dragEnd(DragEndDetails d) async {
-    if (_mode != ElectricalMode.select || _dragPointId == null) return;
+    if (_dragPointId == null) return;
     final error = _dragProblem;
     if (error != null && _dragUndoPushed && _undo.isNotEmpty) {
       final snapshot = jsonDecode(_undo.removeLast()) as Map;
@@ -550,6 +580,31 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Перемещение отменено: $error')));
       }
+    }
+  }
+
+  // Point dragging is available in every tool; empty space retains
+  // the Add tool's drag-to-place interaction.
+  void _canvasPanStart(DragStartDetails details, Size size) {
+    _dragStart(details, size);
+    if (_dragPointId == null && _mode == ElectricalMode.add) {
+      _placePanStart(details);
+    }
+  }
+
+  void _canvasPanUpdate(DragUpdateDetails details, Size size) {
+    if (_dragPointId != null) {
+      _dragUpdate(details, size);
+    } else if (_mode == ElectricalMode.add) {
+      _placePanUpdate(details);
+    }
+  }
+
+  Future<void> _canvasPanEnd(DragEndDetails details, Size size) async {
+    if (_dragPointId != null) {
+      await _dragEnd(details);
+    } else if (_mode == ElectricalMode.add) {
+      await _placePanEnd(size);
     }
   }
 
@@ -596,14 +651,39 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
         _ => [ElectricalModuleType.socket220],
       };
 
+  /// Assign only creation-time, explicitly provisional assumptions.
+  /// Existing imported points and all manually edited fields are untouched.
+  void _setInitialLoad(ElectricalPoint point) {
+    final estimate = ElectricalDeviceCatalog.defaultForPoint(point);
+    if (estimate == null) return;
+    final draft = widget.floor.electricalDesignDraft ??
+        ElectricalDesignDraft();
+    if (draft.consumers.containsKey(point.id)) return;
+    point.powerW = estimate.installedWatts!;
+    draft.consumers[point.id] = estimate;
+    widget.floor.electricalDesignDraft = draft;
+  }
+
   Future<void> _tap(TapUpDetails d, Size size) async {
     if (_pinchingCamera) return;
+    // A diagnostic overlay belongs only to the explicitly selected fault.
+    // A subsequent plan tap returns to ordinary (validated) route viewing.
+    if (_diagnosticRouteId != null) {
+      setState(() => _diagnosticRouteId = null);
+    }
     final t = _tx(size);
     final mm = math.Point<double>(
       (d.localPosition.dx - t.origin.dx) / t.scale,
       (d.localPosition.dy - t.origin.dy) / t.scale,
     );
     if (_mode == ElectricalMode.add) {
+      // Existing points are selected instead of duplicated.
+      final existing = _near(mm,
+          ElectricalSnapService.captureMm(t.scale, capturePx: 20));
+      if (existing != null) {
+        setState(() => _selectedId = existing.id);
+        return;
+      }
       final scale = _activePlanScale();
       final guided = _type == ElectricalPointType.ceilingLight
           ? ElectricalSnapService.light(widget.floor, mm, scale).position
@@ -665,6 +745,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
       }
       _pushUndo();
       widget.floor.electricalPoints.add(created);
+      _setInitialLoad(created);
       await widget.onChanged();
       if (mounted) setState(() => _selectedId = created.id);
       if (_type == ElectricalPointType.frame && mounted)
@@ -732,6 +813,9 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     _pushUndo();
     final draft = widget.floor.electricalDesignDraft ?? ElectricalDesignDraft();
     draft.consumers[point.id] = next;
+    // Keep the legacy load summary in sync with the editable consumer.
+    // The engineering engine still reads the explicit design draft.
+    point.powerW = next.installedWatts ?? 0;
     widget.floor.electricalDesignDraft = draft;
     await widget.onChanged();
     if (mounted) setState(() => _selectedId = point.id);
@@ -943,6 +1027,16 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     point.label = next.label;
     point.circuit = next.circuit;
     point.powerW = next.powerW;
+    final draftConsumer =
+        widget.floor.electricalDesignDraft?.consumers[point.id];
+    if (draftConsumer != null &&
+        draftConsumer.installedWatts != next.powerW) {
+      widget.floor.electricalDesignDraft!.consumers[point.id] =
+          ElectricalConsumerDraft.fromJson({
+        ...draftConsumer.toJson(),
+        'installedWatts': next.powerW,
+      });
+    }
     point.heightMm = next.heightMm;
     point.modules
       ..clear()
@@ -1307,14 +1401,15 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     );
   }
 
-  Future<void> _showCableJournal() async {
+  Future<void> _showCableJournal({String? focusCableId}) async {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
       builder: (_) => ElectricalCableJournalSheet(
         floor: widget.floor,
-        initialCircuitId: _routeCircuitFilterId,
+        initialCircuitId: focusCableId == null ? _routeCircuitFilterId : null,
+        initialCableId: focusCableId,
         onCircuitChanged: (circuitId) {
           if (!mounted) return;
           setState(() {
@@ -1324,6 +1419,138 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
         },
       ),
     );
+  }
+
+  Future<void> _showExclusionZones() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => ElectricalRouteExclusionsSheet(
+        zones: () => widget.floor.electricalNetwork?.routeExclusionZones ??
+            <ElectricalRouteExclusionZone>[],
+        onAdd: (zone) async {
+          zone.validate();
+          if (widget.floor.electricalNetwork?.routeExclusionZones
+                  .any((z) => z.id == zone.id) ?? false) {
+            throw const FormatException('Идентификатор уже используется.');
+          }
+          _pushUndo();
+          widget.floor.electricalNetwork ??= ElectricalNetwork();
+          ElectricalRouteExclusionService.add(widget.floor, zone);
+          await widget.onChanged();
+          if (mounted) setState(() {});
+        },
+        onRemove: (id) async {
+          if (!(widget.floor.electricalNetwork?.routeExclusionZones
+                  .any((z) => z.id == id) ?? false)) return;
+          _pushUndo();
+          ElectricalRouteExclusionService.remove(widget.floor, id);
+          await widget.onChanged();
+          if (mounted) setState(() {});
+        },
+      ),
+    );
+  }
+
+  Future<void> _showJunctionCandidates() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => ElectricalJunctionCandidatesSheet(
+        floor: widget.floor,
+        onPlace: (candidate) async {
+          final id = 'junction-' +
+              DateTime.now().microsecondsSinceEpoch.toString();
+          // Validate after consent so changes to wall/room/no-go geometry
+          // cannot silently place an obsolete candidate.
+          final point = ElectricalJunctionCandidateService.preparePlacement(
+            widget.floor, candidate, id:id,
+          );
+          _pushUndo();
+          widget.floor.electricalPoints.add(point);
+          await widget.onChanged();
+          if (mounted) setState(() {
+            _selectedId = point.id;
+          });
+        },
+      ),
+    );
+  }
+
+  Future<void> _showJunctionAudit() async {
+    await showModalBottomSheet<void>(
+      context:context,
+      isScrollControlled:true,
+      showDragHandle:true,
+      builder:(sheet) => ElectricalJunctionAuditSheet(
+        floor:widget.floor,
+        onSelectJunction:(id) {
+          Navigator.pop(sheet);
+          if (mounted) setState(() {
+            _selectedId = id;
+            _mode = ElectricalMode.select;
+          });
+        },
+      ),
+    );
+  }
+
+  void _locateElectricalIssue(ElectricalIssueEntry issue) {
+    final location = ElectricalIssueLocatorService.locate(widget.floor, issue);
+    if (location == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Объект отсутствует на плане. Проверьте ссылки в схеме.'),
+      ));
+      return;
+    }
+    final size = _viewportSize;
+    final originalScale = !size.isEmpty
+        ? _tx(size).scale : 0.08;
+    setState(() {
+      _workspaceView = ElectricalWorkspaceView.pointsRoutes;
+      _mode = ElectricalMode.select;
+      _wireStartId = null;
+      _selectedId = location.pointId;
+      _diagnosticRouteId = location.diagnosticRouteId;
+      _routeCircuitFilterId = null;
+      _showPower = true;
+      _showLights = true;
+      _showJunctions = true;
+      if (!size.isEmpty) {
+        _camera = PlanViewportSnapshot(
+          centerXMm: location.xMm,
+          centerYMm: location.yMm,
+          pixelsPerMm: originalScale.clamp(.04, .25).toDouble(),
+        );
+      }
+    });
+    _publishCamera();
+  }
+
+  Future<void> _showIssueRegister() async {
+    // Navigate only after the original modal closes; otherwise nested
+    // bottom sheets can intercept taps on small mobile screens.
+    final action = await showModalBottomSheet<
+        ({ElectricalIssueEntry? issue, String? cableId})>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheet) => ElectricalIssueRegisterSheet(
+        floor: widget.floor,
+        onLocate: (issue) =>
+            Navigator.of(sheet).pop((issue: issue, cableId: null)),
+        onOpenCable: (id) =>
+            Navigator.of(sheet).pop((issue: null, cableId: id)),
+      ),
+    );
+    if (!mounted || action == null) return;
+    if (action.issue != null) {
+      _locateElectricalIssue(action.issue!);
+    } else if (action.cableId != null) {
+      await _showCableJournal(focusCableId: action.cableId);
+    }
   }
 
   Widget _routeControls() {
@@ -1346,7 +1573,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
             key: const ValueKey('electrical-cable-journal'),
             tooltip: 'Кабельный журнал',
             icon: const Icon(Icons.inventory_2_outlined),
-            onPressed: _showCableJournal,
+            onPressed: () => _showCableJournal(),
           ),
           PopupMenuButton<String>(
             key: const ValueKey('electrical-plan-layers'),
@@ -1355,6 +1582,22 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
             onSelected: (choice) {
               if (choice == 'faces') {
                 _showWallFaces();
+                return;
+              }
+              if (choice == 'zones') {
+                _showExclusionZones();
+                return;
+              }
+              if (choice == 'junctionCandidates') {
+                _showJunctionCandidates();
+                return;
+              }
+              if (choice == 'junctionAudit') {
+                _showJunctionAudit();
+                return;
+              }
+              if (choice == 'issueRegister') {
+                _showIssueRegister();
                 return;
               }
               setState(() {
@@ -1402,6 +1645,26 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
               const PopupMenuItem(
                 value: 'faces',
                 child: Text('Стороны и отделка стен'),
+              ),
+              const PopupMenuItem(
+                key: ValueKey('electrical-route-zones'),
+                value: 'zones',
+                child: Text('Запретные зоны кабеля'),
+              ),
+              const PopupMenuItem(
+                key: ValueKey('electrical-junction-candidates'),
+                value: 'junctionCandidates',
+                child: Text('Кандидаты РК'),
+              ),
+              const PopupMenuItem(
+                key: ValueKey('electrical-issue-register'),
+                value: 'issueRegister',
+                child: Text('Проверка электрики'),
+              ),
+              const PopupMenuItem(
+                key: ValueKey('electrical-junction-audit'),
+                value: 'junctionAudit',
+                child: Text('Проверка всех РК'),
               ),
               PopupMenuItem(
                 value: 'review',
@@ -1581,6 +1844,131 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     return base / 1000 * (1 + r.reservePct / 100);
   }
 
+  /// A numeric station is an atomic model edit, not a visual icon offset.
+  /// Existing mounting bases are updated consistently by the service.
+  Future<void> _editWallStation(ElectricalPoint point) async {
+    if (point.wallId == null || point.wallOffsetMm == null) return;
+    var stationInput = _mm(point.wallOffsetMm!);
+    final requested = await showDialog<double>(
+        context: context,
+        builder: (dialog) => AlertDialog(
+          title: const Text('Расстояние от начала стены'),
+          content: TextFormField(
+            key: const ValueKey('electrical-station-input'),
+            initialValue: stationInput,
+            onChanged: (value) => stationInput = value,
+            autofocus: true,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(
+              labelText: 'До центра точки',
+              suffixText: 'мм',
+              helperText: 'По оси стены, шаг ввода 1 мм',
+            ),
+            onFieldSubmitted: (raw) => Navigator.of(dialog).pop(
+              double.tryParse(raw.trim().replaceAll(',', '.')) ??
+                  double.nan,
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialog),
+                child: const Text('Отмена')),
+            FilledButton(
+              key: const ValueKey('electrical-station-confirm'),
+              onPressed: () => Navigator.pop(dialog,
+                  double.tryParse(stationInput.trim().replaceAll(',', '.')) ??
+                      double.nan),
+              child: const Text('Готово'),
+            ),
+          ],
+        ),
+      );
+    if (requested == null || !mounted) return;
+    try {
+      final proposed = ElectricalPointDimensionService.prepare(
+          widget.floor, point, requested);
+      if ((point.wallOffsetMm! - proposed.wallOffsetMm!).abs() < .001) return;
+      _pushUndo();
+      point.xMm = proposed.xMm;
+      point.yMm = proposed.yMm;
+      point.wallOffsetMm = proposed.wallOffsetMm;
+      point.mounting = proposed.mounting;
+      // A saved finished reference stays stored, but its validation
+      // intentionally signals 'stale' until reconfirmed after movement.
+      await widget.onChanged();
+      if (mounted) setState(() => _selectedId = point.id);
+    } on FormatException catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message)),
+      );
+    }
+  }
+
+  /// The visual dimension pill is a genuine tap target above CustomPaint.
+  /// It uses the same model station as the inspector's geometry, not pixels.
+  Widget? _stationDimensionChip(
+      ElectricalPoint? point, Size size, _Tx tx) {
+    if (point == null || point.wallId == null ||
+        point.wallOffsetMm == null || !_visiblePointTypes.contains(point.type)) {
+      return null;
+    }
+    final wall = widget.floor.wallById(point.wallId!);
+    if (wall == null) return null;
+    final start = widget.floor.nodeById(wall.startNodeId);
+    final end = widget.floor.nodeById(wall.endNodeId);
+    if (start == null || end == null) return null;
+    final dx = end.xMm - start.xMm, dy = end.yMm - start.yMm;
+    final length = math.sqrt(dx * dx + dy * dy);
+    if (!length.isFinite || length < 1) return null;
+    final startPx = tx.origin +
+        Offset(start.xMm * tx.scale, start.yMm * tx.scale);
+    final pointPx = tx.origin +
+        Offset(point.xMm * tx.scale, point.yMm * tx.scale);
+    const chipW = 192.0, chipH = 48.0;
+    final normal = Offset(dy / length, -dx / length) *
+        (point.wallSide == -1 ? -1.0 : 1.0);
+    final centre = point.mounting == null
+        ? (startPx + pointPx) / 2 + normal * 36
+        : pointPx + const Offset(60, 36);
+    return Positioned(
+      left: (centre.dx - chipW / 2)
+          .clamp(4.0, math.max(4.0, size.width - chipW - 4)).toDouble(),
+      top: (centre.dy - chipH / 2)
+          .clamp(4.0, math.max(4.0, size.height - chipH - 4)).toDouble(),
+      child: Material(
+        color: const Color(0xFF202631),
+        borderRadius: BorderRadius.circular(10),
+        child: InkWell(
+          key: const ValueKey('electrical-dimension-station'),
+          borderRadius: BorderRadius.circular(10),
+          onTap: () => _editWallStation(point),
+          child: SizedBox(
+            width: chipW,
+            height: chipH,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: Row(children: [
+                const Icon(Icons.straighten, size: 17,
+                    color: Color(0xFFF2B69B)),
+                const SizedBox(width: 6),
+                Expanded(child: Text(
+                  '${_mm(point.wallOffsetMm!)} мм · H ${_mm(point.heightMm)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  softWrap: false,
+                  style: const TextStyle(
+                    fontSize: 12, fontWeight: FontWeight.w700,
+                    color: Color(0xFFF1F3F6)),
+                )),
+                const Icon(Icons.edit_outlined, size: 15,
+                    color: Color(0xFFAEB7C4)),
+              ]),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _quickPointHeight(ElectricalPoint point) async {
     final oldProblem = ElectricalMountingService.problem(widget.floor, point);
     if (point.mounting != null && oldProblem != null) {
@@ -1751,6 +2139,16 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     }
     _pushUndo();
     widget.floor.electricalPoints.add(copy);
+    final draft = widget.floor.electricalDesignDraft;
+    final source = draft?.consumers[original.id];
+    if (source != null) {
+      draft!.consumers[copy.id] = ElectricalConsumerDraft.fromJson({
+        ...source.toJson(),
+        'pointId': copy.id,
+        // Copying a point must never automatically lock its line.
+        'lockedLineId': null,
+      });
+    }
     await widget.onChanged();
     if (mounted) setState(() => _selectedId = copy.id);
   }
@@ -1810,6 +2208,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     widget.floor.electricalRuns.removeWhere((run) =>
         run.startPointId == point.id || run.endPointId == point.id);
     widget.floor.electricalPoints.removeWhere((p) => p.id == point.id);
+    widget.floor.electricalDesignDraft?.consumers.remove(point.id);
     await widget.onChanged();
     if (mounted) setState(() {
       _selectedId = null;
@@ -1890,9 +2289,11 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
       (ElectricalPointType.tvSocket, Icons.tv_outlined, 'ТВ'),
       (ElectricalPointType.dataSocket, Icons.wifi_outlined, 'Интернет'),
     ];
+    // Seven 48dp touch targets in a 160×152dp flyout. The old 230×178
+    // fan obscured installation points on a narrow mobile viewport.
     const positions = <(double, double)>[
-      (20, 149), (53, 79), (127, 21), (217, 2),
-      (113, 146), (167, 96), (229, 67),
+      (0, 52), (54, 52), (108, 52), (24, 104),
+      (48, 0), (103, 0), (80, 104),
     ];
     final visibleTypes = <(ElectricalPointType, IconData, String)>[
       ...inner,
@@ -1924,15 +2325,15 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
               onLongPressEnd: draggableType == null ? null
                   : (d) => _fanLongPressDrop(draggableType, d.globalPosition),
               child: SizedBox(
-                width: 54, height: 55,
+                width: 48, height: 48,
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(icon, size: 21, color: theme.colorScheme.onSurface),
-                    const SizedBox(height: 2),
+                    Icon(icon, size: 19, color: theme.colorScheme.onSurface),
+                    const SizedBox(height: 1),
                     Text(label, maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 9)),
+                        style: const TextStyle(fontSize: 8.5)),
                   ],
                 ),
               ),
@@ -1955,7 +2356,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
               key: ValueKey(_mode == ElectricalMode.add
                   ? 'electrical-two-ring-fan'
                   : 'electrical-context-fan'),
-              width: 290, height: 212,
+              width: 160, height: 152,
               child: CustomPaint(
                 painter: _ElectricalFanArcs(
                     color: theme.colorScheme.primary.withValues(alpha: .35)),
@@ -2059,8 +2460,10 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
       (ElectricalWorkspaceView.board, 'Щит'),
     ];
     return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 6, 8, 3),
-      child: Row(
+      padding: const EdgeInsets.fromLTRB(6, 2, 6, 2),
+      child: SizedBox(
+        height: 48,
+        child: Row(
         key: const ValueKey('electrical-three-modes'),
         children: [
           for (final (value, label) in labels)
@@ -2077,7 +2480,9 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                   }),
                   style: TextButton.styleFrom(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 3, vertical: 9),
+                        horizontal: 3, vertical: 3),
+                    minimumSize: const Size(0, 48),
+                    tapTargetSize: MaterialTapTargetSize.padded,
                     backgroundColor: _workspaceView == value
                         ? theme.colorScheme.primaryContainer
                         : theme.colorScheme.surfaceContainer,
@@ -2094,6 +2499,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
               ),
             ),
         ],
+      ),
       ),
     );
   }
@@ -2185,8 +2591,23 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     );
   }
 
+  Future<void> _saveDinBoard(ElectricalDinBoardDraft board) async {
+    // The editor sends a detached validated snapshot; the live project is
+    // changed once, after creating an undo entry.
+    board.validate();
+    _pushUndo();
+    widget.floor.electricalDesignDraft ??= ElectricalDesignDraft();
+    widget.floor.electricalDesignDraft!.dinBoards[board.panelPointId] =
+        ElectricalDinBoardDraft.fromJson(board.toJson());
+    await widget.onChanged();
+    if (mounted) setState(() {});
+  }
+
   Widget _boardWorkspace() {
     final draft = ElectricalBoardDraftService.create(widget.floor);
+    final networkReview = ElectricalBoardNetworkReviewService.create(widget.floor);
+    final electricalIssues = _boardView == ElectricalBoardView.checks
+        ? ElectricalIssueRegisterService.inspect(widget.floor) : null;
     final design = widget.floor.electricalDesignDraft;
     final checks = design == null
         ? null : ElectricalDesignEngine.calculate(widget.floor, design);
@@ -2281,6 +2702,11 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                         subtitle: Text(section.role),
                       ),
                     ),
+                const SizedBox(height: 12),
+                ElectricalDinBoardEditor(
+                  floor: widget.floor,
+                  onSave: _saveDinBoard,
+                ),
               ],
               if (_boardView == ElectricalBoardView.wiring) ...[
                 Text('Клеммная ведомость • не сформирована',
@@ -2297,7 +2723,46 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                   ),
                 ),
                 if (checks != null)
-                  Text('Открытых замечаний: ${checks.issues.length}'),
+                  Text('Открытых замечаний по расчёту: ${checks.issues.length}'),
+                const SizedBox(height: 10),
+                Text('Зарегистрированные физические группы',
+                    key: const ValueKey('board-physical-circuits-title'),
+                    style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 4),
+                const Text('Отдельно от предварительных групп нагрузок. '
+                    'Переход от расчётной линии к физической цепи '
+                    'автоматически не подтверждается.'),
+                if (!networkReview.hasNetwork)
+                  const Card(child: ListTile(
+                    title: Text('Физическая сеть ещё не создана'),
+                    subtitle: Text('Рисованные линии не считаются '
+                        'кабелями или подключениями щита.'),
+                  ))
+                else if (networkReview.circuits.isEmpty)
+                  const Card(child: ListTile(
+                    title: Text('В сети пока нет физических групп'),
+                    subtitle: Text('Назначь источник-щит и опиши '
+                        'кабели отдельно от эскиза нагрузок.'),
+                  )),
+                for (final (index, circuit) in networkReview.circuits.indexed)
+                  Card(
+                    key: ValueKey('board-network-circuit-${circuit.id}-$index'),
+                    child: ListTile(
+                      dense: true,
+                      title: Text(circuit.name),
+                      subtitle: Text(
+                        'Щит: ${circuit.panelLabel} · '
+                        '3D-трасс: ${circuit.routedCount}/${circuit.cableCount}\n'
+                        'Измерено по 3D-трассам: '
+                        '${circuit.knownGeometricMm == null ? "неизвестно" : (circuit.knownGeometricMm! / 1000).toStringAsFixed(2) + " м"}'
+                        ' · монтажный итог: '
+                        '${circuit.knownWithReserveMm == null ? "неизвестен" : (circuit.knownWithReserveMm! / 1000).toStringAsFixed(2) + " м"}',
+                      ),
+                      isThreeLine: true,
+                      trailing: circuit.needsReview
+                          ? const Icon(Icons.info_outline) : null,
+                    ),
+                  ),
               ],
               if (_boardView == ElectricalBoardView.checks) ...[
                 Text('Инженерные проверки',
@@ -2324,6 +2789,53 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                         ),
                         title: Text(issue.message),
                         subtitle: Text(issue.code),
+                      ),
+                    ),
+                const SizedBox(height: 10),
+                Text('Физическая сеть: проверка исходных данных',
+                    key: const ValueKey('board-network-checks-title'),
+                    style: Theme.of(context).textTheme.titleMedium),
+                if (electricalIssues != null)
+                  Card(
+                    child: ListTile(
+                      key: const ValueKey('board-open-network-issues'),
+                      leading: const Icon(Icons.fact_check_outlined),
+                      title: Text(
+                          'Ошибок: ${electricalIssues.errors} · '
+                          'требуют проверки: ${electricalIssues.toReview}'),
+                      subtitle: const Text(
+                          'Открыть единый журнал с переходом к объекту'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: _showIssueRegister,
+                    ),
+                  ),
+                if (!networkReview.hasNetwork)
+                  const ListTile(
+                    title: Text('Не создана электрическая сеть'),
+                    subtitle: Text('Пока доступны только расчётные '
+                        'линии и эскизы.'),
+                  )
+                else
+                  for (final (index, circuit) in networkReview.circuits.indexed)
+                    Card(
+                      key: ValueKey('board-network-check-${circuit.id}-$index'),
+                      child: ExpansionTile(
+                        dense: true,
+                        title: Text(circuit.name),
+                        subtitle: Text(circuit.messages.isEmpty
+                            ? 'Явных замечаний к записям не найдено; '
+                              'монтажные проверки не выполнены.'
+                            : 'Проверить: ${circuit.messages.length}'),
+                        children: [
+                          if (circuit.messages.isEmpty)
+                            const ListTile(
+                              dense: true,
+                              title: Text('Требуются электрические измерения, '
+                                  'проверка защиты и паспорта оборудования.'),
+                            ),
+                          for (final message in circuit.messages)
+                            ListTile(dense: true, title: Text(message)),
+                        ],
                       ),
                     ),
                 const Padding(
@@ -2395,16 +2907,11 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                 onPointerCancel: _touchEnd,
                 child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
+                dragStartBehavior: DragStartBehavior.down,
                 onTapUp: (d) => _tap(d, size),
-                onPanStart: _mode == ElectricalMode.select
-                    ? (d) => _dragStart(d, size)
-                    : _mode == ElectricalMode.add ? _placePanStart : null,
-                onPanUpdate: _mode == ElectricalMode.select
-                    ? (d) => _dragUpdate(d, size)
-                    : _mode == ElectricalMode.add ? _placePanUpdate : null,
-                onPanEnd: _mode == ElectricalMode.select ? _dragEnd
-                    : _mode == ElectricalMode.add ? (_) => _placePanEnd(size)
-                    : null,
+                onPanStart: (d) => _canvasPanStart(d, size),
+                onPanUpdate: (d) => _canvasPanUpdate(d, size),
+                onPanEnd: (d) => _canvasPanEnd(d, size),
                 child: CustomPaint(
                   painter: widget.embedded ? CadPlanPainter(
                     floor: widget.floor,
@@ -2420,9 +2927,11 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                     origin: t.origin,
                     selectedPointId: _selectedId,
                     wireStartPointId: _wireStartId,
+                    interactiveDimensions: true,
                     showLegacyLines: _showLegacyLines || _mode == ElectricalMode.wire,
                     show3dRoutes: _show3dRoutes,
                     showCrossings: _showCrossings,
+                    diagnosticRouteId: _diagnosticRouteId,
                     circuitFilterId: _routeCircuitFilterId,
                     visiblePointTypes: _visiblePointTypes,
                   ),
@@ -2433,11 +2942,13 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                           origin: t.origin,
                           selectedPointId: _selectedId,
                           wireStartPointId: _wireStartId,
+                          interactiveDimensions: true,
                           darkMode: true,
                           overlayOnly: true,
                           showLegacyLines: _showLegacyLines || _mode == ElectricalMode.wire,
                           show3dRoutes: _show3dRoutes,
                     showCrossings: _showCrossings,
+                          diagnosticRouteId: _diagnosticRouteId,
                           circuitFilterId: _routeCircuitFilterId,
                     visiblePointTypes: _visiblePointTypes,
                         ) : null,
@@ -2445,6 +2956,8 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                 ),
                 ),
               ),
+              if (_stationDimensionChip(selected, size, t) case final chip?)
+                chip,
               if (_placingAt != null && _mode == ElectricalMode.add)
                 Positioned(
                   left: (_placementPreview(_placingAt!, size).dx - 15)
@@ -2466,8 +2979,21 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                     ),
                   ),
                 ),
+              // Shift the expanded fan away from the selected point
+              // rather than obscuring the installation mark.
               Positioned(
-                right: 12,
+                left: _addArcOpen && selected != null &&
+                        (t.origin.dx + selected.xMm * t.scale) >
+                            size.width - 245 &&
+                        (t.origin.dy + selected.yMm * t.scale) >
+                            size.height - 240
+                    ? 12 : null,
+                right: _addArcOpen && selected != null &&
+                        (t.origin.dx + selected.xMm * t.scale) >
+                            size.width - 245 &&
+                        (t.origin.dy + selected.yMm * t.scale) >
+                            size.height - 240
+                    ? null : 12,
                 bottom: 12,
                 child: _quickFan(),
               ),
@@ -2480,7 +3006,9 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
           ElectricalCompactInspector(
             floor: widget.floor,
             point: selected,
-            onDatum: () => _editMountingDirect(selected),
+            onDatum: () => selected.wallId == null
+                ? _editMountingDirect(selected)
+                : _editWallStation(selected),
             onHeight: () => _quickPointHeight(selected),
             onLoad: () => _editConsumerDraftDirect(selected),
           ),
@@ -2554,7 +3082,7 @@ class _ElectricalFanArcs extends CustomPainter {
     final paint = Paint()..color = color
         ..strokeWidth = 1.2..style = PaintingStyle.stroke;
     final center = Offset(size.width - 3, size.height - 2);
-    for (final radius in <double>[143, 220]) {
+    for (final radius in <double>[78, 137]) {
       canvas.drawArc(Rect.fromCircle(center: center, radius: radius),
           math.pi, math.pi / 2, false, paint);
     }

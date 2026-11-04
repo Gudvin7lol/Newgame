@@ -322,6 +322,8 @@ class _ElectricalMountingEditorState extends State<ElectricalMountingEditor> {
                   DropdownButtonFormField<String>(
                     key: const ValueKey('mount-wall'),
                     isExpanded: true,
+                    menuMaxHeight: 288,
+                    itemHeight: 48,
                     initialValue: wall?.id,
                     decoration: const InputDecoration(labelText: 'Стена'),
                     items: widget.floor.walls

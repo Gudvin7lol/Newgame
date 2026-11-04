@@ -75,6 +75,70 @@ void main() {
     expect(j.rows.where((r) => r.cable.id == 'c2').single.withReserveMm, isNull);
   });
 
+
+  test('deleted electrical group prevents misleading complete length', () {
+    final floor = journalFixture();
+    final network = floor.electricalNetwork!;
+    network.cables.removeRange(1, 3);
+    network.circuits.removeWhere((group) => group.id == 'g1');
+    final before = floor.toJson().toString();
+    final journal = ElectricalCableJournalService.create(floor);
+    expect(journal.rows.single.status, CableJournalStatus.invalidRoute);
+    expect(journal.rows.single.problem, contains('Группа кабеля'));
+    expect(journal.totals.knownGeometricMm, 0);
+    expect(journal.totals.knownWithReserveMm, 0);
+    expect(journal.totals.complete, false);
+    expect(floor.toJson().toString(), before);
+  });
+
+  test('stale attached 2D line cannot count as valid cable length', () {
+    final floor = journalFixture();
+    final network = floor.electricalNetwork!;
+    network.cables.removeRange(1, 3);
+    // The linked drawing joins j -> p, but c1 joins j -> s.
+    network.cables.single.routeRunId = 'drawing';
+    final before = floor.toJson().toString();
+    final journal = ElectricalCableJournalService.create(floor);
+    expect(journal.rows.single.status, CableJournalStatus.invalidRoute);
+    expect(journal.rows.single.problem, contains('Линия на плане'));
+    expect(journal.totals.knownGeometricMm, 0);
+    expect(journal.totals.complete, false);
+    expect(floor.toJson().toString(), before);
+  });
+
+  test('duplicate cable IDs never inflate measured quantities', () {
+    final floor = journalFixture();
+    final network = floor.electricalNetwork!;
+    network.cables.removeRange(1, 3);
+    network.cables.add(ElectricalCableRecord(
+      id: 'c1', circuitId: 'g1', fromPointId: 'j', toPointId: 's',
+      route3dId: 'r1', explicitReserveMm: 100,
+    ));
+    final before = floor.toJson().toString();
+    final journal = ElectricalCableJournalService.create(floor);
+    expect(journal.totals.cableCount, 2);
+    expect(journal.totals.invalidRouteCount, 2);
+    expect(journal.totals.knownGeometricMm, 0);
+    expect(journal.totals.knownWithReserveMm, 0);
+    expect(journal.totals.complete, false);
+    expect(floor.toJson().toString(), before);
+  });
+
+  test('ambiguous duplicate physical route IDs are not silently measured', () {
+    final floor = journalFixture();
+    final network = floor.electricalNetwork!;
+    network.cables.removeRange(1, 3);
+    network.routes3d.add(
+        ElectricalRoute3d.fromJson(network.routes3d.first.toJson()));
+    final before = floor.toJson().toString();
+    final journal = ElectricalCableJournalService.create(floor);
+    expect(journal.rows.single.status, CableJournalStatus.invalidRoute);
+    expect(journal.rows.single.problem, contains('повторный ID'));
+    expect(journal.totals.knownGeometricMm, 0);
+    expect(journal.totals.complete, false);
+    expect(floor.toJson().toString(), before);
+  });
+
   test('groups filter by stable circuit ID, not legacy name', () {
     final floor = journalFixture();
     final j = ElectricalCableJournalService.create(floor, circuitId: 'g1');
@@ -82,6 +146,48 @@ void main() {
     expect(j.groups.keys.toList(), ['g1']);
     expect(j.totals.knownGeometricMm, 1000);
     expect(j.totals.unknownRouteCount, 1);
+  });
+
+  test('single physical cable deep-link is filtered by stable ID and read only', () {
+    final floor = journalFixture();
+    final before = floor.toJson().toString();
+    final focused = ElectricalCableJournalService.create(
+        floor, cableId: 'c2');
+    expect(focused.rows.map((e)=>e.cable.id), ['c2']);
+    expect(focused.totals.cableCount, 1);
+    expect(focused.totals.unknownRouteCount, 1);
+    expect(focused.totals.knownGeometricMm, 0);
+    expect(ElectricalCableJournalService.create(
+        floor, cableId: 'deleted').rows, isEmpty);
+    expect(floor.toJson().toString(),before);
+  });
+
+  testWidgets('focused cable journal can return to the whole network',
+      (tester) async {
+    tester.view.physicalSize = const Size(390,844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final floor=journalFixture();
+    final before=floor.toJson().toString();
+    await tester.pumpWidget(MaterialApp(home:Scaffold(
+      body:ElectricalCableJournalSheet(
+        floor:floor, initialCircuitId:null, initialCableId:'c2',
+        onCircuitChanged:(_){},
+      ),
+    )));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('cable-journal-focus')),findsOneWidget);
+    expect(find.text('Выбран кабель: c2'),findsOneWidget);
+    expect(find.byKey(const ValueKey('journal-cable-c2')),findsOneWidget);
+    expect(find.byKey(const ValueKey('journal-cable-c1')),findsNothing);
+    await tester.tap(find.byKey(
+        const ValueKey('cable-journal-focus-clear')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('cable-journal-focus')),findsNothing);
+    expect(find.byKey(const ValueKey('journal-cable-c1')),findsOneWidget);
+    expect(floor.toJson().toString(),before);
+    expect(tester.takeException(),isNull);
   });
 
   test('unknown reserve stays unknown even with a valid route', () {

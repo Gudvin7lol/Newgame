@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import '../models/models.dart';
 import '../services/electrical_mounting_service.dart';
 import '../services/electrical_route_service.dart';
+import '../services/electrical_route_exclusion_service.dart';
 import '../services/electrical_crossing_service.dart';
 import '../models/electrical_route_3d.dart';
+import '../models/electrical_route_exclusion_zone.dart';
 
 class ElectricalPlanPainter extends CustomPainter {
   ElectricalPlanPainter({
@@ -16,9 +18,11 @@ class ElectricalPlanPainter extends CustomPainter {
     this.wireStartPointId,
     this.darkMode = false,
     this.overlayOnly = false,
+    this.interactiveDimensions = false,
     this.showLegacyLines = true,
     this.show3dRoutes = false,
     this.showCrossings = false,
+    this.diagnosticRouteId,
     this.circuitFilterId,
     this.visiblePointTypes,
   });
@@ -31,10 +35,14 @@ class ElectricalPlanPainter extends CustomPainter {
   final bool darkMode;
   /// Retain CAD flooring, furniture, walls below electrical layer.
   final bool overlayOnly;
+  /// The Flutter overlay owns editable labels; canvas draws witness lines.
+  final bool interactiveDimensions;
   /// Legacy drawing is never a proof of physical cable connectivity.
   final bool showLegacyLines;
   final bool show3dRoutes;
   final bool showCrossings;
+  /// A fault-focused trace is never drawn as a validated installation.
+  final String? diagnosticRouteId;
   final String? circuitFilterId;
   /// Visual-only filter: hidden points remain in the project model.
   final Set<ElectricalPointType>? visiblePointTypes;
@@ -75,7 +83,40 @@ class ElectricalPlanPainter extends CustomPainter {
       canvas.drawPath(path, paint);
     }
 
+    // No-go zones are persistent project geometry, not a decorative layer.
+    // Their Z range appears in the caption; a plan rectangle alone is not
+    // a complete three-dimensional safety envelope.
+    for (final zone in floor.electricalNetwork?.routeExclusionZones ??
+        const <ElectricalRouteExclusionZone>[]) {
+      try {
+        zone.validate();
+      } on FormatException {
+        continue;
+      }
+      final leftTop = p(zone.minXMm, zone.minYMm);
+      final rightBottom = p(zone.maxXMm, zone.maxYMm);
+      final rect = Rect.fromPoints(leftTop, rightBottom);
+      canvas.drawRect(rect, Paint()..color =
+          const Color(0xFFE76C67).withValues(alpha: .16));
+      canvas.drawRect(rect, Paint()
+        ..color = const Color(0xFFE76C67)
+        ..strokeWidth = 1.3
+        ..style = PaintingStyle.stroke);
+      final tp = TextPainter(
+        text: TextSpan(
+          text: '${zone.name} · Z ${zone.minZMm.round()}–${zone.maxZMm.round()}',
+          style: const TextStyle(
+            color: Color(0xFFE76C67),
+            fontSize: 10,
+            fontWeight: FontWeight.w600,
+          ),
+        ), textDirection: TextDirection.ltr,
+      )..layout(maxWidth: 195);
+      tp.paint(canvas, rect.topLeft + const Offset(3, 3));
+    }
+
     if (show3dRoutes) _drawPhysicalRoutes(canvas, size);
+    if (diagnosticRouteId != null) _drawDiagnosticRoute(canvas, size);
     if (showCrossings) _drawCrossings(canvas, size);
 
     for (final point in floor.electricalPoints) {
@@ -89,8 +130,23 @@ class ElectricalPlanPainter extends CustomPainter {
         final b = floor.nodeById(wall.endNodeId);
         if (a != null && b != null) angle = math.atan2(b.yMm - a.yMm, b.xMm - a.xMm);
       }
-      _symbol(canvas, pos, point, selected, angle: angle);
-      if (point.id == selectedPointId) _mountingDimension(canvas, point, size);
+      // Model coordinates stay on the wall axis. Offset only the symbol
+      // toward its mounted room so the wall face is obvious at a glance.
+      var iconPos = pos;
+      if (wall != null && point.isWallDevice) {
+        final halfDepth = (point.type == ElectricalPointType.frame ||
+                point.modules.length > 1) ? 8.5 : 6.5;
+        final shift = halfDepth * point.wallSide;
+        iconPos = pos + Offset(-math.sin(angle) * shift,
+                               math.cos(angle) * shift);
+      }
+      _symbol(canvas, iconPos, point, selected, angle: angle);
+      if (point.id == selectedPointId) {
+        // Show the exact wall-axis anchor without moving any CAD geometry.
+        canvas.drawCircle(pos, 2, Paint()
+          ..color = const Color(0xFFF2B69B));
+        _mountingDimension(canvas, point, size);
+      }
       if (point.label.isNotEmpty) {
         final tp = TextPainter(
           text: TextSpan(text: point.label, style: TextStyle(fontSize: 10,
@@ -98,7 +154,7 @@ class ElectricalPlanPainter extends CustomPainter {
             fontWeight: FontWeight.w600)),
           textDirection: TextDirection.ltr,
         )..layout(maxWidth: 120);
-        tp.paint(canvas, pos + const Offset(9, -18));
+        tp.paint(canvas, iconPos + const Offset(9, -18));
       }
     }
   }
@@ -119,11 +175,12 @@ class ElectricalPlanPainter extends CustomPainter {
         continue;
       }
       final routeId = cable.route3dId;
-      if (routeId == null) continue;
+      if (routeId == null || routeId == diagnosticRouteId) continue;
       final route = routes[routeId];
       if (route == null) continue;
       try {
         ElectricalRouteService.measureCable(floor, cable);
+        ElectricalRouteExclusionService.requireClear(floor, route);
       } on FormatException {
         // Invalid, stale or unverified geometry must not masquerade as a valid
         // physical route on the installation plan.
@@ -136,6 +193,9 @@ class ElectricalPlanPainter extends CustomPainter {
         hash = (hash * 31 + code) & 0x7fffffff;
       }
       final color = colors[hash % colors.length];
+      // A route proposed from an unverified drawing must not look identical
+      // to a surveyed geometric path. Neither is an installation approval.
+      final tentative = route.source != ElectricalPathSource.measured;
       final stroke = Paint()
         ..color = color
         ..strokeWidth = 2.8
@@ -152,12 +212,108 @@ class ElectricalPlanPainter extends CustomPainter {
           canvas.drawCircle(pb, 6, stroke);
           canvas.drawCircle(pb, 2.1, dot);
         } else {
-          canvas.drawLine(pa, pb, stroke);
-          if (index < points.length - 1) canvas.drawCircle(pb, 2.4, dot);
+          if (tentative) {
+            _drawDraftLine(canvas, pa, pb, stroke, viewport: size);
+          } else {
+            canvas.drawLine(pa, pb, stroke);
+            if (index < points.length - 1) canvas.drawCircle(pb, 2.4, dot);
+          }
         }
       }
     }
     canvas.restore();
+  }
+
+  /// Draw ONLY a specifically requested faulty route as an explicit
+  /// inspection trace. The routine does not certify or repair its geometry;
+  /// it avoids projecting missing/nonfinite vertices or inventing new links.
+  void _drawDiagnosticRoute(Canvas canvas, Size size) {
+    final route = floor.electricalNetwork?.routes3d
+        .where((r) => r.id == diagnosticRouteId).firstOrNull;
+    if (route == null || route.vertices.length < 2 ||
+        route.vertices.any((v) => !v.finite ||
+          v.xMm.abs() > 10000000 || v.yMm.abs() > 10000000 ||
+          v.zMm.abs() > 10000000)) return;
+
+    final red = Paint()
+      ..color = const Color(0xFFFF6969)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4
+      ..strokeCap = StrokeCap.round;
+    canvas.save();
+    canvas.clipRect(Offset.zero & size);
+    for (var i = 1; i < route.vertices.length; i++) {
+      final start = route.vertices[i - 1];
+      final end = route.vertices[i];
+      final pa = p(start.xMm, start.yMm);
+      final pb = p(end.xMm, end.yMm);
+      if ((pa - pb).distance < .1) {
+        canvas.drawCircle(pa, 7, red); // vertical segment in plan view
+      } else {
+        _drawDraftLine(canvas, pa, pb, red, viewport: size);
+      }
+    }
+    final first = route.vertices.first;
+    final badge = p(first.xMm, first.yMm);
+    canvas.drawCircle(badge, 11, Paint()
+      ..color = darkMode ? const Color(0xFF301417) : Colors.white);
+    canvas.drawCircle(badge, 11, red);
+    final label = TextPainter(
+      text: const TextSpan(text: '!', style: TextStyle(
+        fontSize: 13, fontWeight: FontWeight.w800,
+        color: Color(0xFFFF6969),
+      )),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    label.paint(canvas, badge - Offset(label.width/2, label.height/2));
+    canvas.restore();
+  }
+
+  /// Draw only visible dashes. A route can span a huge world distance
+  /// (including an invalid imported path), but it must never freeze a phone
+  /// by creating hundreds of thousands of off-screen dash segments.
+  void _drawDraftLine(Canvas canvas, Offset a, Offset b, Paint paint,
+      {required Size viewport}) {
+    final d = b - a;
+    final len = d.distance;
+    if (!len.isFinite || len < .001) return;
+    const dash = 7.0, gap = 5.0, period = dash + gap;
+    // Liang-Barsky parameter clipping against the visible canvas with
+    // a small margin for the stroke; preserves the original dash phase.
+    var enter = 0.0, exit = 1.0;
+    bool clip(double p, double q) {
+      if (p.abs() < 1e-10) return q >= 0;
+      final r = q / p;
+      if (p < 0) {
+        if (r > exit) return false;
+        if (r > enter) enter = r;
+      } else {
+        if (r < enter) return false;
+        if (r < exit) exit = r;
+      }
+      return true;
+    }
+    if (!clip(-d.dx, a.dx + 8) ||
+        !clip(d.dx, viewport.width + 8 - a.dx) ||
+        !clip(-d.dy, a.dy + 8) ||
+        !clip(d.dy, viewport.height + 8 - a.dy) ||
+        enter > exit) return;
+    final from = len * enter;
+    final to = len * exit;
+    final unit = d / len;
+    var distance = (from / period).floorToDouble() * period;
+    while (distance <= to) {
+      final visibleFrom = math.max(from, distance);
+      final visibleTo = math.min(to, distance + dash);
+      if (visibleFrom < visibleTo) {
+        canvas.drawLine(
+          a + unit * visibleFrom,
+          a + unit * visibleTo,
+          paint,
+        );
+      }
+      distance += period;
+    }
   }
 
   void _drawCrossings(Canvas canvas, Size size) {
@@ -200,9 +356,59 @@ class ElectricalPlanPainter extends CustomPainter {
     canvas.restore();
   }
 
+  /// A selected wall point always has a readable station and height
+  /// even before the optional named mounting datum has been configured.
+  /// The axis station is not a finished-surface dimension.
+  void _axisStationDimension(
+      Canvas canvas, ElectricalPoint point, Size size) {
+    final wall = point.wallId == null
+        ? null : floor.wallById(point.wallId!);
+    final start = wall == null
+        ? null : floor.nodeById(wall.startNodeId);
+    final end = wall == null
+        ? null : floor.nodeById(wall.endNodeId);
+    if (start == null || end == null || point.wallOffsetMm == null) return;
+    final dx = end.xMm - start.xMm, dy = end.yMm - start.yMm;
+    final len = math.sqrt(dx * dx + dy * dy);
+    if (!len.isFinite || len <= 0) return;
+    final a = p(start.xMm, start.yMm);
+    final b = p(point.xMm, point.yMm);
+    final side = point.wallSide == -1 ? -1.0 : 1.0;
+    // Draw dimensions opposite the mounted face so the symbol is clear.
+    final normal = Offset(dy / len, -dx / len) * side;
+    final lift = normal * 26;
+    final color = darkMode
+        ? const Color(0xFFF2B69B) : const Color(0xFF784A32);
+    final line = Paint()..color = color..strokeWidth = 1.2;
+    canvas.drawLine(a, a + lift + normal * 5, line);
+    canvas.drawLine(b, b + lift + normal * 5, line);
+    canvas.drawLine(a + lift, b + lift, line);
+    if (interactiveDimensions) return;
+    final caption = '${point.wallOffsetMm!.round()} мм от начала стены'
+        ' · H ${point.heightMm.round()} мм';
+    final tp = TextPainter(
+      text: TextSpan(text: caption, style: TextStyle(
+        fontSize: 12, fontWeight: FontWeight.w600, color: color,
+        backgroundColor: darkMode
+            ? const Color(0xFF142027) : Colors.white,
+      )),
+      textDirection: TextDirection.ltr,
+    )..layout(maxWidth: 210);
+    final centre = (a + b) / 2 + lift + normal * 7;
+    tp.paint(canvas, Offset(
+      (centre.dx - tp.width / 2)
+          .clamp(4.0, math.max(4.0, size.width - tp.width - 4)).toDouble(),
+      (centre.dy - tp.height / 2)
+          .clamp(4.0, math.max(4.0, size.height - tp.height - 4)).toDouble(),
+    ));
+  }
+
   void _mountingDimension(Canvas canvas, ElectricalPoint point, Size size) {
     final m = point.mounting;
-    if (m == null) return;
+    if (m == null) {
+      _axisStationDimension(canvas, point, size);
+      return;
+    }
     final issue = ElectricalMountingService.problem(floor, point);
     final color = issue == null
         ? (darkMode ? const Color(0xFFFFBD88) : const Color(0xFF6A3E1C))
@@ -223,6 +429,7 @@ class ElectricalPlanPainter extends CustomPainter {
       canvas.drawLine(a + lift, b + lift, paint);
       caption = '${point.label.isEmpty ? point.id : point.label} · ${m.datumName} → центр: ${m.distanceMm} мм · h ${point.heightMm} от ЧП';
     }
+    if (interactiveDimensions) return;
     final tp = TextPainter(text: TextSpan(text: caption,
       style: TextStyle(fontSize: 11, color: color, backgroundColor: darkMode ? const Color(0xFF142027) : Colors.white)),
       textDirection: TextDirection.ltr)..layout(maxWidth: 235);

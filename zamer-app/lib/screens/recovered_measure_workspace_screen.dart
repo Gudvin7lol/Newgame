@@ -659,7 +659,9 @@ class _RecoveredMeasureWorkspaceScreenState
           _kitDomains(),
           if (_layer < 3)
             _kitTasks()
-          else if (_layer != 6)
+          // ElectricalScreen already presents its own three-mode switcher.
+          // Do not waste 56 dp on a duplicate "Электрика" label above it.
+          else if (_layer != 6 && _layer != 3)
             Container(
               height: 56,
               alignment: Alignment.centerLeft,

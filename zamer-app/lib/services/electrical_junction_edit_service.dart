@@ -2,6 +2,7 @@ import '../models/models.dart';
 import '../models/electrical_network.dart';
 import 'electrical_network_service.dart';
 import 'electrical_route_service.dart';
+import 'electrical_junction_capacity_service.dart';
 
 /// Atomic domain mutations for a *detached* network draft. No mutation of the
 /// actual FloorPlan happens until the editor returns a validated snapshot.
@@ -216,6 +217,19 @@ class ElectricalJunctionEditService {
     ElectricalNetwork draft,
   ) {
     _box(live, junctionId);
+    // A detached network edit may affect more than the selected box. Review
+    // EVERY user-specified box limit, not only the editor's current RK.
+    for (final entry in draft.junctionCapacities.entries) {
+      final box = _box(live, entry.key);
+      if (box.id != entry.value.junctionPointId) {
+        throw FormatException(
+          'Параметры вместимости РК ${entry.key} не соответствуют точке.');
+      }
+      ElectricalJunctionCapacityService.requireWithinEnteredLimits(
+        live, draft, entry.key);
+    }
+    ElectricalJunctionCapacityService.requireWithinEnteredLimits(
+        live, draft, junctionId);
     final cloned = FloorPlan.fromJson(live.toJson());
     cloned.electricalNetwork = copy(draft);
     final blocking = ElectricalNetworkService.inspect(cloned)

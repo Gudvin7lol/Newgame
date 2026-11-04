@@ -67,7 +67,11 @@ void main() {
     final floor = FloorPlan(id: 'floor', name: 'Этаж 1');
     final project = MeasureProject(id: 'project', name: 'Квартира',
         floors: [floor]);
-    final day = DateTime(2026, 11, 2);
+    // The compact badge is relative to today, not a historical calendar day.
+    // Use a future date so this test remains valid after October 2026.
+    final now = DateTime.now();
+    final day = DateTime(now.year, now.month, now.day)
+        .add(const Duration(days: 7));
     project.workBoard.tasks.addAll([
       WorkTask(
         id: 'wall', title: 'Покраска стен',
@@ -128,7 +132,10 @@ void main() {
       (tester) async {
     final project = MeasureProject(id: 'shortcut', name: 'Объект',
       floors: [FloorPlan(id: 'f', name: 'Этаж')]);
-    final date = DateTime(2026, 10, 26);
+    // Keep the in-progress scenario current regardless of CI run date.
+    final now = DateTime.now();
+    final date = DateTime(now.year, now.month, now.day)
+        .subtract(const Duration(days: 1));
     project.workBoard.tasks.add(WorkTask(
       id: 'active', title: 'Штукатурка спальни', start: date,
       finish: date.add(const Duration(days: 4)), quantity: 40,
