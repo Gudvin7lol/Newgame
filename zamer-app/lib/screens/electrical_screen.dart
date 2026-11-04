@@ -2289,11 +2289,11 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
       (ElectricalPointType.tvSocket, Icons.tv_outlined, 'ТВ'),
       (ElectricalPointType.dataSocket, Icons.wifi_outlined, 'Интернет'),
     ];
-    // 230×178 dp is a compact mobile footprint without shrinking hit
-    // targets below 48 dp. Preserve the approved arc categories and keys.
+    // Seven 48dp touch targets in a 160×152dp flyout. The old 230×178
+    // fan obscured installation points on a narrow mobile viewport.
     const positions = <(double, double)>[
-      (14, 122), (42, 65), (99, 20), (181, 2),
-      (87, 128), (136, 83), (180, 58),
+      (0, 52), (54, 52), (108, 52), (24, 104),
+      (48, 0), (103, 0), (80, 104),
     ];
     final visibleTypes = <(ElectricalPointType, IconData, String)>[
       ...inner,
@@ -2356,7 +2356,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
               key: ValueKey(_mode == ElectricalMode.add
                   ? 'electrical-two-ring-fan'
                   : 'electrical-context-fan'),
-              width: 230, height: 178,
+              width: 160, height: 152,
               child: CustomPaint(
                 painter: _ElectricalFanArcs(
                     color: theme.colorScheme.primary.withValues(alpha: .35)),
@@ -2460,8 +2460,10 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
       (ElectricalWorkspaceView.board, 'Щит'),
     ];
     return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 6, 8, 3),
-      child: Row(
+      padding: const EdgeInsets.fromLTRB(6, 2, 6, 2),
+      child: SizedBox(
+        height: 44,
+        child: Row(
         key: const ValueKey('electrical-three-modes'),
         children: [
           for (final (value, label) in labels)
@@ -2478,7 +2480,9 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                   }),
                   style: TextButton.styleFrom(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 3, vertical: 9),
+                        horizontal: 3, vertical: 3),
+                    minimumSize: const Size(0, 40),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     backgroundColor: _workspaceView == value
                         ? theme.colorScheme.primaryContainer
                         : theme.colorScheme.surfaceContainer,
@@ -2495,6 +2499,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
               ),
             ),
         ],
+      ),
       ),
     );
   }
@@ -3077,7 +3082,7 @@ class _ElectricalFanArcs extends CustomPainter {
     final paint = Paint()..color = color
         ..strokeWidth = 1.2..style = PaintingStyle.stroke;
     final center = Offset(size.width - 3, size.height - 2);
-    for (final radius in <double>[112, 174]) {
+    for (final radius in <double>[78, 137]) {
       canvas.drawArc(Rect.fromCircle(center: center, radius: radius),
           math.pi, math.pi / 2, false, paint);
     }
