@@ -2462,7 +2462,7 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(6, 2, 6, 2),
       child: SizedBox(
-        height: 44,
+        height: 48,
         child: Row(
         key: const ValueKey('electrical-three-modes'),
         children: [
@@ -2481,8 +2481,8 @@ class _ElectricalScreenState extends State<ElectricalScreen> {
                   style: TextButton.styleFrom(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 3, vertical: 3),
-                    minimumSize: const Size(0, 40),
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    minimumSize: const Size(0, 48),
+                    tapTargetSize: MaterialTapTargetSize.padded,
                     backgroundColor: _workspaceView == value
                         ? theme.colorScheme.primaryContainer
                         : theme.colorScheme.surfaceContainer,
