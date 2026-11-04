@@ -228,6 +228,30 @@ for h in range(22):
         d=(h+1)*count+k
         faces.append((a,d,c,b))
 gusset=mesh_obj("02 | separate convex gusset",verts,faces,uvs,fabric)
+# The last perimeter quad crosses UV U=perimeter/tile back to U=0.
+# Since the linen image repeats, this used to stretch one full texture repeat
+# across a single narrow face. UVs are per face-corner, so fix only the wrap
+# face loops without splitting or altering any physical mesh vertices.
+perimeter_length=arclens[-1]+math.dist(perimeter[-1],perimeter[0])
+seam_faces=0
+max_gusset_face_u_span=0.0
+uvlayer=gusset.data.uv_layers.active.data
+for poly in gusset.data.polygons:
+    if poly.index % count == count-1:
+        seam_faces+=1
+        for loop_id in poly.loop_indices:
+            vertex_id=gusset.data.loops[loop_id].vertex_index
+            if vertex_id % count == 0:
+                uvlayer[loop_id].uv.x=perimeter_length/TEXTURE_TILE_M
+    us=[uvlayer[li].uv.x for li in poly.loop_indices]
+    max_gusset_face_u_span=max(max_gusset_face_u_span,max(us)-min(us))
+assert seam_faces==22, f"Unexpected number of gusset wrap quads: {seam_faces}"
+# A single quad must never span more than 1/4 of one texture repeat.
+assert max_gusset_face_u_span < .25, (
+    f"UV wrap stretched across gusset face: {max_gusset_face_u_span:.4f}")
+print("GUSSET_UV_WRAP_OK", "wrap_faces",seam_faces,
+      "max_face_u_span",round(max_gusset_face_u_span,6),
+      "perimeter_m",round(perimeter_length,5))
 
 # Under-panel: not a flat sheet.
 verts=[];uvs=[];faces=[]
@@ -465,6 +489,8 @@ geometry_report={
     "sculpted_seam_relief_max_m":round(max_detail,6),
     "seam_relief_zones":8,
     "gusset_local_pucker_zones":6,
+    "gusset_uv_wrap_faces_corrected":seam_faces,
+    "gusset_uv_max_face_u_span":round(max_gusset_face_u_span,6),
     "physical_sewing_springs_enabled":False,
     "mobile_realism_verified":False
 }
