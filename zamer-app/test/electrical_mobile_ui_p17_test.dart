@@ -45,6 +45,48 @@ void main() {
     expect(editor, isNot(contains('_selectionActionsOpen')));
   });
 
+  testWidgets('16-wall picker remains scrollable and bounded on a phone',
+      (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final floor = FloorPlan(
+      id: 'many', name: 'Квартира',
+      nodes: [
+        for (var i = 0; i <= 16; i++)
+          PlanNode(id: 'n$i', xMm: i * 1000, yMm: 0),
+      ],
+      walls: [
+        for (var i = 0; i < 16; i++)
+          PlanWall(id: 'w$i', startNodeId: 'n$i',
+              endNodeId: 'n${i + 1}'),
+      ],
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: ElectricalWallElevationScreen(floor: floor),
+    ));
+    await tester.pumpAndSettle();
+    final dropdown = find.byType(DropdownButtonFormField<String>).first;
+    final field = tester.widget<DropdownButtonFormField<String>>(dropdown);
+    expect(field.menuMaxHeight, lessThanOrEqualTo(288));
+    expect(field.items, hasLength(16));
+    await tester.tap(dropdown);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
+  test('electrical workspace does not duplicate 56dp header or oversized fan',
+      () {
+    final shell = File('lib/screens/recovered_measure_workspace_screen.dart')
+        .readAsStringSync();
+    final editor = File('lib/screens/electrical_screen.dart')
+        .readAsStringSync();
+    expect(shell, contains('else if (_layer != 6 && _layer != 3)'));
+    expect(editor, contains('width: 160, height: 152'));
+    expect(editor, contains('height: 44'));
+  });
+
   testWidgets('elevation selects a wall containing the electrical point',
       (tester) async {
     tester.view.physicalSize = const Size(390, 844);
