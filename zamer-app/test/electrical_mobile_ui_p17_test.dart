@@ -84,7 +84,7 @@ void main() {
         .readAsStringSync();
     expect(shell, contains('else if (_layer != 6 && _layer != 3)'));
     expect(editor, contains('width: 160, height: 152'));
-    expect(editor, contains('height: 44'));
+    expect(editor, contains('height: 48'));
   });
 
   testWidgets('elevation selects a wall containing the electrical point',
