@@ -500,7 +500,6 @@ geometry_report={
     "seam_relief_zones":8,
     "gusset_local_pucker_zones":6,
     "gusset_fullness_profile":"asymmetric lower-weighted sewn side; no uniform circumferential tube",
-    "gusset_fullness_peak_fraction":round(.5+.42/(2*math.pi**2),4),
     "gusset_uv_wrap_faces_corrected":seam_faces,
     "gusset_uv_max_face_u_span":round(max_gusset_face_u_span,6),
     "physical_sewing_springs_enabled":False,
