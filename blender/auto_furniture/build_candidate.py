@@ -191,9 +191,19 @@ for h in range(23):
     for k,(x,y) in enumerate(perimeter):
         radial=math.hypot(x/A,y/B)
         # Side bulges outward near central height; ends are pulled into stitched seams.
-        bulge=(.015+.008*(SHAPE_LOOSENESS-1))*math.sin(pi*t)**1.2
+        # The previous symmetric sin(pi*t) created an almost continuous inflated
+        # horizontal tube around the cushion. Sewn gussets have unequal seam
+        # tension: the upper lip is tucked, the lower lip supports the fill,
+        # and the fullest section sits below the middle of the side wall.
         ang=math.atan2(y/B,x/A)
-        bulge*=1+.14*math.sin(3*ang+.4)+.06*math.sin(7*ang-1.6)
+        fullness=math.sin(pi*t)**1.35 * (1.0 + .42*(t-.5))
+        # Broad, non-periodic variation around the perimeter. Avoid an even
+        # cylindrical band, especially along the two long straight sides.
+        tension=(.79+.13*math.sin(ang+.65)+.08*math.sin(2*ang-1.10))
+        bulge=(.014+.006*(SHAPE_LOOSENESS-1))*fullness*tension
+        # Stitching pulls the upper edge inward while the lower edge remains
+        # lightly rounded. The correction is zero at the actual welded seams.
+        bulge-=.0024*math.sin(pi*t)**2 * math.exp(-((t-.12)/.12)**2)
         # Settled side fabric forms a few non-uniform tension bands.
         bulge+=SHAPE_LOOSENESS*.0032*math.sin(8*ang+3.1*t+.7)*math.sin(pi*t)**1.35
         bulge+=SHAPE_LOOSENESS*.0014*math.sin(13*ang-5*t)*math.sin(pi*t)**1.8
@@ -489,6 +499,8 @@ geometry_report={
     "sculpted_seam_relief_max_m":round(max_detail,6),
     "seam_relief_zones":8,
     "gusset_local_pucker_zones":6,
+    "gusset_fullness_profile":"asymmetric lower-weighted sewn side; no uniform circumferential tube",
+    "gusset_fullness_peak_fraction":round(.5+.42/(2*math.pi**2),4),
     "gusset_uv_wrap_faces_corrected":seam_faces,
     "gusset_uv_max_face_u_span":round(max_gusset_face_u_span,6),
     "physical_sewing_springs_enabled":False,
