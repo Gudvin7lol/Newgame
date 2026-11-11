@@ -1,0 +1,133 @@
+name: Furniture Lab 2.2 - Selective material variants
+
+on:
+  push:
+    branches: [feat/blender-furniture-lab]
+    paths:
+      - 'blender/furniture_lab_22/**'
+      - '.github/workflows/furniture-lab-22.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: furniture-lab22-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  licensed-colorways:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Blender and Python imaging libraries
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y blender python3-numpy python3-pil
+          blender --version
+
+      - name: Retrieve QA-verified baseline GLBs from previous GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p out/furniture22/source
+          gh release download furniture-lab21-sofa-cabinet-cc0 \
+            --repo "${{ github.repository }}" \
+            --pattern '*_mobile_1k.glb' \
+            --dir out/furniture22/source
+          test -s out/furniture22/source/sofa_01_mobile_1k.glb
+          test -s out/furniture22/source/drawer_cabinet_mobile_1k.glb
+
+      - name: Produce four distinct surface finishes, preserving underlying PBR
+        env:
+          FURNITURE22_OUT: out/furniture22
+        run: python3 blender/furniture_lab_22/make_variants.py
+
+      - name: Render all variants using actual embedded GLB materials
+        env:
+          FURNITURE22_OUT: out/furniture22
+        run: |
+          set -euo pipefail
+          for variant in \
+            sofa_01_linen_warm_1k \
+            sofa_01_sage_upholstery_1k \
+            drawer_cabinet_smoked_walnut_1k \
+            drawer_cabinet_pale_oak_1k; do
+            VARIANT_NAME="$variant" blender -b -t 2 --python-exit-code 3 \
+              --python blender/furniture_lab_22/render_variant.py
+          done
+
+      - name: Verify 3D material integrity, source-geometry preservation and actual renders
+        run: |
+          python3 - <<'PY'
+          import json,struct
+          from pathlib import Path
+          from PIL import Image,ImageStat
+          p=Path('out/furniture22')
+          report=json.loads((p/'variants_qa.json').read_text())
+          assert len(report['variants'])==4
+          for name,entry in report['variants'].items():
+              glb=p/entry['file']
+              b=glb.read_bytes()
+              assert b[:4]==b'glTF' and struct.unpack_from('<I',b,8)[0]==len(b)
+              jsonsize=struct.unpack_from('<I',b,12)[0]
+              d=json.loads(b[20:20+jsonsize])
+              assert not set(d.get('extensionsRequired',[])) & {
+                'KHR_draco_mesh_compression','KHR_texture_basisu',
+                'EXT_meshopt_compression','EXT_texture_webp'}
+              assert len(d.get('meshes',[]))>=1 and len(d.get('images',[]))>=3
+              assert entry['geometry_unchanged'] and entry['original_normal_orm_retained']
+              mats=d['materials']
+              assert any(m.get('normalTexture') and
+                m.get('pbrMetallicRoughness',{}).get('metallicRoughnessTexture')
+                for m in mats)
+              img=p/(name+'_1k_cycles.png')
+              assert img.exists(),img
+              with Image.open(img) as im:
+                  assert im.width>=800 and im.height>=600
+                  assert ImageStat.Stat(im.convert('L')).stddev[0]>9
+              print('FURNITURE22_VALID',name,entry['size_bytes'],flush=True)
+          print('FURNITURE22_ALL_PASSED')
+          PY
+
+      - name: Publish GLBs, source texture previews and QA artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: furniture-lab22-variants
+          path: |
+            out/furniture22/sofa_01/*.glb
+            out/furniture22/drawer_cabinet/*.glb
+            out/furniture22/*_cycles.png
+            out/furniture22/atlas_contact_sheet.png
+            out/furniture22/variants_qa.json
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Publish persistent GitHub Release (successful QA only)
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          cp out/furniture22/sofa_01/*.glb release/
+          cp out/furniture22/drawer_cabinet/*.glb release/
+          cp out/furniture22/*_cycles.png release/
+          cp out/furniture22/atlas_contact_sheet.png release/
+          cp out/furniture22/variants_qa.json release/
+          tag='furniture-lab22-material-variants'
+          if gh release view "$tag" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release upload "$tag" release/* --repo "${{ github.repository }}" --clobber
+          else
+            gh release create "$tag" release/* \
+              --repo "${{ github.repository }}" \
+              --target feat/blender-furniture-lab \
+              --title "Furniture Lab 2.2 - four material colorways (CC0 base)" \
+              --notes "Four texture colorways derived from licensed Poly Haven CC0 3D assets: Sofa_01 and Drawer Cabinet. Source geometry, UVs, normal and metallic/roughness textures preserved; selective edits only to BaseColor atlas. Two sofa textile colors and two cabinet wood finishes. These are NOT newly modeled shapes or newly physically scanned surface materials. Both asset classes remain reference prototypes, not yet accepted for ZAMER production. Actual Cycles renders and QA included. Android GLB Viewer appearance requires separate testing." \
+              --prerelease
+          fi
+          gh release view "$tag" --repo "${{ github.repository }}" --json url --jq '.url'

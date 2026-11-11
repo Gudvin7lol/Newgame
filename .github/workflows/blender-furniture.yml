@@ -1,0 +1,88 @@
+name: Blender Furniture Lab v14 — scanned linen material QA
+
+on:
+  push:
+    branches: [feat/blender-furniture-lab]
+    paths: ['blender/**', '.github/workflows/blender-furniture.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scanned-linen-v14-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  material-lab:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Blender and image tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y blender python3-numpy python3-pil
+          blender --version
+
+      - name: Fetch CC0 scanned maps and prepare beige linen
+        env:
+          BLENDER_OUT: out/blender
+        run: |
+          python3 blender/scan_fabric_v13.py
+
+      - name: Export actual textured GLB and comparable Cycles renders
+        env:
+          BLENDER_OUT: out/blender
+        run: |
+          blender -b -t 2 --python-exit-code 3 --python blender/cushion_scan_v14.py
+
+      - name: Verify normal/roughness payload and exported glTF material
+        run: |
+          python3 - <<'PY'
+          import json, struct
+          from pathlib import Path
+          from PIL import Image, ImageStat
+          out=Path('out/blender')
+          expected=['cushion_v14.blend','cushion_v14.glb',
+                    'cushion_v14_cycles.png','cushion_v14_detail.png',
+                    'cushion_v14_no_normal.png','cushion_v14_flat_material.png']
+          for name in expected:
+              p=out/name
+              assert p.is_file() and p.stat().st_size>15000,(name,'absent/empty')
+              print('FILE_OK',name,p.stat().st_size)
+          scans=out/'scan_v13'
+          n=Image.open(scans/'linen_scan_normal_gl.png').convert('RGB')
+          rough=Image.open(scans/'linen_scan_roughness.png').convert('L')
+          assert min(ImageStat.Stat(n).stddev[:2])>4,'Normal map too flat'
+          assert ImageStat.Stat(rough).stddev[0]>3,'Roughness is flat'
+          assert .65 < ImageStat.Stat(rough).mean[0]/255 < .94
+          data=(out/'cushion_v14.glb').read_bytes()
+          assert data[:4]==b'glTF'
+          assert struct.unpack_from('<I',data,8)[0]==len(data)
+          length,chunk=struct.unpack_from('<II',data,12)
+          assert chunk==0x4e4f534a
+          gltf=json.loads(data[20:20+length])
+          mats=gltf.get('materials',[])
+          found=[]
+          for m in mats:
+              pbr=m.get('pbrMetallicRoughness',{})
+              if all((pbr.get('baseColorTexture'),
+                      pbr.get('metallicRoughnessTexture'),
+                      m.get('normalTexture'))):
+                  found.append(m)
+          assert found,'No glTF material has base/roughness/normal linked'
+          assert len(gltf.get('images',[]))>=3,'Missing embedded PNG maps'
+          assert len(gltf.get('meshes',[]))>=2,'Missing 3D meshes'
+          print('GLB_PBR_OK',len(gltf['images']),'images',len(gltf['meshes']),'meshes')
+          for mat in found: print('MATERIAL',mat.get('name'),mat.get('normalTexture'))
+          PY
+
+      - name: Upload verified GLB, BLEND, and diagnostic renders
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linen-material-v14-validated
+          path: out/blender/
+          retention-days: 7
+          if-no-files-found: warn

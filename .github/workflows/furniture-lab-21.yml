@@ -1,0 +1,83 @@
+name: Furniture Lab 2.1 - Sofa and Drawer Cabinet mobile GLB
+
+on:
+  push:
+    branches: [feat/blender-furniture-lab]
+    paths:
+      - 'blender/furniture_lab_21/**'
+      - '.github/workflows/furniture-lab-21.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: furniture-lab-21-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build_two_references:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Blender, Pillow and glTF-Transform
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y blender python3-pil python3-numpy
+          npm install -g @gltf-transform/cli
+          blender --version
+          gltf-transform --version
+
+      - name: Download official CC0 furniture with source checksums
+        env:
+          FURNITURE21_OUT: out/furniture21
+        run: |
+          python3 blender/furniture_lab_21/download.py
+
+      - name: Pack PBR models to 2K, 1K and 512 GLB without geometry changes
+        run: |
+          set -euo pipefail
+          for asset in sofa_01 drawer_cabinet; do
+            original=$(python3 -c "import json;print(json.load(open('out/furniture21/$asset/provenance.json'))['file_name'])")
+            folder="out/furniture21/$asset"
+            gltf-transform copy "$folder/source/$original" "$folder/${asset}_reference_2k.glb"
+            gltf-transform resize "$folder/${asset}_reference_2k.glb" "$folder/${asset}_mobile_1k.glb" --width 1024 --height 1024
+            gltf-transform resize "$folder/${asset}_reference_2k.glb" "$folder/${asset}_lite_512.glb" --width 512 --height 512
+            ls -lh "$folder"/*.glb
+          done
+
+      - name: Render real original 3D sofa and cabinet from two views
+        env:
+          FURNITURE21_OUT: out/furniture21
+        run: |
+          set -euo pipefail
+          for asset in sofa_01 drawer_cabinet; do
+            ASSET_NAME="$asset" blender -b -t 2 --python-exit-code 3 --python blender/furniture_lab_21/render.py
+          done
+
+      - name: Validate geometry fingerprints, PBR and compatibility
+        env:
+          FURNITURE21_OUT: out/furniture21
+        run: |
+          set -euo pipefail
+          python3 blender/furniture_lab_21/verify.py
+          cat out/furniture21/comparison_qa.md
+
+      - name: Upload verified actual GLBs, renders, reference scenes and audits
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: furniture-lab21-sofa-cabinet-android
+          path: |
+            out/furniture21/*/*.glb
+            out/furniture21/*/cycles_review.png
+            out/furniture21/*/cycles_back.png
+            out/furniture21/*/reference_scene.blend
+            out/furniture21/*/blender_review.json
+            out/furniture21/*/provenance.json
+            out/furniture21/comparison_qa.*
+          if-no-files-found: warn
+          retention-days: 14
