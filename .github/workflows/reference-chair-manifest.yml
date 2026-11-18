@@ -1,0 +1,30 @@
+name: Reference Chair - Poly Haven asset manifest
+
+on:
+  push:
+    branches: [feat/blender-furniture-lab]
+    paths:
+      - 'blender/reference_chair/inspect_polyhaven.py'
+      - '.github/workflows/reference-chair-manifest.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect official download catalog
+        env:
+          ASSET_OUT: out/reference_chair
+        run: python3 blender/reference_chair/inspect_polyhaven.py
+      - name: Save manifest
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: polyhaven-reference-chair-manifest
+          path: out/reference_chair/polyhaven_manifest.json
+          retention-days: 7

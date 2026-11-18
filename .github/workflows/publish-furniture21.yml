@@ -1,0 +1,75 @@
+name: Publish Furniture Lab 2.1 GLB downloads
+
+on:
+  push:
+    branches: [feat/blender-furniture-lab]
+    paths: ['.github/workflows/publish-furniture21.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  release_reference_assets:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download QA-verified Furniture Lab 2.1 artifact
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh run download 41398440539 \
+            --repo "${{ github.repository }}" \
+            --name furniture-lab21-sofa-cabinet-android \
+            --dir /tmp/zamer-furniture21
+          find /tmp/zamer-furniture21 -maxdepth 2 -type f -name '*.glb' -ls
+
+      - name: Collect six GLBs and genuine Blender renders
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          for furniture in sofa_01 drawer_cabinet; do
+            for tier in reference_2k mobile_1k lite_512; do
+              cp "/tmp/zamer-furniture21/$furniture/${furniture}_${tier}.glb" release/
+            done
+            cp "/tmp/zamer-furniture21/$furniture/cycles_review.png" "release/${furniture}_real_render.png"
+          done
+          cp /tmp/zamer-furniture21/comparison_qa.md release/Furniture_Lab21_Report.md
+          cd release
+          python3 - <<'PY'
+          import json,struct
+          from pathlib import Path
+          for p in Path('.').glob('*.glb'):
+              b=p.read_bytes()
+              assert b[:4]==b'glTF' and struct.unpack_from('<I',b,8)[0]==len(b),p
+              n=struct.unpack_from('<I',b,12)[0]
+              d=json.loads(b[20:20+n])
+              assert len(d.get('meshes',[]))>0 and len(d.get('images',[]))>=2,p
+          assert len(list(Path('.').glob('*.glb')))==6
+          print('RELEASE_GLBS_ALL_VALID')
+          PY
+          zip -9 -q Furniture_Lab21_Mobile_Bundle.zip *_mobile_1k.glb *_lite_512.glb Furniture_Lab21_Report.md
+          ls -lh
+
+      - name: Publish permanent CC0 reference study prerelease
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag="furniture-lab21-sofa-cabinet-cc0"
+          if gh release view "$tag" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release upload "$tag" release/* --repo "${{ github.repository }}" --clobber
+          else
+            gh release create "$tag" release/* \
+              --repo "${{ github.repository }}" \
+              --target feat/blender-furniture-lab \
+              --title "Furniture Lab 2.1: Sofa 01 and Drawer Cabinet (CC0 reference)" \
+              --notes "Experimental licensed Poly Haven CC0 3D models. Original geometry, BaseColor/Normal/Roughness PBR. Download _mobile_1k.glb first on Android. All versions passed automated glTF/UV and topology consistency checks; appearance in GLB Viewer has not been verified. Sofa 01 is a vintage TWO-seater, not the intended modern three-seater. Drawer Cabinet is a tall shelf cabinet, not a kitchen module. Includes original 2K and light 512 alternatives. Source: https://polyhaven.com/a/Sofa_01 and https://polyhaven.com/a/drawer_cabinet. Research models, not released into ZAMER production." \
+              --prerelease
+          fi
+          gh release view "$tag" --repo "${{ github.repository }}" \
+            --json url,assets --jq '.url'
