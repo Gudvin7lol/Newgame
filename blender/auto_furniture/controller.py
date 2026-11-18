@@ -50,6 +50,17 @@ def glb_check(path):
     data=json.loads(buf[20:20+jlen])
     assert len(data.get("meshes",[]))>=2,"Missing cushion shell and piping"
     assert len(data.get("images",[]))>=3,"Insufficient embedded textures"
+    # A seam is not complete if the stitch curve exists only in the .blend.
+    # Verify actual exported GLB primitives reference the thread material.
+    thread_ids={i for i,m in enumerate(data.get("materials",[]))
+                if m.get("name")=="Warm seam thread"}
+    assert thread_ids,"GLB is missing the sewing-thread material"
+    thread_primitives=[pr for me in data["meshes"] for pr in me.get("primitives",[])
+                       if pr.get("material") in thread_ids]
+    assert thread_primitives,"GLB is missing exported stitch geometry"
+    thread_vertices=sum(data["accessors"][pr["attributes"]["POSITION"]]["count"]
+                        for pr in thread_primitives)
+    assert thread_vertices>=128, f"Too little stitch geometry in GLB: {thread_vertices} vertices"
     textures=data.get("textures",[])
     found=[]
     for m in data.get("materials",[]):
@@ -67,7 +78,8 @@ def glb_check(path):
         found.append((m.get("name",""),scale))
     assert found,"No fully mapped PBR material"
     return {"meshes":len(data["meshes"]),"embedded_images":len(data["images"]),
-            "pbr_materials":found,"file_bytes":len(buf)}
+            "pbr_materials":found,"sewing_stitch_primitives":len(thread_primitives),
+            "sewing_stitch_vertices":thread_vertices,"file_bytes":len(buf)}
 
 def image_check(path):
     with Image.open(path) as im:
