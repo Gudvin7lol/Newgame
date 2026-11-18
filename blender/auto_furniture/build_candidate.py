@@ -491,6 +491,7 @@ assert boundary==0, "Unclosed shell: check seam vertex matching and face winding
 import json as _json
 geometry_report={
     "model_version":"v16",
+    "sewing_stitch_segments_expected":len(stcurve.splines),
     "outer_shell_vertices_after_weld":len(bm.verts),
     "outer_shell_faces":len(bm.faces),
     "nonmanifold_edges":boundary,
@@ -513,7 +514,11 @@ top.data.update()
 bpy.ops.object.select_all(action="DESELECT")
 # Exclude floating stitch curves while we solve mesh integrity;
 # retain curves in editable BLEND as separate detail layers.
-pieces=[top,upper]
+# The interrupted stitch paths were authored as a separate bevelled curve.
+# Include them in the actual GLB selection instead of leaving them only in BLEND.
+# The GLTF exporter converts this curve to a mesh, preserving the thread material.
+assert len(stcurve.splines)==128, f"Unexpected stitch count: {len(stcurve.splines)}"
+pieces=[top,upper,stitches]
 for obj in pieces:obj.select_set(True)
 bpy.context.view_layer.objects.active=top
 bpy.ops.export_scene.gltf(
@@ -524,7 +529,7 @@ bpy.ops.export_scene.gltf(
 # Match Cycles beauty renders to actual GLB export selection.
 # The underlying foam, underside piping and draft stitching are editable in BLEND
 # but excluded from both exported GLB and preview.
-for nonexported in (foamobj,lower,stitches):
+for nonexported in (foamobj,lower):
     nonexported.hide_render=True
 bpy.ops.render.render(write_still=True)
 # A second low camera angle catches seam defects that beauty views hide.
