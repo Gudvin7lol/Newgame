@@ -494,6 +494,7 @@ geometry_report={
     "sewing_stitch_segments_expected":len(stcurve.splines),
     "outer_shell_vertices_after_weld":len(bm.verts),
     "outer_shell_faces":len(bm.faces),
+    "joined_shell_components":["top_panel","side_gusset","underside_panel"],
     "nonmanifold_edges":boundary,
     "simulation_max_vertical_displacement_m":round(max_shift,6),
     "simulation_mean_vertical_displacement_m":round(avg_shift,6),
@@ -512,11 +513,11 @@ bm.to_mesh(top.data)
 bm.free()
 top.data.update()
 bpy.ops.object.select_all(action="DESELECT")
-# Export the complete upholstered shell, not just the top panel.
-# Top, convex gusset and underside are separate matching panels; both welt
-# cords and the interrupted thread are real geometry in the mobile GLB.
+# Top, gusset and underside have already been joined and seam-welded into
+# the single manifold 'top' shell object above. Export that shell plus BOTH
+# welt cords and the thread. The source panel objects no longer exist after join.
 assert len(stcurve.splines)==128, f"Unexpected stitch count: {len(stcurve.splines)}"
-pieces=[top,gusset,underside,upper,lower,stitches]
+pieces=[top,upper,lower,stitches]
 for obj in pieces:obj.select_set(True)
 bpy.context.view_layer.objects.active=top
 bpy.ops.export_scene.gltf(
