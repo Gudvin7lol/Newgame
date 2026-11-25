@@ -60,7 +60,10 @@ def glb_check(path):
     assert thread_primitives,"GLB is missing exported stitch geometry"
     thread_vertices=sum(data["accessors"][pr["attributes"]["POSITION"]]["count"]
                         for pr in thread_primitives)
-    assert thread_vertices>=128, f"Too little stitch geometry in GLB: {thread_vertices} vertices"
+    assert thread_vertices>=5000, (
+        f"Seam detail is still too sparse in exported GLB: {thread_vertices} vertices; "
+        "expected at least 350 individual stitches"
+    )
     textures=data.get("textures",[])
     found=[]
     for m in data.get("materials",[]):
@@ -142,6 +145,9 @@ def rank(root,statefile):
                 assert (folder/f).is_file(),f"Missing file {f}"
             record["gltf"]=glb_check(folder/"cushion_v14.glb")
             metrics=json.loads((folder/"geometry_report.json").read_text(encoding="utf-8"))
+            assert metrics["sewing_stitch_segments_expected"]>=350, "Too few modeled lock stitches"
+            assert abs(metrics["sewing_stitch_pitch_m"]-.0065)<1e-6, "Unexpected stitch pitch"
+            assert abs(metrics["sewing_stitch_inset_m"]-.0045)<1e-6, "Unexpected stitch inset"
             assert metrics["nonmanifold_edges"]==0,"Cloth shell contains unclosed geometry"
             assert 0.002<metrics["simulation_max_vertical_displacement_m"]<.055,"Unstable/unmoved cloth"
             assert .003<metrics["sculpted_seam_relief_max_m"]<.025,"Unrealistic/missing crease relief"
