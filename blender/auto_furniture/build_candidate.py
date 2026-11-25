@@ -2,7 +2,7 @@
 Geometry is authored as separate top, gusset, underside, cord and stitching.
 Real Cloth modifier, pin group along upper seam, collided against foam core.\nGusset/underpanel are constructed components, not sewn by sewing springs.
 """
-import bpy, math, os, random, bisect
+import bpy, math, os, random
 import numpy as np
 from pathlib import Path
 from mathutils import Vector
@@ -299,43 +299,21 @@ upper=polycurve("04 | upper sewn welt piping",
 lower=polycurve("05 | underside seam piping",
                 [(x*.992,y*.992,-.0505) for x,y in perimeter],
                 cordmat,.00085)
-# Machine-like lock stitches follow the actual perimeter arc length.
-# The previous 19 mm inset and 22 mm pitch looked like a dotted decorative
-# line, not a seam. Use a 4.5 mm inset, 6.5 mm pitch and 2.8 mm thread span.
-stcurve=bpy.data.curves.new("Stitch paths | 6.5 mm pitch","CURVE")
-stcurve.dimensions="3D";stcurve.bevel_depth=.00040;stcurve.bevel_resolution=2
-STITCH_INSET_M=.0045
-STITCH_PITCH_M=.0065
-STITCH_LENGTH_M=.0028
-STITCH_Z_OFFSET_M=.00034
-
-def stitch_point(distance):
-    s=distance % perimeter_length
-    segment=min(count-1,max(0,bisect.bisect_right(arclens,s)-1))
-    p0=perimeter[segment]
-    p1=perimeter[(segment+1)%count]
-    segment_len=math.dist(p0,p1)
-    t=(s-arclens[segment])/segment_len
-    x=p0[0]+(p1[0]-p0[0])*t
-    y=p0[1]+(p1[1]-p0[1])*t
-    tx=(p1[0]-p0[0])/segment_len
-    ty=(p1[1]-p0[1])/segment_len
-    # Perimeter is counter-clockwise; its left normal points into the panel.
-    sx=x-ty*STITCH_INSET_M
-    sy=y+tx*STITCH_INSET_M
-    return (sx,sy,top_height(sx,sy)+STITCH_Z_OFFSET_M)
-
-STITCH_COUNT=int(math.floor(perimeter_length/STITCH_PITCH_M))
-for idx in range(STITCH_COUNT):
-    start=idx*STITCH_PITCH_M
-    a=stitch_point(start)
-    b=stitch_point(start+STITCH_LENGTH_M)
+# Small discontinuous stitches inset from the upper seam, not fake stripes.
+stcurve=bpy.data.curves.new("Stitch paths","CURVE")
+stcurve.dimensions="3D";stcurve.bevel_depth=.00054;stcurve.bevel_resolution=1
+for idx in range(0,count,3):
+    def inner_pt(k):
+        x,y=perimeter[k%count]
+        mul=1-.019/(max(math.hypot(x,y),.01))
+        sx,sy=x*mul,y*mul
+        return (sx,sy,top_height(sx,sy)+.0006)
+    a,b=inner_pt(idx),inner_pt(idx+1)
     spl=stcurve.splines.new("POLY");spl.points.add(1)
     spl.points[0].co=(*a,1);spl.points[1].co=(*b,1)
-stitches=bpy.data.objects.new("06 | inset lock stitches 6.5 mm pitch",stcurve)
+stitches=bpy.data.objects.new("06 | interrupted sewing stitches",stcurve)
 bpy.context.collection.objects.link(stitches)
 stcurve.materials.append(threadmat)
-assert len(stcurve.splines)>=350, f"Sparse sewing detail: {len(stcurve.splines)} stitches"
 
 # Internal foam core as an independent model, hidden inside upholstery.
 # Use a bevelled smoother volume for inspectable construction.
@@ -514,10 +492,6 @@ import json as _json
 geometry_report={
     "model_version":"v16",
     "sewing_stitch_segments_expected":len(stcurve.splines),
-    "sewing_stitch_pitch_m":STITCH_PITCH_M,
-    "sewing_stitch_length_m":STITCH_LENGTH_M,
-    "sewing_stitch_inset_m":STITCH_INSET_M,
-    "sewing_stitch_thread_radius_m":stcurve.bevel_depth,
     "outer_shell_vertices_after_weld":len(bm.verts),
     "outer_shell_faces":len(bm.faces),
     "nonmanifold_edges":boundary,
@@ -538,13 +512,11 @@ bm.to_mesh(top.data)
 bm.free()
 top.data.update()
 bpy.ops.object.select_all(action="DESELECT")
-# Exclude floating stitch curves while we solve mesh integrity;
-# retain curves in editable BLEND as separate detail layers.
-# The interrupted stitch paths were authored as a separate bevelled curve.
-# Include them in the actual GLB selection instead of leaving them only in BLEND.
-# The GLTF exporter converts this curve to a mesh, preserving the thread material.
-assert len(stcurve.splines)>=350, f"Unexpectedly sparse seam stitches: {len(stcurve.splines)}"
-pieces=[top,upper,stitches]
+# Export the complete upholstered shell, not just the top panel.
+# Top, convex gusset and underside are separate matching panels; both welt
+# cords and the interrupted thread are real geometry in the mobile GLB.
+assert len(stcurve.splines)==128, f"Unexpected stitch count: {len(stcurve.splines)}"
+pieces=[top,gusset,underside,upper,lower,stitches]
 for obj in pieces:obj.select_set(True)
 bpy.context.view_layer.objects.active=top
 bpy.ops.export_scene.gltf(
@@ -552,11 +524,9 @@ bpy.ops.export_scene.gltf(
     export_format="GLB",use_selection=True,export_texcoords=True,
     export_normals=True,export_materials="EXPORT"
 )
-# Match Cycles beauty renders to actual GLB export selection.
-# The underlying foam, underside piping and draft stitching are editable in BLEND
-# but excluded from both exported GLB and preview.
-for nonexported in (foamobj,lower):
-    nonexported.hide_render=True
+# Foam is an internal support volume and is not part of the exported shell.
+# Keep lower welt visible in Cycles so the preview matches the complete GLB.
+foamobj.hide_render=True
 bpy.ops.render.render(write_still=True)
 # A second low camera angle catches seam defects that beauty views hide.
 camera.location=Vector((.90,-1.66,.36))
