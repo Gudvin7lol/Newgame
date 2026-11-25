@@ -1,0 +1,78 @@
+name: Real Sewing Springs Upholstery Prototype
+
+on:
+  push:
+    branches: [feat/blender-furniture-lab]
+    paths:
+      - 'blender/auto_furniture/real_sewing_lab.py'
+      - '.github/workflows/sewn-cloth-prototype.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  physically-sewn-cushion:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Blender and imaging dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y blender python3-numpy python3-pil
+          blender --version
+
+      - name: Fetch authentic CC0 PBR fabric maps
+        env:
+          BLENDER_OUT: out/sewn
+        run: python3 blender/scan_fabric_v13.py
+
+      - name: Simulate detached panels connected by real cloth sewing springs
+        env:
+          BLENDER_OUT: out/sewn
+          SEW_SLACK: '1.00'
+          SEW_FRAMES: '40'
+        run: |
+          blender -b -t 2 --python-exit-code 3 --python blender/auto_furniture/real_sewing_lab.py
+
+      - name: Verify actual exported GLB and sewing evidence
+        run: |
+          python3 - <<'PY'
+          import json,struct
+          from pathlib import Path
+          from PIL import Image
+          root=Path('out/sewn')
+          report=json.loads((root/'sewing_report.json').read_text())
+          assert report['seam_loose_edges']>=300,report
+          assert report['simulated_displacement_m']>0.001,report
+          assert report['final_nonmanifold_edges']==0,report
+          assert report['seam_gap_before_snap_mean_m']<0.08,report
+          for name in ('real_sewn_cloth.png','real_sewn_cloth.glb','real_sewn_cloth.blend'):
+              assert (root/name).stat().st_size>30000,name
+          im=Image.open(root/'real_sewn_cloth.png')
+          assert im.width>=900 and im.height>=600
+          blob=(root/'real_sewn_cloth.glb').read_bytes()
+          assert blob[:4]==b'glTF'
+          n=struct.unpack_from('<I',blob,12)[0]
+          data=json.loads(blob[20:20+n])
+          assert len(data.get('meshes',[]))>=2
+          assert len(data.get('images',[]))>=3
+          assert any(m.get('normalTexture') and
+                     m.get('pbrMetallicRoughness',{}).get('metallicRoughnessTexture')
+                     for m in data.get('materials',[]))
+          print('SEWING_PHYSICS_GLTF_QA_OK',report)
+          PY
+
+      - name: Upload true sewing physics experiment, GLB, renders and report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: real-sewing-springs-study
+          path: |
+            out/sewn/real_sewn_cloth.glb
+            out/sewn/real_sewn_cloth.blend
+            out/sewn/real_sewn_cloth.png
+            out/sewn/sewing_report.json
+          if-no-files-found: warn
+          retention-days: 14

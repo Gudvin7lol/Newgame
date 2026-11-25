@@ -1,0 +1,71 @@
+name: StableGen compatibility test (no GPU)
+
+on:
+  push:
+    branches:
+      - feat/blender-furniture-lab
+    paths:
+      - "blender/stablegen_smoke.py"
+      - ".github/workflows/stablegen-compat.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  stablegen-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install official Blender 4.5.15 LTS (portable)
+        run: |
+          set -euo pipefail
+          mkdir -p .cache/blender
+          cd .cache/blender
+          curl -fL --retry 3 --connect-timeout 20 \
+            https://download.blender.org/release/Blender4.5/blender-4.5.15-linux-x64.tar.xz \
+            -o blender-4.5.15-linux-x64.tar.xz
+          curl -fL --retry 3 \
+            https://download.blender.org/release/Blender4.5/blender-4.5.15.sha256 \
+            -o SHA256SUMS
+          grep 'blender-4.5.15-linux-x64.tar.xz' SHA256SUMS | sha256sum -c -
+          tar -xf blender-4.5.15-linux-x64.tar.xz
+          BIN="$PWD/blender-4.5.15-linux-x64/blender"
+          "$BIN" --version
+          echo "BLENDER_BIN=$BIN" >> "$GITHUB_ENV"
+
+      - name: Download official StableGen v0.4.0 Linux extension
+        run: |
+          set -euo pipefail
+          mkdir -p .cache/stablegen
+          curl -fL --retry 3 --connect-timeout 20 \
+            https://github.com/sakalond/StableGen/releases/download/v0.4.0/StableGen-0.4.0-linux-x64.zip \
+            -o .cache/stablegen/StableGen-0.4.0-linux-x64.zip
+          unzip -t .cache/stablegen/StableGen-0.4.0-linux-x64.zip | tail -2
+          unzip -Z1 .cache/stablegen/StableGen-0.4.0-linux-x64.zip | head -25 || true
+          sha256sum .cache/stablegen/StableGen-0.4.0-linux-x64.zip
+
+      - name: Install add-on to Blender without ComfyUI
+        run: |
+          set -euo pipefail
+          "$BLENDER_BIN" --command extension install-file \
+            "$PWD/.cache/stablegen/StableGen-0.4.0-linux-x64.zip" \
+            --repo user_default
+
+      - name: Check registration only, not AI inference
+        env:
+          SMOKE_OUT: out/stablegen
+        run: |
+          "$BLENDER_BIN" -b -t 2 --python-exit-code 3 --python blender/stablegen_smoke.py
+
+      - name: Save compatibility report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stablegen-compatibility-report
+          path: out/stablegen/
+          if-no-files-found: warn
+          retention-days: 7
