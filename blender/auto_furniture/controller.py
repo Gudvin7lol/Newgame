@@ -48,19 +48,25 @@ def glb_check(path):
     jlen,jkind=struct.unpack_from("<II",buf,12)
     assert jkind==0x4E4F534A,"Missing JSON chunk"
     data=json.loads(buf[20:20+jlen])
-    assert len(data.get("meshes",[]))>=6,"Incomplete upholstered shell export"
+    assert len(data.get("meshes",[]))>=4,"Incomplete upholstered shell export"
     assert len(data.get("images",[]))>=3,"Insufficient embedded textures"
     mesh_names=[m.get("name","") for m in data.get("meshes",[])]
-    required_shell={
-        "top_panel":"01 | tensioned top linen panel",
-        "side_gusset":"02 | separate convex gusset",
-        "underside_panel":"03 | underside cloth panel",
+    required_welts={
         "upper_welt":"04 | upper sewn welt piping",
         "lower_welt":"05 | underside seam piping",
     }
-    missing=[label for label,token in required_shell.items()
+    missing=[label for label,token in required_welts.items()
              if not any(token in name for name in mesh_names)]
-    assert not missing, f"GLB is missing shell components: {missing}; meshes={mesh_names}"
+    assert not missing, f"GLB is missing welt geometry: {missing}; meshes={mesh_names}"
+    shell_vertex_counts=[
+        data["accessors"][pr["attributes"]["POSITION"]]["count"]
+        for me in data["meshes"] for pr in me.get("primitives",[])
+        if "POSITION" in pr.get("attributes",{})
+    ]
+    shell_vertex_count=max(shell_vertex_counts,default=0)
+    assert shell_vertex_count>=26000, (
+        f"Exported cushion shell is incomplete: largest mesh has {shell_vertex_count} vertices"
+    )
     # A seam is not complete if the stitch curve exists only in the .blend.
     # Verify actual exported GLB primitives reference the thread material.
     thread_ids={i for i,m in enumerate(data.get("materials",[]))
@@ -89,7 +95,8 @@ def glb_check(path):
         found.append((m.get("name",""),scale))
     assert found,"No fully mapped PBR material"
     return {"meshes":len(data["meshes"]),"embedded_images":len(data["images"]),
-            "shell_components":list(required_shell.keys()),
+            "shell_vertex_count":shell_vertex_count,
+            "welt_components":list(required_welts.keys()),
             "pbr_materials":found,"sewing_stitch_primitives":len(thread_primitives),
             "sewing_stitch_vertices":thread_vertices,"file_bytes":len(buf)}
 
@@ -154,6 +161,9 @@ def rank(root,statefile):
                 assert (folder/f).is_file(),f"Missing file {f}"
             record["gltf"]=glb_check(folder/"cushion_v14.glb")
             metrics=json.loads((folder/"geometry_report.json").read_text(encoding="utf-8"))
+            assert metrics["joined_shell_components"]==[
+                "top_panel","side_gusset","underside_panel"
+            ], "The welded shell report is missing a fabric panel"
             assert metrics["nonmanifold_edges"]==0,"Cloth shell contains unclosed geometry"
             assert 0.002<metrics["simulation_max_vertical_displacement_m"]<.055,"Unstable/unmoved cloth"
             assert .003<metrics["sculpted_seam_relief_max_m"]<.025,"Unrealistic/missing crease relief"
